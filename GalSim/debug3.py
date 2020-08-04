@@ -556,8 +556,8 @@ def main(argv):
                 
             except:
                 logger.info('Galaxy %d has failed, skipping...',k)
-                pdb.set_trace()
-                #pass
+                #pdb.set_trace()
+                pass
         
 
         ####
