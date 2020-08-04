@@ -364,7 +364,7 @@ def main(argv):
         observation.  However, we whiten the noise of the final image so the final image has
         stationary Gaussian noise, rather than correlated noise.
     """
-    logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
+    logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stdout)
     global logger
     logger = logging.getLogger("mock_superbit_data")
 
