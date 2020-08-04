@@ -118,7 +118,7 @@ def get_wcs_info(psfname):
     return imw[0]
 
 
-def make_a_galaxy(ud,wcs,psf,affine):
+def make_a_galaxy(ud,wcs,affine):
     """
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
@@ -248,11 +248,13 @@ def make_a_galaxy(ud,wcs,psf,affine):
         galaxy_truth.final_sigmaSize=stamp.FindAdaptiveMom().moments_sigma
         galaxy_truth.nopsf_sigmaSize=semifinal.FindAdaptiveMom().moments_sigma
     except:
-        pdb.set_trace()
+        
         logger.debug('failed at FWHM/mom_size stage')        
         galaxy_truth.fwhm=-9999.0
         galaxy_truth.mom_size=stamp.FindAdaptiveMom().moments_sigma
-       
+        galaxy_truth.final_sigmaSize=-9999.0
+        galaxy_truth.nopsf_sigmaSize=-9999.0
+      
     try:
         galaxy_truth.g1_nopsf=semifinal.FindAdaptiveMom().observed_shape.g1
         galaxy_truth.g2_nopsf=semifinal.FindAdaptiveMom().observed_shape.g2
@@ -265,7 +267,7 @@ def make_a_galaxy(ud,wcs,psf,affine):
     return stamp, galaxy_truth
 
 
-def make_a_star(ud,wcs=None,psf=None,affine=None):
+def make_a_star(ud,wcs=None,affine=None):
     #star_flux = 1.e5    # total counts on the image
     #star_sigma = 2.     # arcsec
     
@@ -330,12 +332,16 @@ def make_a_star(ud,wcs=None,psf=None,affine=None):
     logger.debug('made it through star recentering and flux adding')
     
     try:
-        star_truth.fwhm=final.CalculateFWHM()
-        star_truth.mom_size=star_stamp.FindAdaptiveMom().moments_sigma
+        star_truth.fwhm=final.calculateFWHM()
+        #star_truth.mom_size=star_stamp.FindAdaptiveMom().moments_sigma
+        star_truth.final_sigmaSize=star_stamp.FindAdaptiveMom().moments_sigma
+        star_truth.nopsf_sigmaSize=-9999.
+
     except:
         #pdb.set_trace()
         star_truth.fwhm=-9999.0
-        star_truth.mom_size=-9999.0
+        star_truth.final_sigmaSize=-9999.
+        star_truth.nopsf_sigmaSize=-9999.
 
     """
     
@@ -390,6 +396,7 @@ def main(argv):
     global lam
     lam = 587                            # Central wavelength for an airy disk
     global exp_time
+    exp_time = 300
     global noise_variance
     global sky_level
    
@@ -431,23 +438,18 @@ def main(argv):
     ### WITHIN EACH PSF, ITERATE 5 TIMES TO MAKE 5 SEPARATE IMAGES
     ###
     #all_psfs=glob.glob(psf_path+"/*.psf")
-    all_psfs=glob.glob(psf_path+"/*300*.psf")
-    logger.info('Beginning loop over jitter/optical psfs')
+    #all_psfs=glob.glob(psf_path+"/*300*.psf")
+
     random_seed = 34509376814
     
     i=0
-    for psf_filen in all_psfs:
+    for psf_filen in range(5):
         
         logger.info('Beginning PSF %s...'% psf_filen)
         rng = galsim.BaseDeviate(random_seed)
 
-        # This is specific to empirical PSFs
-        
-        try:
-            timescale=psf_filen.split('target_')[1].split('_WCS')[0]
-        except:
-            timescale=psf_filen.split('sci_')[1].split('_WCS')[0]
-        
+        timescale=str(exp_time)
+       
         outname=''.join(['mockSuperbit_shear_',timescale,'_',str(i),'.fits'])
         truth_file_name=''.join(['./output-debug/truth_shear_',timescale,'_',str(i),'.dat'])
         file_name = os.path.join('output-debug',outname)
@@ -471,11 +473,11 @@ def main(argv):
                 
         # Setting up a truth catalog
         names = [ 'gal_num', 'x_image', 'y_image',
-                      'ra', 'dec', 'g1_nopsf', 'g2_nopsf','g1_meas', 'g2_meas', 'fwhm','mom_size',
-                      'nfw_g1', 'nfw_g2', 'nfw_mu', 'redshift','flux', 'stamp_sum', 'noisevar']
+                      'ra', 'dec', 'g1_nopsf', 'g2_nopsf','g1_meas', 'g2_meas', 'fwhm','final_sigmaSize',
+                      'nopsf_sigmaSize','nfw_g1', 'nfw_g2', 'nfw_mu', 'redshift','flux', 'stamp_sum', 'noisevar']
         types = [ int, float, float, float, float, float,
                       float, float, float, float, float, float,
-                      float, float, float, float,float, float]
+                      float, float,float, float, float,float, float]
         truth_catalog = galsim.OutputCatalog(names, types)
 
         # Set up the image:
@@ -507,11 +509,12 @@ def main(argv):
         
         # Now let's read in the PSFEx PSF model.  We read the image directly into an
         # InterpolatedImage GSObject, so we can manipulate it as needed
+        """
         psf_wcs=wcs
         psf_file = os.path.join(psf_path,psf_filen)
         psf = galsim.des.DES_PSFEx(psf_file,wcs=psf_wcs)
         logger.info('Constructed PSF object from PSFEx file')
-
+        """
         # Loop over galaxy objects:
 
         for k in range(nobj):
@@ -523,7 +526,7 @@ def main(argv):
             try: 
                 # make single galaxy object
                 logger.debug("about to make stamp %d...",k)
-                stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,psf=psf,affine=affine)
+                stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,affine=affine)
                 logger.debug("stamp %d is made",k)
                 # Find the overlapping bounds:
                 bounds = stamp.bounds & full_image.bounds
@@ -547,16 +550,14 @@ def main(argv):
                     g2_real=-9999.
                 logger.debug("Galaxy %d made it past g1/g2_real stage",k)
                 sum_flux=numpy.sum(stamp.array)
-                row = [ k,truth.x, truth.y, truth.ra, truth.dec, 
-                            truth.g1_nopsf, truth.g2_nopsf, g1_real, g2_real, truth.fwhm, truth.mom_size, truth.g1,
-                            truth.g2, truth.mu, truth.z, truth.flux, sum_flux, truth.variance]
+                row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1_nopsf, truth.g2_nopsf, g1_real, g2_real, truth.fwhm, truth.final_sigmaSize, truth.nopsf_sigmaSize,truth.g1,truth.g2, truth.mu, truth.z, truth.flux, sum_flux, truth.variance]
                 truth_catalog.addRow(row)
                 logger.debug("row for galaxy %d added to truth catalog\n\n",k)
                 
             except:
                 logger.info('Galaxy %d has failed, skipping...',k)
-                #pdb.set_trace()
-                pass
+                pdb.set_trace()
+                #pass
         
 
         ####
@@ -591,7 +592,7 @@ def main(argv):
                 this_var = -9999.
                 sum_flux=numpy.sum(star_stamp.array)
                 row = [ k,truth.x, truth.y, truth.ra, truth.dec, 
-                           truth.g1_nopsf, truth.g2_nopsf, g1_real, g2_real, truth.fwhm, truth.mom_size, truth.g1,
+                           truth.g1_nopsf, truth.g2_nopsf, g1_real, g2_real, truth.fwhm, truth.final_sigmaSize, truth.nopsf_sigmaSize, truth.g1,
                             truth.g2, truth.mu, truth.z, truth.flux, sum_flux, truth.variance]
                 truth_catalog.addRow(row)
                             
