@@ -280,7 +280,7 @@ class BITMeasurement():
         os.system(cmd)
         return detection_file,weight_file
 
-    def _select_sources_from_catalog(self,fullcat,catname='catalog.ldac',min_size =1.0,max_size=14.0,size_key='FLUX_RADIUS'):
+    def _select_sources_from_catalog(self,fullcat,catname='catalog.ldac',min_size =1.0,max_size=14.0,size_key='KRON_RADIUS'):
         # Choose sources based on quality cuts on this catalog.
         keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
         self.catalog = self.catalog[keep.nonzero()[0]]
@@ -479,7 +479,7 @@ class BITMeasurement():
         if catalog is None:
             catalog = self.catalog
 
-        """
+        
         obj_str = meds.util.get_meds_input_struct(catalog.size,extra_fields = [('KRON_RADIUS',np.float),('number',np.int)])
         obj_str['id'] = catalog['NUMBER']
         obj_str['number'] = np.arange(catalog.size)+1
@@ -495,7 +495,7 @@ class BITMeasurement():
         obj_str['ra'] = catalog['ALPHAWIN_J2000']
         obj_str['dec'] = catalog['DELTAWIN_J2000']
         obj_str['FLUX_RADIUS'] = catalog['FLUX_RADIUS']
-       
+        """
         return obj_str
 
 
