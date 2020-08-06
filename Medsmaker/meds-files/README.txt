@@ -1,0 +1,1 @@
+This directory contains the output of running medsmaker_debug.py on a set of simulated superbit images. Some meds files are standalone, but in the case of e.g. medsmaker_debug run with KRON_RAD (rather than FLUX_RADIUS) the entire output directory has been copied over, including PSFEx files and coadds. 
