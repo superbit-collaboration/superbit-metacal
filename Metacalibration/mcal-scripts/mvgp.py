@@ -79,12 +79,30 @@ shear_1m = galsim.Shear(g1=-1*shear_step, g2 = 0.0)
 gal_1p = noshear.shear(shear_1p)
 gal_1m = noshear.shear(shear_1m)
 
+gal1p_im = gal_1p.drawImage(scale=pixel_scale)
+gal1m_im = gal_1m.drawImage(scale=pixel_scale)
+
+sigma_1p = gal1p_im.FindAdaptiveMom().moments_sigma
+shape_1p = gal1p_im.FindAdaptiveMom().observed_shape
+
+sigma_1m = gal1m_im.FindAdaptiveMom().moments_sigma
+shape_1m = gal1m_im.FindAdaptiveMom().observed_shape
+
 # 2p/2m
 
 shear_2p = galsim.Shear(g1=shear_step, g2 = 0.0)
 shear_2m = galsim.Shear(g1=-1*shear_step, g2 = 0.0)
 gal_2p = noshear.shear(shear_2p)
 gal_2m = noshear.shear(shear_2m)
+
+gal2p_im = gal_2p.drawImage(scale=pixel_scale)
+gal2m_im = gal_2m.drawImage(scale=pixel_scale)
+
+sigma_2p = gal2p_im.FindAdaptiveMom().moments_sigma
+shape_2p = gal2p_im.FindAdaptiveMom().observed_shape
+
+sigma_2m = gal2m_im.FindAdaptiveMom().moments_sigma
+shape_2m = gal2m_im.FindAdaptiveMom().observed_shape
 
 
 
