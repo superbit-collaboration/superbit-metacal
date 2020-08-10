@@ -14,6 +14,7 @@ import pdb
 import scipy
 import seaborn as sns
 import meds
+import ngmix
 
 sns.set()
 
@@ -23,7 +24,7 @@ sns.set()
 ### 
 ########################################################################
 
-python ngmix_fit_testing.py debug3.meds 1000 1010 testfile.asc
+python ngmix_fit_superbit.py meds_files/debug-0.538-PSFscale-kronrad.meds 1200 1210 gauss-psf.test.asc
 
 python make_annular_catalog.py mock_empirical_debug_coadd_cat.ldac mcal-0.538-PsfScale.csv mcal-0.538PsfScale-fit*asc
 
@@ -42,12 +43,70 @@ annular -c"X_IMAGE Y_IMAGE g1_meas g2_meas" -f"nfw_mu >1" -s 250 -e 4000 -n 20 t
 
 annular -c"X_IMAGE Y_IMAGE g1 g2" -s 250 -e 4000 -n 20 fitvd-debug3.fiat 3511 2349 > fitvd-5e15-shear.annular
 
-annular -c"X_IMAGE Y_IMAGE g1_MC g2_MC" -s 200 -e 4000 -n 20 mcal-0.538-PsfScale.fiat 3511 2349 >  mcal-0.538-PsfScale-MC.annular
+annular -c"X_IMAGE Y_IMAGE g1_MC g2_MC" -s 250 -e 4000 -n 20 mcal-0.538-PsfScale.fiat 3511 2349 >  mcal-0.538-PsfScale-MC.annular
 
-annular -c"X_IMAGE Y_IMAGE g1_gmix g2_gmix" -s 200 -e 4000 -n 20 mcal-0.206-PsfScale.fiat 3511 2349  > mcal-0.206-PsfScale-gmix.annular
+annular -c"X_IMAGE Y_IMAGE g1_MC g2_MC" -s 200 -e 4000 -n 20 mcal-0.8FWHM.fiat 3511 2349  > mcal-0.206-PsfScale-MC.annular
 
 
-python annular_jmac.py fitvd-5e15-shear.asc X_IMAGE Y_IMAGE g1 g2 
+python annular_jmac.py fitvd-5e15-shear.asc X_IMAGE Y_IMAGE g1 g2
+
+
+########################################################################
+##
+##  Debugging T/PSF/etc issues in metacal
+##  (this is basically ngmix_fit_superbit, copied over for ipython sesh)
+##
+########################################################################
+
+medsObj=meds.MEDS('/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/debug3-kron/debug-0.538-PSFscale-kronrad.meds')
+index = 1060
+psf = medsObj.get_cutout(index,0,type='psf')
+im = medsObj.get_cutout(index,0,type='image') 
+weight = medsObj.get_cutout(index,0,type='weight')
+
+jj = medsObj.get_jacobian(index,0)
+jac = ngmix.Jacobian(row=jj['row0'],col=jj['col0'],dvdrow = jj['dvdrow'],dvdcol=jj['dvdcol'],dudrow=jj['dudrow'],dudcol=jj['dudcol'])
+
+psf_noise = 1e-6
+this_psf = psf + 1e-6*np.random.randn(psf.shape[0],psf.shape[1])
+this_psf_weight = np.zeros_like(this_psf) + 1./psf_noise**2
+
+psfObs = ngmix.observation.Observation(this_psf,weight = this_psf_weight, jacobian = jac) # can I add a kw for no_pix here???
+imageObs = ngmix.observation.Observation(image=im,weight = weight, jacobian = jac, psf = psfObs)
+
+# This contains all 1p/1m 2p/2m noshear information, like im, jac,
+# and contains spaces where gmix information will be stored
+metaobs = ngmix.metacal.get_all_metacal(imageObs)
+mcb=ngmix.bootstrap.MaxMetacalBootstrapper(imageObs)
+
+# This will return sigma, etc. of psf of medsObj
+# Then multiply by pixscale & scale to get FWHM
+psfim=galsim.Image(psf,scale=0.206)
+psfmom = psfim.FindAdaptiveMom()
+psfmom.moments_sigma*.206*2.355
+
+# What about when we load the PSF with galsim.des.DES_PSFEx?
+# Importing with filename, because galsim knows how to apply WCS
+psf_name = '/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/debug3-kron/psfex_output/mockSuperbit_shear_300_1_cat.psf'
+im_name = '/Users/jemcclea/Research/GalSim/examples/output-debug/0.4FWHM/mockSuperbit_shear_300_1.fits'
+psf_DES = galsim.des.DES_PSFEx(psf_name, im_name) # Do I need to add no_pixel kw here????
+psf_DES.sample_scale # yields 0.54230469...
+image_pos = galsim.PositionD(2350,2389)   
+plt.imshow(psf_DES.getPSFArray(image_pos))
+this_psf_des = psf_DES.getPSF(image_pos=image_pos) # returns a whole bunch of attributes; do I need to add no_pixel kw here?
+this_psf_des.calculateFWHM() # wait this is STILL too large!!!
+
+# enough screwing around; let's do a maxMetacalBootstrap()
+# started by defining _get_priors as in ngmix_fit_superbit.py...
+prior = _get_priors()
+psf_model='em5'
+gal_model='gauss'
+ntry=3
+Tguess=4*imageObs.jacobian.get_scale()**2
+#Tguess=0.169744
+metacal_pars={'step': 0.01}
+mcb.fit_metacal(psf_model, gal_model, max_pars, Tguess, prior=prior, ntry=ntry,metacal_pars=metacal_pars)
+mcr = mcb.get_metacal_result() # this is a dict
 
 ########################################################################
 ##

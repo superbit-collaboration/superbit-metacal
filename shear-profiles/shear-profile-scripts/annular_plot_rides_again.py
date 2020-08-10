@@ -10,11 +10,13 @@ rc('text', usetex=True)
 
 import matplotlib.pyplot as plt
 from astropy.table import Table
+import seaborn as sns
+sns.set()
 
 plt.ion()
 
 
-data=Table.read('/Users/jemcclea/Research/SuperBIT/shear_profiles/debug3/metacal-debug3-shear-MC.annular',format='ascii')
+data=Table.read('/Users/jemcclea/Research/SuperBIT/superbit-metacal/shear-profiles/mcal-0.95FWHM-gmix.annular',format='ascii')
 data.sort('col1') # get in descending order
 radius=data['col1']#[:-1]
 radius=radius*.206/60.
@@ -67,15 +69,15 @@ rcParams['ytick.direction'] = 'out'
 fig, axs = plt.subplots(2,1,figsize=(10,6),sharex=True)#,sharey=True)
 fig.subplots_adjust(hspace=0.1)
 
-axs[0].errorbar(radius,etan,yerr=shear1err,xerr=rad_err,fmt='o',capsize=5, label=r'Mcal ``$g_{MC}$" PsfScale=0.538')
+axs[0].errorbar(radius,etan,yerr=shear1err,xerr=rad_err,fmt='o',capsize=5, label='0.95" FWHM + default PSF scale')
 axs[0].axhline(y=0,c="black",alpha=0.4,linestyle='--')
 axs[0].set_ylabel(r'$g_{+}(\theta)$',fontsize=16)
 axs[0].tick_params(which='major',width=1.3,length=8)
 axs[0].tick_params(which='minor',width=0.8,length=4)
-axs[0].set_title('Gaussian PSF (Debug) 5E15 NFW Shear Signal',fontsize=16)
+axs[0].set_title('Gaussian PSF \& 5E15 NFW Metacalibrated Shear',fontsize=16)
 axs[0].set_ylim(-0.05,0.4)
 
-axs[1].errorbar(radius,ecross,xerr=rad_err,yerr=shear2err,fmt='d',capsize=5,alpha=0.5,label=r'Mcal ``$g_{MC}$" PsfScale=0.538')
+axs[1].errorbar(radius,ecross,xerr=rad_err,yerr=shear2err,fmt='d',capsize=5,alpha=0.5,label=r'0.95" FWHM + default PSF scale')
 axs[1].axhline(y=0,c="black",alpha=0.4,linestyle='--')
 axs[1].set_xlabel(r'$\theta$ (arcmin)',fontsize=16)
 axs[1].set_ylabel(r'$g_{\times}(\theta)$',fontsize=16)
@@ -91,7 +93,10 @@ axs[1].legend()
 #####
 
 
-data2=Table.read('/Users/jemcclea/Research/SuperBIT/shear_profiles/debug3/metacal-debug3-shear-gmix.annular',format='ascii')
+
+
+
+data2=Table.read('/Users/jemcclea/Research/SuperBIT/superbit-metacal/shear-profiles/metacal-debug3-shear-gmix.annular',format='ascii')
 data2.sort('col1') # get in descending order
 radius2=data2['col1']#[:-1]
 radius2=radius2*.206/60.
@@ -131,8 +136,8 @@ rad_err2=np.vstack([lower_err,upper_err])
 
 #pre-PSF truthcat shape
 
-axs[0].errorbar(radius2,etan2,yerr=shear1err2,xerr=rad_err2,fmt='s',capsize=5,label=r'Metacal ``$g_{gmix}$" psfscale = 0.538')
-axs[1].errorbar(radius2,ecross2,xerr=rad_err2,yerr=shear2err2,fmt='s',capsize=5,alpha=0.5,label=r'Metacal ``$g_{gmix}$" psfscale = 0.538')
+axs[0].errorbar(radius2,etan2,yerr=shear1err2,xerr=rad_err2,fmt='s',capsize=5,label='0.4" FWHM + default PSF scale')
+axs[1].errorbar(radius2,ecross2,xerr=rad_err2,yerr=shear2err2,fmt='s',capsize=5,alpha=0.5,label='0.4" FWHM + default PSF scale')
 
 axs[1].legend()
 
