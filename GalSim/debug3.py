@@ -423,7 +423,7 @@ def main(argv):
     dir = 'data/COSMOS_23.5_training_sample'
     #cat_file_name = 'real_galaxy_catalog_23.5_example.fits'
     #dir = 'data'
-    cosmos_cat = galsim.COSMOSCatalog(cat_file_name, dir=dir)
+    cosmos_cat = galsim.COSMOSCatalog()#cat_file_name, dir=dir)
     logger.info('Read in %d galaxies from catalog', cosmos_cat.nobjects)
     
     # The catalog returns objects that are appropriate for HST in 1 second exposures.  So for our

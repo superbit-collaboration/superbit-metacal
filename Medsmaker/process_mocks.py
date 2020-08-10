@@ -4,9 +4,10 @@ import glob
 import pdb, traceback
 import esutil as eu
 # Get the location of the main superbit package.
-dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0,dir)
-from superbit import medsmaker_debug as medsmaker
+#dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+#sys.path.insert(0,dir)
+#from superbit import medsmaker_debug as medsmaker
+import medsmaker_debug as medsmaker
 
 # Start by making a directory...
 if not os.path.exists('../Data/calib'):
