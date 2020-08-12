@@ -24,7 +24,7 @@ sns.set()
 ### 
 ########################################################################
 
-python ngmix_fit_superbit.py meds_files/debug-0.538-PSFscale-kronrad.meds 1200 1210 gauss-psf.test.asc
+python ngmix_fit_testing.py meds_files/debug-bkgSub.meds 1200 1210 bkg-sub.test.asc
 
 python make_annular_catalog.py mock_empirical_debug_coadd_cat.ldac mcal-0.538-PsfScale.csv mcal-0.538PsfScale-fit*asc
 
@@ -58,7 +58,7 @@ python annular_jmac.py fitvd-5e15-shear.asc X_IMAGE Y_IMAGE g1 g2
 ##
 ########################################################################
 
-medsObj=meds.MEDS('/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/debug3-kron/debug-0.538-PSFscale-kronrad.meds')
+medsObj=meds.MEDS('/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/debug3-noshear/debug3-noshear.meds')
 index = 1060
 psf = medsObj.get_cutout(index,0,type='psf')
 im = medsObj.get_cutout(index,0,type='image') 

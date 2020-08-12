@@ -8,11 +8,21 @@ mcal_shear = 0.01
 #true_shear = -0.02
 true_shear = 0.05
 
-gal_ideal = galsim.InclinedExponential(80*galsim.degrees,half_light_radius=1.).rotate(20*galsim.degrees)
+
+# Set up realistic observation parameters
+random_seed = 6222019; ud = galsim.UniformDeviate(random_seed+1)
+`
+
+gal_ideal = galsim.InclinedExponential(80*galsim.degrees,half_light_radius=1.,flux=7000).rotate(20*galsim.degrees)
 psf = galsim.Gaussian(fwhm=.5)
-psf_metacal = galsim.Gaussian(fwhm=0.5*(1+2*mcal_shear))
 gal_ideal_observed = galsim.Convolve([gal_ideal,psf])
 gal_ideal_image = gal_ideal_observed.drawImage(scale=0.206)
+
+sky_image = galsim.ImageF(gal_ideal_image)
+sky_level = 106
+sky_image.fill(sky_level)
+gal_ideal_image+= sky_image # add a flat sky noise to image
+
 psf_image = psf.drawImage(scale=0.206)
 psf_weight_image = np.ones_like(psf_image.array)*1e9
 weight_image = np.ones_like(gal_ideal_image.array)*1e9
@@ -45,6 +55,16 @@ R1 = (result['1p'][0] - result['1m'][0])/(2*mcal_shear)
 R2 = (result['2p'][1] - result['2m'][1])/(2*mcal_shear)
 print(f"R1: {R1:.3} \nR2:{R2:.3} ")
 
+# To just make a checkplot:
+
+ikey = '1p'
+boot = ngmix.Bootstrapper(mcal_obs[ikey])
+boot.fit_psfs('gauss',1.)
+boot.fit_max('exp',max_pars)
+gm_1p = boot.get_fitter().get_convolved_gmix()
+im_1p=gm_1p.make_image(gal_ideal_image.array.shape, jacobian=jac)
+plt.imshow(im_1p)
+
 gal_sheared = gal_ideal.shear(galsim.Shear(g1=true_shear,g2=0.0))
 gal_sheared_observed = galsim.Convolve([gal_sheared,psf_metacal])
 gal_sheared_image = gal_sheared_observed.drawImage(scale=0.206)
@@ -58,20 +78,22 @@ psf_metacal_obs = ngmix.Observation(psf_metacal_image.array,weight=psf_weight_im
 gal_sheared_obs = ngmix.Observation(gal_sheared_image.array,weight=gal_sheared_weight,jacobian=jj_im,psf=psf_metacal_obs)
 
 
-boot.get_fitter().get_result() 
-boot = ngmix.Bootstrapper(gal_sheared_obs)
+
+boot = ngmix.Bootstrapper(gal_obs)
 boot.fit_psfs('gauss',1.)
 boot.fit_max('exp',max_pars)
 res = boot.get_fitter().get_result()
 
-# Shapes without metacal:
-
-
-# Predicted e1 shape:
-e1_pred = result['noshear'][0] + true_shear * R1
-print(f"Measured e1:\n  {res['g'][0]:.4f}")
-print(f"Metacal predicted e1:\n  {e1_pred:.4f}")
 
 # Show the fits:
 fig,(ax1,ax2,ax3) = plt.subplots(nrows=1,ncols=3)
-ax1.imshow(gal_sheared_obs.image,origin='lower')
+ax1.imshow(gal_ideal_image.array,origin='lower')#),vmin=-20,vmax=350)
+
+# model image
+gm=boot.get_fitter().get_convolved_gmix()
+model_im = gm.make_image(gal_ideal_image.array.shape, jacobian=jj_im) 
+ax2.imshow(model_im,origin='lower')#,vmin=-20,vmax=350)
+
+#diff
+ax3.imshow((gal_ideal_image.array - model_im),origin='lower')#,vmin=-20,vmax=350)
+

@@ -128,12 +128,14 @@ class SuperBITNgmixFitter():
         # Choose priors
         prior = self._get_priors()
         # Construct an initial guess.
-        psf_model='em5'
+        #psf_model='em5'
+        psf_model = 'gauss'
         gal_model='gauss'
         ntry=3
         Tguess=4*obslist[0].jacobian.get_scale()**2
         #Tguess=0.169744
         metacal_pars={'step': 0.01}
+        psf_fit_pars={'fwhm': 1.94} # in pixels
         
         try:
             # #
@@ -147,7 +149,8 @@ class SuperBITNgmixFitter():
                                 Tguess, 
                                 prior=prior,  
                                 ntry=ntry, 
-                                metacal_pars=metacal_pars)
+                                metacal_pars=metacal_pars,
+                                psf_pars = psf_fit_pars)
             
             # # # Was fit successful? If not, set metacal result object to None
             try:

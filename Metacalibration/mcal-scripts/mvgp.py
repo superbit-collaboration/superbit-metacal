@@ -21,6 +21,8 @@ import ngmix
 Snippets to generate a minimum viable galsim product, and make sure that responsivity
 is what wre would expect
 
+NOTE: THIS IS NOT STRICTLY CORRECT BECAUSE I D
+
 """
 
 ###
@@ -90,8 +92,8 @@ shape_1m = gal1m_im.FindAdaptiveMom().observed_shape
 
 # 2p/2m
 
-shear_2p = galsim.Shear(g1=shear_step, g2 = 0.0)
-shear_2m = galsim.Shear(g1=-1*shear_step, g2 = 0.0)
+shear_2p = galsim.Shear(g1=0.00, g2 = shear_step)
+shear_2m = galsim.Shear(g1=0.00, g2 = -1*shear_step)
 gal_2p = noshear.shear(shear_2p)
 gal_2m = noshear.shear(shear_2m)
 
@@ -104,5 +106,14 @@ shape_2p = gal2p_im.FindAdaptiveMom().observed_shape
 sigma_2m = gal2m_im.FindAdaptiveMom().moments_sigma
 shape_2m = gal2m_im.FindAdaptiveMom().observed_shape
 
+###
+### Compute responsivity
+###
+
+r11 = (shape_1p.g1 - shape_1m.g1)/0.02
+r22 = (shape_2p.g2 - shape_2m.g2)/0.02
+
+g1_resp = noshear_shape.g1/r11
+g2_resp = noshear_shape.g2/ r22
 
 
