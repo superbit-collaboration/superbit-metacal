@@ -288,7 +288,7 @@ class BITMeasurement():
         print("Also selecting on FWHM...") # Adapt based on needs of data
         #keep2 = (self.catalog['SNR_WIN']>=10) & (self.catalog['SNR_WIN']<=150) & (self.catalog['CLASS_STAR']<=0.8) & (self.catalog['FLAGS']<17)
         #keep2 = (self.catalog['SNR_WIN']>=5) & (self.catalog['SNR_WIN']<=150) & (self.catalog['CLASS_STAR']<=0.7) & (self.catalog['FLAGS']<17)
-        keep2 = (self.catalog['FWHM_IMAGE']>2.375) 
+        keep2 = (self.catalog['FWHM_IMAGE']>2.95) 
         self.catalog = self.catalog[keep2.nonzero()[0]]
         
         # Also write trimmed catalog to file
@@ -312,7 +312,7 @@ class BITMeasurement():
         This returns catalog for (stacked) detection image
         '''
         #outfile_name='mock_empirical_psf_coadd.fits'; weightout_name='mock_empirical_psf_coadd.weight.fits'
-        outfile_name='mock_empirical_debug_coadd.fits'; weightout_name='mock_empirical_debug_coadd.weight.fits'
+        outfile_name='mock_shear_debug_coadd.fits'; weightout_name='mock_shear_debug_coadd.weight.fits'
         detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
         #detection_file='./tmp/A2218_coadd.fits'; weight_file='./tmp/A2218_coadd.weight.fits'
         
@@ -323,7 +323,9 @@ class BITMeasurement():
         param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
         nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
         filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
-        cmd = ' '.join(['sex',detection_file,weight_arg,name_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
+        bkgname=outfile_name.replace('.fits','.sub.fits')
+        bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
+        cmd = ' '.join(['sex',detection_file,weight_arg,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
         print("sex cmd is " + cmd)
         os.system(cmd)
         try:
@@ -365,8 +367,12 @@ class BITMeasurement():
         sextractor_nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
         sextractor_filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
         imcat_ldac_name=imagefile.replace('.fits','_cat.ldac')
+
+        bkgname=imagefile.replace('.fits','.sub.fits')
+        bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
+
         cmd = ' '.join(['sex',imagefile,'-WEIGHT_IMAGE',weightfile,'-c',sextractor_config_file,'-CATALOG_NAME ',
-                            imcat_ldac_name, sextractor_param_arg,sextractor_nnw_arg,sextractor_filter_arg])
+                            imcat_ldac_name, bkg_arg, sextractor_param_arg,sextractor_nnw_arg,sextractor_filter_arg])
         print("sex4psf cmd is " + cmd)
         os.system(cmd)
 
@@ -421,7 +427,9 @@ class BITMeasurement():
 
         i=0
         for image_file in self.image_files:
-            image_info[i]['image_path'] = image_file
+            bkgsub_name=image_file.replace('.fits','.sub.fits')
+
+            image_info[i]['image_path'] = bkgsub_name
             image_info[i]['image_ext'] = 0
             #image_info[i]['weight_path'] = self.weight_file
             # FOR NOW:
@@ -487,15 +495,8 @@ class BITMeasurement():
         obj_str['ra'] = catalog['ALPHAWIN_J2000']
         obj_str['dec'] = catalog['DELTAWIN_J2000']
         obj_str['KRON_RADIUS'] = catalog['KRON_RADIUS']
-        """
-        obj_str = meds.util.get_meds_input_struct(catalog.size,extra_fields = [('FLUX_RADIUS',np.float),('number',np.int)])
-        obj_str['id'] = catalog['NUMBER']
-        obj_str['number'] = np.arange(catalog.size)+1
-        obj_str['box_size'] = self._calculate_box_size(catalog['FLUX_RADIUS'])
-        obj_str['ra'] = catalog['ALPHAWIN_J2000']
-        obj_str['dec'] = catalog['DELTAWIN_J2000']
-        obj_str['FLUX_RADIUS'] = catalog['FLUX_RADIUS']
-        """
+       
+        
         return obj_str
 
 

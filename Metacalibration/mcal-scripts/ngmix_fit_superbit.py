@@ -88,7 +88,8 @@ class SuperBITNgmixFitter():
     
     def _get_jacobians(self,source_id = None):
         jlist = self.medsObj.get_jacobian_list(source_id)
-        jac = [ngmix.Jacobian(row=jj['row0'],col=jj['col0'],dvdrow = jj['dvdrow'],dvdcol=jj['dvdcol'],dudrow=jj['dudrow'],dudcol=jj['dudcol']) for jj in jlist]
+        jac = [ngmix.Jacobian(row=jj['row0'],col=jj['col0'],dvdrow = jj['dvdrow'],
+                                  dvdcol=jj['dvdcol'],dudrow=jj['dudrow'],dudcol=jj['dudcol']) for jj in jlist]
         return jac
     
     def _get_source_observations(self,source_id = None,psf_noise = 1e-6):
@@ -110,7 +111,8 @@ class SuperBITNgmixFitter():
             this_image = image_cutouts[i]
             this_image[~np.isfinite(this_image)] = 0.
             psfObs = ngmix.observation.Observation(this_psf,weight = this_psf_weight, jacobian = jaclist[i])
-            imageObs = ngmix.observation.Observation(image_cutouts[i],weight = weight_cutouts[i], jacobian = jaclist[i], psf = psfObs)
+            imageObs = ngmix.observation.Observation(image_cutouts[i],weight = weight_cutouts[i],
+                                                         jacobian = jaclist[i], psf = psfObs)
             image_obslist.append(imageObs)
             
         return image_obslist
@@ -130,7 +132,7 @@ class SuperBITNgmixFitter():
         # Construct an initial guess.
         #psf_model='em5'
         psf_model = 'gauss'
-        gal_model='gauss'
+        gal_model='exp'
         ntry=3
         Tguess=4*obslist[0].jacobian.get_scale()**2
         #Tguess=0.169744
