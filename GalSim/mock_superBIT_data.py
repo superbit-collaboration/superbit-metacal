@@ -374,7 +374,7 @@ def main(argv):
     global exp_time
     exp_time = 300
     global nobj
-    nobj = 3000                    # number of galaxies in entire field
+    nobj = 16250                # number of galaxies in entire field, based on COSMOS 25.2 depth
     global nstars
     nstars = 350                # number of stars in the entire field
     global flux_scaling           
