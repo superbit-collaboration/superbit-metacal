@@ -628,7 +628,7 @@ def main(argv):
 
             
             # If real-type COSMOS galaxies are used, the noise across the image won't be uniform. Since this code is
-            # using parametric-type galaxies, the following section is commented out.
+            # using parametric-type galaxies, the following section can be commented out.
             #
             # The first thing to do is to make the Gaussian noise uniform across the whole image.
                   
