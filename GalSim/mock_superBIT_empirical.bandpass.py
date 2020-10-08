@@ -294,7 +294,7 @@ def make_cluster_galaxy(ud,wcs,psf,affine,centerpix):
     
     # We use method='no_pixel' here because the SDSS PSF image that we are using includes the
     # pixel response already.
-    this_stamp_image = galsim.Image(128, 128,wcs=wcs.local(image_pos))
+    this_stamp_image = galsim.Image(256, 256,wcs=wcs.local(image_pos))
     cluster_stamp = final.drawImage(bandpass,image=this_stamp_image, offset=offset,method='no_pixel')
     cluster_stamp.setCenter(ix_nominal,iy_nominal)
     logger.debug('drew & centered galaxy!')    
@@ -349,16 +349,18 @@ def make_a_star(ud,wcs=None,psf=None,affine=None):
     shining_star = galsim.Airy(lam=lam, obscuration=0.3840, diam=tel_diam, scale_unit=galsim.arcsec,flux=star_flux)
     logger.debug('created star object with flux')
 
-    this_psf = psf.getPSF(image_pos)
-    #this_psf
-    star=galsim.Convolve([shining_star,this_psf])
-    # Final profile is the convolution of these
+    # Final profile is the convolution of PSF and galaxy image
     # Can include any number of things in the list, all of which are convolved
     # together to make the final flux profile.
+
+    this_psf = psf.getPSF(image_pos)
+    star=galsim.Convolve([shining_star,this_psf])    
     logger.debug('convolved star & psf')
   
-    # Account for the fractional part of the position
-    # cf. demo9.py for an explanation of this nominal position stuff.
+    # Account for the fractional part of the position, and
+    # recenter the stamp at the desired position.
+    # (cf. demo9.py for an explanation of  nominal position stuff.)
+    
     x_nominal = image_pos.x + 0.5
     y_nominal = image_pos.y + 0.5
     ix_nominal = int(math.floor(x_nominal+0.5))
@@ -366,10 +368,12 @@ def make_a_star(ud,wcs=None,psf=None,affine=None):
     dx = x_nominal - ix_nominal
     dy = y_nominal - iy_nominal
     offset = galsim.PositionD(dx,dy)
+    star_image = = galsim.Image(128, 128,wcs=wcs.local(image_pos))
     star_stamp = star.drawImage(wcs=wcs.local(image_pos),offset=offset, method='no_pixel')
-    logger.debug('made a star_stamp')
-    # Recenter the stamp at the desired position:
     star_stamp.setCenter(ix_nominal,iy_nominal)
+    logger.debug('made a star_stamp')
+    
+
     
     star_truth=truth()
     star_truth.ra = ra.deg; star_truth.dec = dec.deg

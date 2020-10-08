@@ -81,15 +81,16 @@ class SuperBITNgmixFitter():
         cen_prior,
         g_prior,
         T_prior,
-        F_prior,
-        )
+        F_prior)
     
         return priors
     
     def _get_jacobians(self,source_id = None):
+        """
+        jlist is a dict, jac is a list of ngmix Jacobians
+        """
         jlist = self.medsObj.get_jacobian_list(source_id)
-        jac = [ngmix.Jacobian(row=jj['row0'],col=jj['col0'],dvdrow = jj['dvdrow'],
-                                  dvdcol=jj['dvdcol'],dudrow=jj['dudrow'],dudcol=jj['dudcol']) for jj in jlist]
+        jac = [ngmix.Jacobian(row=jj['row0'],col=jj['col0'],dvdrow = jj['dvdrow'],dvdcol=jj['dvdcol'],dudrow=jj['dudrow'],dudcol=jj['dudcol']) for jj in jlist]
         return jac
     
     def _get_source_observations(self,source_id = None,psf_noise = 1e-6):
@@ -100,7 +101,7 @@ class SuperBITNgmixFitter():
         
         image_obslist = ngmix.observation.ObsList()
 
-        
+
         for i in range(len(image_cutouts)):
             
             # Apparently it likes to add noise to the psf.        
@@ -110,9 +111,16 @@ class SuperBITNgmixFitter():
             # zap image pixels that are not finite.
             this_image = image_cutouts[i]
             this_image[~np.isfinite(this_image)] = 0.
-            psfObs = ngmix.observation.Observation(this_psf,weight = this_psf_weight, jacobian = jaclist[i])
-            imageObs = ngmix.observation.Observation(image_cutouts[i],weight = weight_cutouts[i],
-                                                         jacobian = jaclist[i], psf = psfObs)
+            this_image[this_image <=0] = 1E-2
+            this_weight = np.ones_like(this_image)*1e9
+            
+            jj_im = ngmix.jacobian.DiagonalJacobian(scale=0.206,x=(this_image.shape[0])/2,y=(this_image.shape[1])/2)
+            jj_psf = ngmix.jacobian.DiagonalJacobian(scale=0.206,x=this_psf.shape[0]/2,y=this_psf.shape[1]/2)
+        
+            
+            psfObs = ngmix.observation.Observation(this_psf,weight = this_psf_weight, jacobian = jj_psf)
+            imageObs = ngmix.observation.Observation(this_image,weight = this_weight, jacobian = jj_im, psf = psfObs)
+            #imageObs.psf_nopix = imageObs.psf 
             image_obslist.append(imageObs)
             
         return image_obslist
@@ -125,19 +133,23 @@ class SuperBITNgmixFitter():
         if pars is None:
             lm_pars = {'maxfev':2000, 'xtol':5.0e-5, 'ftol':5.0e-5}
             max_pars = {'method':'lm','lm_pars':lm_pars}
-        # Get the catalog entry.
+        # Get the catalog entry. This is a list of an ngmix.observation.Observation
+        # instance for each snapshot (i.e., observation!) of the object
+        # at index "source_id"
+        #
+
         obslist = self._get_source_observations(source_id)
         # Choose priors
         prior = self._get_priors()
+        
         # Construct an initial guess.
-        #psf_model='em5'
-        psf_model = 'gauss'
+        psf_model='gauss'        
         gal_model='exp'
         ntry=3
-        Tguess=4*obslist[0].jacobian.get_scale()**2
-        #Tguess=0.169744
-        metacal_pars={'step': 0.01}
-        psf_fit_pars={'fwhm': 1.94} # in pixels
+        #Tguess=4*obslist[0].jacobian.get_scale()**2
+        Tguess=0.17
+        mcal_shear = 0.01
+        metacal_pars={'step': mcal_shear,'find_center':True}
         
         try:
             # #
@@ -145,62 +157,45 @@ class SuperBITNgmixFitter():
             # #
             # # star with a boostrapper.
             mcb=ngmix.bootstrap.MaxMetacalBootstrapper(obslist) 
-            mcb.fit_metacal(psf_model, 
-                                gal_model, 
-                                max_pars, 
-                                Tguess, 
-                                prior=prior,  
-                                ntry=ntry, 
-                                metacal_pars=metacal_pars,
-                                psf_pars = psf_fit_pars)
+            mcb.fit_metacal(psf_model, gal_model, max_pars, Tguess, prior=prior,  ntry=ntry, metacal_pars=metacal_pars)
             
             # # # Was fit successful? If not, set metacal result object to None
             try:
                 mcr = mcb.get_metacal_result()
                 self.metacal = mcr
+                R1 = (mcr['1p']['g'][0] - mcr['1m']['g'][0])/(2*mcal_shear)
+                R2 = (mcr['2p']['g'][1] - mcr['2m']['g'][1])/(2*mcal_shear)
+                print(f"R1: {R1:.3} \nR2:{R2:.3} ")
+
             except:
                 print("get_metacal_result() for object %d failed, skipping metacal step..." % source_id)
                 mcr=None
                 
-            # # # Also get regular galaxy shape EM fit, allowing for exception
-            """ 
-            WHY MIXING EM AND MOF? IF EM FAILS, LEAVE AS FAILURE
+            # # # Also get regular galaxy shape EM fit. If this fails, something got messed up
+            mcb.fit_psfs(psf_model,Tguess)
+            mcb.fit_max(gal_model=gal_model,pars=max_pars)
+            gal_fit=mcb.get_fitter()
+            self.gal_fit = gal_fit
+            
+            
             """
-            try:
-                mcb.fit_psfs(psf_model,Tguess)
-                mcb.fit_max(gal_model='gauss',pars=max_pars)
-                gal_fit=mcb.get_fitter()
-                self.gal_fit = gal_fit
-            except:
-                print("EM fitting for object %d failed, skipping EM fitting..." % source_id)
-                gal_fit = None
+            # # # Also get regular galaxy shape EM fit. If this fails, there's a serious problem
+            boot = ngmix.Bootstrapper(obslist[0])
+            boot.fit_psfs(psf_model,1.)
+            boot.fit_max(gal_model=gal_model,pars=max_pars)
+            gal_fit=boot.get_fitter()
+            self.gal_fit = gal_fit
+            """
 
         except:
-
-            """
-            LEAVE OUT MOF FIT -- NOT ACTUALLY DOING WHAT I THOUGHT
-            IT'S ~A DEBLENDER/MULTI-GALAXY FIITER!
-            """
             print("Creation of MaxMetacalBootstrapper failed, skipping object...")
+            pdb.set_trace()
             gal_fit = None
             mcr = None
 
         return mcr, gal_fit
 
-    
-    def do_mof(self,obslist=None,prior=None):
-        
-        guess = self._generate_initial_guess(obslist[0])
-        guess = prior.sample(n=1)[0]
-        fitter = mof.MOF(obslist,'gauss',1,prior=prior)
-        fitter.go(guess)
-        #pdb.set_trace()
-        gal_fit= fitter.get_result()
-        self.gal_fit = gal_fit
-        
-        return
-   
-   
+  
     def get_mcalib_shears(self,index):
         """
         Based on algorithm in Huff+ 2017 
@@ -266,12 +261,10 @@ def make_output_table(outfilename, holding, mcal,identifying):
         t['g1_gmix'] = hT[:,2]       # Ellipticity moments from the plain gmix fit
         t['g2_gmix'] = hT[:,3]
         t['T_gmix'] = hT[:,4]
-        t['noshear'] = hT[:,5]
     except:
         t['g1_gmix'] = -9999.
         t['g2_gmix'] = -9999.
         t['T_gmix']  = -9999.
-        t['noshear'] = -9999.
 
     """ check: are these indexed correctly?"""
     try:
@@ -283,6 +276,7 @@ def make_output_table(outfilename, holding, mcal,identifying):
         t['g2_MC'] = mcal[:,5]       # projected into the response matrix
         t['T'] = mcal[:,6]
         t['flux'] = mcal[:,7]
+
     except:
         
         t['g1_noshear'] = -9999.  # Ellipticity moments from the metacal fit, 
@@ -292,7 +286,7 @@ def make_output_table(outfilename, holding, mcal,identifying):
         t['g1_MC'] = -9999.       # Ellipticity moments from the metacal fit, 
         t['g2_MC'] = -9999.       # projected into the response matrix
         t['T'] = -9999.
-        t['flux'] = -9999.
+        t['flux'] =-9999.
 
     
     t.write(outfilename,format='ascii',overwrite=True)
@@ -312,20 +306,20 @@ def main(args):
     outfilename = args[4]
     meds_info = {'meds_file':args[1]}
     bitfitter = SuperBITNgmixFitter(meds_info) # MEDS file
-    holding=[]                              # Array to hold parameters from ExpectMax fit to object
+    gmix=[]                                 # Array to hold parameters from ExpectMax fit to object
     mcal=[]                                 # Array to hold Metacal fit parameters
     identifying=[]                          # Array to hold identifying information for object
     
     for i in range(index_start, index_end):
         try:
-            metcal_fit,no_metacal_fit = bitfitter._fit_one(i)
+            metcal_fit,gmix_fit = bitfitter._fit_one(i)
             mcal_fit_pars = bitfitter.get_mcalib_shears(i)
             mcal.append(mcal_fit_pars)
             try:
-                holding.append(no_metacal_fit.get_result()['pars'])
+                gmix.append(gmix_fit.get_result()['pars'])
             except:
                 print("failed to append holding values")
-                holding.append(np.array([-99999, -99999, -99999, -99999, -99999, -99999]))
+                gmix.append(np.array([-99999, -99999, -99999, -99999, -99999, -99999]))
                   
             identifying.append([bitfitter.medsObj['id'][i],bitfitter.medsObj['ra'][i],bitfitter.medsObj['dec'][i]])
             
@@ -334,22 +328,21 @@ def main(args):
             image = bitfitter.medsObj.get_cutout(i,0)
             jac = bitfitter.medsObj.get_jacobian(i,0)
             jj = ngmix.Jacobian(row=jac['row0'],col=jac['col0'],dvdrow = jac['dvdrow'],dvdcol=jac['dvdcol'],dudrow=jac['dudrow'],dudcol=jac['dudcol'])
-            #jj = ngmix.Jacobian(row=jac['row0'],col=jac['col0'],dvdrow = 0.206, dvdcol=0,dudrow=0,dudcol=0.206 )
+            #jj = ngmix.Jacobian(row=jac['row0'],col=jac['col0'],dvdrow = 0.206, dvdcol=0,dudrow=0,dudcol=0.206 ) --> does nothing
             try:
-                gmix = no_metacal_fit.get_convolved_gmix()
-                model_image = gmix.make_image(image.shape,jacobian=jj)
+                gmix_model = gmix_fit.get_convolved_gmix()
+                model_image = gmix_model.make_image(image.shape,jacobian=jj)
                 fig,(ax1,ax2,ax3) = plt.subplots(nrows=1,ncols=3,figsize=(21,7))
                 ax1.imshow(image)
                 ax2.imshow(model_image)
                 ax3.imshow(image - model_image)
-                fig.savefig('diagnostics_plots/diagnostics-'+str(i)+'.png')
+                fig.savefig('diagnostics_plots/diagnostics'+str(i)+'.png')
                 plt.close(fig)
             except:
                 # EM probably failed
                 print("Bad gmix model, no image made :(")
-                pass
-            
-            make_output_table(outfilename, holding, mcal, identifying)
+                            
+            make_output_table(outfilename, gmix_fit, mcal, identifying)
             
         except:
             ("object %d failed, skipping..." % i)

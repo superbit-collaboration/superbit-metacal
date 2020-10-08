@@ -51,6 +51,7 @@ class McalCats():
                 holding["tab{0}".format(i)] = tab
        
         all_catalogs=vstack([holding[val] for val in holding.keys()])
+        
         return all_catalogs
 
     def _make_table(self):
@@ -62,20 +63,25 @@ class McalCats():
         """
         
         gals=Table.read(self.sexcat,format='fits',hdu=2) #contains only analysis objects.
-        master_matcher = htm.Matcher(16,ra=self.mcCat['ra'],dec=self.mcCat['dec'])
-        gals_ind,master_ind,dist=master_matcher.match(ra=gals['ALPHAWIN_J2000'],dec=gals['DELTAWIN_J2000'],radius=5E-4,maxmatch=1)
-        match_master=self.mcCat[master_ind]; gals=gals[gals_ind]
+        master_clean = self._compute_metacal_quantities()
+        master_matcher = htm.Matcher(16,ra=master_clean['ra'],dec=master_clean['dec'])
 
-        match_master=self._compute_metacal_quantities(match_master)
+        gals_ind,master_ind,dist=master_matcher.match(ra=gals['ALPHAWIN_J2000'],dec=gals['DELTAWIN_J2000'],
+                                                          radius=5E-4,maxmatch=1)
+        match_master=master_clean[master_ind]; gals=gals[gals_ind]
+        
         
         newtab=Table()
         newtab.add_columns([match_master['id'],match_master['ra'],match_master['dec']],names=['id','ra','dec'])
         newtab.add_columns([gals['X_IMAGE'],gals['Y_IMAGE']])
         newtab.add_columns([match_master['g1_gmix'],match_master['g2_gmix']],names=['g1_gmix','g2_gmix'])
-        newtab.add_columns([match_master['T_gmix'],match_master['noshear']],names=['T_gmix','flux_gmix'])
+        
         newtab.add_columns([match_master['g1_MC'],match_master['g2_MC']],names=['g1_MC','g2_MC'])
         newtab.add_columns([match_master['g1_Rinv'],match_master['g2_Rinv']],names=['g1_Rinv','g2_Rinv'])
-        newtab.add_columns([match_master['T'],match_master['flux']],names=['T_mcal','flux_mcal'])
+        try:
+            newtab.add_columns([match_master['T_gmix'],match_master['flux_gmix']],names=['T','flux'])
+        except:
+            newtab.add_columns([match_master['T'],match_master['flux']],names=['T','flux'])
         
         newtab.write(self.outcat,format='csv',overwrite=True) # file gets replaced in the run_sdsscsv2fiat step
         self._run_sdsscsv2fiat()
@@ -83,17 +89,24 @@ class McalCats():
         return newtab
 
     
-    def _compute_metacal_quantities(self,match_master):
-        """ probably doesn't need to be a separate function, 
-        but potentially useful as a placeholder for other metacal calculations"""
+    def _compute_metacal_quantities(self):
+        """ 
+        - remove metacal failures: filter out galaxies where abs(r11) or abs(r22) > 3
+        - compute median r11 and r22 for galaxies
+        - divide "no shear" g1/g2 by r11 and r22, and return
 
-        r11=np.mean(match_master['r11'])
-        r22=np.mean(match_master['r22'])
-        print("# mean values <r11> = %f <r22> = %f" % (r11,r22))
-        match_master['g1_Rinv']= match_master['g1_noshear']/r11
-        match_master['g2_Rinv']= match_master['g2_noshear']/r22
+        """
+        full = self.mcCat
+        clean = full[(np.abs(full['r11']) < 3) & (np.abs(full['r22']) < 3)]
         
-        return match_master
+        r11=np.median(clean['r11'])
+        r22=np.median(clean['r22'])
+        print("# mean values <r11> = %f <r22> = %f" % (r11,r22))
+        
+        clean['g1_Rinv']= clean['g1_noshear']/r11
+        clean['g2_Rinv']= clean['g2_noshear']/r22
+        
+        return clean
 
     
     def _run_sdsscsv2fiat(self):
@@ -105,7 +118,8 @@ class McalCats():
         """
 
         name_arg = self.outcat
-        fiat_name_arg = str(name_arg.split('.')[0]+'.fiat')        
+        #fiat_name_arg = str(name_arg.split('.')[0]+'.fiat')        
+        fiat_name_arg = name_arg.replace('csv','fiat')
         cmd = ' '.join(['sdsscsv2fiat',name_arg, ' > ',fiat_name_arg])
         os.system(cmd)
 
