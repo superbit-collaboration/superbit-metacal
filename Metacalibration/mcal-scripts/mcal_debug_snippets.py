@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.ion()
 from astropy.io import fits
+
 import glob
 from esutil import htm
 import sys
@@ -24,12 +25,12 @@ sns.set()
 ### 
 ########################################################################
 
-python ngmix_fit_testing.py meds_files/debug-bkgSub.meds 1200 1210 bkg-sub.test.asc
+python ngmix_fit_superbit2.py meds_files/mock_jitter.meds 400 402 test.asc
 
-python make_annular_catalog.py mock_empirical_debug_coadd_cat.ldac mcal-0.538-PsfScale.csv mcal-0.538PsfScale-fit*asc
+python make_annular_catalog.py mock_coadd_cat.ldac mcal-jitter-ngmix2.csv mcal-jitter-ngmix2*asc
 
 # copy to local for plotting
-scp jmcclear@ssh.ccv.brown.edu:/users/jmcclear/data/superbit/debug/mcal-0.206-PSFscale.annular /Users/jemcclea/Research/SuperBIT/shear_profiles/debug3
+scp jmcclear@ssh.ccv.brown.edu:/users/jmcclear/data/superbit/debug/*.annular /Users/jemcclea/Research/SuperBIT/shear_profiles/debug3
 
 
 #######################################################################
@@ -39,16 +40,15 @@ scp jmcclear@ssh.ccv.brown.edu:/users/jmcclear/data/superbit/debug/mcal-0.206-PS
 ########################################################################
 
 
-annular -c"X_IMAGE Y_IMAGE g1_meas g2_meas" -f"nfw_mu >1" -s 250 -e 4000 -n 20 truth_shear_300_0.fiat 3333 2227 > truth_5e15_shear.annular
+annular -c"x_image y_image g1_nopsf g2_nopsf" -f"nfw_mu >1.01" -s 250 -e 2500 -n 20 truth_5E14shear_300.0_5.fiat 3333 2227 > truth_5e14_nopsf.annular
 
-annular -c"X_IMAGE Y_IMAGE g1 g2" -s 250 -e 4000 -n 20 fitvd-debug3.fiat 3511 2349 > fitvd-5e15-shear.annular
+annular -c"X_IMAGE Y_IMAGE g1_gmix g2_gmix" -s 100 -e 1500 -n 5 mcal-A2218-gmix.fiat 3755 4147  > mcal-A2218-gmixsuperbit
 
-annular -c"X_IMAGE Y_IMAGE g1_MC g2_MC" -s 250 -e 4000 -n 20 mcal-0.538-PsfScale.fiat 3511 2349 >  mcal-0.538-PsfScale-MC.annular
+annular -c"X_IMAGE Y_IMAGE g1_Rinv g2_Rinv" -s 120 -e 2200 -n 10 mcal-jitter-ngmix2.fiat 3511 2349 
 
-annular -c"X_IMAGE Y_IMAGE g1_MC g2_MC" -s 200 -e 4000 -n 20 mcal-0.8FWHM.fiat 3511 2349  > mcal-0.206-PsfScale-MC.annular
+annular -c"X_IMAGE Y_IMAGE g1 g2" -s 120 -e 2200 -n 12 fitvd-flight-jitter-exp.fiat 3511 2349 > mcal-mocks-gmixsuperbit-Rinv.annular
 
-
-python annular_jmac.py fitvd-5e15-shear.asc X_IMAGE Y_IMAGE g1 g2
+python annular_jmac.py fitvd-flight-jitter-exp.csv X_IMAGE Y_IMAGE g1 g2
 
 
 ########################################################################
@@ -58,8 +58,8 @@ python annular_jmac.py fitvd-5e15-shear.asc X_IMAGE Y_IMAGE g1 g2
 ##
 ########################################################################
 
-medsObj=meds.MEDS('/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/debug3-noshear/debug3-noshear.meds')
-index = 1060
+medsObj=meds.MEDS('/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/output-mock/mock_superbit.meds')
+index = 1260
 psf = medsObj.get_cutout(index,0,type='psf')
 im = medsObj.get_cutout(index,0,type='image') 
 weight = medsObj.get_cutout(index,0,type='weight')
