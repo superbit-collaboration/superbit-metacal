@@ -111,10 +111,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics):
     uv_pos = affine.toWorld(image_pos)
     
     # Create chromatic galaxy
-    bp_dir = '/Users/jemcclea/Research/GalSim/examples/data'
-    #bp_dir = '/users/jmcclear/data/superbit/galsim/data'
-    bp_file=os.path.join(bp_dir,'lum_throughput.csv')
-    bandpass = galsim.Bandpass(bp_file,wave_type='nm',blue_limit = 310,red_limit=1100)
+    bandpass = galsim.Bandpass(sbparams.bp_file, wave_type='nm', blue_limit=310, red_limit=1100)
     gal = cosmos_cat.makeGalaxy(gal_type='parametric', rng=ud,chromatic=True)
     logger.debug('created chromatic galaxy')
 
@@ -193,7 +190,7 @@ def make_cluster_galaxy(ud,wcs,psf,affine,centerpix,cluster_cat,optics):
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
 
-    Galaxies defined here are not lensed, and are magnified to
+    Galaxies created here are not lensed, and are magnified to
     look more "cluster-like." 
     """
     
@@ -221,9 +218,7 @@ def make_cluster_galaxy(ud,wcs,psf,affine,centerpix,cluster_cat,optics):
     gal_z = 0.17
     
     # Create chromatic galaxy    
-    bp_dir = '/Users/jemcclea/Research/GalSim/examples/data'
-    bp_file=os.path.join(bp_dir,'lum_throughput.csv')
-    bandpass = galsim.Bandpass(bp_file,wave_type='nm',blue_limit = 310,red_limit=1100)
+    bandpass = galsim.Bandpass(sbparams.bp_file,wave_type='nm',blue_limit = 310,red_limit=1100)
     gal = cluster_cat.makeGalaxy(gal_type='parametric', rng=ud,chromatic=True)
     logger.debug('created cluster galaxy')
 
@@ -369,6 +364,7 @@ class SuperBITParameters:
             self.cat_file_name = 'real_galaxy_catalog_25.2.fits' # catalog file name for COSMOS
             self.fit_file_name = 'real_galaxy_catalog_25.2_fits.fits' # fit file name for COSMOS
             self.cluster_cat_name = 'data/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
+            self.bp_file = 'data/lum_throughput.csv' # file with bandpass data
 
             # Check for config_file params to overwrite defaults
             if config_file is not None:
@@ -468,6 +464,8 @@ class SuperBITParameters:
                     self.fit_file_name = str(value)
                 elif option == "cluster_cat_name":
                     self.cluster_cat_name = str(value)
+                elif option == "bp_file":
+                    self.bp_file = str(value)
             self._process_params()
 
 def main(argv):
@@ -508,7 +506,6 @@ def main(argv):
     ### note: aberrations were definined for lam = 550, and close to the
     ### center of the camera. The PSF degrades at the edge of the FOV
     lam_over_diam = sbparams.lam * 1.e-9 / sbparams.tel_diam    # radians
-    lam_over_diam *= 206265  # arcsec
     aberrations = numpy.zeros(38)             # Set the initial size.
     aberrations[0] = 0.                       # First entry must be zero
     aberrations[1] = -0.00305127
@@ -538,19 +535,19 @@ def main(argv):
     for psf_filen in all_psfs:
         logger.info('Beginning PSF %s...'% psf_filen)
         
-        for i in numpy.arange(1,n+1):          
+        for i in numpy.arange(1,sbparams.nexp+1):          
             logger.info('Beginning loop %d'% i)
 
             random_seed = 23058923781
             rng = galsim.BaseDeviate(random_seed)
 
             try:
+                outdir = './output-jitter/' # directory where output images and truth catalogs are saved
                 root=psf_filen.split('data/')[1].split('/')[0]
-                #timescale=psf_filen.split('_1x/')[1].split('.')[0]
                 timescale=str(sbparams.exp_time)
                 outname=''.join(['mock_superbit_',root,timescale,str(i).zfill(3),'.fits'])
-                truth_file_name=''.join(['./output-jitter/truth_',root,timescale,str(i).zfill(3),'.dat'])
-                file_name = os.path.join('output-jitter',outname)
+                truth_file_name=''.join([outdir,'truth_',root,timescale,str(i).zfill(3),'.dat'])
+                file_name = os.path.join(outdir,outname)
 
             except:
                 print("naming failed, check path")
@@ -591,11 +588,10 @@ def main(argv):
             full_image.wcs = wcs
 
             
-            # Now let's read in the PSFEx PSF model.  We read the image directly into an
-            # InterpolatedImage GSObject, so we can manipulate it as needed 
+            # Now let's read in the PSFEx PSF model. We read the model directly into an
+            # GSObject, so we can manipulate it as needed 
             psf_wcs=wcs
-            psf_file = os.path.join(sbparams.psf_path,psf_filen)
-            psf = galsim.des.DES_PSFEx(psf_file,wcs=psf_wcs)
+            psf = galsim.des.DES_PSFEx(psf_filen,wcs=psf_wcs)
             logger.info('Constructed PSF object from PSFEx file')
 
             #####
@@ -608,34 +604,39 @@ def main(argv):
                 # The usual random number generator using a different seed for each galaxy.
                 ud = galsim.UniformDeviate(random_seed+k+1)
 
-                try: 
-                    # make single galaxy object
-                    stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,psf=psf,affine=affine,fitcat=fitcat,
-                            cosmos_cat=cosmos_cat,optics=optics)                
-                    # Find the overlapping bounds:
-                    bounds = stamp.bounds & full_image.bounds
-                    
-                    # We need to keep track of how much variance we have currently in the image, so when
-                    # we add more noise, we can omit what is already there.
-    
-                    # noise_image[bounds] += truth.variance
-            
-                    # Finally, add the stamp to the full image.
+                #try: 
+                # make single galaxy object
+                stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,psf=psf,affine=affine,fitcat=fitcat,
+                        cosmos_cat=cosmos_cat,optics=optics,nfw=nfw)                
+                # Find the overlapping bounds:
+                bounds = stamp.bounds & full_image.bounds
                 
-                    full_image[bounds] += stamp[bounds]
-                    time2 = time.time()
-                    tot_time = time2-time1
-                    logger.info('Galaxy %d positioned relative to center t=%f s',
-                                k, tot_time)
-                    this_flux=numpy.sum(stamp.array)
-                    row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z, this_flux]
-                    truth_catalog.addRow(row)
-                except:
-                    logger.info('Galaxy %d has failed, skipping...',k)
+                # We need to keep track of how much variance we have currently in the image, so when
+                # we add more noise, we can omit what is already there.
+
+                # noise_image[bounds] += truth.variance
+        
+                # Finally, add the stamp to the full image.
+            
+                full_image[bounds] += stamp[bounds]
+                time2 = time.time()
+                tot_time = time2-time1
+                logger.info('Galaxy %d positioned relative to center t=%f s',
+                            k, tot_time)
+                this_flux=numpy.sum(stamp.array)
+                row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z, this_flux]
+                truth_catalog.addRow(row)
+                #except:
+                #    logger.info('Galaxy %d has failed, skipping...',k)
                     
 
             #####
             ### Inject cluster galaxy objects:
+            ### - Note that "cluster" is just for aesthetics
+            ### - So, 'n_cluster_gals' is arbitrary
+            ### - You could concievably create a method to base the number of galaxies injected
+            ###   using some scaling relation between (NFW) mass and richness to set n_cluster_gals
+            ###   to something based in reality. 
             #####
 
 
@@ -643,8 +644,9 @@ def main(argv):
 
             center_coords = galsim.CelestialCoord(sbparams.center_ra,sbparams.center_dec)
             centerpix = wcs.toImage(center_coords)
+            n_cluster_gals = 30
             
-            for k in range(30):
+            for k in range(n_cluster_gals):
                 time1 = time.time()
             
                 # The usual random number generator using a different seed for each galaxy.

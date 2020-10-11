@@ -1,7 +1,0 @@
-This directory contains the GalSim scripts used to generate the simulated superbit images used for medsmaking & ngmix/metacalibration 
-
-`debug3.py` is the script that actually invokes GalSim; user has to set the exposure time (`exp_time`) within  `main()` (sorry). Five files per exposure time will be created, as well as the accompanying "truth" catalogs. `debug3.py` expects to find the COSMOS_23.5_training_sample/ catalogs
-in a data/ directory at the same level as ``debug3.py``
-
-output-debug is the result of running debug3.py; it presently contains 5 simulated observations as well as the GalSim truth
-table associated with those simulated images
