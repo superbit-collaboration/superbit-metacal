@@ -111,6 +111,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics):
     uv_pos = affine.toWorld(image_pos)
     
     # Create chromatic galaxy
+    print("Make")
     bandpass = galsim.Bandpass(sbparams.bp_file, wave_type='nm', blue_limit=310, red_limit=1100)
     gal = cosmos_cat.makeGalaxy(gal_type='parametric', rng=ud, chromatic=True)
     logger.debug('created chromatic galaxy')
