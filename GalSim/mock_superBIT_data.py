@@ -91,7 +91,7 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
 
     return nfw_shear, nfw_mu
 
-def make_a_galaxy(ud,wcs,psf,affine,fitcat):
+def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics):
     """
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
@@ -100,8 +100,8 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat):
     # Note that for this to come out close to a square shape, we need to account for the
     # cos(dec) part of the metric: ds^2 = dr^2 + r^2 d(dec)^2 + r^2 cos^2(dec) d(ra)^2
     # So need to calculate dec first.
-    dec = center_dec + (ud()-0.5) * image_ysize_arcsec * galsim.arcsec
-    ra = center_ra + (ud()-0.5) * image_xsize_arcsec / numpy.cos(dec) * galsim.arcsec
+    dec = sbparams.center_dec + (ud()-0.5) * sbparams.image_ysize_arcsec * galsim.arcsec
+    ra = sbparams.center_ra + (ud()-0.5) * sbparams.image_xsize_arcsec / numpy.cos(dec) * galsim.arcsec
     world_pos = galsim.CelestialCoord(ra,dec)
     # We will need the image position as well, so use the wcs to get that
     image_pos = wcs.toImage(world_pos)
@@ -140,8 +140,8 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat):
         mu = 1.0
 
     # This automatically scales up the noise variance by flux_scaling**2.
-    gal *= flux_scaling
-    logger.debug('rescaled galaxy with scaling factor %f' % flux_scaling)
+    gal *= sbparams.flux_scaling
+    logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
 
         
     # Generate PSF at location of galaxy
@@ -188,7 +188,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat):
     
     return stamp, galaxy_truth
 
-def make_cluster_galaxy(ud,wcs,psf,affine,centerpix,cluster_cat):
+def make_cluster_galaxy(ud,wcs,psf,affine,centerpix,cluster_cat,optics):
     """
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
@@ -233,9 +233,9 @@ def make_cluster_galaxy(ud,wcs,psf,affine,centerpix,cluster_cat):
     
     # This automatically scales up the noise variance by flux_scaling**2.
     # The "magnify" is just for drama
-    gal *= flux_scaling
+    gal *= sbparams.flux_scaling
     gal.magnify(10)
-    logger.debug('rescaled galaxy with scaling factor %f' % flux_scaling)
+    logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
 
         
     # Generate PSF at location of galaxy
@@ -282,14 +282,14 @@ def make_cluster_galaxy(ud,wcs,psf,affine,centerpix,cluster_cat):
     return cluster_stamp, cluster_galaxy_truth
 
 
-def make_a_star(ud,wcs,psf,affine):
+def make_a_star(ud,wcs,psf,affine,optics):
     """
     makes a star-like object for injection into larger image.
     """
     
     # Choose a random RA, Dec around the sky_center.
-    dec = center_dec + (ud()-0.5) * image_ysize_arcsec * galsim.arcsec
-    ra = center_ra + (ud()-0.5) * image_xsize_arcsec / numpy.cos(dec) * galsim.arcsec
+    dec = sbparams.center_dec + (ud()-0.5) * sbparams.image_ysize_arcsec * galsim.arcsec
+    ra = sbparams.center_ra + (ud()-0.5) * sbparams.image_xsize_arcsec / numpy.cos(dec) * galsim.arcsec
     world_pos = galsim.CelestialCoord(ra,dec)
     
     # We will need the image position as well, so use the wcs to get that
@@ -328,6 +328,148 @@ def make_a_star(ud,wcs,psf,affine):
 
     return star_stamp, star_truth
 
+class SuperBITParameters:
+        def __init__(self, config_file=None, argv=None):
+            """
+            Initialize default params and overwirte with config_file params and / or commmand line
+            parameters.
+            """
+            # Define some default parameters we'll use below.
+            self.pixel_scale= 0.206     # Pixel scale                           [arcsec/px]
+            self.sky_bkg    = 0.32      # mean sky background from AG's paper   [ADU / s / px]
+            self.sky_sigma  = 0.0957    # standard deviation of sky background  [ADU / s / px]  
+            self.gain       = 3.33      # Camera gain                           [ADU / e-]
+            self.image_xsize= 6665      # Horizontal image size                 [px]
+            self.image_ysize= 4453      # Vertical image size                   [px]
+            self.cra        = 19.3      # Central Right Ascension               [hrs]
+            self.cdec       = -33.1     # Central Declination                   [deg]
+            self.nexp       = 9         # Number of exposures per PSF model     []
+            self.exp_time   = 300       # Exposure time per image               [s]
+            self.nobj       = 16250     # Number of galaxies (COSMOS 25.2 depth)[]
+            self.nstars     = 350       # Number of stars in the field          []
+            self.tel_diam   = 0.5       # Telescope aperture diameter           [m]
+
+            self.lam        = 625       # Fiducial wavelength for abberations   [nm]
+            self.mass       = 1E15      # Cluster mass                          [Msol / h]
+            self.nfw_conc   = 4         # Concentration parameter = virial radius / NFW scale radius
+            self.nfw_z_halo = 0.17      # redshift of the halo                  []
+            self.omega_m    = 0.3       # Omega matter for the background cosmology.
+            self.omega_lam  = 0.7       # Omega lambda for the background cosmology.
+
+            # Define strut parameters. BIT has four orthogonal struts that
+            # are ~12mm wide, and the exit pupil diameter is 137.4549 mm (Zemax)
+            self.nstruts    = 4         # Number of M2 struts                   []
+            self.strut_thick= 0.087     # Fraction of diameter strut thickness  [m/m]
+            self.strut_theta= 90        # Angle between vertical and nearest    [deg]
+            self.obscuration= 0.380     # Fraction of aperture obscured by M2   []
+
+            # Define some paths and filenames
+            self.psf_path = '/Users/jemcclea/Research/GalSim/examples/data/flight_jitter_only_oversampled_1x'
+            self.cosmosdir  = 'data/COSMOS_25.2_training_sample/' # Path to COSMOS data directory 
+            self.cat_file_name = 'real_galaxy_catalog_25.2.fits' # catalog file name for COSMOS
+            self.fit_file_name = 'real_galaxy_catalog_25.2_fits.fits' # fit file name for COSMOS
+            self.cluster_cat_name = 'data/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
+
+            # Check for config_file params to overwrite defaults
+            if config_file is not None:
+                self._load_config_file(config_file)
+
+            # Check for command line args to overwrite config_file and / or defaults
+            if argv is not None:
+                self._load_command_line(argv)
+
+            # Process parameters
+            self._process_params()
+
+        def _process_params(self):
+            """
+            Derive the parameters from the base parameters
+            """
+            self.center_ra = self.cra * galsim.hours
+            self.center_dec = self.cdec * galsim.degrees
+            self.image_xsize_arcsec = self.image_xsize * self.pixel_scale 
+            self.image_ysize_arcsec = self.image_ysize * self.pixel_scale 
+            self.center_coords = galsim.CelestialCoord(self.center_ra,self.center_dec)
+            self.strut_angle = self.strut_theta * galsim.degrees
+
+            # The catalog returns objects that are appropriate for HST in 1 second exposures.  So for our
+            # telescope we scale up by the relative area, exposure time, pixel scale and detector gain   
+            hst_eff_area = 2.4**2 * (1.-0.33**2)
+            sbit_eff_area = self.tel_diam**2 * (1.-0.380**2) 
+            self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain*(self.pixel_scale/.05)**2 
+        def _load_config_file(self, config_file):
+            """
+            Load parameters from configuration file. Only parameters that exist in the config_file
+            will be overwritten.
+            """
+            logger.info('Loading parameters from %s' % (config_file))
+            self._process_params()
+        def _load_command_line(self, argv):
+            """
+            Load parameters from the command line argumentts. Only parameters that are provided in
+            the command line will be overwritten.
+            """
+            logger.info('Processing command line args')
+            # Parse arguments here
+            for arg in argv[1:]:
+                try:
+                    (option, value) = arg.split("=", 1)
+                except:
+                    (option, value) = (arg, None)
+                if option == "pixel_scale":     
+                    self.pixel_scale = float(value)
+                elif option == "sky_bkg":        
+                    self.sky_bkg = float(value) 
+                elif option == "sky_sigma":     
+                    self.sky_sigma = float(value)
+                elif option == "gain":          
+                    self. gain = float(value)   
+                elif option == "image_xsize":   
+                    self.image_xsize = int(value)    
+                elif option == "image_ysize":   
+                    self.image_ysize = int(value)    
+                elif option == "center_ra":     
+                    self.center_ra = float(value)
+                elif option == "center_dec":
+                    self.center_dec = float(value)
+                elif option == "nexp":      
+                    self.nexp = int(value)          
+                elif option == "exp_time":   
+                    self.exp_time = float(value) 
+                elif option == "nobj":     
+                    self.nobj = int(value)     
+                elif option == "nstars": 
+                    self.nstars = int(value)    
+                elif option == "tel_diam": 
+                    self.tel_diam = float(value)
+                elif option == "lam":     
+                    self.lam = float(value)      
+                elif option == "psf_path": 
+                    self.psf_path = str(value) 
+                elif option == "cluster_mass": 
+                    self.mass = int(value)         
+                elif option == "nfw_conc":   
+                    self.nfw_conc = float(value) 
+                elif option == "nfw_z_halo": 
+                    self.nfw_z_halo = float(value)
+                elif option == "omega_m":   
+                    self.omega_m = float(value)  
+                elif option == "omega_lam":
+                    self.omega_lam = float(value)
+                elif option == "config_file":
+                    self._load_config_file(str(value))
+                elif option == "cosmosdir":
+                    self.cosmosdir = str(value)
+                elif option == "cosmosdir":
+                    self.cosmosdir = str(value)
+                elif option == "cat_file_name":
+                    self.cat_file_name = str(value)
+                elif option == "fit_file_name":
+                    self.fit_file_name = str(value)
+                elif option == "cluster_cat_name":
+                    self.cluster_cat_name = str(value)
+            self._process_params()
+
 def main(argv):
     """
     Make images using model PSFs and galaxy cluster shear:
@@ -343,88 +485,29 @@ def main(argv):
     logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
     logger = logging.getLogger("mock_superbit_data")
 
-
     # Define some parameters we'll use below.
-    # Defining globals is bad practice, but convenient
-    # Normally these would be read in from some parameter file.
-    global pixel_scale
-    pixel_scale = 0.206          # arcsec/pixel
-    global sky_bkg               # mean sky background from AG's paper
-    sky_bkg = 0.32               # ADU / s / pix
-    global sky_sigma             # standard deviation of sky background   
-    sky_sigma = 0.0957           # ADU / s / pix
-    gain = 3.33
-    global image_xsize
-    image_xsize = 6665           # size of image in pixels
-    global image_ysize
-    image_ysize = 4453           # size of image in pixels
-    global image_xsize_arcsec
-    image_xsize_arcsec = image_xsize*pixel_scale # size of big image in each dimension (arcsec)
-    global image_ysize_arcsec
-    image_ysize_arcsec = image_ysize*pixel_scale # size of big image in each dimension (arcsec)
-    global center_ra
-    center_ra = 19.3*galsim.hours     # The RA, Dec of the center of the image on the sky
-    global center_dec
-    center_dec = -33.1*galsim.degrees
-    global center_coords
-    center_coords = galsim.CelestialCoord(center_ra,center_dec)
-    
-    global n                     # number of exposures to create per PSF model
-    n = 9
-    global exp_time
-    exp_time = 300
-    global nobj
-    nobj = 16250                # number of galaxies in entire field, based on COSMOS 25.2 depth
-    global nstars
-    nstars = 350                # number of stars in the entire field
-    global flux_scaling           
-    global tel_diam
-    tel_diam = 0.5                    
-    global lam                   # Fiducial wavelength for which optical aberrations are initially defined
-    lam =625                     # nanometers  
-    global optics                # will store the Zernicke component of the PSF
-    global cosmos_cat            # will store the COSMOS catalog from which we draw objects
-    
-    psf_path = '/Users/jemcclea/Research/GalSim/examples/data/flight_jitter_only_oversampled_1x'
-    #psf_path = '/users/jmcclear/data/superbit/galsim/data/flight_jitter_only_oversampled_1x'
+    global sbparams
+    sbparams = SuperBITParameters(argv=argv)
     
     # Set up the NFWHalo:
-    global nfw                   # will store the NFWHalo information
-    mass=1E15                    # Cluster mass (Msol/h)
-    nfw_conc = 4                 # Concentration parameter = virial radius / NFW scale radius
-    nfw_z_halo = 0.17            # redshift of the halo
-    omega_m = 0.3                # Omega matter for the background cosmology.
-    omega_lam = 0.7              # Omega lambda for the background cosmology.
-    
-    nfw = galsim.NFWHalo(mass=mass, conc=nfw_conc, redshift=nfw_z_halo,
-                             omega_m=omega_m, omega_lam=omega_lam)
+    nfw = galsim.NFWHalo(mass=sbparams.mass, conc=sbparams.nfw_conc, redshift=sbparams.nfw_z_halo,
+                     omega_m=sbparams.omega_m, omega_lam=sbparams.omega_lam)
     logger.info('Set up NFW halo for lensing')
 
     # Read in galaxy catalog, as well as catalog containing
     # information from COSMOS fits like redshifts, hlr, etc.   
-    dir = 'data/COSMOS_25.2_training_sample/'
-    cat_file_name = 'real_galaxy_catalog_25.2.fits'
-    fit_file_name = 'real_galaxy_catalog_25.2_fits.fits'
-    cosmos_cat = galsim.COSMOSCatalog(cat_file_name, dir=dir)
-    fitcat = Table.read(os.path.join(dir,fit_file_name))
+    cosmos_cat = galsim.COSMOSCatalog(sbparams.cat_file_name, dir=sbparams.cosmosdir)
+    fitcat = Table.read(os.path.join(sbparams.cosmosdir, sbparams.fit_file_name))
     logger.info('Read in %d galaxies from catalog and associated fit info', cosmos_cat.nobjects)
-        
-    cluster_cat = galsim.COSMOSCatalog('data/real_galaxy_catalog_23.5_example.fits')
+
+    cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
     logger.info('Read in %d cluster galaxies from catalog', cosmos_cat.nobjects)
-
     
-    
-    # The catalog returns objects that are appropriate for HST in 1 second exposures.  So for our
-    # telescope we scale up by the relative area, exposure time, pixel scale and detector gain   
-    hst_eff_area = 2.4**2 * (1.-0.33**2)
-    sbit_eff_area = tel_diam**2 * (1.-0.380**2) 
-    flux_scaling = (sbit_eff_area/hst_eff_area) * exp_time *gain*(pixel_scale/.05)**2 
-
 
     ### Now create PSF. First, define Zernicke polynomial component
     ### note: aberrations were definined for lam = 550, and close to the
     ### center of the camera. The PSF degrades at the edge of the FOV
-    lam_over_diam = lam * 1.e-9 / tel_diam    # radians
+    lam_over_diam = sbparams.lam * 1.e-9 / sbparams.tel_diam    # radians
     lam_over_diam *= 206265  # arcsec
     aberrations = numpy.zeros(38)             # Set the initial size.
     aberrations[0] = 0.                       # First entry must be zero
@@ -436,14 +519,11 @@ def main(argv):
     aberrations[37] = 0.00000004
     logger.info('Calculated lambda over diam = %f arcsec', lam_over_diam)
 
-    # Define strut parameters. BIT has four orthogonal struts that
-    # are ~12mm wide, and the exit pupil diameter is 137.4549 mm (Zemax)
-    nstruts = 4                           
-    strut_thick = 0.087                  # as a fraction of pupil diameter
-    strut_angle = 90 * galsim.degrees    # angle between the vertical and the strut closest to it
-    
-    optics = galsim.OpticalPSF(lam=lam,diam=tel_diam, obscuration = 0.380, nstruts=nstruts,
-                                   strut_angle=strut_angle, strut_thick=strut_thick, aberrations = aberrations)
+    # will store the Zernicke component of the PSF
+    optics = galsim.OpticalPSF(lam=sbparams.lam,diam=sbparams.tel_diam, 
+                        obscuration=sbparams.obscuration, nstruts=sbparams.nstruts, 
+                        strut_angle=sbparams.strut_angle, strut_thick=sbparams.strut_thick,
+                        aberrations=aberrations)
     logger.info('Made telescope PSF profile')
     
   
@@ -452,7 +532,7 @@ def main(argv):
     ### WITHIN EACH PSF, ITERATE n TIMES TO MAKE n SEPARATE IMAGES
     ###
     
-    all_psfs=glob.glob(psf_path+"/*121*.psf")
+    all_psfs=glob.glob(sbparams.psf_path+"/*121*.psf")
     logger.info('Beginning loop over jitter/optical psfs')
   
     for psf_filen in all_psfs:
@@ -467,7 +547,7 @@ def main(argv):
             try:
                 root=psf_filen.split('data/')[1].split('/')[0]
                 #timescale=psf_filen.split('_1x/')[1].split('.')[0]
-                timescale=str(exp_time)
+                timescale=str(sbparams.exp_time)
                 outname=''.join(['mock_superbit_',root,timescale,str(i).zfill(3),'.fits'])
                 truth_file_name=''.join(['./output-jitter/truth_',root,timescale,str(i).zfill(3),'.dat'])
                 file_name = os.path.join('output-jitter',outname)
@@ -486,26 +566,26 @@ def main(argv):
 
             
             # Set up the image:
-            full_image = galsim.ImageF(image_xsize, image_ysize)
-            sky_level = exp_time * sky_bkg
+            full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
+            sky_level = sbparams.exp_time * sbparams.sky_bkg
             full_image.fill(sky_level)
             full_image.setOrigin(0,0)
             
     
             # We keep track of how much noise is already in the image from the RealGalaxies.
-            noise_image = galsim.ImageF(image_xsize, image_ysize)
+            noise_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
             noise_image.setOrigin(0,0)
 
             
             # If you wanted to make a non-trivial WCS system, could set theta to a non-zero number
             theta = 0.0 * galsim.degrees
-            dudx = numpy.cos(theta) * pixel_scale
-            dudy = -numpy.sin(theta) * pixel_scale
-            dvdx = numpy.sin(theta) * pixel_scale
-            dvdy = numpy.cos(theta) * pixel_scale
+            dudx = numpy.cos(theta) * sbparams.pixel_scale
+            dudy = -numpy.sin(theta) * sbparams.pixel_scale
+            dvdx = numpy.sin(theta) * sbparams.pixel_scale
+            dvdy = numpy.cos(theta) * sbparams.pixel_scale
             image_center = full_image.true_center
             affine = galsim.AffineTransform(dudx, dudy, dvdx, dvdy, origin=full_image.true_center)
-            sky_center = galsim.CelestialCoord(ra=center_ra, dec=center_dec)
+            sky_center = galsim.CelestialCoord(ra=sbparams.center_ra, dec=sbparams.center_dec)
         
             wcs = galsim.TanWCS(affine, sky_center, units=galsim.arcsec)
             full_image.wcs = wcs
@@ -514,7 +594,7 @@ def main(argv):
             # Now let's read in the PSFEx PSF model.  We read the image directly into an
             # InterpolatedImage GSObject, so we can manipulate it as needed 
             psf_wcs=wcs
-            psf_file = os.path.join(psf_path,psf_filen)
+            psf_file = os.path.join(sbparams.psf_path,psf_filen)
             psf = galsim.des.DES_PSFEx(psf_file,wcs=psf_wcs)
             logger.info('Constructed PSF object from PSFEx file')
 
@@ -522,7 +602,7 @@ def main(argv):
             ## Loop over galaxy objects:
             #####
             
-            for k in range(nobj):
+            for k in range(sbparams.nobj):
                 time1 = time.time()
                 
                 # The usual random number generator using a different seed for each galaxy.
@@ -530,7 +610,8 @@ def main(argv):
 
                 try: 
                     # make single galaxy object
-                    stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,psf=psf,affine=affine,fitcat=fitcat)                
+                    stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,psf=psf,affine=affine,fitcat=fitcat,
+                            cosmos_cat=cosmos_cat,optics=optics)                
                     # Find the overlapping bounds:
                     bounds = stamp.bounds & full_image.bounds
                     
@@ -560,7 +641,7 @@ def main(argv):
 
             random_seed=892375351
 
-            center_coords = galsim.CelestialCoord(center_ra,center_dec)
+            center_coords = galsim.CelestialCoord(sbparams.center_ra,sbparams.center_dec)
             centerpix = wcs.toImage(center_coords)
             
             for k in range(30):
@@ -572,7 +653,9 @@ def main(argv):
                 try: 
                     # make single galaxy object
                     cluster_stamp,truth = make_cluster_galaxy(ud=ud,wcs=wcs,affine=affine,psf=psf,
-                                                                  centerpix=centerpix,cluster_cat=cluster_cat)                
+                                                                  centerpix=centerpix,
+                                                                  cluster_cat=cluster_cat,
+                                                                  optics=optics)                
                     # Find the overlapping bounds:
                     bounds = cluster_stamp.bounds & full_image.bounds
                     
@@ -602,11 +685,11 @@ def main(argv):
     
             random_seed_stars=2308173501873
 
-            for k in range(nstars):
+            for k in range(sbparams.nstars):
                 time1 = time.time()
                 ud = galsim.UniformDeviate(random_seed_stars+k+1)
 
-                star_stamp,truth=make_a_star(ud=ud,wcs=wcs,psf=psf,affine=affine)
+                star_stamp,truth = make_a_star(ud=ud,wcs=wcs,psf=psf,affine=affine,optics=optics)
                 bounds = star_stamp.bounds & full_image.bounds
                
                 # Add the stamp to the full image.
@@ -641,7 +724,7 @@ def main(argv):
             # Now max_current_variance is the noise level across the full image.  We don't want to add that
             # twice, so subtract off this much from the intended noise that we want to end up in the image.
             
-            this_sky_sigma = sky_sigma*exp_time
+            this_sky_sigma = sbparams.sky_sigma*sbparams.exp_time
             this_sky_sigma -= numpy.sqrt(max_current_variance)
             
      
