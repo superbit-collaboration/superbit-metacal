@@ -112,7 +112,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics):
     
     # Create chromatic galaxy
     bandpass = galsim.Bandpass(sbparams.bp_file, wave_type='nm', blue_limit=310, red_limit=1100)
-    gal = cosmos_cat.makeGalaxy(gal_type='parametric', rng=ud,chromatic=True)
+    gal = cosmos_cat.makeGalaxy(gal_type='parametric', rng=ud, chromatic=True)
     logger.debug('created chromatic galaxy')
 
     # Obtain galaxy redshift from the COSMOS profile fit catalog
@@ -506,6 +506,7 @@ def main(argv):
     ### note: aberrations were definined for lam = 550, and close to the
     ### center of the camera. The PSF degrades at the edge of the FOV
     lam_over_diam = sbparams.lam * 1.e-9 / sbparams.tel_diam    # radians
+    lam_over_diam *= 206265.
     aberrations = numpy.zeros(38)             # Set the initial size.
     aberrations[0] = 0.                       # First entry must be zero
     aberrations[1] = -0.00305127
