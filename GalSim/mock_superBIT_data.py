@@ -523,7 +523,7 @@ def main(argv):
     """
     
     global logger
-    logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stdout)
+    logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
     logger = logging.getLogger("mock_superbit_data")
 
     # Define some parameters we'll use below.
