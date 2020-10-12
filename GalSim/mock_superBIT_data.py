@@ -111,7 +111,6 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics):
     uv_pos = affine.toWorld(image_pos)
     
     # Create chromatic galaxy
-    print("Make")
     bandpass = galsim.Bandpass(sbparams.bp_file, wave_type='nm', blue_limit=310, red_limit=1100)
     gal = cosmos_cat.makeGalaxy(gal_type='parametric', rng=ud, chromatic=True)
     logger.debug('created chromatic galaxy')
@@ -606,30 +605,30 @@ def main(argv):
                 # The usual random number generator using a different seed for each galaxy.
                 ud = galsim.UniformDeviate(random_seed+k+1)
 
-                #try: 
-                # make single galaxy object
-                stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,psf=psf,affine=affine,fitcat=fitcat,
-                        cosmos_cat=cosmos_cat,optics=optics,nfw=nfw)                
-                # Find the overlapping bounds:
-                bounds = stamp.bounds & full_image.bounds
-                
-                # We need to keep track of how much variance we have currently in the image, so when
-                # we add more noise, we can omit what is already there.
+                try: 
+                    # make single galaxy object
+                    stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,psf=psf,affine=affine,fitcat=fitcat,
+                            cosmos_cat=cosmos_cat,optics=optics,nfw=nfw)                
+                    # Find the overlapping bounds:
+                    bounds = stamp.bounds & full_image.bounds
+                    
+                    # We need to keep track of how much variance we have currently in the image, so when
+                    # we add more noise, we can omit what is already there.
 
-                # noise_image[bounds] += truth.variance
-        
-                # Finally, add the stamp to the full image.
+                    # noise_image[bounds] += truth.variance
             
-                full_image[bounds] += stamp[bounds]
-                time2 = time.time()
-                tot_time = time2-time1
-                logger.info('Galaxy %d positioned relative to center t=%f s',
-                            k, tot_time)
-                this_flux=numpy.sum(stamp.array)
-                row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z, this_flux]
-                truth_catalog.addRow(row)
-                #except:
-                #    logger.info('Galaxy %d has failed, skipping...',k)
+                    # Finally, add the stamp to the full image.
+                
+                    full_image[bounds] += stamp[bounds]
+                    time2 = time.time()
+                    tot_time = time2-time1
+                    logger.info('Galaxy %d positioned relative to center t=%f s',
+                                k, tot_time)
+                    this_flux=numpy.sum(stamp.array)
+                    row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z, this_flux]
+                    truth_catalog.addRow(row)
+                except:
+                    logger.info('Galaxy %d has failed, skipping...',k)
                     
 
             #####
