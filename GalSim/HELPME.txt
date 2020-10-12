@@ -41,9 +41,9 @@ Solution:   Download the COSMOS 25.2 and 23.5 catalogs (WARNING: large files 4.4
 
                 https://galsim-developers.github.io/GalSim/_build/html/real_gal.html#downloading-the-cosmos-catalog
         
-                Be sure to get both the 25.2 and 23.5 catalog.s
+                ** Be sure to get both the 25.2 and 23.5 catalogs. **
 
-            2) Either modify the parameter file `superbit_parameters.yaml` the following:
+            2) Either modify the parameter file `superbit_parameters.yaml` with the following:
 
                 cosmosdir:          '/path/to/COSMOS_25.2_training_sample/' 
                 cluster_cat_name:   '/path/to/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits'
@@ -53,6 +53,7 @@ Solution:   Download the COSMOS 25.2 and 23.5 catalogs (WARNING: large files 4.4
                 OR run the `mock_superBIT_data.py` script with the following command line args:
 
                 cosmosdir=/path/to/COSMOS_25.2_training_sample/ cluster_cat_name=/path/to/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits'
+                
 ---------------------------------------------------------------------------------------------------
 
 

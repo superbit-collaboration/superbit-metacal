@@ -333,7 +333,8 @@ class SuperBITParameters:
             Initialize default params and overwirte with config_file params and / or commmand line
             parameters.
             """
-            # Define some default parameters we'll use below.
+            # Define some default default parameters below.
+            # These are used in the absence of a .yaml config_file or command line args.
             self.pixel_scale= 0.206     # Pixel scale                           [arcsec/px]
             self.sky_bkg    = 0.32      # mean sky background from AG's paper   [ADU / s / px]
             self.sky_sigma  = 0.0957    # standard deviation of sky background  [ADU / s / px]  
@@ -347,6 +348,7 @@ class SuperBITParameters:
             self.nobj       = 3000      # Number of galaxies (COSMOS 25.2 depth)[]
             self.nstars     = 350       # Number of stars in the field          []
             self.tel_diam   = 0.5       # Telescope aperture diameter           [m]
+            self.nclustergals = 30      # Number of cluster galaxies (arbitrary)[]
 
             self.lam        = 625       # Fiducial wavelength for abberations   [nm]
             self.mass       = 1E15      # Cluster mass                          [Msol / h]
@@ -370,6 +372,12 @@ class SuperBITParameters:
             self.cluster_cat_name = 'data/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
             self.bp_file = 'data/lum_throughput.csv' # file with bandpass data
             self.outdir = './output-jitter/' # directory where output images and truth catalogs are saved
+
+            # Define RNG seeds
+            self.noise_seed = 23058923781 
+            self.galobj_seed = 23058923781
+            self.cluster_seed = 892375351
+            self.stars_seed = 2308173501873
 
             # Check for config_file params to overwrite defaults
             if config_file is not None:
@@ -458,6 +466,8 @@ class SuperBITParameters:
                     self.exp_time = float(value) 
                 elif option == "nobj":     
                     self.nobj = int(value)     
+                elif option == "nclustergal":     
+                    self.nclustergal = int(value)     
                 elif option == "nstars": 
                     self.nstars = int(value)    
                 elif option == "tel_diam": 
@@ -492,6 +502,14 @@ class SuperBITParameters:
                     self.bp_file = str(value)
                 elif option == "outdir":
                     self.outdir = str(value)
+                elif option == "noise_seed":     
+                    self.noise_seed = int(value)     
+                elif option == "galobj_seed":     
+                    self.galobj_seed = int(value)     
+                elif option == "cluster_seed":     
+                    self.cluster_seed = int(value)     
+                elif option == "stars_seed":     
+                    self.stars_seed = int(value)     
 
 def main(argv):
     """
@@ -566,8 +584,7 @@ def main(argv):
         for i in numpy.arange(1,sbparams.nexp+1):          
             logger.info('Beginning loop %d'% i)
 
-            random_seed = 23058923781
-            rng = galsim.BaseDeviate(random_seed)
+            rng = galsim.BaseDeviate(sbparams.noise_seed)
 
             try:
                 root=psf_filen.split('data/')[1].split('/')[0]
@@ -629,7 +646,7 @@ def main(argv):
                 time1 = time.time()
                 
                 # The usual random number generator using a different seed for each galaxy.
-                ud = galsim.UniformDeviate(random_seed+k+1)
+                ud = galsim.UniformDeviate(sbparams.galobj_seed+k+1)
 
                 try: 
                     # make single galaxy object
@@ -666,18 +683,14 @@ def main(argv):
             ###   to something based in reality. 
             #####
 
-
-            random_seed=892375351
-
             center_coords = galsim.CelestialCoord(sbparams.center_ra,sbparams.center_dec)
             centerpix = wcs.toImage(center_coords)
-            n_cluster_gals = 30
             
-            for k in range(n_cluster_gals):
+            for k in range(sbparams.nclustergal):
                 time1 = time.time()
             
                 # The usual random number generator using a different seed for each galaxy.
-                ud = galsim.UniformDeviate(random_seed+k+1)
+                ud = galsim.UniformDeviate(sbparams.cluster_seed+k+1)
                 
                 try: 
                     # make single galaxy object
@@ -713,11 +726,9 @@ def main(argv):
             ### Now repeat process for stars!
             #####
     
-            random_seed_stars=2308173501873
-
             for k in range(sbparams.nstars):
                 time1 = time.time()
-                ud = galsim.UniformDeviate(random_seed_stars+k+1)
+                ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
 
                 star_stamp,truth = make_a_star(ud=ud,wcs=wcs,psf=psf,affine=affine,optics=optics)
                 bounds = star_stamp.bounds & full_image.bounds

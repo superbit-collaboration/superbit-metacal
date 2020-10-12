@@ -1,36 +1,37 @@
 # SuperBIT parameters
 # -------------------
-pixel_scale:    0.206     # Pixel scale                           [arcsec/px]
-gain:           3.33      # Camera gain                           [ADU / e-]
-image_xsize:    6665      # Horizontal image size                 [px]
-image_ysize:    4453      # Vertical image size                   [px]
-exp_time:       300       # Exposure time per image               [s]
-tel_diam:       0.5       # Telescope aperture diameter           [m]
+pixel_scale:    0.206       # Pixel scale                           [arcsec/px]
+gain:           3.33        # Camera gain                           [ADU / e-]
+image_xsize:    6665        # Horizontal image size                 [px]
+image_ysize:    4453        # Vertical image size                   [px]
+exp_time:       300         # Exposure time per image               [s]
+tel_diam:       0.5         # Telescope aperture diameter           [m]
 # Define strut parameters. BIT has four orthogonal struts that
 # are ~12mm wide, and the exit pupil diameter is 137.4549 mm (Zemax)
-nstruts:        4         # Number of M2 struts                   []
-strut_thick:    0.087     # Fraction of diameter strut thickness  [m/m]
-strut_theta:    90        # Angle between vertical and nearest    [deg]
-obscuration:    0.380     # Fraction of aperture obscured by M2   []
+nstruts:        4           # Number of M2 struts                   []
+strut_thick:    0.087       # Fraction of diameter strut thickness  [m/m]
+strut_theta:    90          # Angle between vertical and nearest    [deg]
+obscuration:    0.380       # Fraction of aperture obscured by M2   []
 
 # Simulated image parameters
 # --------------------------
-cra:            19.3      # Central Right Ascension               [hrs]
-cdec:           -33.1     # Central Declination                   [deg]
-sky_bkg:        0.32      # mean sky background from AG's paper   [ADU / s / px]
-sky_sigma:      0.0957    # standard deviation of sky background  [ADU / s / px]  
-nobj:           3000      # Number of galaxies (COSMOS 25.2 depth)[]
-nstars:         350       # Number of stars in the field          []
-nexp:           9         # Number of exposures per PSF model     []
+cra:            19.3        # Central Right Ascension               [hrs]
+cdec:           -33.1       # Central Declination                   [deg]
+sky_bkg:        0.32        # mean sky background from AG's paper   [ADU / s / px]
+sky_sigma:      0.0957      # standard deviation of sky background  [ADU / s / px]  
+nobj:           1000        # Number of galaxies (COSMOS 25.2 depth)[]
+nstars:         350         # Number of stars in the field          []
+nexp:           9           # Number of exposures per PSF model     []
+nclustergals:   30          # Number of cluster galaxies (arbitrary)[]
 
 # Simulated cluster parameters
 # ----------------------------
-lam:            625       # Fiducial wavelength for abberations   [nm]
-mass:           1.0e15    # Cluster mass                          [Msol / h]
-nfw_conc:       4         # Concentration parameter = virial radius / NFW scale radius
-nfw_z_halo:     0.17      # redshift of the halo                  []
-omega_m:        0.3       # Omega matter for the background cosmology.
-omega_lam:      0.7       # Omega lambda for the background cosmology.
+lam:            625         # Fiducial wavelength for abberations   [nm]
+mass:           1.0e15      # Cluster mass                          [Msol / h]
+nfw_conc:       4           # Concentration parameter = virial radius / NFW scale radius
+nfw_z_halo:     0.17        # redshift of the halo                  []
+omega_m:        0.3         # Omega matter for the background cosmology.
+omega_lam:      0.7         # Omega lambda for the background cosmology.
 
 # Run parameters
 # --------------
@@ -42,3 +43,11 @@ fit_file_name:  'real_galaxy_catalog_25.2_fits.fits' # fit file name for COSMOS 
 cluster_cat_name:   '/data/catalogs/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
 bp_file:        './data/lum_throughput.csv' # file with bandpass data
 outdir:         './output/' # directory where output images and truth catalogs are saved
+
+# Misc parameters
+# ---------------
+noise_seed:     23058923781     # Random number seed for image noise
+galobj_seed:    23058923781     # Random number seed for galaxy objects
+cluster_seed:   892375351       # Random number seed fro cluster galaxies
+stars_seed:     2308173501873   # Random number seed for stars
+
