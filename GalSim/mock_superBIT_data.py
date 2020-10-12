@@ -24,9 +24,11 @@ import logging
 import time
 import galsim
 import galsim.des
+import galsim.convolve
 import pdb
 import glob
 import scipy
+import yaml
 from astropy.table import Table
 
 class truth():
@@ -69,6 +71,7 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
         warnings.warn("Warning: NFWHalo shear is invalid -- probably strong lensing!  " +
                           "Using shear = 0.")
         nfw_shear = galsim.Shear(g1=0,g2=0)
+        logger.debug("NFWHalo shear is invalid")
         
     nfw_mu = nfw_halo.getMagnification( pos , nfw_z_source )
     gtot=numpy.sqrt(g1**2 +g2**2)
@@ -91,7 +94,7 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
 
     return nfw_shear, nfw_mu
 
-def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics):
+def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass):
     """
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
@@ -111,7 +114,6 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics):
     uv_pos = affine.toWorld(image_pos)
     
     # Create chromatic galaxy
-    bandpass = galsim.Bandpass(sbparams.bp_file, wave_type='nm', blue_limit=310, red_limit=1100)
     gal = cosmos_cat.makeGalaxy(gal_type='parametric', rng=ud, chromatic=True)
     logger.debug('created chromatic galaxy')
 
@@ -185,7 +187,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics):
     
     return stamp, galaxy_truth
 
-def make_cluster_galaxy(ud,wcs,psf,affine,centerpix,cluster_cat,optics):
+def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, bandpass):
     """
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
@@ -216,9 +218,11 @@ def make_cluster_galaxy(ud,wcs,psf,affine,centerpix,cluster_cat,optics):
 
     # Fixed redshift for cluster galaxies
     gal_z = 0.17
+    # FIXME: This appears to be missing and should be fixed????
+    g1 = 0.0; g2 = 0.0
+    mu = 1.0
     
     # Create chromatic galaxy    
-    bandpass = galsim.Bandpass(sbparams.bp_file,wave_type='nm',blue_limit = 310,red_limit=1100)
     gal = cluster_cat.makeGalaxy(gal_type='parametric', rng=ud,chromatic=True)
     logger.debug('created cluster galaxy')
 
@@ -340,7 +344,7 @@ class SuperBITParameters:
             self.cdec       = -33.1     # Central Declination                   [deg]
             self.nexp       = 9         # Number of exposures per PSF model     []
             self.exp_time   = 300       # Exposure time per image               [s]
-            self.nobj       = 16250     # Number of galaxies (COSMOS 25.2 depth)[]
+            self.nobj       = 3000      # Number of galaxies (COSMOS 25.2 depth)[]
             self.nstars     = 350       # Number of stars in the field          []
             self.tel_diam   = 0.5       # Telescope aperture diameter           [m]
 
@@ -365,6 +369,7 @@ class SuperBITParameters:
             self.fit_file_name = 'real_galaxy_catalog_25.2_fits.fits' # fit file name for COSMOS
             self.cluster_cat_name = 'data/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
             self.bp_file = 'data/lum_throughput.csv' # file with bandpass data
+            self.outdir = './output-jitter/' # directory where output images and truth catalogs are saved
 
             # Check for config_file params to overwrite defaults
             if config_file is not None:
@@ -399,7 +404,23 @@ class SuperBITParameters:
             will be overwritten.
             """
             logger.info('Loading parameters from %s' % (config_file))
+            with open(config_file) as fsettings:
+                config = yaml.load(fsettings, Loader=yaml.FullLoader)
+            self._load_dict(config)
             self._process_params()
+        def _args_to_dict(self, argv):
+            """
+            Converts a command line argument array to a dictionary.
+            """
+            d = {}
+            for arg in argv[1:]:
+                try:
+                    (option, value) = arg.split("=", 1)
+                except:
+                    (option, value) = (arg, None)
+                d[option] = value
+            return d
+
         def _load_command_line(self, argv):
             """
             Load parameters from the command line argumentts. Only parameters that are provided in
@@ -407,11 +428,14 @@ class SuperBITParameters:
             """
             logger.info('Processing command line args')
             # Parse arguments here
-            for arg in argv[1:]:
-                try:
-                    (option, value) = arg.split("=", 1)
-                except:
-                    (option, value) = (arg, None)
+            self._load_dict(self._args_to_dict(argv))
+            self._process_params()
+
+        def _load_dict(self, d):
+            """
+            Load parameters from a dictionary.
+            """
+            for (option, value) in d.items():
                 if option == "pixel_scale":     
                     self.pixel_scale = float(value)
                 elif option == "sky_bkg":        
@@ -466,7 +490,8 @@ class SuperBITParameters:
                     self.cluster_cat_name = str(value)
                 elif option == "bp_file":
                     self.bp_file = str(value)
-            self._process_params()
+                elif option == "outdir":
+                    self.outdir = str(value)
 
 def main(argv):
     """
@@ -480,7 +505,7 @@ def main(argv):
     """
     
     global logger
-    logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
+    logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stdout)
     logger = logging.getLogger("mock_superbit_data")
 
     # Define some parameters we'll use below.
@@ -524,7 +549,9 @@ def main(argv):
                         aberrations=aberrations)
     logger.info('Made telescope PSF profile')
     
-  
+    # load SuperBIT bandpass
+    bandpass = galsim.Bandpass(sbparams.bp_file, wave_type='nm', blue_limit=310, red_limit=1100)
+
     ###
     ### LOOP OVER PSFs TO MAKE GROUPS OF IMAGES
     ### WITHIN EACH PSF, ITERATE n TIMES TO MAKE n SEPARATE IMAGES
@@ -543,12 +570,11 @@ def main(argv):
             rng = galsim.BaseDeviate(random_seed)
 
             try:
-                outdir = './output-jitter/' # directory where output images and truth catalogs are saved
                 root=psf_filen.split('data/')[1].split('/')[0]
                 timescale=str(sbparams.exp_time)
                 outname=''.join(['mock_superbit_',root,timescale,str(i).zfill(3),'.fits'])
-                truth_file_name=''.join([outdir,'truth_',root,timescale,str(i).zfill(3),'.dat'])
-                file_name = os.path.join(outdir,outname)
+                truth_file_name=''.join([sbparams.outdir, 'truth_', root, timescale, str(i).zfill(3), '.dat'])
+                file_name = os.path.join(sbparams.outdir, outname)
 
             except:
                 print("naming failed, check path")
@@ -608,7 +634,7 @@ def main(argv):
                 try: 
                     # make single galaxy object
                     stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,psf=psf,affine=affine,fitcat=fitcat,
-                            cosmos_cat=cosmos_cat,optics=optics,nfw=nfw)                
+                            cosmos_cat=cosmos_cat,optics=optics,nfw=nfw,bandpass=bandpass)                
                     # Find the overlapping bounds:
                     bounds = stamp.bounds & full_image.bounds
                     
@@ -658,7 +684,8 @@ def main(argv):
                     cluster_stamp,truth = make_cluster_galaxy(ud=ud,wcs=wcs,affine=affine,psf=psf,
                                                                   centerpix=centerpix,
                                                                   cluster_cat=cluster_cat,
-                                                                  optics=optics)                
+                                                                  optics=optics,
+                                                                  bandpass=bandpass)                
                     # Find the overlapping bounds:
                     bounds = cluster_stamp.bounds & full_image.bounds
                     
