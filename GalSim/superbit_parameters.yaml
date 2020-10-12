@@ -22,7 +22,7 @@ sky_sigma:      0.0957      # standard deviation of sky background  [ADU / s / p
 nobj:           1000        # Number of galaxies (COSMOS 25.2 depth)[]
 nstars:         350         # Number of stars in the field          []
 nexp:           9           # Number of exposures per PSF model     []
-nclustergals:   30          # Number of cluster galaxies (arbitrary)[]
+nclustergal:    30          # Number of cluster galaxies (arbitrary)[]
 
 # Simulated cluster parameters
 # ----------------------------

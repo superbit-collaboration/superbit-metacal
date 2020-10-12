@@ -348,7 +348,7 @@ class SuperBITParameters:
             self.nobj       = 3000      # Number of galaxies (COSMOS 25.2 depth)[]
             self.nstars     = 350       # Number of stars in the field          []
             self.tel_diam   = 0.5       # Telescope aperture diameter           [m]
-            self.nclustergals = 30      # Number of cluster galaxies (arbitrary)[]
+            self.nclustergal = 30      # Number of cluster galaxies (arbitrary)[]
 
             self.lam        = 625       # Fiducial wavelength for abberations   [nm]
             self.mass       = 1E15      # Cluster mass                          [Msol / h]
@@ -523,7 +523,7 @@ def main(argv):
     """
     
     global logger
-    logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
+    logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stdout)
     logger = logging.getLogger("mock_superbit_data")
 
     # Define some parameters we'll use below.
