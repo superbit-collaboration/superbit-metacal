@@ -7,6 +7,7 @@ Though this is not an exhaustive list of problems that may be encountered, this 
 If you should find any other useful tidbits, please feel free to append to the end of this file.
 
 Good luck!
+Javier (javierr@princeton.edu)
 
 ---------------------------------------------------------------------------------------------------
 
