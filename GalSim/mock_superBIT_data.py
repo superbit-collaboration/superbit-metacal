@@ -775,6 +775,8 @@ def main(argv):
             full_image.addNoise(noise)
         
             logger.debug('Added noise to final output image')
+            if not os.path.exists(os.path.dirname(file_name)):
+                os.makedirs(os.path.dirname(file_name))
             full_image.write(file_name)
 
  
