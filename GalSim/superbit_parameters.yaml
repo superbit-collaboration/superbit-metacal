@@ -37,10 +37,10 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 # --------------
 # Define some paths and filenames
 psf_path:           './data/flight_jitter_only_oversampled_1x/'
-cosmosdir:          '/data/catalogs/COSMOS_25.2_training_sample/' # Path to COSMOS data directory 
+cosmosdir:          './data/catalogs/COSMOS_25.2_training_sample/' # Path to COSMOS data directory 
 cat_file_name:      'real_galaxy_catalog_25.2.fits' # catalog file name for COSMOS (in cosmosdir)
 fit_file_name:      'real_galaxy_catalog_25.2_fits.fits' # fit file name for COSMOS (in cosmosdir)
-cluster_cat_name:   '/data/catalogs/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
+cluster_cat_name:   './data/catalogs/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
 bp_file:            './data/lum_throughput.csv' # file with bandpass data
 outdir:             './output/' # directory where output images and truth catalogs are saved
 

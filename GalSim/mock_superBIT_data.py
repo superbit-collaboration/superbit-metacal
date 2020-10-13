@@ -584,7 +584,7 @@ def main(argv):
         for i in numpy.arange(1,sbparams.nexp+1):          
             logger.info('Beginning loop %d'% i)
 
-            rng = galsim.BaseDeviate(sbparams.noise_seed)
+            rng = galsim.BaseDeviate(sbparams.noise_seed+i)
 
             try:
                 root=psf_filen.split('data/')[1].split('/')[0]
@@ -775,6 +775,8 @@ def main(argv):
             full_image.addNoise(noise)
         
             logger.debug('Added noise to final output image')
+            if not os.path.exists(os.path.dirname(file_name)):
+                os.makedirs(os.path.dirname(file_name))
             full_image.write(file_name)
 
  
