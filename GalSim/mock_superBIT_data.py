@@ -584,7 +584,7 @@ def main(argv):
         for i in numpy.arange(1,sbparams.nexp+1):          
             logger.info('Beginning loop %d'% i)
 
-            rng = galsim.BaseDeviate(sbparams.noise_seed)
+            rng = galsim.BaseDeviate(sbparams.noise_seed+i)
 
             try:
                 root=psf_filen.split('data/')[1].split('/')[0]
