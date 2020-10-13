@@ -335,34 +335,34 @@ class SuperBITParameters:
             """
             # Define some default default parameters below.
             # These are used in the absence of a .yaml config_file or command line args.
-            self.pixel_scale= 0.206     # Pixel scale                           [arcsec/px]
-            self.sky_bkg    = 0.32      # mean sky background from AG's paper   [ADU / s / px]
-            self.sky_sigma  = 0.0957    # standard deviation of sky background  [ADU / s / px]  
-            self.gain       = 3.33      # Camera gain                           [ADU / e-]
-            self.image_xsize= 6665      # Horizontal image size                 [px]
-            self.image_ysize= 4453      # Vertical image size                   [px]
-            self.cra        = 19.3      # Central Right Ascension               [hrs]
-            self.cdec       = -33.1     # Central Declination                   [deg]
-            self.nexp       = 9         # Number of exposures per PSF model     []
-            self.exp_time   = 300       # Exposure time per image               [s]
-            self.nobj       = 3000      # Number of galaxies (COSMOS 25.2 depth)[]
-            self.nstars     = 350       # Number of stars in the field          []
-            self.tel_diam   = 0.5       # Telescope aperture diameter           [m]
-            self.nclustergal = 30      # Number of cluster galaxies (arbitrary)[]
+            self.pixel_scale    = 0.206     # Pixel scale                           [arcsec/px]
+            self.sky_bkg        = 0.32      # mean sky background from AG's paper   [ADU / s / px]
+            self.sky_sigma      = 0.0957    # standard deviation of sky background  [ADU / s / px]  
+            self.gain           = 3.33      # Camera gain                           [ADU / e-]
+            self.image_xsize    = 6665      # Horizontal image size                 [px]
+            self.image_ysize    = 4453      # Vertical image size                   [px]
+            self.cra            = 19.3      # Central Right Ascension               [hrs]
+            self.cdec           = -33.1     # Central Declination                   [deg]
+            self.nexp           = 9         # Number of exposures per PSF model     []
+            self.exp_time       = 300       # Exposure time per image               [s]
+            self.nobj           = 3000      # Number of galaxies (COSMOS 25.2 depth)[]
+            self.nstars         = 350       # Number of stars in the field          []
+            self.tel_diam       = 0.5       # Telescope aperture diameter           [m]
+            self.nclustergal    = 30        # Number of cluster galaxies (arbitrary)[]
 
-            self.lam        = 625       # Fiducial wavelength for abberations   [nm]
-            self.mass       = 1E15      # Cluster mass                          [Msol / h]
-            self.nfw_conc   = 4         # Concentration parameter = virial radius / NFW scale radius
-            self.nfw_z_halo = 0.17      # redshift of the halo                  []
-            self.omega_m    = 0.3       # Omega matter for the background cosmology.
-            self.omega_lam  = 0.7       # Omega lambda for the background cosmology.
+            self.lam            = 625       # Fiducial wavelength for abberations   [nm]
+            self.mass           = 1E15      # Cluster mass                          [Msol / h]
+            self.nfw_conc       = 4         # Concentration parameter = virial radius / NFW scale radius
+            self.nfw_z_halo     = 0.17      # redshift of the halo                  []
+            self.omega_m        = 0.3       # Omega matter for the background cosmology.
+            self.omega_lam      = 0.7       # Omega lambda for the background cosmology.
 
             # Define strut parameters. BIT has four orthogonal struts that
             # are ~12mm wide, and the exit pupil diameter is 137.4549 mm (Zemax)
-            self.nstruts    = 4         # Number of M2 struts                   []
-            self.strut_thick= 0.087     # Fraction of diameter strut thickness  [m/m]
-            self.strut_theta= 90        # Angle between vertical and nearest    [deg]
-            self.obscuration= 0.380     # Fraction of aperture obscured by M2   []
+            self.nstruts        = 4         # Number of M2 struts                   []
+            self.strut_thick    = 0.087     # Fraction of diameter strut thickness  [m/m]
+            self.strut_theta    = 90        # Angle between vertical and nearest    [deg]
+            self.obscuration    = 0.380     # Fraction of aperture obscured by M2   []
 
             # Define some paths and filenames
             self.psf_path = '/Users/jemcclea/Research/GalSim/examples/data/flight_jitter_only_oversampled_1x'
