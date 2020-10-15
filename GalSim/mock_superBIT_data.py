@@ -178,7 +178,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbpara
     logger.debug('created truth values')
     
     try:
-        galaxy_truth.fwhm=final.calculateFWHM()
+        galaxy_truth.fwhm=final.evaluateAtWavelength(sbparams.lam).calculateFWHM()
         galaxy_truth.mom_size=stamp.FindAdaptiveMom().moments_sigma
     except:
         logger.debug('fwhm or sigma calculation failed')
@@ -271,7 +271,7 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
     logger.debug('created truth values')
     
     try:
-        cluster_galaxy_truth.fwhm=final.calculateFWHM()
+        cluster_galaxy_truth.fwhm=final.evaluateAtWavelength(sbparams.lam).calculateFWHM()
         cluster_galaxy_truth.mom_size=cluster_stamp.FindAdaptiveMom().moments_sigma
     except:
         logger.debug('fwhm or sigma calculation failed')
