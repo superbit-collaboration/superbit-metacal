@@ -335,87 +335,25 @@ class SuperBITParameters:
             """
             # Define some default default parameters below.
             # These are used in the absence of a .yaml config_file or command line args.
-            self.pixel_scale    = 0.206     # Pixel scale                           [arcsec/px]
-            self.sky_bkg        = 0.32      # mean sky background from AG's paper   [ADU / s / px]
-            self.sky_sigma      = 0.0957    # standard deviation of sky background  [ADU / s / px]  
-            self.gain           = 3.33      # Camera gain                           [ADU / e-]
-            self.image_xsize    = 6665      # Horizontal image size                 [px]
-            self.image_ysize    = 4453      # Vertical image size                   [px]
-            self.cra            = 19.3      # Central Right Ascension               [hrs]
-            self.cdec           = -33.1     # Central Declination                   [deg]
-            self.nexp           = 9         # Number of exposures per PSF model     []
-            self.exp_time       = 300       # Exposure time per image               [s]
-            self.nobj           = 3000      # Number of galaxies (COSMOS 25.2 depth)[]
-            self.nstars         = 350       # Number of stars in the field          []
-            self.tel_diam       = 0.5       # Telescope aperture diameter           [m]
-            self.nclustergal    = 30        # Number of cluster galaxies (arbitrary)[]
-
-            self.lam            = 625       # Fiducial wavelength for abberations   [nm]
-            self.mass           = 1E15      # Cluster mass                          [Msol / h]
-            self.nfw_conc       = 4         # Concentration parameter = virial radius / NFW scale radius
-            self.nfw_z_halo     = 0.17      # redshift of the halo                  []
-            self.omega_m        = 0.3       # Omega matter for the background cosmology.
-            self.omega_lam      = 0.7       # Omega lambda for the background cosmology.
-
-            # Define strut parameters. BIT has four orthogonal struts that
-            # are ~12mm wide, and the exit pupil diameter is 137.4549 mm (Zemax)
-            self.nstruts        = 4         # Number of M2 struts                   []
-            self.strut_thick    = 0.087     # Fraction of diameter strut thickness  [m/m]
-            self.strut_theta    = 90        # Angle between vertical and nearest    [deg]
-            self.obscuration    = 0.380     # Fraction of aperture obscured by M2   []
-
-            # Define some paths and filenames
-            self.psf_path = '/Users/jemcclea/Research/GalSim/examples/data/flight_jitter_only_oversampled_1x'
-            self.cosmosdir  = 'data/COSMOS_25.2_training_sample/' # Path to COSMOS data directory 
-            self.cat_file_name = 'real_galaxy_catalog_25.2.fits' # catalog file name for COSMOS
-            self.fit_file_name = 'real_galaxy_catalog_25.2_fits.fits' # fit file name for COSMOS
-            self.cluster_cat_name = 'data/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
-            self.bp_file = 'data/lum_throughput.csv' # file with bandpass data
-            self.outdir = './output-jitter/' # directory where output images and truth catalogs are saved
-
-            # Define RNG seeds
-            self.noise_seed = 23058923781 
-            self.galobj_seed = 23058923781
-            self.cluster_seed = 892375351
-            self.stars_seed = 2308173501873
+            self._load_config_file("superbit_parameters_jmc.yaml")
 
             # Check for config_file params to overwrite defaults
             if config_file is not None:
+                logger.info('Loading parameters from %s' % (config_file))
                 self._load_config_file(config_file)
 
             # Check for command line args to overwrite config_file and / or defaults
             if argv is not None:
                 self._load_command_line(argv)
 
-            # Process parameters
-            self._process_params()
-
-        def _process_params(self):
-            """
-            Derive the parameters from the base parameters
-            """
-            self.center_ra = self.cra * galsim.hours
-            self.center_dec = self.cdec * galsim.degrees
-            self.image_xsize_arcsec = self.image_xsize * self.pixel_scale 
-            self.image_ysize_arcsec = self.image_ysize * self.pixel_scale 
-            self.center_coords = galsim.CelestialCoord(self.center_ra,self.center_dec)
-            self.strut_angle = self.strut_theta * galsim.degrees
-
-            # The catalog returns objects that are appropriate for HST in 1 second exposures.  So for our
-            # telescope we scale up by the relative area, exposure time, pixel scale and detector gain   
-            hst_eff_area = 2.4**2 * (1.-0.33**2)
-            sbit_eff_area = self.tel_diam**2 * (1.-0.380**2) 
-            self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain*(self.pixel_scale/.05)**2 
         def _load_config_file(self, config_file):
             """
             Load parameters from configuration file. Only parameters that exist in the config_file
             will be overwritten.
             """
-            logger.info('Loading parameters from %s' % (config_file))
             with open(config_file) as fsettings:
                 config = yaml.load(fsettings, Loader=yaml.FullLoader)
             self._load_dict(config)
-            self._process_params()
         def _args_to_dict(self, argv):
             """
             Converts a command line argument array to a dictionary.
@@ -437,7 +375,6 @@ class SuperBITParameters:
             logger.info('Processing command line args')
             # Parse arguments here
             self._load_dict(self._args_to_dict(argv))
-            self._process_params()
 
         def _load_dict(self, d):
             """
@@ -457,9 +394,9 @@ class SuperBITParameters:
                 elif option == "image_ysize":   
                     self.image_ysize = int(value)    
                 elif option == "center_ra":     
-                    self.center_ra = float(value)
-                elif option == "center_dec":
-                    self.center_dec = float(value)
+                    self.center_ra = float(value) * galsim.hours
+                elif option == "center_dec": 
+                    self.center_dec = float(value) * galsim.degrees
                 elif option == "nexp":      
                     self.nexp = int(value)          
                 elif option == "exp_time":   
@@ -476,8 +413,8 @@ class SuperBITParameters:
                     self.lam = float(value)      
                 elif option == "psf_path": 
                     self.psf_path = str(value) 
-                elif option == "cluster_mass": 
-                    self.mass = int(value)         
+                elif option == "mass": 
+                    self.mass = float(value)         
                 elif option == "nfw_conc":   
                     self.nfw_conc = float(value) 
                 elif option == "nfw_z_halo": 
@@ -487,6 +424,7 @@ class SuperBITParameters:
                 elif option == "omega_lam":
                     self.omega_lam = float(value)
                 elif option == "config_file":
+                    logger.info('Loading parameters from %s' % (value))
                     self._load_config_file(str(value))
                 elif option == "cosmosdir":
                     self.cosmosdir = str(value)
@@ -510,6 +448,31 @@ class SuperBITParameters:
                     self.cluster_seed = int(value)     
                 elif option == "stars_seed":     
                     self.stars_seed = int(value)     
+                elif option == "nstruts":     
+                    self.nstruts = int(value)     
+                elif option == "nstruts":     
+                    self.nstruts = int(value)     
+                elif option == "strut_thick":     
+                    self.strut_thick = float(value)     
+                elif option == "strut_theta":  
+                    self.strut_theta = float(value)        
+                elif option == "obscuration":  
+                    self.obscuration = float(0.380)     
+                else:
+                    raise Exception("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
+
+            # Derive the parameters from the base parameters
+            self.image_xsize_arcsec = self.image_xsize * self.pixel_scale 
+            self.image_ysize_arcsec = self.image_ysize * self.pixel_scale 
+            self.center_coords = galsim.CelestialCoord(self.center_ra,self.center_dec)
+            self.strut_angle = self.strut_theta * galsim.degrees
+            
+            # The catalog returns objects that are appropriate for HST in 1 second exposures.  
+            # So for our telescope we scale up by the relative area, exposure time, pixel scale 
+            # and detector gain   
+            hst_eff_area = 2.4**2 * (1.-0.33**2)
+            sbit_eff_area = self.tel_diam**2 * (1.-0.380**2) 
+            self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain*(self.pixel_scale/.05)**2 
 
 def main(argv):
     """
