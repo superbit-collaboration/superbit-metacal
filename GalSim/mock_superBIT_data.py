@@ -94,7 +94,7 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
 
     return nfw_shear, nfw_mu
 
-def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass):
+def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbparams):
     """
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
@@ -187,7 +187,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass):
     
     return stamp, galaxy_truth
 
-def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, bandpass):
+def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, bandpass, sbparams):
     """
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
@@ -281,7 +281,7 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
     return cluster_stamp, cluster_galaxy_truth
 
 
-def make_a_star(ud,wcs,psf,affine,optics):
+def make_a_star(ud, wcs, psf, affine, optics, sbparams):
     """
     makes a star-like object for injection into larger image.
     """
@@ -527,7 +527,6 @@ def main(argv):
     logger = logging.getLogger("mock_superbit_data")
 
     # Define some parameters we'll use below.
-    global sbparams
     sbparams = SuperBITParameters(argv=argv)
     
     # Set up the NFWHalo:
@@ -651,7 +650,8 @@ def main(argv):
                 try: 
                     # make single galaxy object
                     stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,psf=psf,affine=affine,fitcat=fitcat,
-                            cosmos_cat=cosmos_cat,optics=optics,nfw=nfw,bandpass=bandpass)                
+                            cosmos_cat=cosmos_cat,optics=optics,nfw=nfw,bandpass=bandpass,
+                            sbparams=sbparams)                
                     # Find the overlapping bounds:
                     bounds = stamp.bounds & full_image.bounds
                     
@@ -698,7 +698,8 @@ def main(argv):
                                                                   centerpix=centerpix,
                                                                   cluster_cat=cluster_cat,
                                                                   optics=optics,
-                                                                  bandpass=bandpass)                
+                                                                  bandpass=bandpass,
+                                                                  sbparam=sbparams)                
                     # Find the overlapping bounds:
                     bounds = cluster_stamp.bounds & full_image.bounds
                     
@@ -730,7 +731,8 @@ def main(argv):
                 time1 = time.time()
                 ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
 
-                star_stamp,truth = make_a_star(ud=ud,wcs=wcs,psf=psf,affine=affine,optics=optics)
+                star_stamp,truth = make_a_star(ud=ud, wcs=wcs, psf=psf, affine=affine, 
+                        optics=optics, sbparams=sbparams)
                 bounds = star_stamp.bounds & full_image.bounds
                
                 # Add the stamp to the full image.
