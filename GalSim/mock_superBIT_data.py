@@ -699,7 +699,7 @@ def main(argv):
                                                                   cluster_cat=cluster_cat,
                                                                   optics=optics,
                                                                   bandpass=bandpass,
-                                                                  sbparam=sbparams)                
+                                                                  sbparams=sbparams)                
                     # Find the overlapping bounds:
                     bounds = cluster_stamp.bounds & full_image.bounds
                     
