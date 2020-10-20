@@ -29,7 +29,9 @@ import pdb
 import glob
 import scipy
 import yaml
+from functools import reduce
 from astropy.table import Table
+from mpi_helper import MPIHelper
 
 class truth():
     
@@ -474,6 +476,21 @@ class SuperBITParameters:
             sbit_eff_area = self.tel_diam**2 * (1.-0.380**2) 
             self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain*(self.pixel_scale/.05)**2 
 
+# function to help with reducing MPI results from each process to single result
+def combine_images(im1, im2):
+    """Combine two galsim.Image objects into one."""
+    # easy since they support +. Try using in-place operation to reduce memory
+    im1 += im2
+    return im1
+
+def combine_catalogs(t1, t2):
+    """Combine two galsim.OutputCatalog objects into one"""
+    # as far as I can tell, they expose no way of doing this aside from messing
+    # with the internal lists directly.
+    t1.rows.extend(t2.rows)
+    t1.sort_keys.extend(t2.sort_keys)
+    return t1
+
 def main(argv):
     """
     Make images using model PSFs and galaxy cluster shear:
@@ -488,6 +505,8 @@ def main(argv):
     global logger
     logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
     logger = logging.getLogger("mock_superbit_data")
+
+    M = MPIHelper()
 
     # Define some parameters we'll use below.
     sbparams = SuperBITParameters(argv=argv)
@@ -544,6 +563,8 @@ def main(argv):
         logger.info('Beginning PSF %s...'% psf_filen)
         
         for i in numpy.arange(1,sbparams.nexp+1):          
+            # get MPI processes in sync at start of each image
+            M.barrier()
             logger.info('Beginning loop %d'% i)
 
             rng = galsim.BaseDeviate(sbparams.noise_seed+i)
@@ -571,7 +592,8 @@ def main(argv):
             # Set up the image:
             full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
             sky_level = sbparams.exp_time * sbparams.sky_bkg
-            full_image.fill(sky_level)
+            # fill with sky_level moved until after MPI results summed
+            full_image.fill(0.)
             full_image.setOrigin(0,0)
             
     
@@ -604,7 +626,9 @@ def main(argv):
             ## Loop over galaxy objects:
             #####
             
-            for k in range(sbparams.nobj):
+            # get local range to iterate over in this process
+            local_start, local_end = M.mpi_local_range(sbparams.nobj)
+            for k in range(local_start, local_end):
                 time1 = time.time()
                 
                 # The usual random number generator using a different seed for each galaxy.
@@ -649,7 +673,9 @@ def main(argv):
             center_coords = galsim.CelestialCoord(sbparams.center_ra,sbparams.center_dec)
             centerpix = wcs.toImage(center_coords)
             
-            for k in range(sbparams.nclustergal):
+            # get local range to iterate over in this process
+            local_start, local_end = M.mpi_local_range(sbparams.nclustergal)
+            for k in range(local_start, local_end):
                 time1 = time.time()
             
                 # The usual random number generator using a different seed for each galaxy.
@@ -690,7 +716,9 @@ def main(argv):
             ### Now repeat process for stars!
             #####
     
-            for k in range(sbparams.nstars):
+            # get local range to iterate over in this process
+            local_start, local_end = M.mpi_local_range(sbparams.nstars)
+            for k in range(local_start, local_end):
                 time1 = time.time()
                 ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
 
@@ -715,6 +743,22 @@ def main(argv):
                 except:
                     logger.info('Star %d has failed, skipping...',k)
 
+            # Gather results from MPI processes, reduce to single result on root
+            # Using same names on left and right sides is hiding lots of MPI magic
+            full_image = M.gather(full_image)
+            truth_catalog = M.gather(truth_catalog)
+            #noise_image = M.gather(noise_image)
+            if M.is_mpi_root():
+                full_image = reduce(combine_images, full_image)
+                truth_catalog = reduce(combine_catalogs, truth_catalog)
+                #noise_image = reduce(combine_imagees, noise_image)
+            else:
+                # do the adding of noise and writing to disk entirely on root
+                # root and the rest meet again at barrier at start of loop
+                continue
+
+            # add sky background. must do this after reducing the image
+            full_image += sky_level
             
             # If real-type COSMOS galaxies are used, the noise across the image won't be uniform. Since this code is
             # using parametric-type galaxies, the following section can be commented out.
