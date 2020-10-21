@@ -26,3 +26,19 @@ At present, those locations are hard-coded (sorry) in the `psf_path`.
 To generate `Chromatic` galaxies convolved with the SuperBIT throughputs in different filters, the mock data scripts expect a throughput
 file in the `data/` directory. User can modify locations and names of files being used by setting the `bp_dir` and `bp_file` variables
 in the `make_a_galaxy()` and `make_cluster_galaxy` methods. 
+
+Run in parallel with MPI
+========================
+
+The insertion of galaxies and stars into an image has been parallelized with
+MPI, so throwing extra CPUs and RAM at the problem can make things go faster.
+To execute, say, 2 processes in parallel run as:
+```
+mpiexec -n 2 python ./mock_superBIT_data.py config_file=my_params.yaml
+```
+
+This depends on mpi4py, though if you don't have it the code will still run
+serially. To install it:
+ 1. On a cluster: an optimized version probably exists. You may have to load a module
+ 2. With conda: `conda install mpi4py`
+ 3. With pip: you first need to install an MPI library (eg `apt install openmpi` on ubuntu). Then `pip install mpi4py` will probably work.
