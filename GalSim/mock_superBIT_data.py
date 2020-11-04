@@ -625,6 +625,9 @@ def main(argv):
             #         noise_image = max_current_variance - noise_image
 
             # The first thing to do is to make the Gaussian noise uniform across the whole image.
+            
+            # NOTE: this version of the code ONLY includes sky noise. 
+            
                   
             noise_rng=galsim.UniformDeviate()
             vn = galsim.VariableGaussianNoise(noise_rng, noise_image)
