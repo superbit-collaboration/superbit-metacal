@@ -57,31 +57,37 @@ class McalCats():
     def _make_table(self):
         """
         - Match master metacal catalog to source extractor catalog
+        - Trim catalog on g_cov, T/T_psf, etc. 
         - Correct g1/g2_noshear for the Rinv quantity (see Huff & Mandelbaum 2017)
         - Make an output table containing (corrected) ellipticities
         - Convert table to a "fiat" format ascii file 
         """
         
-        gals=Table.read(self.sexcat,format='fits',hdu=2) #contains only analysis objects.
-        master_clean = self._compute_metacal_quantities()
-        master_matcher = htm.Matcher(16,ra=master_clean['ra'],dec=master_clean['dec'])
 
+
+        # This step both applies selection cuts and returns shear-calibrated
+        # tangential ellipticity moments
+        self._compute_metacal_quantities()
+
+        # Now match trimmed & shear-calibrated catalog against sextractor
+        gals=Table.read(self.sexcat,format='fits',hdu=2) 
+        master_matcher = htm.Matcher(16,ra=self.mcCat['ra'],dec=self.mcCat['dec'])
         gals_ind,master_ind,dist=master_matcher.match(ra=gals['ALPHAWIN_J2000'],dec=gals['DELTAWIN_J2000'],
                                                           radius=5E-4,maxmatch=1)
-        match_master=master_clean[master_ind]; gals=gals[gals_ind]
-        
-        
+        match_master=self.mcCat[master_ind]; gals=gals[gals_ind]
+
+        # Write to file
         newtab=Table()
         newtab.add_columns([match_master['id'],match_master['ra'],match_master['dec']],names=['id','ra','dec'])
         newtab.add_columns([gals['X_IMAGE'],gals['Y_IMAGE']])
-        newtab.add_columns([match_master['g1_gmix'],match_master['g2_gmix']],names=['g1_gmix','g2_gmix'])
+        newtab.add_columns([match_master['g1_boot'],match_master['g2_boot']],names=['g1_boot','g2_boot'])
         
         newtab.add_columns([match_master['g1_MC'],match_master['g2_MC']],names=['g1_MC','g2_MC'])
         newtab.add_columns([match_master['g1_Rinv'],match_master['g2_Rinv']],names=['g1_Rinv','g2_Rinv'])
         try:
-            newtab.add_columns([match_master['T_gmix'],match_master['flux_gmix']],names=['T','flux'])
+            newtab.add_columns([match_master['T_gmix'],match_master['flux_gmix']],names=['T_noshear','flux'])
         except:
-            newtab.add_columns([match_master['T'],match_master['flux']],names=['T','flux'])
+            newtab.add_columns([match_master['T_noshear'],match_master['flux']],names=['T_noshear','flux'])
         
         newtab.write(self.outcat,format='csv',overwrite=True) # file gets replaced in the run_sdsscsv2fiat step
         self._run_sdsscsv2fiat()
@@ -91,37 +97,59 @@ class McalCats():
     
     def _compute_metacal_quantities(self):
         """ 
-        - remove metacal failures: filter out galaxies where abs(r11) or abs(r22) > 3
-        - compute median r11 and r22 for galaxies
+        - Cut sources on S/N and minimum size (adapted from DES cuts). 
+        - compute mean r11 and r22 for galaxies: responsivity & selection
         - divide "no shear" g1/g2 by r11 and r22, and return
 
         """
         
-        """
-        Do NOT cut on r11, r22 
-        but keeping this block here in case it's needed later
+        noshear_selection = self.mcCat[(self.mcCat['T_noshear']>=1.2*self.mcCat['Tpsf_noshear'])\
+                                           & (self.mcCat['s2n_noshear']<1000)\
+                                           & (self.mcCat['s2n_noshear']>10)\
+                                           & (self.mcCat['T_noshear']>5)]
+                                             
+        selection_1p = self.mcCat[(self.mcCat['T_1p']>=1.2*self.mcCat['Tpsf_1p'])\
+                                      & (self.mcCat['s2n_1p']<1000)\
+                                      & (self.mcCat['s2n_1p']>10)\
+                                      & (self.mcCat['T_1p']>5)]
 
-        full = self.mcCat
-        clean = full[(np.abs(full['r11']) < 3) & (np.abs(full['r22']) < 3)]
+        selection_1m = self.mcCat[(self.mcCat['T_1m']>=1.2*self.mcCat['Tpsf_1m'])\
+                                      & (self.mcCat['s2n_1m']<1000)\
+                                      & (self.mcCat['s2n_1m']>10)\
+                                      & (self.mcCat['T_1m']>5)]
 
-        r11=np.median(clean['r11'])
-        r22=np.median(clean['r22'])
-        print("# mean values <r11> = %f <r22> = %f" % (r11,r22))
+        selection_2p = self.mcCat[(self.mcCat['T_2p']>=1.2*self.mcCat['Tpsf_2p'])\
+                                      & (self.mcCat['s2n_2p']<1000)\
+                                      & (self.mcCat['s2n_2p']>10)\
+                                      & (self.mcCat['T_2p']>5)]
+
+        selection_2m = self.mcCat[(self.mcCat['T_2m']>=1.2*self.mcCat['Tpsf_2m'])\
+                                      & (self.mcCat['s2n_2m']<1000)\
+                                      & (self.mcCat['s2n_2m']>10)\
+                                      & (self.mcCat['T_2m']>5)]
+
         
-        clean['g1_Rinv']= clean['g1_noshear']/r11
-        clean['g2_Rinv']= clean['g2_noshear']/r22
+        r11_gamma=np.mean(noshear_selection['r11'])
+        r22_gamma=np.mean(noshear_selection['r22'])
 
-        return full
-        """
-        
-        r11=np.median(self.mcCat['r11'])
-        r22=np.median(self.mcCat['r22'])
-        print("# mean values <r11> = %f <r22> = %f" % (r11,r22))
-        
-        self.mcCat['g1_Rinv']= self.mcCat['g1_noshear']/r11
-        self.mcCat['g2_Rinv']= self.mcCat['g2_noshear']/r22
+        # assuming delta_shear in ngmix_fit_superbit is 0.01
+        r11_S = (np.mean(selection_1p['g1_noshear'])-np.mean(selection_1m['g1_noshear']))/0.02
+        r22_S = (np.mean(selection_2p['g2_noshear'])-np.mean(selection_2m['g2_noshear']))/0.02
 
-        return self.mcCat
+        print("# mean values <r11_gamma> = %f <r22_gamma> = %f" % (r11_gamma,r22_gamma))
+        print("# mean values <r11_S> = %f <r22_S> = %f" % (r11_S,r22_S))
+
+
+        # Write current mcCat to file for safekeeping!
+        # Then replace it with the "noshear"-selected catalog
+        self.mcCat.write('full_metacal_cat.csv',format='ascii.csv',overwrite=True)
+        
+        self.mcCat=noshear_selection
+        self.mcCat['g1_Rinv']= self.mcCat['g1_noshear']/(r11_gamma + r11_S)
+        self.mcCat['g2_Rinv']= self.mcCat['g2_noshear']/(r11_gamma + r11_S)
+
+
+        return 0
 
     
     def _run_sdsscsv2fiat(self):

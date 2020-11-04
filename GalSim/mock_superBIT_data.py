@@ -59,35 +59,19 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
     - pos is position of galaxy in image
     - nfw_z_source is background galaxy redshift
     """
-    try:
-        g1,g2 = nfw_halo.getShear( pos , nfw_z_source )
-        nfw_shear = galsim.Shear(g1=g1,g2=g2)
-    except:
-        # This shouldn't happen, since we exclude the inner 10 arcsec, but it's a
-        # good idea to use the try/except block here anyway.
-        import warnings
-        warnings.warn("Warning: NFWHalo shear is invalid -- probably strong lensing!  " +
-                          "Using shear = 0.")
-        nfw_shear = galsim.Shear(g1=0,g2=0)
-        
+    g1,g2 = nfw_halo.getShear( pos , nfw_z_source )
+    nfw_shear = galsim.Shear(g1=g1,g2=g2)
     nfw_mu = nfw_halo.getMagnification( pos , nfw_z_source )
-    gtot=numpy.sqrt(g1**2 +g2**2)
 
-    if nfw_mu < 0.00:
+    if nfw_mu < 0:
         import warnings
-        warnings.warn("Warning: gtot>0.50 means strong lensing! Setting g1=g2=0; mu=1.")      
-        g1=0.0
-        g2=0.0
-        mu=1.0
-        nfw_shear = galsim.Shear(g1=g1,g2=g2)
-        
+        warnings.warn("Warning: mu < 0 means strong lensing!  Using mu=25.")
+        nfw_mu = 25
     elif nfw_mu > 25:
         import warnings
-        warnings.warn("Warning: mu > 25 means strong lensing! Setting g1=g2=0 and mu=1.")
-        g1=0.0
-        g2=0.0
-        mu=1.0
-        nfw_shear = galsim.Shear(g1=g1,g2=g2)
+        warnings.warn("Warning: mu > 25 means strong lensing!  Using mu=25.")
+        nfw_mu = 25        
+    
 
     return nfw_shear, nfw_mu
 
@@ -119,12 +103,21 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat):
     logger.debug('created chromatic galaxy')
 
     # Obtain galaxy redshift from the COSMOS profile fit catalog
-    gal_z=fitcat['zphot'][gal.index]
+    #gal_z=fitcat['zphot'][gal.index]
+
+    # Draw the redshift from a power law distribution: N(f) ~ f^-2
+    redshift_dist = galsim.DistDeviate(ud, function = lambda x:x**-2,
+                                           x_min = 0.5,
+                                           x_max = 1.5)
+    gal_z = redshift_dist()
+    
 
     # Apply a random rotation
     theta = ud()*2.0*numpy.pi*galsim.radians
     gal = gal.rotate(theta)
- 
+    # This automatically scales up the noise variance (if there is any) by flux_scaling**2.
+    gal *= flux_scaling
+    
     # Get the reduced shears and magnification at this point
     nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
     g1=nfw_shear.g1; g2=nfw_shear.g2
@@ -138,10 +131,6 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat):
         print("could not lens galaxy, setting default values...")
         g1 = 0.0; g2 = 0.0
         mu = 1.0
-
-    # This automatically scales up the noise variance by flux_scaling**2.
-    gal *= flux_scaling
-    logger.debug('rescaled galaxy with scaling factor %f' % flux_scaling)
 
         
     # Generate PSF at location of galaxy
@@ -193,7 +182,7 @@ def make_cluster_galaxy(ud,wcs,psf,affine,centerpix,cluster_cat):
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
 
-    Galaxies created here are not lensed, and are magnified to
+    Galaxies defined here are not lensed, and are magnified to
     look more "cluster-like." 
     """
     
@@ -220,6 +209,10 @@ def make_cluster_galaxy(ud,wcs,psf,affine,centerpix,cluster_cat):
     # Fixed redshift for cluster galaxies
     gal_z = 0.17
     
+    # Get the reduced shears and magnification at this point
+    nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
+    g1=nfw_shear.g1; g2=nfw_shear.g2
+
     # Create chromatic galaxy    
     bp_dir = '/Users/jemcclea/Research/GalSim/examples/data'
     bp_file=os.path.join(bp_dir,'lum_throughput.csv')
@@ -370,11 +363,11 @@ def main(argv):
     center_coords = galsim.CelestialCoord(center_ra,center_dec)
     
     global n                     # number of exposures to create per PSF model
-    n = 9
+    n = 7
     global exp_time
     exp_time = 300
     global nobj
-    nobj = 3000                    # number of galaxies in entire field
+    nobj = 4000                    # number of galaxies in entire field
     global nstars
     nstars = 350                # number of stars in the entire field
     global flux_scaling           
@@ -390,7 +383,7 @@ def main(argv):
     
     # Set up the NFWHalo:
     global nfw                   # will store the NFWHalo information
-    mass=1E15                    # Cluster mass (Msol/h)
+    mass=5E14                    # Cluster mass (Msol/h)
     nfw_conc = 4                 # Concentration parameter = virial radius / NFW scale radius
     nfw_z_halo = 0.17            # redshift of the halo
     omega_m = 0.3                # Omega matter for the background cosmology.
@@ -423,7 +416,7 @@ def main(argv):
 
     ### Now create PSF. First, define Zernicke polynomial component
     ### note: aberrations were definined for lam = 550, and close to the
-    ### center of the camera. The PSF degrades at the edge of the FOV.
+    ### center of the camera. The PSF degrades at the edge of the FOV
     lam_over_diam = lam * 1.e-9 / tel_diam    # radians
     lam_over_diam *= 206265  # arcsec
     aberrations = numpy.zeros(38)             # Set the initial size.
@@ -438,9 +431,9 @@ def main(argv):
 
     # Define strut parameters. BIT has four orthogonal struts that
     # are ~12mm wide, and the exit pupil diameter is 137.4549 mm (Zemax)
-    nstruts = 4                           
-    strut_thick = 0.087                  # as a fraction of pupil diameter
-    strut_angle = 90 * galsim.degrees    # angle between the vertical and the strut closest to it
+    nstruts = 4
+    strut_thick = 0.087                  # as a fraction of pupil diameter; BIT tr
+    strut_angle = 90 * galsim.degrees   # angle between the vertical and the strut closest to it
     
     optics = galsim.OpticalPSF(lam=lam,diam=tel_diam, obscuration = 0.380, nstruts=nstruts,
                                    strut_angle=strut_angle, strut_thick=strut_thick, aberrations = aberrations)
@@ -465,12 +458,12 @@ def main(argv):
             rng = galsim.BaseDeviate(random_seed)
 
             try:
-                outdir = './output-jitter/' # directory where output images and truth catalogs are saved
                 root=psf_filen.split('data/')[1].split('/')[0]
+                #timescale=psf_filen.split('_1x/')[1].split('.')[0]
                 timescale=str(exp_time)
                 outname=''.join(['mock_superbit_',root,timescale,str(i).zfill(3),'.fits'])
-                truth_file_name=''.join([outdir,'truth_',root,timescale,str(i).zfill(3),'.dat'])
-                file_name = os.path.join(outdir,outname)
+                truth_file_name=''.join(['./output-jitter/round1/truth_',root,timescale,str(i).zfill(3),'.dat'])
+                file_name = os.path.join('output-jitter/round1',outname)
 
             except:
                 print("naming failed, check path")
@@ -511,8 +504,8 @@ def main(argv):
             full_image.wcs = wcs
 
             
-            # Now let's read in the PSFEx PSF model. We read the model directly into an
-            # GSObject, so we can manipulate it as needed 
+            # Now let's read in the PSFEx PSF model.  We read the image directly into an
+            # InterpolatedImage GSObject, so we can manipulate it as needed 
             psf_wcs=wcs
             psf_file = os.path.join(psf_path,psf_filen)
             psf = galsim.des.DES_PSFEx(psf_file,wcs=psf_wcs)
@@ -551,25 +544,18 @@ def main(argv):
                     truth_catalog.addRow(row)
                 except:
                     logger.info('Galaxy %d has failed, skipping...',k)
-                    
 
             #####
             ### Inject cluster galaxy objects:
-            ### - Note that "cluster" is just for aesthetics
-            ### - So, 'n_cluster_gals' is arbitrary
-            ### - You could concievably create a method to base the number of galaxies injected
-            ###   using some scaling relation between (NFW) mass and richness to set n_cluster_gals
-            ###   to something based in reality. 
             #####
 
-
+            """
             random_seed=892375351
 
             center_coords = galsim.CelestialCoord(center_ra,center_dec)
             centerpix = wcs.toImage(center_coords)
-            n_cluster_gals = 30
             
-            for k in range(n_cluster_gals):
+            for k in range(30):
                 time1 = time.time()
             
                 # The usual random number generator using a different seed for each galaxy.
@@ -583,10 +569,9 @@ def main(argv):
                     bounds = cluster_stamp.bounds & full_image.bounds
                     
                     # We need to keep track of how much variance we have currently in the image, so when
-                    # we add more noise, we can omit what is already there. This is more relevant to
-                    # "real" galaxy images, not parametric like we have
+                    # we add more noise, we can omit what is already there.
             
-                    #noise_image[bounds] += truth.variance
+                    noise_image[bounds] += truth.variance
             
                     # Finally, add the stamp to the full image.
                     
@@ -601,6 +586,7 @@ def main(argv):
                 except:
                     logger.info('Cluster galaxy %d has failed, skipping...',k)
                     pdb.set_trace()
+            """
                 
             #####
             ### Now repeat process for stars!
@@ -634,22 +620,17 @@ def main(argv):
 
             
             # If real-type COSMOS galaxies are used, the noise across the image won't be uniform. Since this code is
-            # using parametric-type galaxies, the following section can be commented out.
-            #
+            # using parametric-type galaxies, the following section is commented out.
+            #         max_current_variance = numpy.max(noise_image.array)
+            #         noise_image = max_current_variance - noise_image
+
             # The first thing to do is to make the Gaussian noise uniform across the whole image.
                   
-            max_current_variance = numpy.max(noise_image.array)
-            noise_image = max_current_variance - noise_image
-            
-            vn = galsim.VariableGaussianNoise(rng, noise_image)
+            noise_rng=galsim.UniformDeviate()
+            vn = galsim.VariableGaussianNoise(noise_rng, noise_image)
             full_image.addNoise(vn)
-        
-            # Now max_current_variance is the noise level across the full image.  We don't want to add that
-            # twice, so subtract off this much from the intended noise that we want to end up in the image.
             
-            this_sky_sigma = sky_sigma*exp_time
-            this_sky_sigma -= numpy.sqrt(max_current_variance)
-            
+            this_sky_sigma = sky_sigma*exp_time            
      
             # Regardless of galaxy type, add Gaussian noise with this variance to the final image.
             
