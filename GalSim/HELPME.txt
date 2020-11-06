@@ -1,0 +1,61 @@
+---------------------------------------------------------------------------------------------------
+You came here looking for help - well you may be in luck! What you'll find here are a collection 
+of tips and tricks for getting this part of the pipeline (Galsim) running, in particular on Ubuntu.
+Though this is not an exhaustive list of problems that may be encountered, this are the ones that I
+(Javier) have found and have lead to a usable Galsim module on Ubuntu 18.04.
+
+If you should find any other useful tidbits, please feel free to append to the end of this file.
+
+Good luck!
+Javier (javierr@princeton.edu)
+
+---------------------------------------------------------------------------------------------------
+
+Problem:    Complaints about one or more of the following
+            - "red_limit and blue_limit...Values {'blue_limit': None, 'red_limit': None, 'throughput': 'ACS_wfc_F814W.dat'"
+            - "CWW_E_ext_more.sed" is missing or cannot be found
+            - something to do with missing throughputs and / or SED data
+Cause:      `pip` in Ubuntu will often not install the `shared` folder for Galsim, which contains
+            calibration data for the HST WFC used as reference for SuperBIT's LUM filter. 
+Solution:   Manually download and install the `share` folder from the Galsim repo.
+            1) In a Python environment, run:
+
+                import galsim
+                galsim.meta_data.share_dir
+
+                This will return a directory. If that directory is missing or empty, continue.
+
+            2) Download and extract the Galsim 2.2.4 Git repo here:
+
+                https://github.com/GalSim-developers/GalSim/archive/v2.2.4.tar.gz 
+
+            3) Copy the `share` folder to the location specified in step 1.
+
+---------------------------------------------------------------------------------------------------
+
+Problem:    Complaints about missing "END" card when opening `cluster_cat_name`.
+Cause:      The cluster catalog in this repo is either corrupted, or is oddly formatted in a way
+            that Ubuntu has trouble reading. (TODO: consult jmac)
+Solution:   Download the COSMOS 25.2 and 23.5 catalogs (WARNING: large files 4.4 GB each)
+            1) Download and extract the COSMOS catalogs from here:
+
+                https://galsim-developers.github.io/GalSim/_build/html/real_gal.html#downloading-the-cosmos-catalog
+        
+                ** Be sure to get both the 25.2 and 23.5 catalogs. **
+
+            2) Either modify the parameter file `superbit_parameters.yaml` with the following:
+
+                cosmosdir:          '/path/to/COSMOS_25.2_training_sample/' 
+                cluster_cat_name:   '/path/to/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits'
+
+                and run the `mock_superBIT_data.py` script with `config_file=superbit_parameters.yaml`
+
+                OR run the `mock_superBIT_data.py` script with the following command line args:
+
+                cosmosdir=/path/to/COSMOS_25.2_training_sample/ cluster_cat_name=/path/to/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits'
+                
+---------------------------------------------------------------------------------------------------
+
+
+
+
