@@ -50,6 +50,7 @@ class BITMeasurement():
         self.catalog = None
         self.psf_path = None
         self.work_path = None
+        self.mask_path = './mask_files'
         
     def set_working_dir(self,path=None):
         if path is None:
@@ -147,7 +148,7 @@ class BITMeasurement():
     def reduce(self,overwrite=False,skip_sci_reduce=False):
         # Read in and average together the bias, dark, and flat frames.
 
-        bname = os.path.join(self.work_path,'master_bias_mean.fits')
+        bname = os.path.join(self.mask_path,'master_bias_mean.fits')
         """
         if (not os.path.exists(bname) or (overwrite==True)):
             # Taking median biases and darks instead of mean to eliminate odd noise features
@@ -162,7 +163,7 @@ class BITMeasurement():
         """
         master_bias = fitsio.read(bname)
 
-        dname = os.path.join(self.work_path,'master_dark_median.fits')
+        dname = os.path.join(self.mask_path,'master_dark_median.fits')
         if (not os.path.exists(dname) or (overwrite==True)):
             dark_array=[]
             for idark_file in self.dark_files:
@@ -171,11 +172,11 @@ class BITMeasurement():
                 dark_frame = ((fitsio.read(idark_file)) - master_bias) * 1./time
                 dark_array.append(dark_frame)
                 master_dark = np.median(dark_array,axis=0)
-                fitsio.write(os.path.join(self.work_path,'master_dark_median.fits'),master_dark,clobber=True)
+                fitsio.write(os.path.join(self.mask_path,'master_dark_median.fits'),master_dark,clobber=True)
         else:
             master_dark=fitsio.read(dname)
 
-        fname = os.path.join(self.work_path,'master_flat_median.fits')
+        fname = os.path.join(self.mask_path,'master_flat_median.fits')
         if (not os.path.exists(fname) or (overwrite==True)):
             flat_array=[]
             # Ideally, all the flats should have the SAME exposure time, or rather, each filter
@@ -187,7 +188,7 @@ class BITMeasurement():
                 flat_array.append(flat_frame)
                 master_flat1 = np.median(flat_array,axis=0)
                 master_flat = master_flat1/np.median(master_flat1)
-                fitsio.write(os.path.join(self.work_path,'master_flat_median.fits'),master_flat,clobber=True)
+                fitsio.write(os.path.join(self.mask_path,'master_flat_median.fits'),master_flat,clobber=True)
         else:
             master_flat=fitsio.read(fname)
         if not skip_sci_reduce:
@@ -215,12 +216,12 @@ class BITMeasurement():
         Use master flat and dark to generate a bad pixel mask.
         Default values for thresholds may be superseded in function call
         '''
-        self.mask_file = os.path.join(self.work_path,'supermask.fits')
+        self.mask_file = os.path.join(self.mask_path,'supermask.fits')
 
         if (not os.path.exists(self.mask_file)) or (overwrite==True):
             # It's bad practice to hard-code filenames in
-            mdark_fname = os.path.join(self.work_path,'master_dark_median.fits')
-            mflat_fname = os.path.join(self.work_path,'master_flat_median.fits')
+            mdark_fname = os.path.join(self.mask_path,'master_dark_median.fits')
+            mflat_fname = os.path.join(self.mask_path,'master_flat_median.fits')
             mdark = fits.getdata(mdark_fname)
             mflat = fits.getdata(mflat_fname)
 
@@ -236,7 +237,7 @@ class BITMeasurement():
             #darkmask[sum_dark==(len(dark_files))]=0
             darkmask[sum_dark==1]=0
             outfile = fits.PrimaryHDU(darkmask.reshape(np.shape(mdark)))
-            outfile.writeto(os.path.join(self.work_path,'darkmask.fits'),overwrite=True)
+            outfile.writeto(os.path.join(self.mask_path,'darkmask.fits'),overwrite=True)
 
             # repeat for flat
             med_flat_array=[]
@@ -250,12 +251,12 @@ class BITMeasurement():
             #darkmask[sum_dark==(len(dark_files))]=0
             flatmask[sum_flat==1]=0
             outfile = fits.PrimaryHDU(flatmask.reshape(np.shape(mflat)))
-            outfile.writeto(os.path.join(self.work_path,'flatmask.fits'),overwrite=True)
+            outfile.writeto(os.path.join(self.mask_path,'flatmask.fits'),overwrite=True)
 
             # Now generate actual mask
             supermask = (darkmask + flatmask)/2.
             outfile = fits.PrimaryHDU(flatmask.reshape(np.shape(mflat)))
-            outfile.writeto(os.path.join(self.work_path,'supermask.fits'),overwrite=True)
+            outfile.writeto(os.path.join(self.mask_path,'supermask.fits'),overwrite=True)
 
         else:
             pass
@@ -280,24 +281,15 @@ class BITMeasurement():
         os.system(cmd)
         return detection_file,weight_file
 
-    def _select_sources_from_catalog(self,fullcat,catname='catalog.ldac',min_size =1,max_size=16.0,size_key='KRON_RADIUS'):
+    def _select_sources_from_catalog(self,fullcat,catname='catalog.ldac',min_size =2,max_size=16.0,size_key='KRON_RADIUS'):
         # Choose sources based on quality cuts on this catalog.
         keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size) 
         self.catalog = self.catalog[keep.nonzero()[0]]
         
-        print("Selecting analysis objects on FWHM and CLASS_STAR...") # Adapt based on needs of data
-        keep2 = (self.catalog['FWHM_IMAGE']>1.5) & (self.catalog['CLASS_STAR']<=0.8) & (self.catalog['MAG_AUTO']>16.5)
+        print("Selecting analysis objects on FWHM and CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
+        keep2 = self.catalog['CLASS_STAR']<=0.8
         self.catalog = self.catalog[keep2.nonzero()[0]]
 
-        # This is really really bad practice... but don't know how else to automatically de-select stars
-        # Also, 90% sure this will introduce a bias into metacal results
-        """
-        real_clean=self.catalog[self.catalog['FWHM_IMAGE']>3.5]
-        gals=real_clean[(real_clean['FWHM_IMAGE']>= (real_clean['MAG_AUTO']*-8.98 + 187)) & (real_clean['FLUX_RADIUS']>2.7)
-                          & (real_clean['MAG_AUTO']<30)]
-
-        self.catalog=gals
-        """
         # Write trimmed catalog to file
         fullcat_name=catname.replace('.ldac','_full.ldac')
         cmd =  ' '.join(['mv',catname,fullcat_name])
@@ -323,13 +315,13 @@ class BITMeasurement():
         This returns catalog for (stacked) detection image
         '''
         #outfile_name='mock_empirical_psf_coadd.fits'; weightout_name='mock_empirical_psf_coadd.weight.fits'
-        outfile_name='mock_shear_debug_coadd.fits'; weightout_name='mock_shear_debug_coadd.weight.fits'
+        outfile_name='mock_coadd.fits'; weightout_name='mock_coadd.weight.fits'
         detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
-        #detection_file='./tmp/A2218_coadd.fits'; weight_file='./tmp/A2218_coadd.weight.fits'
         
         cat_name=detection_file.replace('.fits','_cat.ldac')
         name_arg='-CATALOG_NAME ' + cat_name
         weight_arg = '-WEIGHT_IMAGE '+weight_file
+        #config_arg = sextractor_config_path+'sextractor.empirical.config'
         config_arg = sextractor_config_path+'sextractor.config'
         param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
         nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
@@ -373,7 +365,9 @@ class BITMeasurement():
         '''
         # First, run SExtractor.
         # Hopefully imagefile is an absolute path!
+
         sextractor_config_file = sextractor_config_path+'sextractor.config'
+        #sextractor_config_file = sextractor_config_path+'sextractor.empirical.config'
         sextractor_param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
         sextractor_nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
         sextractor_filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
@@ -392,8 +386,13 @@ class BITMeasurement():
         # At some point, make truthfilen a command line argument
         if select_stars==True:
             
-            truthdir = '/Users/jemcclea/Research/GalSim/examples/output'
-            truthcat = 'truth_superbitimage_kernel_247530003.dat'
+            #truthdir = '/Users/jemcclea/Research/GalSim/examples/output-debug/'
+            #truthcat = 'truth_jitteronlyflight_jitter_only_oversampled_1x300005.dat'
+            #truthcat = 'truth_opticsonlyflight_jitter_only_oversampled_1x300003.dat'
+            truthdir='/Users/jemcclea/Research/GalSim/examples/output-jitter/round3/'
+            truthcat='truth_flight_jitter_only_oversampled_1x300007.dat'
+            
+
             truthfilen=os.path.join(truthdir,truthcat)           
             print("using truth catalog %s" % truthfilen)
             psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,truthfile=truthfilen)
@@ -403,6 +402,7 @@ class BITMeasurement():
             
         # Now run PSFEx on that image and accompanying catalog
         psfex_config_arg = '-c '+sextractor_config_path+'psfex.config'
+        #psfex_config_arg = '-c '+sextractor_config_path+'psfex.empirical.config'
         # Will need to make that tmp/psfex_output generalizable
         outcat_name = imagefile.replace('.fits','.psfex.star')
         cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
@@ -433,7 +433,7 @@ class BITMeasurement():
         ss = fits.open(sscat)
         star_matcher = eu.htm.Matcher(16,ra=stars['ra'],dec=stars['dec'])
         ssmatches,starmatches,dist = star_matcher.match(ra=ss[2].data['ALPHAWIN_J2000'],
-                                                            dec=ss[2].data['DELTAWIN_J2000'],radius=6E-4,maxmatch=1)
+                                                            dec=ss[2].data['DELTAWIN_J2000'],radius=3E-4,maxmatch=1)
         
         # Save result to file, return filename
         outname = sscat.replace('.ldac','.star')
@@ -442,7 +442,7 @@ class BITMeasurement():
 
         return outname
 
-    def make_image_info_struct(self,max_len_of_filepath = 120):
+    def make_image_info_struct(self,max_len_of_filepath = 200):
         # max_len_of_filepath may cause issues down the line if the file path
         # is particularly long
 

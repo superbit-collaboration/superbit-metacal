@@ -9,7 +9,7 @@ import pdb
 from astropy import wcs
 import fitsio
 import esutil as eu
-
+from astropy.table import Table
 import astropy.units as u
 import astropy.coordinates
 from astroquery.gaia import Gaia
@@ -284,28 +284,39 @@ class BITMeasurement():
         # Choose sources based on quality cuts on this catalog.
         keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size) 
         self.catalog = self.catalog[keep.nonzero()[0]]
+
         
         print("Also selecting on FWHM...") # Adapt based on needs of data
-        keep2 = (self.catalog['SNR_WIN']>=5) & (self.catalog['SNR_WIN']<=150) & (self.catalog['CLASS_STAR']<=0.65) & (self.catalog['FLAGS']<17)
-        #keep2 = (self.catalog['FWHM_IMAGE']>2.95) 
+        #keep2 = (self.catalog['SNR_WIN']>=5) & (self.catalog['SNR_WIN']<=150) & (self.catalog['CLASS_STAR']<=0.8) & (self.catalog['FLAGS']<17) & (self.catalog['FWHM_IMAGE']>6)
+        keep2 = (self.catalog['FWHM_IMAGE']>3) & (self.catalog['SNR_WIN']>=5)& (self.catalog['FLAGS']<17)
         self.catalog = self.catalog[keep2.nonzero()[0]]
-
-        # This is really really bad practice... but don't know how else to automatically de-select stars
-        # Also, 90% sure this will introduce a bias into metacal results
-        real_clean=self.catalog[self.catalog['FWHM_IMAGE']>3.5]
-        gals=real_clean[(real_clean['FWHM_IMAGE']>= (real_clean['MAG_AUTO']*-8.98 + 187)) & (real_clean['FLUX_RADIUS']>2.7)
-                          & (real_clean['MAG_AUTO']<30)]
-
+        
+        fullcat[2].data = self.catalog
+        
+        # This is really really bad practice...
+        # use only for debugging as it will introduce a bias into metacal results
+        """
+        real_clean=self.catalog[self.catalog['FWHM_IMAGE']>8]
+        gals=real_clean[(real_clean['FWHM_IMAGE']>= (real_clean['MAG_AUTO']*-8.98 + 195)) & (real_clean['FLUX_RADIUS']>2.7)
+                         & (real_clean['MAG_AUTO']<30)]
         self.catalog=gals
-        # Also write trimmed catalog to file
+        fullcat[2].data = gals
+        """
+        
+        clean = Table.read('./mask_files/fitvd-gauss-cleaned.wcs.fiat',format='ascii')
+        clean_matcher = eu.htm.Matcher(16,ra=clean['col1'],dec=clean['col2'])
+        full_ind,clean_ind,dist=clean_matcher.match(ra=fullcat[2].data['ALPHAWIN_J2000'],dec=fullcat[2].data['DELTAWIN_J2000'],maxmatch=1,radius=2.5E-4)
+        gals = fullcat[2].data[full_ind]
+        self.catalog=gals
+        fullcat[2].data = gals
+        
+        
         fullcat_name=catname.replace('.ldac','_full.ldac')
         cmd =  ' '.join(['mv',catname,fullcat_name])
         os.system(cmd)
-        
-        # "fullcat" is now actually the filtered-out analysis catalog
-        #fullcat[2].data = self.catalog
-        fullcat[2].data = gals
-        
+               
+        # "fullcat" is by now actually the filtered-out analysis catalog
+        #  write trimmed catalog to file
         fullcat.writeto(catname,overwrite=True)
         
     def select_sources_from_gaia():
@@ -322,9 +333,8 @@ class BITMeasurement():
         This returns catalog for (stacked) detection image
         '''
         #outfile_name='mock_empirical_psf_coadd.fits'; weightout_name='mock_empirical_psf_coadd.weight.fits'
-        outfile_name='mock_shear_debug_coadd.fits'; weightout_name='mock_shear_debug_coadd.weight.fits'
+        outfile_name='A2218_coadd.fits'; weightout_name='A2218_coadd.weight.fits'
         detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
-        #detection_file='./tmp/A2218_coadd.fits'; weight_file='./tmp/A2218_coadd.weight.fits'
         
         cat_name=detection_file.replace('.fits','_cat.ldac')
         name_arg='-CATALOG_NAME ' + cat_name

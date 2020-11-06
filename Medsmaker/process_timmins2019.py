@@ -23,8 +23,8 @@ try:
     # The path names should be updated; as written the code also expects all
     # calibration files to be in the same directory
 
-    bm.set_working_dir(path='/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/outputs_v2')
-    bm.set_path_to_psf(path='/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/outputs_v2/psfex_output')
+    bm.set_working_dir(path='/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/output-real')
+    bm.set_path_to_psf(path='/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/output-real/psfex_output')
 
     """
     bm.set_working_dir()
@@ -39,7 +39,7 @@ try:
     obj_info = bm.make_object_info_struct()
     """
     # haven't done select_from_gaia in a while...
-    bm.run(clobber=False,source_selection = True, select_from_gaia=True,outfile = "/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/outputs_v2/A2218_v2.meds")
+    bm.run(clobber=False,source_selection = True, select_from_gaia=True,outfile = "/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/output-real/A2218_real.meds")
 
 except:
     thingtype, value, tb = sys.exc_info()
