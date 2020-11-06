@@ -182,7 +182,7 @@ class SuperBITNgmixFitter():
 
         except:
             print("Creation of MaxMetacalBootstrapper failed, skipping object...")
-            pdb.set_trace()
+            #pdb.set_trace()
             gal_fit = None
             mcr = None
 

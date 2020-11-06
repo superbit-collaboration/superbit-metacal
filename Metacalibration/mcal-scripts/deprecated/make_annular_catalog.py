@@ -101,55 +101,38 @@ class McalCats():
         - compute mean r11 and r22 for galaxies: responsivity & selection
         - divide "no shear" g1/g2 by r11 and r22, and return
 
-        & (self.mcCat['T_noshear']>1.5)
         """
         
-        #noshear_selection = self.mcCat[(self.mcCat['T_noshear']>=1.2*self.mcCat['Tpsf_noshear'])& (self.mcCat['s2n_noshear']<400) & (self.mcCat['s2n_noshear']>10)]
-
-        noshear_selection = self.mcCat[(self.mcCat['T_noshear']<100)\
-                                           & (self.mcCat['s2n_noshear']<400)\
+        noshear_selection = self.mcCat[(self.mcCat['T_noshear']>=1.2*self.mcCat['Tpsf_noshear'])\
+                                           & (self.mcCat['s2n_noshear']<1000)\
                                            & (self.mcCat['s2n_noshear']>10)\
-                                           & (self.mcCat['g1cov_noshear']<1.5E-3)\
-                                           & (self.mcCat['g2cov_noshear']<1.5E-3)
-                                           ]
-        selection_1p = self.mcCat[(self.mcCat['T_1p']<100)\
-                                      & (self.mcCat['s2n_1p']<400)\
+                                           & (self.mcCat['T_noshear']>5)]
+                                             
+        selection_1p = self.mcCat[(self.mcCat['T_1p']>=1.2*self.mcCat['Tpsf_1p'])\
+                                      & (self.mcCat['s2n_1p']<1000)\
                                       & (self.mcCat['s2n_1p']>10)\
-                                      & (self.mcCat['g1cov_1p']<1.5E-3)\
-                                      & (self.mcCat['g2cov_1p']<1.5E-3)
-                                      ]
+                                      & (self.mcCat['T_1p']>5)]
 
-        selection_1m = self.mcCat[(self.mcCat['T_1m']<100)\
-                                      & (self.mcCat['s2n_1m']<400)\
+        selection_1m = self.mcCat[(self.mcCat['T_1m']>=1.2*self.mcCat['Tpsf_1m'])\
+                                      & (self.mcCat['s2n_1m']<1000)\
                                       & (self.mcCat['s2n_1m']>10)\
-                                      & (self.mcCat['g1cov_1m']<1.5E-3)\
-                                      & (self.mcCat['g2cov_1m']<1.5E-3)
-                                      ]
+                                      & (self.mcCat['T_1m']>5)]
 
-        selection_2p = self.mcCat[(self.mcCat['T_2p']<100)\
-                                      & (self.mcCat['s2n_2p']<400)\
+        selection_2p = self.mcCat[(self.mcCat['T_2p']>=1.2*self.mcCat['Tpsf_2p'])\
+                                      & (self.mcCat['s2n_2p']<1000)\
                                       & (self.mcCat['s2n_2p']>10)\
-                                      & (self.mcCat['g1cov_2p']<1.5E-3)\
-                                      & (self.mcCat['g2cov_2p']<1.5E-3)
-                                      ]
+                                      & (self.mcCat['T_2p']>5)]
 
-        selection_2m = self.mcCat[(self.mcCat['T_2m']<100)\
-                                      & (self.mcCat['s2n_2m']<400)\
+        selection_2m = self.mcCat[(self.mcCat['T_2m']>=1.2*self.mcCat['Tpsf_2m'])\
+                                      & (self.mcCat['s2n_2m']<1000)\
                                       & (self.mcCat['s2n_2m']>10)\
-                                      & (self.mcCat['g1cov_2m']<1.5E-3)\
-                                      & (self.mcCat['g2cov_2m']<1.5E-3)                                          
-                                      ]
+                                      & (self.mcCat['T_2m']>5)]
 
-        """
+        
         r11_gamma=np.mean(noshear_selection['r11'])
         r22_gamma=np.mean(noshear_selection['r22'])
-        """
 
-        r11_gamma=(np.mean(noshear_selection['g1_1p']) -np.mean(noshear_selection['g1_1m']))/0.02
-        r22_gamma=(np.mean(noshear_selection['g2_2p']) -np.mean(noshear_selection['g2_2m']))/0.02
-        
-
-        # assuming delta_shear in ngmix_fit_superbit is 0.01                                                                                                                         
+        # assuming delta_shear in ngmix_fit_superbit is 0.01
         r11_S = (np.mean(selection_1p['g1_noshear'])-np.mean(selection_1m['g1_noshear']))/0.02
         r22_S = (np.mean(selection_2p['g2_noshear'])-np.mean(selection_2m['g2_noshear']))/0.02
 
@@ -157,13 +140,13 @@ class McalCats():
         print("# mean values <r11_S> = %f <r22_S> = %f" % (r11_S,r22_S))
 
 
-        # Write current mcCat to file for safekeeping!                                                                                                                               
-        # Then replace it with the "noshear"-selected catalog                                                                                                                        
+        # Write current mcCat to file for safekeeping!
+        # Then replace it with the "noshear"-selected catalog
         self.mcCat.write('full_metacal_cat.csv',format='ascii.csv',overwrite=True)
-
+        
         self.mcCat=noshear_selection
         self.mcCat['g1_Rinv']= self.mcCat['g1_noshear']/(r11_gamma + r11_S)
-        self.mcCat['g2_Rinv']= self.mcCat['g2_noshear']/(r22_gamma + r22_S)
+        self.mcCat['g2_Rinv']= self.mcCat['g2_noshear']/(r11_gamma + r11_S)
 
 
         return 0
