@@ -63,36 +63,20 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
     - pos is position of galaxy in image
     - nfw_z_source is background galaxy redshift
     """
-    try:
-        g1,g2 = nfw_halo.getShear( pos , nfw_z_source )
-        nfw_shear = galsim.Shear(g1=g1,g2=g2)
-    except:
-        # This shouldn't happen, since we exclude the inner 10 arcsec, but it's a
-        # good idea to use the try/except block here anyway.
-        import warnings
-        warnings.warn("Warning: NFWHalo shear is invalid -- probably strong lensing!  " +
-                          "Using shear = 0.")
-        nfw_shear = galsim.Shear(g1=0,g2=0)
-        logger.debug("NFWHalo shear is invalid")
-        
-    nfw_mu = nfw_halo.getMagnification( pos , nfw_z_source )
-    gtot=numpy.sqrt(g1**2 +g2**2)
 
-    if nfw_mu < 0.00:
+    g1,g2 = nfw_halo.getShear( pos , nfw_z_source )
+    nfw_shear = galsim.Shear(g1=g1,g2=g2)
+    nfw_mu = nfw_halo.getMagnification( pos , nfw_z_source )
+
+    if nfw_mu < 0:
         import warnings
-        warnings.warn("Warning: gtot>0.50 means strong lensing! Setting g1=g2=0; mu=1.")      
-        g1=0.0
-        g2=0.0
-        mu=1.0
-        nfw_shear = galsim.Shear(g1=g1,g2=g2)
-        
+        warnings.warn("Warning: mu < 0 means strong lensing!  Using mu=25.")
+        nfw_mu = 25
     elif nfw_mu > 25:
         import warnings
-        warnings.warn("Warning: mu > 25 means strong lensing! Setting g1=g2=0 and mu=1.")
-        g1=0.0
-        g2=0.0
-        mu=1.0
-        nfw_shear = galsim.Shear(g1=g1,g2=g2)
+        warnings.warn("Warning: mu > 25 means strong lensing!  Using mu=25.")
+        nfw_mu = 25        
+    
 
     return nfw_shear, nfw_mu
 
@@ -121,11 +105,22 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbpara
 
     # Obtain galaxy redshift from the COSMOS profile fit catalog
     gal_z=fitcat['zphot'][gal.index]
+    """
+    # Draw the redshift from a power law distribution: N(f) ~ f^-2
+    redshift_dist = galsim.DistDeviate(ud, function = lambda x:x**-2,
+                                           x_min = 0.5,
+                                           x_max = 1.5)
+    gal_z = redshift_dist()
+    """
 
     # Apply a random rotation
     theta = ud()*2.0*numpy.pi*galsim.radians
     gal = gal.rotate(theta)
- 
+    # This automatically scales up the noise variance (if there is any) by flux_scaling**2.
+    gal *= sbparams.flux_scaling
+    logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
+
+    
     # Get the reduced shears and magnification at this point
     nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
     g1=nfw_shear.g1; g2=nfw_shear.g2
@@ -139,10 +134,6 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbpara
         print("could not lens galaxy, setting default values...")
         g1 = 0.0; g2 = 0.0
         mu = 1.0
-
-    # This automatically scales up the noise variance by flux_scaling**2.
-    gal *= sbparams.flux_scaling
-    logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
 
         
     # Generate PSF at location of galaxy
@@ -194,7 +185,7 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
 
-    Galaxies created here are not lensed, and are magnified to
+    Galaxies defined here are not lensed, and are magnified to
     look more "cluster-like." 
     """
     
@@ -224,6 +215,10 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
     g1 = 0.0; g2 = 0.0
     mu = 1.0
     
+    # Get the reduced shears and magnification at this point
+    nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
+    g1=nfw_shear.g1; g2=nfw_shear.g2
+
     # Create chromatic galaxy    
     gal = cluster_cat.makeGalaxy(gal_type='parametric', rng=ud,chromatic=True)
     logger.debug('created cluster galaxy')
@@ -514,6 +509,7 @@ def main(argv):
     # Set up the NFWHalo:
     nfw = galsim.NFWHalo(mass=sbparams.mass, conc=sbparams.nfw_conc, redshift=sbparams.nfw_z_halo,
                      omega_m=sbparams.omega_m, omega_lam=sbparams.omega_lam)
+
     logger.info('Set up NFW halo for lensing')
 
     # Read in galaxy catalog, as well as catalog containing
@@ -531,6 +527,7 @@ def main(argv):
     ### center of the camera. The PSF degrades at the edge of the FOV
     lam_over_diam = sbparams.lam * 1.e-9 / sbparams.tel_diam    # radians
     lam_over_diam *= 206265.
+
     aberrations = numpy.zeros(38)             # Set the initial size.
     aberrations[0] = 0.                       # First entry must be zero
     aberrations[1] = -0.00305127
@@ -546,6 +543,7 @@ def main(argv):
                         obscuration=sbparams.obscuration, nstruts=sbparams.nstruts, 
                         strut_angle=sbparams.strut_angle, strut_thick=sbparams.strut_thick,
                         aberrations=aberrations)
+
     logger.info('Made telescope PSF profile')
     
     # load SuperBIT bandpass
@@ -616,8 +614,8 @@ def main(argv):
             full_image.wcs = wcs
 
             
-            # Now let's read in the PSFEx PSF model. We read the model directly into an
-            # GSObject, so we can manipulate it as needed 
+            # Now let's read in the PSFEx PSF model.  We read the image directly into an
+            # InterpolatedImage GSObject, so we can manipulate it as needed 
             psf_wcs=wcs
             psf = galsim.des.DES_PSFEx(psf_filen,wcs=psf_wcs)
             logger.info('Constructed PSF object from PSFEx file')
@@ -659,23 +657,18 @@ def main(argv):
                     truth_catalog.addRow(row)
                 except:
                     logger.info('Galaxy %d has failed, skipping...',k)
-                    
 
             #####
             ### Inject cluster galaxy objects:
-            ### - Note that "cluster" is just for aesthetics
-            ### - So, 'n_cluster_gals' is arbitrary
-            ### - You could concievably create a method to base the number of galaxies injected
-            ###   using some scaling relation between (NFW) mass and richness to set n_cluster_gals
-            ###   to something based in reality. 
             #####
-
+ 
             center_coords = galsim.CelestialCoord(sbparams.center_ra,sbparams.center_dec)
             centerpix = wcs.toImage(center_coords)
             
             # get local range to iterate over in this process
             local_start, local_end = M.mpi_local_range(sbparams.nclustergal)
             for k in range(local_start, local_end):
+
                 time1 = time.time()
             
                 # The usual random number generator using a different seed for each galaxy.
@@ -693,10 +686,9 @@ def main(argv):
                     bounds = cluster_stamp.bounds & full_image.bounds
                     
                     # We need to keep track of how much variance we have currently in the image, so when
-                    # we add more noise, we can omit what is already there. This is more relevant to
-                    # "real" galaxy images, not parametric like we have
+                    # we add more noise, we can omit what is already there.
             
-                    #noise_image[bounds] += truth.variance
+                    noise_image[bounds] += truth.variance
             
                     # Finally, add the stamp to the full image.
                     
@@ -710,7 +702,8 @@ def main(argv):
                     truth_catalog.addRow(row)
                 except:
                     logger.info('Cluster galaxy %d has failed, skipping...',k)
-                    pdb.set_trace()
+                    
+            
                 
             #####
             ### Now repeat process for stars!
@@ -751,7 +744,7 @@ def main(argv):
             if M.is_mpi_root():
                 full_image = reduce(combine_images, full_image)
                 truth_catalog = reduce(combine_catalogs, truth_catalog)
-                #noise_image = reduce(combine_imagees, noise_image)
+                #noise_image = reduce(combine_images, noise_image)
             else:
                 # do the adding of noise and writing to disk entirely on root
                 # root and the rest meet again at barrier at start of loop
@@ -761,23 +754,22 @@ def main(argv):
             full_image += sky_level
             
             # If real-type COSMOS galaxies are used, the noise across the image won't be uniform. Since this code is
-            # using parametric-type galaxies, the following section can be commented out.
-            #
+            # using parametric-type galaxies, the following section is commented out.
+            #         max_current_variance = numpy.max(noise_image.array)
+            #         noise_image = max_current_variance - noise_image
+
             # The first thing to do is to make the Gaussian noise uniform across the whole image.
-                  
-            max_current_variance = numpy.max(noise_image.array)
-            noise_image = max_current_variance - noise_image
             
-            vn = galsim.VariableGaussianNoise(rng, noise_image)
-            full_image.addNoise(vn)
-        
-            # Now max_current_variance is the noise level across the full image.  We don't want to add that
-            # twice, so subtract off this much from the intended noise that we want to end up in the image.
+            # NOTE: this version of the code ONLY includes sky noise. 
             
-            this_sky_sigma = sbparams.sky_sigma*sbparams.exp_time
+            this_sky_sigma = sbparams.sky_sigma*numpy.sqrt(sbparams.exp_time)
             this_sky_sigma -= numpy.sqrt(max_current_variance)
-            
-     
+
+                  
+            noise_rng=galsim.UniformDeviate()
+            vn = galsim.VariableGaussianNoise(noise_rng, noise_image)
+            full_image.addNoise(vn)
+
             # Regardless of galaxy type, add Gaussian noise with this variance to the final image.
             
             noise = galsim.GaussianNoise(rng, sigma=this_sky_sigma)
