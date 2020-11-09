@@ -25,9 +25,9 @@ sns.set()
 ### 
 ########################################################################
 
-python ngmix_fit_superbit2.py meds_files/mock_jitter.meds 400 402 test.asc
+python ngmix_fit_superbit.py meds_files/mock_jitter.meds 400 420 test.asc
 
-python make_annular_catalog.py mock_coadd_cat.ldac mcal-jitter-ngmix2.csv mcal-jitter-ngmix2*asc
+python make_annular_catalog.py mock_coadd_cat.ldac mcal-ngmix2-zreal.csv mcal-ngmix2-zreal*.asc
 
 # copy to local for plotting
 scp jmcclear@ssh.ccv.brown.edu:/users/jmcclear/data/superbit/debug/*.annular /Users/jemcclea/Research/SuperBIT/shear_profiles/debug3
@@ -35,20 +35,20 @@ scp jmcclear@ssh.ccv.brown.edu:/users/jmcclear/data/superbit/debug/*.annular /Us
 
 #######################################################################
 ###
-### Run annular on either single image or stack
+### Run annular on either single image or stack. Old center: 3511 2349
 ###
 ########################################################################
 
 
 annular -c"x_image y_image g1_nopsf g2_nopsf" -f"nfw_mu >1.01" -s 250 -e 2500 -n 20 truth_5E14shear_300.0_5.fiat 3333 2227 > truth_5e14_nopsf.annular
 
-annular -c"X_IMAGE Y_IMAGE g1_gmix g2_gmix" -s 100 -e 1500 -n 5 mcal-A2218-gmix.fiat 3755 4147  > mcal-A2218-gmixsuperbit
+annular -c"X_IMAGE Y_IMAGE g1_Rinv g2_Rinv" -s 100 -e 2200 -n 12 mcal-ngmix2-jitter-Tcut.fiat 3505 2340  > mcal-ngmix2-jitter.Rinv.annular
 
-annular -c"X_IMAGE Y_IMAGE g1_Rinv g2_Rinv" -s 120 -e 2200 -n 10 mcal-jitter-ngmix2.fiat 3511 2349 
+annular -c"X_IMAGE Y_IMAGE g1_Rinv g2_Rinv" -s 100 -e 2200 -n 11 mcal-ngmix2-zreal_debug.fiat 3505 2340 > mcal-ngmix1-shallow.Rinv.annular
 
-annular -c"X_IMAGE Y_IMAGE g1 g2" -s 120 -e 2200 -n 12 fitvd-flight-jitter-exp.fiat 3511 2349 > mcal-mocks-gmixsuperbit-Rinv.annular
+annular -c"X_IMAGE Y_IMAGE g1 g2" -s 120 -e 2200 -n 9 fitvd-optics-jitter-exp.fiat 3505 2340  > fitvd_optics_jitter.annular
 
-python annular_jmac.py fitvd-flight-jitter-exp.csv X_IMAGE Y_IMAGE g1 g2
+python annular_jmac.py fitvd-optics-jitter-exp.csv X_IMAGE Y_IMAGE g1 g2
 
 
 ########################################################################

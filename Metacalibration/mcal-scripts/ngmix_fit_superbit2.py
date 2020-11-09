@@ -170,7 +170,7 @@ class SuperBITNgmixFitter():
             lm_pars = {'maxfev':2000, 'xtol':5.0e-5, 'ftol':5.0e-5}
             max_pars = {'method':'lm','lm_pars':lm_pars}
 
-        psf_model = 'em3' # should come up with diagnostics for PSF quality
+        psf_model = 'gauss' # should come up with diagnostics for PSF quality
         gal_model = 'exp'
 
         mcal_obs = ngmix.metacal.get_all_metacal(obslist)
@@ -186,10 +186,10 @@ class SuperBITNgmixFitter():
                 boot.fit_max(gal_model,max_pars)
                 res = boot.get_fitter().get_result()
                 #result.update({ikey:res['g']})
-                res['Tpsf']=boot.psf_fitter._gm.get_T()
+                #res['Tpsf']=boot.psf_fitter._gm.get_T()
+                res['Tpsf']=boot.psf_fitter._result['T']
                 result.update({ikey:res})
                 
-        #pdb.set_trace()
         
         R1 = (result['1p']['g'][0] - result['1m']['g'][0])/(2*mcal_shear)
         R2 = (result['2p']['g'][1] - result['2m']['g'][1])/(2*mcal_shear)
@@ -269,9 +269,13 @@ def make_output_table(outfilename, gmix, mcal,identifying):
     t = Table.Table()
     gmix=(np.array(gmix)); mcal=(np.array(mcal))
     identifying = np.array(identifying)
-    
-    t['id'] = identifying[:,0]
-    t['ra'] = identifying[:,1]; t['dec'] = identifying[:,2]
+    try:
+        t['id'] = identifying[:,0]
+        t['ra'] = identifying[:,1]; t['dec'] = identifying[:,2]
+    except:
+        t['id'] = -9999.
+        t['ra'] = -9999.; t['dec'] = -9999.
+
     try:
         t['g1_boot'] = gmix[:,2]       # Ellipticity moments from the basic Bootstrapper fit
         t['g2_boot'] = gmix[:,3]
@@ -439,8 +443,9 @@ def main(args):
             
             
         except:
+            
             print("object %d failed, skipping..." % i)
-            pdb.set_trace()
+
             
     make_output_table(outfilename, bootfit, mcal, identifying)
     
