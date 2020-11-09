@@ -753,17 +753,21 @@ def main(argv):
             # add sky background. must do this after reducing the image
             full_image += sky_level
             
+            # The first thing to do is to make the Gaussian noise uniform across the whole image.
             # If real-type COSMOS galaxies are used, the noise across the image won't be uniform. Since this code is
             # using parametric-type galaxies, the following section is commented out.
             #         max_current_variance = numpy.max(noise_image.array)
             #         noise_image = max_current_variance - noise_image
-
-            # The first thing to do is to make the Gaussian noise uniform across the whole image.
-            
+            #
+            #
+            #
             # NOTE: this version of the code ONLY includes sky noise. 
             
             this_sky_sigma = sbparams.sky_sigma*numpy.sqrt(sbparams.exp_time)
-            this_sky_sigma -= numpy.sqrt(max_current_variance)
+            
+            # # /// UNCOMMENT NEXT LINE IF USING NON-PARAMETRIC GALAXIES /// # # 
+            # 
+            # this_sky_sigma -= numpy.sqrt(max_current_variance)
 
                   
             noise_rng=galsim.UniformDeviate()
