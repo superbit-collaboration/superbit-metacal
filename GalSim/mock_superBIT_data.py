@@ -762,7 +762,6 @@ def main(argv):
             # using parametric-type galaxies, the following section is commented out.
             #         max_current_variance = numpy.max(noise_image.array)
             #         noise_image = max_current_variance - noise_image
-<<<<<<< HEAD
 
             # The first thing to do is to make the Gaussian noise uniform across the whole image.
             
@@ -780,27 +779,6 @@ def main(argv):
             noise = galsim.CCDNoise(
                 rng, sky_level=sky_level, gain=sbparams.gain,
                 read_noise=sbparams.read_noise)
-=======
-            #
-            #
-            #
-            # NOTE: this version of the code ONLY includes sky noise. 
-            
-            this_sky_sigma = sbparams.sky_sigma*numpy.sqrt(sbparams.exp_time)
-            
-            # # /// UNCOMMENT NEXT LINE IF USING NON-PARAMETRIC GALAXIES /// # # 
-            # 
-            # this_sky_sigma -= numpy.sqrt(max_current_variance)
-
-                  
-            noise_rng=galsim.UniformDeviate()
-            vn = galsim.VariableGaussianNoise(noise_rng, noise_image)
-            full_image.addNoise(vn)
-
-            # Regardless of galaxy type, add Gaussian noise with this variance to the final image.
-            
-            noise = galsim.GaussianNoise(rng, sigma=this_sky_sigma)
->>>>>>> 2f232bb501c44d7810a12897b87ac5bb70d6a7d0
             full_image.addNoise(noise)
         
             logger.debug('Added noise to final output image')
