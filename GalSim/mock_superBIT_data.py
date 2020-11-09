@@ -216,10 +216,6 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
     g1 = 0.0; g2 = 0.0
     mu = 1.0
     
-    # Get the reduced shears and magnification at this point
-    nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
-    g1=nfw_shear.g1; g2=nfw_shear.g2
-
     # Create chromatic galaxy    
     gal = cluster_cat.makeGalaxy(gal_type='parametric', rng=ud,chromatic=True)
     logger.debug('created cluster galaxy')
@@ -695,7 +691,7 @@ def main(argv):
                     # We need to keep track of how much variance we have currently in the image, so when
                     # we add more noise, we can omit what is already there.
             
-                    noise_image[bounds] += truth.variance
+                    #noise_image[bounds] += truth.variance
             
                     # Finally, add the stamp to the full image.
                     
