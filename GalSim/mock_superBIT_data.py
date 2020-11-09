@@ -131,7 +131,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbpara
     try:
         gal = gal.lens(g1, g2, mu)
         logger.debug('sheared galaxy')
-    except:
+    except galsim.errors.GalSimError:
         print("could not lens galaxy, setting default values...")
         g1 = 0.0; g2 = 0.0
         mu = 1.0
@@ -174,7 +174,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbpara
     try:
         galaxy_truth.fwhm=final.evaluateAtWavelength(sbparams.lam).calculateFWHM()
         galaxy_truth.mom_size=stamp.FindAdaptiveMom().moments_sigma
-    except:
+    except galsim.errors.GalSimError:
         logger.debug('fwhm or sigma calculation failed')
         galaxy_truth.fwhm=-9999.0
         galaxy_truth.mom_size=-9999.
@@ -267,7 +267,7 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
     try:
         cluster_galaxy_truth.fwhm=final.evaluateAtWavelength(sbparams.lam).calculateFWHM()
         cluster_galaxy_truth.mom_size=cluster_stamp.FindAdaptiveMom().moments_sigma
-    except:
+    except galsim.errors.GalSimError:
         logger.debug('fwhm or sigma calculation failed')
         cluster_galaxy_truth.fwhm=-9999.0
         cluster_galaxy_truth.mom_size=-9999.
@@ -354,10 +354,9 @@ class SuperBITParameters:
             """
             d = {}
             for arg in argv[1:]:
-                try:
-                    (option, value) = arg.split("=", 1)
-                except:
-                    (option, value) = (arg, None)
+                optval = arg.split("=", 1)
+                option = optval[0]
+                value = optval[1] if len(optval) > 1 else None
                 d[option] = value
             return d
 
@@ -459,7 +458,7 @@ class SuperBITParameters:
                 elif option == "obscuration":  
                     self.obscuration = float(0.380)     
                 else:
-                    raise Exception("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
+                    raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
             # Derive the parameters from the base parameters
             self.image_xsize_arcsec = self.image_xsize * self.pixel_scale 
@@ -577,7 +576,7 @@ def main(argv):
                 truth_file_name=''.join([sbparams.outdir, 'truth_', root, timescale, str(i).zfill(3), '.dat'])
                 file_name = os.path.join(sbparams.outdir, outname)
 
-            except:
+            except galsim.errors.GalSimError:
                 print("naming failed, check path")
                 pdb.set_trace()
 
@@ -658,7 +657,8 @@ def main(argv):
                     this_flux=numpy.sum(stamp.array)
                     row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z, this_flux]
                     truth_catalog.addRow(row)
-                except:
+                except galsim.errors.GalSimError:
+                    # picked catalogue galaxy outside redshift range
                     logger.info('Galaxy %d has failed, skipping...',k)
 
             #####
@@ -703,7 +703,7 @@ def main(argv):
                     this_flux=numpy.sum(stamp.array)
                     row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z, this_flux]
                     truth_catalog.addRow(row)
-                except:
+                except galsim.errors.GalSimError:
                     logger.info('Cluster galaxy %d has failed, skipping...',k)
                     
             
@@ -736,7 +736,7 @@ def main(argv):
                                 truth.z, this_flux]
                     truth_catalog.addRow(row)
                     
-                except:
+                except galsim.errors.GalSimError:
                     logger.info('Star %d has failed, skipping...',k)
 
             # Gather results from MPI processes, reduce to single result on root
