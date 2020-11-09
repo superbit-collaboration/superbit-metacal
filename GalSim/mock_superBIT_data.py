@@ -29,6 +29,7 @@ import pdb
 import glob
 import scipy
 import yaml
+import numpy as np
 from functools import reduce
 from astropy.table import Table
 from mpi_helper import MPIHelper
@@ -386,6 +387,12 @@ class SuperBITParameters:
                     self.sky_sigma = float(value)
                 elif option == "gain":          
                     self. gain = float(value)   
+                elif option == "read_noise":
+                    self. read_noise = float(value)
+                elif option == "dark_current":
+                    self. dark_current = float(value)
+                elif option == "dark_current_std":
+                    self. dark_current_std = float(value)
                 elif option == "image_xsize":   
                     self.image_xsize = int(value)    
                 elif option == "image_ysize":   
@@ -749,9 +756,6 @@ def main(argv):
                 # do the adding of noise and writing to disk entirely on root
                 # root and the rest meet again at barrier at start of loop
                 continue
-
-            # add sky background. must do this after reducing the image
-            full_image += sky_level
             
             # If real-type COSMOS galaxies are used, the noise across the image won't be uniform. Since this code is
             # using parametric-type galaxies, the following section is commented out.
@@ -760,19 +764,20 @@ def main(argv):
 
             # The first thing to do is to make the Gaussian noise uniform across the whole image.
             
-            # NOTE: this version of the code ONLY includes sky noise. 
-            
-            this_sky_sigma = sbparams.sky_sigma*numpy.sqrt(sbparams.exp_time)
-            this_sky_sigma -= numpy.sqrt(max_current_variance)
+            # Add dark current
+            logger.info('Adding Dark current')
+            dark_noise = sbparams.dark_current * sbparams.exp_time
+            # np.random.normal(
+            #     sbparams.dark_current, sbparams.dark_current_std,
+            #     size=(sbparams.image_ysize, sbparams.image_xsize)) * sbparams.exp_time
+            # dark_noise = np.clip(dark_noise, a_min=0, a_max=2**16)
+            full_image += dark_noise
 
-                  
-            noise_rng=galsim.UniformDeviate()
-            vn = galsim.VariableGaussianNoise(noise_rng, noise_image)
-            full_image.addNoise(vn)
-
-            # Regardless of galaxy type, add Gaussian noise with this variance to the final image.
-            
-            noise = galsim.GaussianNoise(rng, sigma=this_sky_sigma)
+            # Add ccd noise
+            logger.info('Adding CCD noise')
+            noise = galsim.CCDNoise(
+                rng, sky_level=sky_level, gain=sbparams.gain,
+                read_noise=sbparams.read_noise)
             full_image.addNoise(noise)
         
             logger.debug('Added noise to final output image')
