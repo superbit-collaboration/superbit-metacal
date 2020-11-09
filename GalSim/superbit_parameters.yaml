@@ -2,6 +2,9 @@
 # -------------------
 pixel_scale:        0.206       # Pixel scale                               [arcsec/px]
 gain:               3.33        # Camera gain                               [ADU / e-]
+read_noise:         12          # Read noise                                [e-]
+dark_current:       0.33        # mean dark current                         [ADU / px / s]
+dark_current_std:   0.043       # standard deviation dark current           [ADU /px / s]
 image_xsize:        6665        # Horizontal image size                     [px]
 image_ysize:        4453        # Vertical image size                       [px]
 exp_time:           300         # Exposure time per image                   [s]
@@ -19,9 +22,9 @@ center_ra:          19.3        # Central Right Ascension                   [hrs
 center_dec:         -33.1       # Central Declination                       [deg]
 sky_bkg:            0.32        # mean sky background from AG's paper       [ADU / s / px]
 sky_sigma:          0.0957      # standard deviation of sky background      [ADU / s / px]  
-nobj:               1000        # Number of galaxies (COSMOS 25.2 depth)    []
-nstars:             350         # Number of stars in the field              []
-nexp:               9           # Number of exposures per PSF model         []
+nobj:               20        # Number of galaxies (COSMOS 25.2 depth)    []
+nstars:             20         # Number of stars in the field              []
+nexp:               1           # Number of exposures per PSF model         []
 nclustergal:        30          # Number of cluster galaxies (arbitrary)    []
 
 # Simulated cluster parameters

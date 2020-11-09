@@ -29,6 +29,7 @@ import pdb
 import glob
 import scipy
 import yaml
+import numpy as np
 from functools import reduce
 from astropy.table import Table
 from mpi_helper import MPIHelper
@@ -420,6 +421,12 @@ class SuperBITParameters:
                 self.sky_sigma = float(value)
             elif option == "gain":
                 self. gain = float(value)
+            elif option == "read_noise":
+                self. read_noise = float(value)
+            elif option == "dark_current":
+                self. dark_current = float(value)
+            elif option == "dark_current_std":
+                self. dark_current_std = float(value)
             elif option == "image_xsize":
                 self.image_xsize = int(value)
             elif option == "image_ysize":
@@ -805,16 +812,20 @@ def main(argv):
                 # root and the rest meet again at barrier at start of loop
                 continue
 
+            # Add dark current
+            logger.info('Adding Dark current')
+            dark_noise = np.random.normal(
+                sbparams.dark_current, sbparams.dark_current_std,
+                size=(sbparams.image_ysize, sbparams.image_xsize)) * sbparams.exp_time
+            dark_noise = np.clip(dark_noise, a_min=0, a_max=2**16)
+            full_image += dark_noise
+
             # Add ccd noise
             logger.info('Adding CCD noise')
-            noise = galsim.CCDNoise(rng, sky_level=sky_level, gain=3.33, read_noise=12)
+            noise = galsim.CCDNoise(
+                rng, sky_level=sky_level, gain=sbparams.gain,
+                read_noise=sbparams.read_noise)
             full_image.addNoise(noise)
-
-            # TODO: Add fixed pattern noise
-
-            # TODO: Add correlated read noise
-
-            # TODO: Add cosmic hits
 
             logger.debug('Added noise to final output image')
             if not os.path.exists(os.path.dirname(file_name)):
