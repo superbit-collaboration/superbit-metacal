@@ -773,7 +773,7 @@ def main(argv):
             # Add ccd noise
             logger.info('Adding CCD noise')
             noise = galsim.CCDNoise(
-                rng, sky_level=sky_level, gain=sbparams.gain,
+                rng, sky_level=sky_level, gain=1/sbparams.gain,
                 read_noise=sbparams.read_noise)
             full_image.addNoise(noise)
         
