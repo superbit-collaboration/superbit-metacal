@@ -1,17 +1,36 @@
-# Input
-# -----
+# Input / Output
+# --------------
 
 # Path to the science input files (patterns accepted)
-sciencefiles:   "../GalSim/output/mock_superbit_flight_jitter_only_oversampled_1x300.000?.fits"
-truthfile:      "../GalSim/output/truth_flight_jitter_only_oversampled_1x300.0001.dat"
+science_files:  "../GalSim/output/mock_superbit_flight_jitter_only_oversampled_1x300.000?.fits"
+# The truth file to use for doing PSF star selection
+truth_file:     "../GalSim/output/truth_flight_jitter_only_oversampled_1x300.0001.dat"
+# Output name for the final MEDS file
+out_file:       "./output/mock.meds"
 
 # External download
 # -----------------
-masksrc:        "bee.astro.utoronto.ca/~bit/superbit-metcal-data/supermask.fits" 
-maskfile:       "./data/supermask.fits"
+
+# WGET location of the pre-generated mask file; supercedes all files that could be used to
+# generate a mask file
+mask_src:       "bee.astro.utoronto.ca/~bit/superbit-metcal-data/supermask.fits" 
+# Location to store / read the mask file
+mask_file:      "./data/supermask.fits"
 
 # Working directories
 # -------------------
-workingdir:     "./output_debug"
-outfile:        "./output/mock.meds"
-psfdir:         "./output_debug/psfex_output"
+working_dir:    "./output_debug"
+psfex_dir:      "./output_debug/psfex_output"
+
+# Tool configuration
+# -------------------
+swarp_config:   "./astro_config/swarp.config"
+psfex_config:   "./astro_config/psfex.config"
+sextractor_dir: "./astro_config/"
+
+# Raw data
+# --------
+flat_files:     null
+dark_files:     null
+bias_files:     null
+
