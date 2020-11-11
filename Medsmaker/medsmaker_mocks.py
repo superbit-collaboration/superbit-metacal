@@ -394,7 +394,6 @@ class BITMeasurement():
         Wrapper for astromatic tools to make catalog from provided images.
         This returns catalog for (stacked) detection image
         '''
-        #outfile_name='mock_empirical_psf_coadd.fits'; weightout_name='mock_empirical_psf_coadd.weight.fits'
         outfile_name='mock_coadd.fits'; weightout_name='mock_coadd.weight.fits'
         detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name, 
                                                     weightout_name=weightout_name)
@@ -406,7 +405,7 @@ class BITMeasurement():
         param_arg = '-PARAMETERS_NAME ' + self.sextractor_dir + 'sextractor.param'
         nnw_arg = '-STARNNW_NAME ' + self.sextractor_dir + 'default.nnw'
         filter_arg = '-FILTER_NAME ' + self.sextractor_dir + 'default.conv'
-        bkgname=outfile_name.replace('.fits','.sub.fits')
+        bkgname=detection_file.replace('.fits','.sub.fits')
         bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
         cmd = ' '.join(['sex', detection_file, weight_arg, name_arg, bkg_arg, 
                         param_arg, nnw_arg, filter_arg, '-c', config_arg])
