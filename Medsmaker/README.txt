@@ -1,5 +1,6 @@
 Requirements:
 
+pip install meds
 pip install psfex
 pip install fitsio
 SWARP - http://www.astromatic.net/download/swarp/swarp-2.38.0.tar.gz

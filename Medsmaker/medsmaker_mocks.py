@@ -410,7 +410,6 @@ class BITMeasurement():
             
         # Now run PSFEx on that image and accompanying catalog
         psfex_config_arg = '-c '+sextractor_config_path+'psfex.config'
-        #psfex_config_arg = '-c '+sextractor_config_path+'psfex.empirical.config'
         # Will need to make that tmp/psfex_output generalizable
         outcat_name = imagefile.replace('.fits','.psfex.star')
         cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
@@ -529,7 +528,7 @@ class BITMeasurement():
         return obj_str
 
 
-    def run(self,outfile = "mock_superbit.meds",clobber=True, source_selection=False, select_stars=False):
+    def run(self,outfile = "mock_superbit.meds",clobber=True, source_selection=False):
         # Make a MEDS, clobbering if needed
 
         #### ONLY FOR DEBUG
@@ -550,7 +549,7 @@ class BITMeasurement():
         # Combine images, make a catalog.
         self.make_catalog(source_selection=source_selection)
         # Build a PSF model for each image.
-        self.make_psf_models(select_stars=select_stars)
+        self.make_psf_models()
         # Make the image_info struct.
         image_info = self.make_image_info_struct()
         # Make the object_info struct.
@@ -569,7 +568,6 @@ def main(argv):
     """
 
     # Some defaults
-    calibdir    = "./calib"
     inputfiles  = "../GalSim/output/mock_superbit_flight_jitter_only_oversampled_1x300.000?.fits"
     workingdir  = "./output_debug"
     outfile     = "./output/mock.meds"
@@ -584,9 +582,7 @@ def main(argv):
         option = optval[0]
         value = optval[1] if len(optval) > 1 else None
         
-        if option == "calibdir":
-            calibdir = str(value)
-        elif option == "inputfiles":
+        if option == "inputfiles":
             inputfiles = str(value)
         elif option == "workingdir":
             workingdir = str(value)
@@ -608,7 +604,6 @@ def main(argv):
 
     # Do MedsMaker
     bm = BITMeasurement(image_files=glob.glob(inputfiles), mask_file=maskfile, truth_file=truthfile)
-    bm.set_path_to_calib_data(path=calibdir)
     bm.set_working_dir(path=workingdir)
     bm.set_path_to_psf(path=psfdir)
     bm.run(clobber=False, source_selection=True, outfile=outfile)

@@ -1,0 +1,4 @@
+*.fits
+*.xml
+data/
+output_debug/
