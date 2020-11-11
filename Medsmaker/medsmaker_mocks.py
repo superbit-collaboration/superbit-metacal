@@ -4,12 +4,14 @@ import meds
 import sys
 import os
 import psfex
+import logging
 from astropy.io import fits
 import string
 import pdb
 from astropy import wcs
 import fitsio
 import glob
+import yaml
 import esutil as eu
 from astropy.table import Table
 import astropy.units as u
@@ -59,7 +61,7 @@ class BITMeasurement():
         # Load truth table
         if self.truth_file is not None:
             self.truthcat = Table.read(self.truth_file, format='ascii')
-            print("Using truth catalog %s" % self.truth_file)
+            logger.info("Using truth catalog %s" % self.truth_file)
         else:
             self.truthcat = None
         
@@ -69,7 +71,7 @@ class BITMeasurement():
         else:
             self.work_path = path
         if not os.path.exists(self.work_path):
-            os.mkdir(self.work_path)
+            os.makedirs(self.work_path)
 
     def set_mask_dir(self,path=None):
         if path is None:
@@ -77,7 +79,7 @@ class BITMeasurement():
         else:
             self.mask_path = path
         if not os.path.exists(self.mask_path):
-            os.mkdir(self.mask_path)
+            os.makedirs(self.mask_path)
 
     def set_path_to_psf(self,path=None):
         if path is not None:
@@ -85,7 +87,7 @@ class BITMeasurement():
         else:
             self.psf_path = './tmp/psfex_output'
         if not os.path.exists(self.psf_path):
-            os.mkdir(self.psf_path)
+            os.makedirs(self.psf_path)
 
     def set_path_to_calib_data(self,path=None):
         if path is None:
@@ -93,7 +95,7 @@ class BITMeasurement():
         else:
             self.calib_path = path
         if not os.path.exists(self.calib_path):
-            os.mkdir(self.calib_path)
+            os.makedirs(self.calib_path)
 
     def set_path_to_science_data(self,path=None):
         if path is None:
@@ -125,7 +127,7 @@ class BITMeasurement():
             w=wcs.WCS(inhead)
             wcs_sip_header=w.to_header(relax=True)
         except:
-            print('cluster %s has no WCS, skipping...' % wcsName )
+            logger.waring('cluster %s has no WCS, skipping...' % wcsName )
             wcs_sip_header=None
 
         return wcs_sip_header
@@ -148,7 +150,7 @@ class BITMeasurement():
                 outFITS.writeto(new_image_filename)
                 return new_image_filename
         else:
-            print("Could not process %s" % image_filename)
+            logger.error("Could not process %s" % image_filename)
             return None
 
     def add_wcs_to_science_frames(self):
@@ -170,7 +172,7 @@ class BITMeasurement():
         if (not os.path.exists(bname) or (overwrite==True)):
             # Taking median biases and darks instead of mean to eliminate odd noise features
             bias_array=[]
-            print("I get to bias_array")
+            logger.debug("I get to bias_array")
             for ibias_file in self.bias_files:
                 bias_frame = fitsio.read(ibias_file)
                 bias_array.append(bias_frame)
@@ -293,7 +295,7 @@ class BITMeasurement():
         weight_arg = '-WEIGHT_IMAGE '+self.mask_file
         outfile_arg = '-IMAGEOUT_NAME '+ detection_file + ' -WEIGHTOUT_NAME ' + weight_file
         cmd = ' '.join(['swarp ',image_args,weight_arg,outfile_arg,config_arg])
-        print("swarp cmd is " + cmd)
+        logger.debug("swarp cmd is " + cmd)
         os.system(cmd)
         return detection_file,weight_file
 
@@ -302,7 +304,7 @@ class BITMeasurement():
         keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size) 
         self.catalog = self.catalog[keep.nonzero()[0]]
         
-        print("Selecting analysis objects on FWHM and CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
+        logger.info("Selecting analysis objects on FWHM and CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
         keep2 = self.catalog['CLASS_STAR']<=0.8
         self.catalog = self.catalog[keep2.nonzero()[0]]
 
@@ -347,17 +349,17 @@ class BITMeasurement():
         bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
         cmd = ' '.join(['sex', detection_file, weight_arg, name_arg, bkg_arg, 
                         param_arg, nnw_arg, filter_arg, '-c', config_arg])
-        print("sex cmd is " + cmd)
+        logger.debug("sex cmd is " + cmd)
         os.system(cmd)
         try:
             #le_cat = fits.open('A2218_coadd_catalog.fits')
             le_cat = fits.open(cat_name)
             self.catalog = le_cat[2].data
             if source_selection is True:
-                print("I get here")
+                logger.debug("I get here")
                 self._select_sources_from_catalog(fullcat=le_cat,catname=cat_name)
         except:
-            print("coadd catalog could not be loaded; check name?")
+            logger.error("coadd catalog could not be loaded; check name?")
             pdb.set_trace()
 
     def make_psf_models(self):
@@ -398,7 +400,7 @@ class BITMeasurement():
                             sextractor_config_file,'-CATALOG_NAME ', imcat_ldac_name, 
                             bkg_arg, sextractor_param_arg,sextractor_nnw_arg,
                             sextractor_filter_arg])
-        print("sex4psf cmd is " + cmd)
+        logger.debug("sex4psf cmd is " + cmd)
         os.system(cmd)
 
         # Get a "clean" star catalog for PSFEx input
@@ -414,7 +416,7 @@ class BITMeasurement():
         outcat_name = imagefile.replace('.fits','.psfex.star')
         cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
                             outcat_name, '-PSFVAR_DEGREES','3','-PSF_DIR', self.psf_path])
-        print("psfex cmd is " + cmd)
+        logger.debug("psfex cmd is " + cmd)
         os.system(cmd)
         psfex_name_tmp1=(imcat_ldac_name.replace('.ldac','.psf'))
         psfex_name_tmp2= psfex_name_tmp1.split('/')[-1]
@@ -562,51 +564,107 @@ class BITMeasurement():
         medsObj = meds.maker.MEDSMaker(obj_info,image_info,config=meds_config,psf_data = self.psfEx_models,meta_data=meta)
         medsObj.write(outfile)
 
+class MEDSConfig:
+        def __init__(self, config_file=None, argv=None):
+            """
+            Initialize default params and overwirte with config_file params and / or commmand line
+            parameters.
+            """
+            # Define some default default parameters below.
+            # These are used in the absence of a .yaml config_file or command line args.
+            self._load_config_file("medsconfig_mock.yaml")
+
+            # Check for config_file params to overwrite defaults
+            if config_file is not None:
+                logger.info('Loading parameters from %s' % (config_file))
+                self._load_config_file(config_file)
+
+            # Check for command line args to overwrite config_file and / or defaults
+            if argv is not None:
+                self._load_command_line(argv)
+
+
+        def _load_config_file(self, config_file):
+            """
+            Load parameters from configuration file. Only parameters that exist in the config_file
+            will be overwritten.
+            """
+            with open(config_file) as fsettings:
+                config = yaml.load(fsettings, Loader=yaml.FullLoader)
+            self._load_dict(config)
+
+        def _args_to_dict(self, argv):
+            """
+            Converts a command line argument array to a dictionary.
+            """
+            d = {}
+            for arg in argv[1:]:
+                optval = arg.split("=", 1)
+                option = optval[0]
+                value = optval[1] if len(optval) > 1 else None
+                d[option] = value
+            return d
+
+        def _load_command_line(self, argv):
+            """
+            Load parameters from the command line argumentts. Only parameters that are provided in
+            the command line will be overwritten.
+            """
+            logger.info('Processing command line args')
+            # Parse arguments here
+            self._load_dict(self._args_to_dict(argv))
+
+        def _load_dict(self, d):
+            """
+            Load parameters from a dictionary.
+            """
+            for (option, value) in d.items():
+                if option == "sciencefiles":
+                    self.sciencefiles = str(value)
+                elif option == "workingdir":
+                    self.workingdir = str(value)
+                elif option == "psfdir":
+                    self.psfdir = str(value)
+                elif option == "outfile":
+                    self.outfile = str(value)
+                elif option == "maskfile":
+                    self.maskfile = str(value)
+                elif option == "masksrc":
+                    self.masksrc = str(value)
+                elif option == "truthfile":
+                    self.truthfile = str(value)
+                elif option == "configfile":
+                    logger.info('Loading parameters from %s' % (value))
+                    self._load_config_file(str(value))
+                else:
+                    raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
+
+            # Download configuration data
+            if not os.path.exists(self.maskfile):
+                cmd = "rsync -avP %s %s" % (self.masksrc, self.maskfile)
+                os.system(cmd)
+
+            # Setup output
+            if not os.path.exists(os.path.dirname(self.outfile)):
+                os.makedirs(os.path.dirname(self.outfile))
+
+
+logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stdout)
+logger = logging.getLogger("mock_medsmaker")
+
 def main(argv):
     """
     Runs the MEDSMaker from the command line.
     """
-
-    # Some defaults
-    inputfiles  = "../GalSim/output/mock_superbit_flight_jitter_only_oversampled_1x300.000?.fits"
-    workingdir  = "./output_debug"
-    outfile     = "./output/mock.meds"
-    psfdir      = "./output_debug/psfex_output"
-    maskfile    = "./data/supermask.fits"
-    masksrc     = "bit@bee.astro.utoronto.ca:/data5/superbit-metcal-data/supermask.fits" 
-    truthfile   = "../GalSim/output/truth_flight_jitter_only_oversampled_1x300.0001.dat"
-
     # Process command line
-    for arg in argv[1:]:
-        optval = arg.split("=", 1)
-        option = optval[0]
-        value = optval[1] if len(optval) > 1 else None
-        
-        if option == "inputfiles":
-            inputfiles = str(value)
-        elif option == "workingdir":
-            workingdir = str(value)
-        elif option == "outfile":
-            outfile = str(value)
-        elif option == "maskfile":
-            maskfile = str(value)
-        elif option == "masksrc":
-            masksrc = str(value)
-        elif option == "truthfile":
-            truthfile = str(value)
-        else:
-            raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
-
-    # Download configuration data
-    if not os.path.exists(maskfile):
-        cmd = "rsync -avP %s %s" % (masksrc, maskfile)
-        os.system(cmd)
+    mc = MEDSConfig(argv=argv)
 
     # Do MedsMaker
-    bm = BITMeasurement(image_files=glob.glob(inputfiles), mask_file=maskfile, truth_file=truthfile)
-    bm.set_working_dir(path=workingdir)
-    bm.set_path_to_psf(path=psfdir)
-    bm.run(clobber=False, source_selection=True, outfile=outfile)
+    bm = BITMeasurement(image_files=glob.glob(mc.sciencefiles), mask_file=mc.maskfile,
+                            truth_file=mc.truthfile)
+    bm.set_working_dir(path=mc.workingdir)
+    bm.set_path_to_psf(path=mc.psfdir)
+    bm.run(clobber=False, source_selection=True, outfile=mc.outfile)
 
 if __name__ == "__main__":
     main(sys.argv)

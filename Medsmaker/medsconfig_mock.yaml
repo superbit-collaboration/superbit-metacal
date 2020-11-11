@@ -1,0 +1,17 @@
+# Input
+# -----
+
+# Path to the science input files (patterns accepted)
+sciencefiles:   "../GalSim/output/mock_superbit_flight_jitter_only_oversampled_1x300.000?.fits"
+truthfile:      "../GalSim/output/truth_flight_jitter_only_oversampled_1x300.0001.dat"
+
+# External download
+# -----------------
+masksrc:        "bit@bee.astro.utoronto.ca:/data5/superbit-metcal-data/supermask.fits" 
+maskfile:       "./data/supermask.fits"
+
+# Working directories
+# -------------------
+workingdir:     "./output_debug"
+outfile:        "./output/mock.meds"
+psfdir:         "./output_debug/psfex_output"
