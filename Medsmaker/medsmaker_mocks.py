@@ -109,8 +109,20 @@ class BITMeasurement():
                 self.out_file = str(value)
             elif option == "mask_file":
                 self.mask_file = str(value)
+            elif option == "mask_dark_file":
+                self.mask_dark_file = str(value)
+            elif option == "mask_flat_file":
+                self.mask_flat_file = str(value)
+            elif option == "mask_bias_file":
+                self.mask_bias_file = str(value)
             elif option == "mask_src":
                 self.mask_src = str(value)
+            elif option == "mask_dark_src":
+                self.mask_dark_src = str(value)
+            elif option == "mask_flat_src":
+                self.mask_flat_src = str(value)
+            elif option == "mask_bias_src":
+                self.mask_bias_src = str(value)
             elif option == "truth_file":
                 self.truth_file = str(value)
             elif option == "config_file":
@@ -129,11 +141,11 @@ class BITMeasurement():
                 raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
         # Download configuration data
-        if not os.path.exists(self.mask_file):
-            if not os.path.exists(os.path.dirname(self.mask_file)):
-                os.makedirs(os.path.dirname(self.mask_file))
-            cmd = "wget %s -O %s" % (self.mask_src, self.mask_file)
-            os.system(cmd)
+        if self.mask_file is not None:
+            self._download_missing_data(self.mask_src, self.mask_file)
+        else:
+            self._download_missing_data(self.mask_dark_src, self.mask_dark_file)
+            self._download_missing_data(self.mask_flat_src, self.mask_flat_file)
 
         # Load truth table
         if self.truth_file is not None:
@@ -150,14 +162,12 @@ class BITMeasurement():
         if not os.path.exists(self.working_dir):
             os.makedirs(self.working_dir)
         
-
-    def set_mask_dir(self,path=None):
-        if path is None:
-            self.mask_path = './mask_files'
-        else:
-            self.mask_path = path
-        if not os.path.exists(self.mask_path):
-            os.makedirs(self.mask_path)
+    def _download_missing_data(self, src, output):
+        if not os.path.exists(output):
+            if not os.path.exists(os.path.dirname(output)):
+                os.makedirs(os.path.dirname(output))
+            cmd = "wget %s -O %s" % (src, output)
+            os.system(cmd)
 
     def set_path_to_calib_data(self,path=None):
         if path is None:
@@ -237,9 +247,7 @@ class BITMeasurement():
     def reduce(self,overwrite=False,skip_sci_reduce=False):
         # Read in and average together the bias, dark, and flat frames.
 
-        bname = os.path.join(self.mask_path,'master_bias_mean.fits')
-        """
-        if (not os.path.exists(bname) or (overwrite==True)):
+        if (not os.path.exists(self.mask_bias_file) or (overwrite==True)):
             # Taking median biases and darks instead of mean to eliminate odd noise features
             bias_array=[]
             logger.debug("I get to bias_array")
@@ -247,13 +255,11 @@ class BITMeasurement():
                 bias_frame = fitsio.read(ibias_file)
                 bias_array.append(bias_frame)
                 master_bias = np.median(bias_array,axis=0)
-                fitsio.write(os.path.join(self.working_dir,'master_bias_median.fits'),master_bias,clobber=True)
+                fitsio.write(self.mask_bias_file, master_bias, clobber=True)
         else:
-        """
-        master_bias = fitsio.read(bname)
+            master_bias = fitsio.read(self.mask_bias_file)
 
-        dname = os.path.join(self.mask_path,'master_dark_median.fits')
-        if (not os.path.exists(dname) or (overwrite==True)):
+        if (not os.path.exists(self.mask_dark_file) or (overwrite==True)):
             dark_array=[]
             for idark_file in self.dark_files:
                 hdr = fitsio.read_header(idark_file)
@@ -261,12 +267,11 @@ class BITMeasurement():
                 dark_frame = ((fitsio.read(idark_file)) - master_bias) * 1./time
                 dark_array.append(dark_frame)
                 master_dark = np.median(dark_array,axis=0)
-                fitsio.write(os.path.join(self.mask_path,'master_dark_median.fits'),master_dark,clobber=True)
+                fitsio.write(self.mask_dark_file, master_dark, clobber=True)
         else:
-            master_dark=fitsio.read(dname)
+            master_dark=fitsio.read(self.mask_dark_file)
 
-        fname = os.path.join(self.mask_path,'master_flat_median.fits')
-        if (not os.path.exists(fname) or (overwrite==True)):
+        if (not os.path.exists(self.mask_flat_file) or (overwrite==True)):
             flat_array=[]
             # Ideally, all the flats should have the SAME exposure time, or rather, each filter
             # gets its own band with its own flat exptime
@@ -277,9 +282,10 @@ class BITMeasurement():
                 flat_array.append(flat_frame)
                 master_flat1 = np.median(flat_array,axis=0)
                 master_flat = master_flat1/np.median(master_flat1)
-                fitsio.write(os.path.join(self.mask_path,'master_flat_median.fits'),master_flat,clobber=True)
+                fitsio.write(self.mask_flat_file, master_flat, clobber=True)
         else:
-            master_flat=fitsio.read(fname)
+            master_flat = fitsio.read(self.mask_flat_file)
+
         if not skip_sci_reduce:
             reduced_science_files=[]
             for this_image_file in self.science_files:
@@ -305,14 +311,11 @@ class BITMeasurement():
         Use master flat and dark to generate a bad pixel mask.
         Default values for thresholds may be superseded in function call
         '''
-        self.mask_file = os.path.join(self.mask_path,'supermask.fits')
 
         if (not os.path.exists(self.mask_file)) or (overwrite==True):
             # It's bad practice to hard-code filenames in
-            mdark_fname = os.path.join(self.mask_path,'master_dark_median.fits')
-            mflat_fname = os.path.join(self.mask_path,'master_flat_median.fits')
-            mdark = fits.getdata(mdark_fname)
-            mflat = fits.getdata(mflat_fname)
+            mdark = fits.getdata(self.mask_dark_file)
+            mflat = fits.getdata(self.mask_flat_file)
 
             # Start with dark
             med_dark_array=[]
@@ -325,8 +328,8 @@ class BITMeasurement():
             darkmask=np.ones(sum_dark.size)
             #darkmask[sum_dark==(len(dark_files))]=0
             darkmask[sum_dark==1]=0
-            out_file = fits.PrimaryHDU(darkmask.reshape(np.shape(mdark)))
-            out_file.writeto(os.path.join(self.mask_path,'darkmask.fits'),overwrite=True)
+            #out_file = fits.PrimaryHDU(darkmask.reshape(np.shape(mdark)))
+            #out_file.writeto(os.path.join(self.mask_path,'darkmask.fits'),overwrite=True)
 
             # repeat for flat
             med_flat_array=[]
@@ -339,16 +342,13 @@ class BITMeasurement():
             flatmask=np.ones(sum_flat.size)
             #darkmask[sum_dark==(len(dark_files))]=0
             flatmask[sum_flat==1]=0
-            outfile = fits.PrimaryHDU(flatmask.reshape(np.shape(mflat)))
-            outfile.writeto(os.path.join(self.mask_path,'flatmask.fits'),overwrite=True)
+            #outfile = fits.PrimaryHDU(flatmask.reshape(np.shape(mflat)))
+            #outfile.writeto(os.path.join(self.mask_path,'flatmask.fits'),overwrite=True)
 
             # Now generate actual mask
             supermask = (darkmask + flatmask)/2.
             outfile = fits.PrimaryHDU(flatmask.reshape(np.shape(mflat)))
-            outfile.writeto(os.path.join(self.mask_path,'supermask.fits'),overwrite=True)
-
-        else:
-            pass
+            outfile.writeto(os.path.join(self.mask_file),overwrite=True)
 
     def _make_detection_image(self, outfile_name='detection.fits', weightout_name='weight.fits'):
         '''

@@ -11,11 +11,16 @@ out_file:       "./output/mock.meds"
 # External download
 # -----------------
 
-# WGET location of the pre-generated mask file; supercedes all files that could be used to
-# generate a mask file
+# WGET location of the pre-generated mask file; supercedes master_dark and master_flat  
 mask_src:       "bee.astro.utoronto.ca/~bit/superbit-metcal-data/supermask.fits" 
 # Location to store / read the mask file
 mask_file:      "./data/supermask.fits"
+# WGET location for master dark and master flat; supercedes dark_files and flat_files
+mask_dark_src:  "bee.astro.utoronto.ca/~bit/superbit-metcal-data/master_dark_median.fits" 
+mask_flat_src:  "bee.astro.utoronto.ca/~bit/superbit-metcal-data/master_flat_median.fits" 
+# Location to store / read master dark / flat files
+mask_dark_file: "./data/master_dark_median.fits"
+mask_flat_file: "./data/master_flat_median.fits"
 
 # Working directories
 # -------------------
