@@ -129,13 +129,13 @@ class BITMeasurement():
                 logger.info('Loading parameters from %s' % (value))
                 self._load_config_file(str(value))
             elif option == "swarp_config":
-                logger.info('Using custom SWARP config %s' % (value))
+                logger.info('Using SWARP config %s' % (value))
                 self.swarp_config = str(value)
             elif option == "psfex_config":
-                logger.info('Using custom PSFEx config %s' % (value))
+                logger.info('Using PSFEx config %s' % (value))
                 self.psfex_config = str(value)
             elif option == "sextractor_dir":
-                logger.info('Using custom sextractor config dir %s' % (value))
+                logger.info('Using sextractor config directory %s' % (value))
                 self.sextractor_dir = str(value)
             else:
                 raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
@@ -168,14 +168,6 @@ class BITMeasurement():
                 os.makedirs(os.path.dirname(output))
             cmd = "wget %s -O %s" % (src, output)
             os.system(cmd)
-
-    def set_path_to_calib_data(self,path=None):
-        if path is None:
-            self.calib_path = '../Data/calib'
-        else:
-            self.calib_path = path
-        if not os.path.exists(self.calib_path):
-            os.makedirs(self.calib_path)
 
     def set_path_to_science_data(self,path=None):
         if path is None:
@@ -306,13 +298,13 @@ class BITMeasurement():
             pass
 
 
-    def make_mask(self, global_dark_thresh=10, global_flat_thresh=0.85,overwrite=False):
+    def make_mask(self, global_dark_thresh=10, global_flat_thresh=0.85, overwrite=False):
         '''
         Use master flat and dark to generate a bad pixel mask.
         Default values for thresholds may be superseded in function call
         '''
 
-        if (not os.path.exists(self.mask_file)) or (overwrite==True):
+        if (self.mask_file is not None and not os.path.exists(self.mask_file)) or (overwrite==True):
             # It's bad practice to hard-code filenames in
             mdark = fits.getdata(self.mask_dark_file)
             mflat = fits.getdata(self.mask_flat_file)
@@ -601,21 +593,11 @@ class BITMeasurement():
     def run(self, clobber=True, source_selection=False):
         # Make a MEDS, clobbering if needed
 
-        #### ONLY FOR DEBUG
-        #### Set up the paths to the science and calibration data
-        #self.set_working_dir()
-        #self.set_path_to_psf()
-        #self.set_path_to_science_data()
-        # Add a WCS to the science
-        #self.add_wcs_to_science_frames()
-        ####################
-        
         # Reduce the data.
-        # self.reduce(overwrite=clobber,skip_sci_reduce=True)
-        # Make a mask.
-        # NB: can also read in a pre-existing mask by setting self.mask_file
         if self.mask_file is None:
-            self.make_mask(overwrite=clobber)
+            self.reduce(overwrite=clobber,skip_sci_reduce=True)
+        # Make a mask.
+        self.make_mask(overwrite=clobber)
         # Combine images, make a catalog.
         self.make_catalog(source_selection=source_selection)
         # Build a PSF model for each image.
