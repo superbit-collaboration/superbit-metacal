@@ -1,6 +1,7 @@
 import ngmix
 import numpy as np
 import meds
+import sys
 import os
 import psfex
 from astropy.io import fits
@@ -8,6 +9,7 @@ import string
 import pdb
 from astropy import wcs
 import fitsio
+import glob
 import esutil as eu
 from astropy.table import Table
 import astropy.units as u
@@ -35,7 +37,8 @@ TO DO:
 
 
 class BITMeasurement():
-    def __init__(self, image_files = None, flat_files = None, dark_files = None, bias_files= None):
+    def __init__(self, image_files=None, flat_files=None, dark_files=None, bias_files=None, 
+            mask_file=None, truth_file=None):
         '''
         :image_files: Python List of image filenames; must be complete relative or absolute path.
         :flat_files: Python List of image filenames; must be complete relative or absolute path.
@@ -50,33 +53,47 @@ class BITMeasurement():
         self.catalog = None
         self.psf_path = None
         self.work_path = None
-        self.mask_path = './mask_files'
+        self.truth_file = truth_file
+        self.mask_file = mask_file
+
+        # Load truth table
+        if self.truth_file is not None:
+            self.truthcat = Table.read(self.truth_file, format='ascii')
+            print("Using truth catalog %s" % self.truth_file)
+        else:
+            self.truthcat = None
         
     def set_working_dir(self,path=None):
         if path is None:
             self.work_path = './tmp'
-            if not os.path.exists(self.work_path):
-                os.mkdir(self.work_path)
         else:
             self.work_path = path
-            if not os.path.exists(self.work_path):
-                os.mkdir(self.work_path)
+        if not os.path.exists(self.work_path):
+            os.mkdir(self.work_path)
+
+    def set_mask_dir(self,path=None):
+        if path is None:
+            self.mask_path = './mask_files'
+        else:
+            self.mask_path = path
+        if not os.path.exists(self.mask_path):
+            os.mkdir(self.mask_path)
 
     def set_path_to_psf(self,path=None):
         if path is not None:
             self.psf_path = path
-            if not os.path.exists(self.psf_path):
-                os.mkdir(self.psf_path)
         else:
             self.psf_path = './tmp/psfex_output'
-            if not os.path.exists(self.psf_path):
-                os.mkdir(self.psf_path)
+        if not os.path.exists(self.psf_path):
+            os.mkdir(self.psf_path)
 
     def set_path_to_calib_data(self,path=None):
         if path is None:
             self.calib_path = '../Data/calib'
         else:
             self.calib_path = path
+        if not os.path.exists(self.calib_path):
+            os.mkdir(self.calib_path)
 
     def set_path_to_science_data(self,path=None):
         if path is None:
@@ -211,7 +228,7 @@ class BITMeasurement():
             pass
 
 
-    def make_mask(self, global_dark_thresh = 10, global_flat_thresh = 0.85,overwrite=False):
+    def make_mask(self, global_dark_thresh=10, global_flat_thresh=0.85,overwrite=False):
         '''
         Use master flat and dark to generate a bad pixel mask.
         Default values for thresholds may be superseded in function call
@@ -269,11 +286,10 @@ class BITMeasurement():
         for SEX and PSFEx detection.
         '''
         ### Code to run SWARP
-
         image_args = ' '.join(self.image_files)
         detection_file = os.path.join(self.work_path,outfile_name) # This is coadd
         weight_file = os.path.join(self.work_path,weightout_name) # This is coadd weight
-        config_arg = '-c ../superbit/astro_config/swarp.config'
+        config_arg = '-c ./astro_config/swarp.config'
         weight_arg = '-WEIGHT_IMAGE '+self.mask_file
         outfile_arg = '-IMAGEOUT_NAME '+ detection_file + ' -WEIGHTOUT_NAME ' + weight_file
         cmd = ' '.join(['swarp ',image_args,weight_arg,outfile_arg,config_arg])
@@ -309,14 +325,15 @@ class BITMeasurement():
         catalog = result.get_data()
         pass
 
-    def make_catalog(self, sextractor_config_path = '../superbit/astro_config/',source_selection = False):
+    def make_catalog(self, sextractor_config_path = './astro_config/',source_selection = False):
         '''
         Wrapper for astromatic tools to make catalog from provided images.
         This returns catalog for (stacked) detection image
         '''
         #outfile_name='mock_empirical_psf_coadd.fits'; weightout_name='mock_empirical_psf_coadd.weight.fits'
         outfile_name='mock_coadd.fits'; weightout_name='mock_coadd.weight.fits'
-        detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
+        detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name, 
+                                                    weightout_name=weightout_name)
         
         cat_name=detection_file.replace('.fits','_cat.ldac')
         name_arg='-CATALOG_NAME ' + cat_name
@@ -328,7 +345,8 @@ class BITMeasurement():
         filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
         bkgname=outfile_name.replace('.fits','.sub.fits')
         bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
-        cmd = ' '.join(['sex',detection_file,weight_arg,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
+        cmd = ' '.join(['sex', detection_file, weight_arg, name_arg, bkg_arg, 
+                        param_arg, nnw_arg, filter_arg, '-c', config_arg])
         print("sex cmd is " + cmd)
         os.system(cmd)
         try:
@@ -342,13 +360,13 @@ class BITMeasurement():
             print("coadd catalog could not be loaded; check name?")
             pdb.set_trace()
 
-    def make_psf_models(self,select_stars=False):
+    def make_psf_models(self):
 
         self.psfEx_models = []
         for imagefile in self.image_files:
             #update as necessary
             weightfile=self.mask_file
-            psfex_model_file = self._make_psf_model(imagefile,weightfile = weightfile,select_stars=select_stars)
+            psfex_model_file = self._make_psf_model(imagefile,weightfile=weightfile)
             # move checkimages to psfex_output
             cmd = ' '.join(['mv chi* resi* samp* snap* proto*',self.psf_path])
             os.system(cmd)
@@ -358,7 +376,7 @@ class BITMeasurement():
             except:
                 pdb.set_trace()
 
-    def _make_psf_model(self,imagefile,weightfile = 'weight.fits',sextractor_config_path = '../superbit/astro_config/',psfex_out_dir='./tmp/',select_stars=False):
+    def _make_psf_model(self, imagefile, weightfile='weight.fits', sextractor_config_path='./astro_config/',psfex_out_dir='./tmp/'):
         '''
         Gets called by make_psf_models for every image in self.image_files
         Wrapper for PSFEx. Requires a FITS-LDAC format catalog with vignettes
@@ -376,26 +394,16 @@ class BITMeasurement():
         bkgname=imagefile.replace('.fits','.sub.fits')
         bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
 
-        cmd = ' '.join(['sex',imagefile,'-WEIGHT_IMAGE',weightfile,'-c',sextractor_config_file,'-CATALOG_NAME ',
-                            imcat_ldac_name, bkg_arg, sextractor_param_arg,sextractor_nnw_arg,
+        cmd = ' '.join(['sex', imagefile, '-WEIGHT_IMAGE', weightfile,'-c', 
+                            sextractor_config_file,'-CATALOG_NAME ', imcat_ldac_name, 
+                            bkg_arg, sextractor_param_arg,sextractor_nnw_arg,
                             sextractor_filter_arg])
         print("sex4psf cmd is " + cmd)
         os.system(cmd)
 
         # Get a "clean" star catalog for PSFEx input
-        # At some point, make truthfilen a command line argument
-        if select_stars==True:
-            
-            #truthdir = '/Users/jemcclea/Research/GalSim/examples/output-debug/'
-            #truthcat = 'truth_jitteronlyflight_jitter_only_oversampled_1x300005.dat'
-            #truthcat = 'truth_opticsonlyflight_jitter_only_oversampled_1x300003.dat'
-            truthdir='/Users/jemcclea/Research/GalSim/examples/output-jitter/round3/'
-            truthcat='truth_flight_jitter_only_oversampled_1x300007.dat'
-            
-
-            truthfilen=os.path.join(truthdir,truthcat)           
-            print("using truth catalog %s" % truthfilen)
-            psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,truthfile=truthfilen)
+        if self.truthcat is not None:
+            psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name)
             
         else:
             psfcat_name=imcat_ldac_name
@@ -417,17 +425,15 @@ class BITMeasurement():
         return psfex_model_file
     
 
-    def _select_stars_for_psf(self,sscat,truthfile):
+    def _select_stars_for_psf(self,sscat):
         '''
         Method to obtain stars from SExtractor catalog using the truth catalog from GalSim 
             sscat : input ldac-format catalog from which to select stars
-            truthcat : the simulation truth catalog written out by GalSim
                       
         '''
         
         # Read in truthfile, obtain stars with redshift cut
-        truthcat = Table.read(truthfile,format='ascii')
-        stars=truthcat[truthcat['redshift']==0] 
+        stars=self.truthcat[self.truthcat['redshift']==0] 
 
         # match sscat against truth star catalog
         ss = fits.open(sscat)
@@ -539,7 +545,8 @@ class BITMeasurement():
         # self.reduce(overwrite=clobber,skip_sci_reduce=True)
         # Make a mask.
         # NB: can also read in a pre-existing mask by setting self.mask_file
-        self.make_mask(overwrite=clobber)
+        if self.mask_file is None:
+            self.make_mask(overwrite=clobber)
         # Combine images, make a catalog.
         self.make_catalog(source_selection=source_selection)
         # Build a PSF model for each image.
@@ -556,4 +563,57 @@ class BITMeasurement():
         medsObj = meds.maker.MEDSMaker(obj_info,image_info,config=meds_config,psf_data = self.psfEx_models,meta_data=meta)
         medsObj.write(outfile)
 
+def main(argv):
+    """
+    Runs the MEDSMaker from the command line.
+    """
+
+    # Some defaults
+    calibdir    = "./calib"
+    inputfiles  = "../GalSim/output/mock_superbit_flight_jitter_only_oversampled_1x300.000?.fits"
+    workingdir  = "./output_debug"
+    outfile     = "./output/mock.meds"
+    psfdir      = "./output_debug/psfex_output"
+    maskfile    = "./data/supermask.fits"
+    masksrc     = "bit@bee.astro.utoronto.ca:/data5/superbit-metcal-data/supermask.fits" 
+    truthfile   = "../GalSim/output/truth_flight_jitter_only_oversampled_1x300.0001.dat"
+
+    # Process command line
+    for arg in argv[1:]:
+        optval = arg.split("=", 1)
+        option = optval[0]
+        value = optval[1] if len(optval) > 1 else None
         
+        if option == "calibdir":
+            calibdir = str(value)
+        elif option == "inputfiles":
+            inputfiles = str(value)
+        elif option == "workingdir":
+            workingdir = str(value)
+        elif option == "outfile":
+            outfile = str(value)
+        elif option == "maskfile":
+            maskfile = str(value)
+        elif option == "masksrc":
+            masksrc = str(value)
+        elif option == "truthfile":
+            truthfile = str(value)
+        else:
+            raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
+
+    # Download configuration data
+    if not os.path.exists(maskfile):
+        cmd = "rsync -avP %s %s" % (masksrc, maskfile)
+        os.system(cmd)
+
+    # Do MedsMaker
+    bm = BITMeasurement(image_files=glob.glob(inputfiles), mask_file=maskfile, truth_file=truthfile)
+    bm.set_path_to_calib_data(path=calibdir)
+    bm.set_working_dir(path=workingdir)
+    bm.set_path_to_psf(path=psfdir)
+    bm.run(clobber=False, source_selection=True, outfile=outfile)
+
+if __name__ == "__main__":
+    main(sys.argv)
+
+
