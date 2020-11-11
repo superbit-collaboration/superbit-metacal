@@ -2,3 +2,4 @@
 *.xml
 data/
 output_debug/
+output/
