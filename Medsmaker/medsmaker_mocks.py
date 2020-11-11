@@ -641,7 +641,9 @@ class MEDSConfig:
 
             # Download configuration data
             if not os.path.exists(self.maskfile):
-                cmd = "rsync -avP %s %s" % (self.masksrc, self.maskfile)
+                if not os.path.exists(os.path.dirname(self.maskfile)):
+                    os.makedirs(os.path.dirname(self.maskfile))
+                cmd = "wget %s -O %s" % (self.masksrc, self.maskfile)
                 os.system(cmd)
 
             # Setup output

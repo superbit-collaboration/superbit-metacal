@@ -7,7 +7,7 @@ truthfile:      "../GalSim/output/truth_flight_jitter_only_oversampled_1x300.000
 
 # External download
 # -----------------
-masksrc:        "bit@bee.astro.utoronto.ca:/data5/superbit-metcal-data/supermask.fits" 
+masksrc:        "bee.astro.utoronto.ca/~bit/superbit-metcal-data/supermask.fits" 
 maskfile:       "./data/supermask.fits"
 
 # Working directories
