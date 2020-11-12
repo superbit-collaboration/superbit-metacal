@@ -1,5 +1,6 @@
 *.fits
-*.xml
+psfex.xml
+swarp.xml
 data/
 output_debug/
 output/
