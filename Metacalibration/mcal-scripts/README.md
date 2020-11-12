@@ -1,3 +1,8 @@
+Requirements:
+
+pip install mof
+NGMIX - https://github.com/esheldon/ngmix.git
+
 This directory contains the scripts to run `ngmix` and implement the Metacalibration algorithm.
 
 `ngmix_fit_superbit.py`: uses the `MaxMetacalBootstrapper` class in the `ngmix` module to perform metacalibration

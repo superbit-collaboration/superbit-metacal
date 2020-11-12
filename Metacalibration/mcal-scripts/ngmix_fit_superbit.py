@@ -2,6 +2,7 @@ import meds
 import ngmix
 import mof
 import numpy as np
+import os
 import pdb
 import astropy.table as Table
 
@@ -144,7 +145,7 @@ class SuperBITNgmixFitter():
         prior = self._get_priors()
         
         # Construct an initial guess.
-        psf_model='em3'        
+        psf_model='gauss'        
         gal_model='exp'
         ntry=3
         #Tguess=4*obslist[0].jacobian.get_scale()**2
@@ -364,7 +365,7 @@ def main(args):
         python ngmix_fit_testing.py medsfile start_index end_index outfilename\n \n")
     else:
         pass
-    
+
     medsfile = args[1]
     index_start  = np.int(args[2])
     index_end = np.int(args[3])
@@ -375,6 +376,10 @@ def main(args):
     mcal=[]                                 # Array to hold Metacal fit parameters
     identifying=[]                          # Array to hold identifying information for object
     
+    diagnostic_dir = "./diagnostics_plots"
+    if not os.path.exists(diagnostic_dir):
+        os.makedirs(diagnostic_dir)
+
     for i in range(index_start, index_end):
         try:
             metacal_fit,gmix_fit = BITfitter._fit_one(i)
@@ -401,7 +406,7 @@ def main(args):
                 ax1.imshow(image)
                 ax2.imshow(model_image)
                 ax3.imshow(image - model_image)
-                fig.savefig('diagnostics_plots/diagnostics'+str(i)+'.png')
+                fig.savefig(os.path.join(diagnostic_dir, 'diagnostics'+str(i)+'.png'))
                 plt.close(fig)
             except:
                 # EM probably failed
