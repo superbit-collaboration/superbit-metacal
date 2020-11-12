@@ -3,8 +3,12 @@ import ngmix
 import mof
 import numpy as np
 import os
+import sys
+import yaml
+import logging
 import pdb
 import astropy.table as Table
+import matplotlib.pyplot as plt
 
 
 
@@ -16,7 +20,7 @@ class SuperBITNgmixFitter():
                files provided. 
     
     """
-    def __init__(self, meds_info = None):
+    def __init__(self, argv=None, config_file=None):
 
         # The meds file groups data together by source.
         # To run, we need to make an ObservationList object for each source.
@@ -32,11 +36,78 @@ class SuperBITNgmixFitter():
         # self.metcal will hold result of metacalibration
         # self.gal_results is the result of a simple fit to the galaxy shape within metcal bootstrapper
         
-        self.medsObj = meds.MEDS(meds_info['meds_file'])
-        self.catalog = self.medsObj.get_cat()
         self.metacal = None 
         self.gal_fit = None 
 
+        # Define some default default parameters below.
+        # These are used in the absence of a .yaml config_file or command line args.
+        self._load_config_file("ngmixconfig.yaml")
+
+        # Check for config_file params to overwrite defaults
+        if config_file is not None:
+            logger.info('Loading parameters from %s' % (config_file))
+            self._load_config_file(config_file)
+
+        # Check for command line args to overwrite config_file and / or defaults
+        if argv is not None:
+            self._load_command_line(argv)
+
+
+    def _load_config_file(self, config_file):
+        """
+        Load parameters from configuration file. Only parameters that exist in the config_file
+        will be overwritten.
+        """
+        with open(config_file) as fsettings:
+            config = yaml.load(fsettings, Loader=yaml.FullLoader)
+        self._load_dict(config)
+
+    def _args_to_dict(self, argv):
+        """
+        Converts a command line argument array to a dictionary.
+        """
+        d = {}
+        for arg in argv[1:]:
+            optval = arg.split("=", 1)
+            option = optval[0]
+            value = optval[1] if len(optval) > 1 else None
+            d[option] = value
+        return d
+
+    def _load_command_line(self, argv):
+        """
+        Load parameters from the command line argumentts. Only parameters that are provided in
+        the command line will be overwritten.
+        """
+        logger.info('Processing command line args')
+        # Parse arguments here
+        self._load_dict(self._args_to_dict(argv))
+
+    def _load_dict(self, d):
+        """
+        Load parameters from a dictionary.
+        """
+        for (option, value) in d.items():
+            if option == "meds_file":
+                self.medsObj = meds.MEDS(value)
+            elif option == "diagnostic_dir":
+                self.diagnostic_dir = str(value)
+            elif option == "output_file":
+                self.output_file = str(value)
+            elif option == "start_index":
+                self.start_index = value
+            elif option == "end_index":
+                self.end_index = value
+            else:
+                raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
+
+        # Process inputs
+        self.catalog = self.medsObj.get_cat()
+
+        if not os.path.exists(self.diagnostic_dir):
+            os.makedirs(self.diagnostic_dir)
+        if not os.path.exists(os.path.dirname(self.output_file)):
+            os.makedirs(os.path.dirname(self.output_file))
         
     def _generate_initial_guess(self,observation):
         # Generate a guess from the pixel scale.
@@ -167,10 +238,10 @@ class SuperBITNgmixFitter():
                 self.metacal = mcr
                 R1_gamma = (mcr['1p']['g'][0] - mcr['1m']['g'][0])/(2*mcal_shear)
                 R2_gamma = (mcr['2p']['g'][1] - mcr['2m']['g'][1])/(2*mcal_shear)
-                print(f"R1_gamma: {R1_gamma:.3} \nR2_gamma:{R2_gamma:.3} ")
+                logger.info(f"R1_gamma: {R1_gamma:.3} \nR2_gamma:{R2_gamma:.3} ")
 
             except:
-                print("get_metacal_result() for object %d failed, skipping metacal step..." % source_id)
+                logger.warn("get_metacal_result() for object %d failed, skipping metacal step..." % source_id)
                 mcr=None
                 
             # # # Also get regular galaxy shape EM fit. If this fails, something got messed up
@@ -182,7 +253,7 @@ class SuperBITNgmixFitter():
             
 
         except:
-            print("Creation of MaxMetacalBootstrapper failed, skipping object...")
+            logger.warn("Creation of MaxMetacalBootstrapper failed, skipping object...")
             #pdb.set_trace()
             gal_fit = None
             mcr = None
@@ -209,7 +280,7 @@ class SuperBITNgmixFitter():
             r12=(mcr['2p']['g'][0] - mcr['2m']['g'][0])/0.02
             r22=(mcr['2p']['g'][1] - mcr['2m']['g'][1])/0.02
             r21=(mcr['1p']['g'][1] - mcr['1m']['g'][1])/0.02
-            #print("for index %d r11=%f r22=%f r12=%f r21=%f" % (index, r11, r22, r12, r21))
+            #logger.debug("for index %d r11=%f r22=%f r12=%f r21=%f" % (index, r11, r22, r12, r21))
 
             R = [[r11,r12],[r21,r22]]
             Rinv = np.linalg.inv(R)
@@ -230,11 +301,63 @@ class SuperBITNgmixFitter():
                               -9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,
                               -9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.]
                 
-            print("No metacal parameters found for this object!!!")
+            logger.error("No metacal parameters found for this object!!!")
             
         return fit_result
 
+    def run(self):
+        '''
+        Run the ngmix routine
+        '''
+        bootfit=[]                      # Array to hold parameters from ExpectMax fit to object
+        mcal=[]                         # Array to hold Metacal fit parameters
+        identifying=[]                  # Array to hold identifying information for object
+        
+        start = int(self.start_index) if self.start_index is not None else 0
+        end = int(self.end_index) if self.end_index is not None else int(self.medsObj.size)
 
+        logger.info("Reading objects from index %d to %d" % (start, end))
+
+        for i in range(start, end):
+            try:
+                metacal_fit,gmix_fit = self._fit_one(i)
+                mcal_fit_pars = self.get_mcalib_shears(i)
+                mcal.append(mcal_fit_pars)
+                try:
+                    bootfit.append(gmix_fit.get_result()['pars'])
+                except:
+                    logger.error("failed to append holding values")
+                    bootfit.append(np.array([-99999, -99999, -99999, -99999, -99999, -99999]))
+                      
+                identifying.append([self.medsObj['id'][i],self.medsObj['ra'][i],self.medsObj['dec'][i]])
+                
+                
+                # Now for some plotting!
+                image = self.medsObj.get_cutout(i,0)
+                jac = self.medsObj.get_jacobian(i,0)
+                jj = ngmix.Jacobian(row=jac['row0'],col=jac['col0'],dvdrow = jac['dvdrow'],
+                                        dvdcol=jac['dvdcol'],dudrow=jac['dudrow'],dudcol=jac['dudcol'])
+                try:
+                    gmix_model = gmix_fit.get_convolved_gmix()
+                    model_image = gmix_model.make_image(image.shape,jacobian=jj)
+                except:
+                    # EM probably failed
+                    logger.warn("Bad gmix model, no image made :(")
+                fig,(ax1,ax2,ax3) = plt.subplots(nrows=1,ncols=3,figsize=(21,7))
+                ax1.imshow(image)
+                ax2.imshow(model_image)
+                ax3.imshow(image - model_image)
+                fig.savefig(os.path.join(self.diagnostic_dir, 'diagnostics'+str(i)+'.png'))
+                plt.close(fig)
+                
+            except:
+                ("object %d failed, skipping..." % i)
+                 
+        make_output_table(self.output_file, bootfit, mcal, identifying)
+
+
+logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
+logger = logging.getLogger("ngmix_fit_superbit")
 
 def make_output_table(outfilename, gmix, mcal,identifying):
     """
@@ -357,68 +480,18 @@ def make_output_table(outfilename, gmix, mcal,identifying):
 
     
 
-def main(args):
-    import matplotlib.pyplot as plt
-    if ( ( len(args) < 4) or (args == '-h') or (args == '--help') ):
-        print("\n### \n### ngmix_fit_testing is a routine which takes a medsfile as\
+def main(argv):
+    if ('-h' in argv or '--help' in argv):
+        logger.info("\n### \n### ngmix_fit_testing is a routine which takes a medsfile as\
         its input and outputs shear-calibrated object shapes to a table\n###\n\n  \
         python ngmix_fit_testing.py medsfile start_index end_index outfilename\n \n")
+        sys.exit()
     else:
         pass
 
-    medsfile = args[1]
-    index_start  = np.int(args[2])
-    index_end = np.int(args[3])
-    outfilename = args[4]
-    meds_info = {'meds_file':args[1]}
-    BITfitter = SuperBITNgmixFitter(meds_info) # MEDS file
-    bootfit=[]                                 # Array to hold parameters from ExpectMax fit to object
-    mcal=[]                                 # Array to hold Metacal fit parameters
-    identifying=[]                          # Array to hold identifying information for object
-    
-    diagnostic_dir = "./diagnostics_plots"
-    if not os.path.exists(diagnostic_dir):
-        os.makedirs(diagnostic_dir)
-
-    for i in range(index_start, index_end):
-        try:
-            metacal_fit,gmix_fit = BITfitter._fit_one(i)
-            mcal_fit_pars = BITfitter.get_mcalib_shears(i)
-            mcal.append(mcal_fit_pars)
-            try:
-                bootfit.append(gmix_fit.get_result()['pars'])
-            except:
-                print("failed to append holding values")
-                bootfit.append(np.array([-99999, -99999, -99999, -99999, -99999, -99999]))
-                  
-            identifying.append([BITfitter.medsObj['id'][i],BITfitter.medsObj['ra'][i],BITfitter.medsObj['dec'][i]])
-            
-            
-            # Now for some plotting!
-            image = BITfitter.medsObj.get_cutout(i,0)
-            jac = BITfitter.medsObj.get_jacobian(i,0)
-            jj = ngmix.Jacobian(row=jac['row0'],col=jac['col0'],dvdrow = jac['dvdrow'],
-                                    dvdcol=jac['dvdcol'],dudrow=jac['dudrow'],dudcol=jac['dudcol'])
-            try:
-                gmix_model = gmix_fit.get_convolved_gmix()
-                model_image = gmix_model.make_image(image.shape,jacobian=jj)
-                fig,(ax1,ax2,ax3) = plt.subplots(nrows=1,ncols=3,figsize=(21,7))
-                ax1.imshow(image)
-                ax2.imshow(model_image)
-                ax3.imshow(image - model_image)
-                fig.savefig(os.path.join(diagnostic_dir, 'diagnostics'+str(i)+'.png'))
-                plt.close(fig)
-            except:
-                # EM probably failed
-                print("Bad gmix model, no image made :(")
-
-        
-            
-        except:
-            ("object %d failed, skipping..." % i)
-             
-    make_output_table(outfilename, bootfit, mcal, identifying)
-    
+    # Load and run the ngmix wrapper
+    BITfitter = SuperBITNgmixFitter(argv=argv)
+    BITfitter.run()
 
 
 if __name__ == '__main__':
