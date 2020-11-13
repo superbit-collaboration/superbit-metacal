@@ -98,6 +98,10 @@ class SuperBITNgmixFitter():
                 self.start_index = value
             elif option == "end_index":
                 self.end_index = value
+            elif option == "psf_model":
+                self.psf_model = str(value)
+            elif option == "gal_model":
+                self.gal_model = str(value)
             else:
                 raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
@@ -216,8 +220,6 @@ class SuperBITNgmixFitter():
         prior = self._get_priors()
         
         # Construct an initial guess.
-        psf_model='gauss'        
-        gal_model='exp'
         ntry=3
         #Tguess=4*obslist[0].jacobian.get_scale()**2
         Tguess=0.17
@@ -230,7 +232,7 @@ class SuperBITNgmixFitter():
             # #
             # # star with a boostrapper.
             mcb=ngmix.bootstrap.MaxMetacalBootstrapper(obslist) 
-            mcb.fit_metacal(psf_model, gal_model, max_pars, Tguess, prior=prior,  ntry=ntry, metacal_pars=metacal_pars)
+            mcb.fit_metacal(self.psf_model, self.gal_model, max_pars, Tguess, prior=prior,  ntry=ntry, metacal_pars=metacal_pars)
             
             # # # Was fit successful? If not, set metacal result object to None
             try:
@@ -245,8 +247,8 @@ class SuperBITNgmixFitter():
                 mcr=None
                 
             # # # Also get regular galaxy shape EM fit. If this fails, something got messed up
-            mcb.fit_psfs(psf_model,Tguess)
-            mcb.fit_max(gal_model=gal_model,pars=max_pars)
+            mcb.fit_psfs(self.psf_model,Tguess)
+            mcb.fit_max(gal_model=self.gal_model,pars=max_pars)
             gal_fit=mcb.get_fitter()
             self.gal_fit = gal_fit
             
