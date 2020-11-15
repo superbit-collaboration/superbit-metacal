@@ -29,6 +29,7 @@ import pdb
 import glob
 import scipy
 import yaml
+import numpy as np
 from functools import reduce
 from astropy.table import Table
 from mpi_helper import MPIHelper
@@ -130,7 +131,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbpara
     try:
         gal = gal.lens(g1, g2, mu)
         logger.debug('sheared galaxy')
-    except:
+    except galsim.errors.GalSimError:
         print("could not lens galaxy, setting default values...")
         g1 = 0.0; g2 = 0.0
         mu = 1.0
@@ -173,7 +174,7 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbpara
     try:
         galaxy_truth.fwhm=final.evaluateAtWavelength(sbparams.lam).calculateFWHM()
         galaxy_truth.mom_size=stamp.FindAdaptiveMom().moments_sigma
-    except:
+    except galsim.errors.GalSimError:
         logger.debug('fwhm or sigma calculation failed')
         galaxy_truth.fwhm=-9999.0
         galaxy_truth.mom_size=-9999.
@@ -215,10 +216,6 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
     g1 = 0.0; g2 = 0.0
     mu = 1.0
     
-    # Get the reduced shears and magnification at this point
-    nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
-    g1=nfw_shear.g1; g2=nfw_shear.g2
-
     # Create chromatic galaxy    
     gal = cluster_cat.makeGalaxy(gal_type='parametric', rng=ud,chromatic=True)
     logger.debug('created cluster galaxy')
@@ -270,7 +267,7 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
     try:
         cluster_galaxy_truth.fwhm=final.evaluateAtWavelength(sbparams.lam).calculateFWHM()
         cluster_galaxy_truth.mom_size=cluster_stamp.FindAdaptiveMom().moments_sigma
-    except:
+    except galsim.errors.GalSimError:
         logger.debug('fwhm or sigma calculation failed')
         cluster_galaxy_truth.fwhm=-9999.0
         cluster_galaxy_truth.mom_size=-9999.
@@ -357,10 +354,9 @@ class SuperBITParameters:
             """
             d = {}
             for arg in argv[1:]:
-                try:
-                    (option, value) = arg.split("=", 1)
-                except:
-                    (option, value) = (arg, None)
+                optval = arg.split("=", 1)
+                option = optval[0]
+                value = optval[1] if len(optval) > 1 else None
                 d[option] = value
             return d
 
@@ -386,6 +382,12 @@ class SuperBITParameters:
                     self.sky_sigma = float(value)
                 elif option == "gain":          
                     self. gain = float(value)   
+                elif option == "read_noise":
+                    self. read_noise = float(value)
+                elif option == "dark_current":
+                    self. dark_current = float(value)
+                elif option == "dark_current_std":
+                    self. dark_current_std = float(value)
                 elif option == "image_xsize":   
                     self.image_xsize = int(value)    
                 elif option == "image_ysize":   
@@ -456,7 +458,7 @@ class SuperBITParameters:
                 elif option == "obscuration":  
                     self.obscuration = float(0.380)     
                 else:
-                    raise Exception("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
+                    raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
             # Derive the parameters from the base parameters
             self.image_xsize_arcsec = self.image_xsize * self.pixel_scale 
@@ -574,7 +576,7 @@ def main(argv):
                 truth_file_name=''.join([sbparams.outdir, 'truth_', root, timescale, str(i).zfill(3), '.dat'])
                 file_name = os.path.join(sbparams.outdir, outname)
 
-            except:
+            except galsim.errors.GalSimError:
                 print("naming failed, check path")
                 pdb.set_trace()
 
@@ -655,7 +657,8 @@ def main(argv):
                     this_flux=numpy.sum(stamp.array)
                     row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z, this_flux]
                     truth_catalog.addRow(row)
-                except:
+                except galsim.errors.GalSimError:
+                    # picked catalogue galaxy outside redshift range
                     logger.info('Galaxy %d has failed, skipping...',k)
 
             #####
@@ -688,7 +691,7 @@ def main(argv):
                     # We need to keep track of how much variance we have currently in the image, so when
                     # we add more noise, we can omit what is already there.
             
-                    noise_image[bounds] += truth.variance
+                    #noise_image[bounds] += truth.variance
             
                     # Finally, add the stamp to the full image.
                     
@@ -700,7 +703,7 @@ def main(argv):
                     this_flux=numpy.sum(stamp.array)
                     row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z, this_flux]
                     truth_catalog.addRow(row)
-                except:
+                except galsim.errors.GalSimError:
                     logger.info('Cluster galaxy %d has failed, skipping...',k)
                     
             
@@ -733,7 +736,7 @@ def main(argv):
                                 truth.z, this_flux]
                     truth_catalog.addRow(row)
                     
-                except:
+                except galsim.errors.GalSimError:
                     logger.info('Star %d has failed, skipping...',k)
 
             # Gather results from MPI processes, reduce to single result on root
@@ -749,10 +752,8 @@ def main(argv):
                 # do the adding of noise and writing to disk entirely on root
                 # root and the rest meet again at barrier at start of loop
                 continue
-
-            # add sky background. must do this after reducing the image
-            full_image += sky_level
             
+            # The first thing to do is to make the Gaussian noise uniform across the whole image.
             # If real-type COSMOS galaxies are used, the noise across the image won't be uniform. Since this code is
             # using parametric-type galaxies, the following section is commented out.
             #         max_current_variance = numpy.max(noise_image.array)
@@ -760,19 +761,20 @@ def main(argv):
 
             # The first thing to do is to make the Gaussian noise uniform across the whole image.
             
-            # NOTE: this version of the code ONLY includes sky noise. 
-            
-            this_sky_sigma = sbparams.sky_sigma*numpy.sqrt(sbparams.exp_time)
-            this_sky_sigma -= numpy.sqrt(max_current_variance)
+            # Add dark current
+            logger.info('Adding Dark current')
+            dark_noise = sbparams.dark_current * sbparams.exp_time
+            # np.random.normal(
+            #     sbparams.dark_current, sbparams.dark_current_std,
+            #     size=(sbparams.image_ysize, sbparams.image_xsize)) * sbparams.exp_time
+            # dark_noise = np.clip(dark_noise, a_min=0, a_max=2**16)
+            full_image += dark_noise
 
-                  
-            noise_rng=galsim.UniformDeviate()
-            vn = galsim.VariableGaussianNoise(noise_rng, noise_image)
-            full_image.addNoise(vn)
-
-            # Regardless of galaxy type, add Gaussian noise with this variance to the final image.
-            
-            noise = galsim.GaussianNoise(rng, sigma=this_sky_sigma)
+            # Add ccd noise
+            logger.info('Adding CCD noise')
+            noise = galsim.CCDNoise(
+                rng, sky_level=sky_level, gain=1/sbparams.gain,
+                read_noise=sbparams.read_noise)
             full_image.addNoise(noise)
         
             logger.debug('Added noise to final output image')

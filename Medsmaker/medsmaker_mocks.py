@@ -1,13 +1,17 @@
 import ngmix
 import numpy as np
 import meds
+import sys
 import os
 import psfex
+import logging
 from astropy.io import fits
 import string
 import pdb
 from astropy import wcs
 import fitsio
+import glob
+import yaml
 import esutil as eu
 from astropy.table import Table
 import astropy.units as u
@@ -35,48 +39,135 @@ TO DO:
 
 
 class BITMeasurement():
-    def __init__(self, image_files = None, flat_files = None, dark_files = None, bias_files= None):
+    def __init__(self, argv=None, config_file=None):
         '''
-        :image_files: Python List of image filenames; must be complete relative or absolute path.
-        :flat_files: Python List of image filenames; must be complete relative or absolute path.
-        :dark_files: Python List of image filenames; must be complete relative or absolute path.
-        :catalog: Object that stores FITS array of catalog
         '''
-
-        self.image_files = image_files
-        self.flat_files = flat_files
-        self.dark_files = dark_files
-        self.bias_files = bias_files
         self.catalog = None
-        self.psf_path = None
-        self.work_path = None
-        self.mask_path = './mask_files'
+
+        # Define some default default parameters below.
+        # These are used in the absence of a .yaml config_file or command line args.
+        self._load_config_file("medsconfig_mock.yaml")
+
+        # Check for config_file params to overwrite defaults
+        if config_file is not None:
+            logger.info('Loading parameters from %s' % (config_file))
+            self._load_config_file(config_file)
+
+        # Check for command line args to overwrite config_file and / or defaults
+        if argv is not None:
+            self._load_command_line(argv)
+
+
+    def _load_config_file(self, config_file):
+        """
+        Load parameters from configuration file. Only parameters that exist in the config_file
+        will be overwritten.
+        """
+        with open(config_file) as fsettings:
+            config = yaml.load(fsettings, Loader=yaml.FullLoader)
+        self._load_dict(config)
+
+    def _args_to_dict(self, argv):
+        """
+        Converts a command line argument array to a dictionary.
+        """
+        d = {}
+        for arg in argv[1:]:
+            optval = arg.split("=", 1)
+            option = optval[0]
+            value = optval[1] if len(optval) > 1 else None
+            d[option] = value
+        return d
+
+    def _load_command_line(self, argv):
+        """
+        Load parameters from the command line argumentts. Only parameters that are provided in
+        the command line will be overwritten.
+        """
+        logger.info('Processing command line args')
+        # Parse arguments here
+        self._load_dict(self._args_to_dict(argv))
+
+    def _load_dict(self, d):
+        """
+        Load parameters from a dictionary.
+        """
+        for (option, value) in d.items():
+            if option == "science_files":
+                self.science_files = glob.glob(str(value))
+            elif option == "bias_files":
+                self.bias_files = glob.glob(str(value))
+            elif option == "dark_files":
+                self.dark_files = glob.glob(str(value))
+            elif option == "flat_files":
+                self.flat_files = glob.glob(str(value))
+            elif option == "working_dir":
+                self.working_dir = str(value)
+            elif option == "psfex_dir":
+                self.psfex_dir = str(value)
+            elif option == "out_file":
+                self.out_file = str(value)
+            elif option == "mask_file":
+                self.mask_file = str(value)
+            elif option == "mask_dark_file":
+                self.mask_dark_file = str(value)
+            elif option == "mask_flat_file":
+                self.mask_flat_file = str(value)
+            elif option == "mask_bias_file":
+                self.mask_bias_file = str(value)
+            elif option == "mask_src":
+                self.mask_src = str(value)
+            elif option == "mask_dark_src":
+                self.mask_dark_src = str(value)
+            elif option == "mask_flat_src":
+                self.mask_flat_src = str(value)
+            elif option == "mask_bias_src":
+                self.mask_bias_src = str(value)
+            elif option == "truth_file":
+                self.truth_file = str(value)
+            elif option == "config_file":
+                logger.info('Loading parameters from %s' % (value))
+                self._load_config_file(str(value))
+            elif option == "swarp_config":
+                logger.info('Using SWARP config %s' % (value))
+                self.swarp_config = str(value)
+            elif option == "psfex_config":
+                logger.info('Using PSFEx config %s' % (value))
+                self.psfex_config = str(value)
+            elif option == "sextractor_dir":
+                logger.info('Using sextractor config directory %s' % (value))
+                self.sextractor_dir = str(value)
+            else:
+                raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
+
+        # Download configuration data
+        if self.mask_file is not None:
+            self._download_missing_data(self.mask_src, self.mask_file)
+        else:
+            self._download_missing_data(self.mask_dark_src, self.mask_dark_file)
+            self._download_missing_data(self.mask_flat_src, self.mask_flat_file)
+
+        # Load truth table
+        if self.truth_file is not None:
+            self.truthcat = Table.read(self.truth_file, format='ascii')
+            logger.info("Using truth catalog %s" % self.truth_file)
+        else:
+            self.truthcat = None
+
+        # Setup directories
+        if not os.path.exists(os.path.dirname(self.out_file)):
+            os.makedirs(os.path.dirname(self.out_file))
+        if not os.path.exists(self.psfex_dir):
+            os.makedirs(self.psfex_dir)
+        if not os.path.exists(self.working_dir):
+            os.makedirs(self.working_dir)
         
-    def set_working_dir(self,path=None):
-        if path is None:
-            self.work_path = './tmp'
-            if not os.path.exists(self.work_path):
-                os.mkdir(self.work_path)
-        else:
-            self.work_path = path
-            if not os.path.exists(self.work_path):
-                os.mkdir(self.work_path)
-
-    def set_path_to_psf(self,path=None):
-        if path is not None:
-            self.psf_path = path
-            if not os.path.exists(self.psf_path):
-                os.mkdir(self.psf_path)
-        else:
-            self.psf_path = './tmp/psfex_output'
-            if not os.path.exists(self.psf_path):
-                os.mkdir(self.psf_path)
-
-    def set_path_to_calib_data(self,path=None):
-        if path is None:
-            self.calib_path = '../Data/calib'
-        else:
-            self.calib_path = path
+    def _download_missing_data(self, src, output):
+        if not os.path.exists(output):
+            if not os.path.exists(os.path.dirname(output)):
+                os.makedirs(os.path.dirname(output))
+            cmd = "wget %s -O %s" % (src, output)
+            os.system(cmd)
 
     def set_path_to_science_data(self,path=None):
         if path is None:
@@ -108,7 +199,7 @@ class BITMeasurement():
             w=wcs.WCS(inhead)
             wcs_sip_header=w.to_header(relax=True)
         except:
-            print('cluster %s has no WCS, skipping...' % wcsName )
+            logger.waring('cluster %s has no WCS, skipping...' % wcsName )
             wcs_sip_header=None
 
         return wcs_sip_header
@@ -131,40 +222,36 @@ class BITMeasurement():
                 outFITS.writeto(new_image_filename)
                 return new_image_filename
         else:
-            print("Could not process %s" % image_filename)
+            logger.error("Could not process %s" % image_filename)
             return None
 
     def add_wcs_to_science_frames(self):
         '''
         wrapper for _make_new_fits() which returns astrometry-corrected images
         '''
-        fixed_image_files = []
-        for image_file in self.image_files:
+        fixed_science_files = []
+        for image_file in self.science_files:
             fixed_image_file = self._make_new_fits(image_file)
             if fixed_image_file is not None:
-                fixed_image_files.append(fixed_image_file)
-        self.image_files = fixed_image_files
+                fixed_science_files.append(fixed_image_file)
+        self.science_files = fixed_science_files
 
     def reduce(self,overwrite=False,skip_sci_reduce=False):
         # Read in and average together the bias, dark, and flat frames.
 
-        bname = os.path.join(self.mask_path,'master_bias_mean.fits')
-        """
-        if (not os.path.exists(bname) or (overwrite==True)):
+        if (not os.path.exists(self.mask_bias_file) or (overwrite==True)):
             # Taking median biases and darks instead of mean to eliminate odd noise features
             bias_array=[]
-            print("I get to bias_array")
+            logger.debug("I get to bias_array")
             for ibias_file in self.bias_files:
                 bias_frame = fitsio.read(ibias_file)
                 bias_array.append(bias_frame)
                 master_bias = np.median(bias_array,axis=0)
-                fitsio.write(os.path.join(self.work_path,'master_bias_median.fits'),master_bias,clobber=True)
+                fitsio.write(self.mask_bias_file, master_bias, clobber=True)
         else:
-        """
-        master_bias = fitsio.read(bname)
+            master_bias = fitsio.read(self.mask_bias_file)
 
-        dname = os.path.join(self.mask_path,'master_dark_median.fits')
-        if (not os.path.exists(dname) or (overwrite==True)):
+        if (not os.path.exists(self.mask_dark_file) or (overwrite==True)):
             dark_array=[]
             for idark_file in self.dark_files:
                 hdr = fitsio.read_header(idark_file)
@@ -172,12 +259,11 @@ class BITMeasurement():
                 dark_frame = ((fitsio.read(idark_file)) - master_bias) * 1./time
                 dark_array.append(dark_frame)
                 master_dark = np.median(dark_array,axis=0)
-                fitsio.write(os.path.join(self.mask_path,'master_dark_median.fits'),master_dark,clobber=True)
+                fitsio.write(self.mask_dark_file, master_dark, clobber=True)
         else:
-            master_dark=fitsio.read(dname)
+            master_dark=fitsio.read(self.mask_dark_file)
 
-        fname = os.path.join(self.mask_path,'master_flat_median.fits')
-        if (not os.path.exists(fname) or (overwrite==True)):
+        if (not os.path.exists(self.mask_flat_file) or (overwrite==True)):
             flat_array=[]
             # Ideally, all the flats should have the SAME exposure time, or rather, each filter
             # gets its own band with its own flat exptime
@@ -188,12 +274,13 @@ class BITMeasurement():
                 flat_array.append(flat_frame)
                 master_flat1 = np.median(flat_array,axis=0)
                 master_flat = master_flat1/np.median(master_flat1)
-                fitsio.write(os.path.join(self.mask_path,'master_flat_median.fits'),master_flat,clobber=True)
+                fitsio.write(self.mask_flat_file, master_flat, clobber=True)
         else:
-            master_flat=fitsio.read(fname)
+            master_flat = fitsio.read(self.mask_flat_file)
+
         if not skip_sci_reduce:
-            reduced_image_files=[]
-            for this_image_file in self.image_files:
+            reduced_science_files=[]
+            for this_image_file in self.science_files:
                 # WARNING: as written, function assumes science data is in 0th extension
                 this_image_fits=fits.open(this_image_file)
                 time=this_image_fits[0].header['EXPTIME']/1000.
@@ -202,28 +289,25 @@ class BITMeasurement():
                 updated_header = this_image_fits[0].header
                 updated_header['HISTORY']='File has been bias & dark subtracted and FF corrected'
                 this_image_outname=(os.path.basename(this_image_file)).replace(".fits","_reduced.fits")
-                this_image_outname = os.path.join(self.work_path,this_image_outname)
-                reduced_image_files.append(this_image_outname)
+                this_image_outname = os.path.join(self.working_dir,this_image_outname)
+                reduced_science_files.append(this_image_outname)
                 this_outfits=fits.PrimaryHDU(this_reduced_image,header=updated_header)
                 this_outfits.writeto(this_image_outname,overwrite=True)
-            self.image_files=reduced_image_files
+            self.science_files=reduced_science_files
         else:
             pass
 
 
-    def make_mask(self, global_dark_thresh = 10, global_flat_thresh = 0.85,overwrite=False):
+    def make_mask(self, global_dark_thresh=10, global_flat_thresh=0.85, overwrite=False):
         '''
         Use master flat and dark to generate a bad pixel mask.
         Default values for thresholds may be superseded in function call
         '''
-        self.mask_file = os.path.join(self.mask_path,'supermask.fits')
 
-        if (not os.path.exists(self.mask_file)) or (overwrite==True):
+        if (self.mask_file is not None and not os.path.exists(self.mask_file)) or (overwrite==True):
             # It's bad practice to hard-code filenames in
-            mdark_fname = os.path.join(self.mask_path,'master_dark_median.fits')
-            mflat_fname = os.path.join(self.mask_path,'master_flat_median.fits')
-            mdark = fits.getdata(mdark_fname)
-            mflat = fits.getdata(mflat_fname)
+            mdark = fits.getdata(self.mask_dark_file)
+            mflat = fits.getdata(self.mask_flat_file)
 
             # Start with dark
             med_dark_array=[]
@@ -236,8 +320,8 @@ class BITMeasurement():
             darkmask=np.ones(sum_dark.size)
             #darkmask[sum_dark==(len(dark_files))]=0
             darkmask[sum_dark==1]=0
-            outfile = fits.PrimaryHDU(darkmask.reshape(np.shape(mdark)))
-            outfile.writeto(os.path.join(self.mask_path,'darkmask.fits'),overwrite=True)
+            #out_file = fits.PrimaryHDU(darkmask.reshape(np.shape(mdark)))
+            #out_file.writeto(os.path.join(self.mask_path,'darkmask.fits'),overwrite=True)
 
             # repeat for flat
             med_flat_array=[]
@@ -250,18 +334,15 @@ class BITMeasurement():
             flatmask=np.ones(sum_flat.size)
             #darkmask[sum_dark==(len(dark_files))]=0
             flatmask[sum_flat==1]=0
-            outfile = fits.PrimaryHDU(flatmask.reshape(np.shape(mflat)))
-            outfile.writeto(os.path.join(self.mask_path,'flatmask.fits'),overwrite=True)
+            #outfile = fits.PrimaryHDU(flatmask.reshape(np.shape(mflat)))
+            #outfile.writeto(os.path.join(self.mask_path,'flatmask.fits'),overwrite=True)
 
             # Now generate actual mask
             supermask = (darkmask + flatmask)/2.
             outfile = fits.PrimaryHDU(flatmask.reshape(np.shape(mflat)))
-            outfile.writeto(os.path.join(self.mask_path,'supermask.fits'),overwrite=True)
+            outfile.writeto(os.path.join(self.mask_file),overwrite=True)
 
-        else:
-            pass
-
-    def _make_detection_image(self,outfile_name = 'detection.fits',weightout_name='weight.fits'):
+    def _make_detection_image(self, outfile_name='detection.fits', weightout_name='weight.fits'):
         '''
         :output: output file where detection image is written.
 
@@ -269,15 +350,14 @@ class BITMeasurement():
         for SEX and PSFEx detection.
         '''
         ### Code to run SWARP
-
-        image_args = ' '.join(self.image_files)
-        detection_file = os.path.join(self.work_path,outfile_name) # This is coadd
-        weight_file = os.path.join(self.work_path,weightout_name) # This is coadd weight
-        config_arg = '-c ../superbit/astro_config/swarp.config'
+        image_args = ' '.join(self.science_files)
+        detection_file = os.path.join(self.working_dir, outfile_name) # This is coadd
+        weight_file = os.path.join(self.working_dir, weightout_name) # This is coadd weight
+        config_arg = '-c ' + self.swarp_config
         weight_arg = '-WEIGHT_IMAGE '+self.mask_file
         outfile_arg = '-IMAGEOUT_NAME '+ detection_file + ' -WEIGHTOUT_NAME ' + weight_file
         cmd = ' '.join(['swarp ',image_args,weight_arg,outfile_arg,config_arg])
-        print("swarp cmd is " + cmd)
+        logger.debug("swarp cmd is " + cmd)
         os.system(cmd)
         return detection_file,weight_file
 
@@ -286,7 +366,7 @@ class BITMeasurement():
         keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size) 
         self.catalog = self.catalog[keep.nonzero()[0]]
         
-        print("Selecting analysis objects on FWHM and CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
+        logger.info("Selecting analysis objects on FWHM and CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
         keep2 = self.catalog['CLASS_STAR']<=0.8
         self.catalog = self.catalog[keep2.nonzero()[0]]
 
@@ -309,48 +389,48 @@ class BITMeasurement():
         catalog = result.get_data()
         pass
 
-    def make_catalog(self, sextractor_config_path = '../superbit/astro_config/',source_selection = False):
+    def make_catalog(self, source_selection=False):
         '''
         Wrapper for astromatic tools to make catalog from provided images.
         This returns catalog for (stacked) detection image
         '''
-        #outfile_name='mock_empirical_psf_coadd.fits'; weightout_name='mock_empirical_psf_coadd.weight.fits'
         outfile_name='mock_coadd.fits'; weightout_name='mock_coadd.weight.fits'
-        detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
+        detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name, 
+                                                    weightout_name=weightout_name)
         
         cat_name=detection_file.replace('.fits','_cat.ldac')
         name_arg='-CATALOG_NAME ' + cat_name
         weight_arg = '-WEIGHT_IMAGE '+weight_file
-        #config_arg = sextractor_config_path+'sextractor.empirical.config'
-        config_arg = sextractor_config_path+'sextractor.config'
-        param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
-        nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
-        filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
-        bkgname=outfile_name.replace('.fits','.sub.fits')
+        config_arg = self.sextractor_dir + 'sextractor.config'
+        param_arg = '-PARAMETERS_NAME ' + self.sextractor_dir + 'sextractor.param'
+        nnw_arg = '-STARNNW_NAME ' + self.sextractor_dir + 'default.nnw'
+        filter_arg = '-FILTER_NAME ' + self.sextractor_dir + 'default.conv'
+        bkgname=detection_file.replace('.fits','.sub.fits')
         bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
-        cmd = ' '.join(['sex',detection_file,weight_arg,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
-        print("sex cmd is " + cmd)
+        cmd = ' '.join(['sex', detection_file, weight_arg, name_arg, bkg_arg, 
+                        param_arg, nnw_arg, filter_arg, '-c', config_arg])
+        logger.debug("sex cmd is " + cmd)
         os.system(cmd)
         try:
             #le_cat = fits.open('A2218_coadd_catalog.fits')
             le_cat = fits.open(cat_name)
             self.catalog = le_cat[2].data
             if source_selection is True:
-                print("I get here")
+                logger.debug("I get here")
                 self._select_sources_from_catalog(fullcat=le_cat,catname=cat_name)
         except:
-            print("coadd catalog could not be loaded; check name?")
+            logger.error("coadd catalog could not be loaded; check name?")
             pdb.set_trace()
 
-    def make_psf_models(self,select_stars=False):
+    def make_psf_models(self):
 
         self.psfEx_models = []
-        for imagefile in self.image_files:
+        for imagefile in self.science_files:
             #update as necessary
             weightfile=self.mask_file
-            psfex_model_file = self._make_psf_model(imagefile,weightfile = weightfile,select_stars=select_stars)
+            psfex_model_file = self._make_psf_model(imagefile,weightfile=weightfile)
             # move checkimages to psfex_output
-            cmd = ' '.join(['mv chi* resi* samp* snap* proto*',self.psf_path])
+            cmd = ' '.join(['mv chi* resi* samp* snap* proto*',self.psfex_dir])
             os.system(cmd)
 
             try:
@@ -358,76 +438,62 @@ class BITMeasurement():
             except:
                 pdb.set_trace()
 
-    def _make_psf_model(self,imagefile,weightfile = 'weight.fits',sextractor_config_path = '../superbit/astro_config/',psfex_out_dir='./tmp/',select_stars=False):
+    def _make_psf_model(self, imagefile, weightfile='weight.fits', psfex_out_dir='./tmp/'):
         '''
-        Gets called by make_psf_models for every image in self.image_files
+        Gets called by make_psf_models for every image in self.science_files
         Wrapper for PSFEx. Requires a FITS-LDAC format catalog with vignettes
         '''
         # First, run SExtractor.
         # Hopefully imagefile is an absolute path!
 
-        sextractor_config_file = sextractor_config_path+'sextractor.config'
-        #sextractor_config_file = sextractor_config_path+'sextractor.empirical.config'
-        sextractor_param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
-        sextractor_nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
-        sextractor_filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
+        sextractor_config_file = self.sextractor_dir + 'sextractor.config'
+        sextractor_param_arg = '-PARAMETERS_NAME ' + self.sextractor_dir + 'sextractor.param'
+        sextractor_nnw_arg = '-STARNNW_NAME ' + self.sextractor_dir + 'default.nnw'
+        sextractor_filter_arg = '-FILTER_NAME ' + self.sextractor_dir + 'default.conv'
         imcat_ldac_name=imagefile.replace('.fits','_cat.ldac')
 
         bkgname=imagefile.replace('.fits','.sub.fits')
         bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
 
-        cmd = ' '.join(['sex',imagefile,'-WEIGHT_IMAGE',weightfile,'-c',sextractor_config_file,'-CATALOG_NAME ',
-                            imcat_ldac_name, bkg_arg, sextractor_param_arg,sextractor_nnw_arg,
+        cmd = ' '.join(['sex', imagefile, '-WEIGHT_IMAGE', weightfile,'-c', 
+                            sextractor_config_file,'-CATALOG_NAME ', imcat_ldac_name, 
+                            bkg_arg, sextractor_param_arg,sextractor_nnw_arg,
                             sextractor_filter_arg])
-        print("sex4psf cmd is " + cmd)
+        logger.debug("sex4psf cmd is " + cmd)
         os.system(cmd)
 
         # Get a "clean" star catalog for PSFEx input
-        # At some point, make truthfilen a command line argument
-        if select_stars==True:
-            
-            #truthdir = '/Users/jemcclea/Research/GalSim/examples/output-debug/'
-            #truthcat = 'truth_jitteronlyflight_jitter_only_oversampled_1x300005.dat'
-            #truthcat = 'truth_opticsonlyflight_jitter_only_oversampled_1x300003.dat'
-            truthdir='/Users/jemcclea/Research/GalSim/examples/output-jitter/round3/'
-            truthcat='truth_flight_jitter_only_oversampled_1x300007.dat'
-            
-
-            truthfilen=os.path.join(truthdir,truthcat)           
-            print("using truth catalog %s" % truthfilen)
-            psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,truthfile=truthfilen)
+        if self.truthcat is not None:
+            psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name)
             
         else:
             psfcat_name=imcat_ldac_name
             
         # Now run PSFEx on that image and accompanying catalog
-        psfex_config_arg = '-c '+sextractor_config_path+'psfex.config'
-        #psfex_config_arg = '-c '+sextractor_config_path+'psfex.empirical.config'
+        psfex_config_arg = '-c ' + self.psfex_config
         # Will need to make that tmp/psfex_output generalizable
         outcat_name = imagefile.replace('.fits','.psfex.star')
         cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
-                            outcat_name, '-PSFVAR_DEGREES','3','-PSF_DIR', self.psf_path])
-        print("psfex cmd is " + cmd)
+                            outcat_name, '-PSFVAR_DEGREES','3','-PSF_DIR', self.psfex_dir])
+        logger.debug("psfex cmd is " + cmd)
         os.system(cmd)
         psfex_name_tmp1=(imcat_ldac_name.replace('.ldac','.psf'))
         psfex_name_tmp2= psfex_name_tmp1.split('/')[-1]
-        psfex_model_file='/'.join([self.psf_path,psfex_name_tmp2])
+        psfex_model_file='/'.join([self.psfex_dir, psfex_name_tmp2])
 
         # Just return name, the make_psf_models method reads it in as a PSFEx object
         return psfex_model_file
     
 
-    def _select_stars_for_psf(self,sscat,truthfile):
+    def _select_stars_for_psf(self,sscat):
         '''
         Method to obtain stars from SExtractor catalog using the truth catalog from GalSim 
             sscat : input ldac-format catalog from which to select stars
-            truthcat : the simulation truth catalog written out by GalSim
                       
         '''
         
-        # Read in truthfile, obtain stars with redshift cut
-        truthcat = Table.read(truthfile,format='ascii')
-        stars=truthcat[truthcat['redshift']==0] 
+        # Read in truth_file, obtain stars with redshift cut
+        stars=self.truthcat[self.truthcat['redshift']==0] 
 
         # match sscat against truth star catalog
         ss = fits.open(sscat)
@@ -446,10 +512,10 @@ class BITMeasurement():
         # max_len_of_filepath may cause issues down the line if the file path
         # is particularly long
 
-        image_info = meds.util.get_image_info_struct(len(self.image_files),max_len_of_filepath)
+        image_info = meds.util.get_image_info_struct(len(self.science_files),max_len_of_filepath)
 
         i=0
-        for image_file in self.image_files:
+        for image_file in self.science_files:
             bkgsub_name=image_file.replace('.fits','.sub.fits')
 
             image_info[i]['image_path'] = bkgsub_name
@@ -523,27 +589,18 @@ class BITMeasurement():
         return obj_str
 
 
-    def run(self,outfile = "mock_superbit.meds",clobber=True, source_selection=False, select_stars=False):
+    def run(self, clobber=True, source_selection=False):
         # Make a MEDS, clobbering if needed
 
-        #### ONLY FOR DEBUG
-        #### Set up the paths to the science and calibration data
-        #self.set_working_dir()
-        #self.set_path_to_psf()
-        #self.set_path_to_science_data()
-        # Add a WCS to the science
-        #self.add_wcs_to_science_frames()
-        ####################
-        
         # Reduce the data.
-        # self.reduce(overwrite=clobber,skip_sci_reduce=True)
+        if self.mask_file is None:
+            self.reduce(overwrite=clobber,skip_sci_reduce=True)
         # Make a mask.
-        # NB: can also read in a pre-existing mask by setting self.mask_file
         self.make_mask(overwrite=clobber)
         # Combine images, make a catalog.
         self.make_catalog(source_selection=source_selection)
         # Build a PSF model for each image.
-        self.make_psf_models(select_stars=select_stars)
+        self.make_psf_models()
         # Make the image_info struct.
         image_info = self.make_image_info_struct()
         # Make the object_info struct.
@@ -554,6 +611,21 @@ class BITMeasurement():
         meta = self._meds_metadata(magzp=30.0)
         # Finally, make and write the MEDS file.
         medsObj = meds.maker.MEDSMaker(obj_info,image_info,config=meds_config,psf_data = self.psfEx_models,meta_data=meta)
-        medsObj.write(outfile)
+        medsObj.write(self.out_file)
 
-        
+logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stdout)
+logger = logging.getLogger("mock_medsmaker")
+
+def main(argv):
+    """
+    Runs the MEDSMaker from the command line.
+    """
+
+    # Do MedsMaker
+    bm = BITMeasurement(argv=argv)
+    bm.run(clobber=False, source_selection=True)
+
+if __name__ == "__main__":
+    main(sys.argv)
+
+

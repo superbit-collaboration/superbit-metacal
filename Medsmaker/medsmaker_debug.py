@@ -323,7 +323,7 @@ class BITMeasurement():
         param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
         nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
         filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
-        bkgname=outfile_name.replace('.fits','.sub.fits')
+        bkgname=detection_file.replace('.fits','.sub.fits')
         bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
         cmd = ' '.join(['sex',detection_file,weight_arg,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
         print("sex cmd is " + cmd)

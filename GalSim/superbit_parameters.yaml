@@ -2,6 +2,9 @@
 # -------------------
 pixel_scale:        0.206       # Pixel scale                               [arcsec/px]
 gain:               3.33        # Camera gain                               [ADU / e-]
+read_noise:         12          # Read noise                                [e-]
+dark_current:       0.33        # mean dark current                         [ADU / px / s]
+dark_current_std:   0.043       # standard deviation dark current           [ADU /px / s]
 image_xsize:        6665        # Horizontal image size                     [px]
 image_ysize:        4453        # Vertical image size                       [px]
 exp_time:           300         # Exposure time per image                   [s]
