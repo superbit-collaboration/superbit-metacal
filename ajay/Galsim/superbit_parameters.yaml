@@ -44,8 +44,9 @@ cosmosdir:          '/home/gill/Documents/thesis_work/abundance/phaseI/data/cosm
 cat_file_name:      'real_galaxy_catalog_25.2.fits' # catalog file name for COSMOS (in cosmosdir)
 fit_file_name:      'real_galaxy_catalog_25.2_fits.fits' # fit file name for COSMOS (in cosmosdir)
 cluster_cat_name:   '/home/gill/Documents/thesis_work/abundance/phaseI/data/cosmos_data/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
-bp_file:            '/home/gill/Documents/thesis_work/abundance/phaseI/data/lum_throughput.csv' # file with bandpass data
+bp_file:            '/home/gill/Documents/thesis_work/abundance/phaseI/superbit-metacal/Galsim/data/lum_throughput.csv' # file with bandpass data
 outdir:             '/home/gill/Documents/thesis_work/abundance/phaseI/output/' # directory where output images and truth catalogs are saved
+
 
 # Misc parameters
 # ---------------
