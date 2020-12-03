@@ -120,7 +120,7 @@ def main(argv):
             
             # For a given jitter + optical psf model, simulate and 
             # inject background galaxy stamps into the science image.
-            sci_img, truth_catalog = inject_bkg_galaxies(
+            sci_img_bkg, truth_catalog = inject_bkg_galaxies(
                                                 sci_img=sci_img,
                                                 sbparams=sbparams,
                                                 wcs=wcs,
@@ -135,8 +135,8 @@ def main(argv):
                                                 logger=logger)
 
             # For a given jitter + optical psf model, simulate and 
-            # inject background galaxy stamps into the science image.
-            sci_img, truth_catalog = inject_cluster_galaxies(
+            # inject cluster galaxy stamps into the science image.
+            sci_img_clusters, truth_catalog = inject_cluster_galaxies(
                                                 sci_img=sci_img,
                                                 sbparams=sbparams,
                                                 jitter_psf=jitter_psf,
@@ -146,12 +146,12 @@ def main(argv):
                                                 affine=affine,
                                                 cluster_cat=cluster_cat,
                                                 sb_optical_psf=sb_optical_psf,
-                                                radius=200,
+                                                radius=2000,
                                                 logger=logger)
 
             # For a given jitter + optical psf model, simulate and 
             # inject star stamps into the science image.
-            sci_img, truth_catalog = inject_stars(
+            sci_img_stars, truth_catalog = inject_stars(
                                                 sci_img=sci_img,
                                                 sbparams=sbparams,
                                                 wcs=wcs,
@@ -160,6 +160,9 @@ def main(argv):
                                                 sb_optical_psf=sb_optical_psf,
                                                 affine=affine,
                                                 logger=logger)
+
+            # Add the bkg, cluster galaxies, and stars to one image
+            sci_img = sci_img_stars + sci_img_bkg + sci_img_clusters
     
             # Add dark current to the science image
             dark_noise = sbparams.dark_current * sbparams.exp_time
