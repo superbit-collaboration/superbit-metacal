@@ -106,33 +106,24 @@ def make_a_galaxy(ud,wcs,psf,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbpara
 
     # Obtain galaxy redshift from the COSMOS profile fit catalog
     gal_z=fitcat['zphot'][gal.index]
-    """
-    # Draw the redshift from a power law distribution: N(f) ~ f^-2
-    redshift_dist = galsim.DistDeviate(ud, function = lambda x:x**-2,
-                                           x_min = 0.5,
-                                           x_max = 1.5)
-    gal_z = redshift_dist()
-    """
 
     # Apply a random rotation
     theta = ud()*2.0*numpy.pi*galsim.radians
     gal = gal.rotate(theta)
     # This automatically scales up the noise variance (if there is any) by flux_scaling**2.
     gal *= sbparams.flux_scaling
+    
     logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
 
     
     # Get the reduced shears and magnification at this point
-    nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
-    g1=nfw_shear.g1; g2=nfw_shear.g2
-
-    # Apply the cluster (reduced) shear and magnification at this position using
-    # a single GSObject method.
     try:
+        nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
+        g1=nfw_shear.g1; g2=nfw_shear.g2
         gal = gal.lens(g1, g2, mu)
-        logger.debug('sheared galaxy')
-    except galsim.errors.GalSimError:
-        print("could not lens galaxy, setting default values...")
+        
+    except:
+        print("could not lens galaxy at z = %f, setting default values..." % gal_z)
         g1 = 0.0; g2 = 0.0
         mu = 1.0
 
@@ -329,7 +320,7 @@ class SuperBITParameters:
             """
             # Define some default default parameters below.
             # These are used in the absence of a .yaml config_file or command line args.
-            self._load_config_file("superbit_parameters_jmc.yaml")
+            self._load_config_file("superbit_parameters.yaml")
 
             # Check for config_file params to overwrite defaults
             if config_file is not None:
@@ -469,9 +460,9 @@ class SuperBITParameters:
             # The catalog returns objects that are appropriate for HST in 1 second exposures.  
             # So for our telescope we scale up by the relative area, exposure time, pixel scale 
             # and detector gain   
-            hst_eff_area = 2.4**2 * (1.-0.33**2)
-            sbit_eff_area = self.tel_diam**2 * (1.-0.380**2) 
-            self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain*(self.pixel_scale/.05)**2 
+            hst_eff_area = 2.4**2 #* (1.-0.33**2)
+            sbit_eff_area = self.tel_diam**2 #* (1.-0.380**2) 
+            self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain
 
 # function to help with reducing MPI results from each process to single result
 def combine_images(im1, im2):
@@ -517,7 +508,7 @@ def main(argv):
     # Read in galaxy catalog, as well as catalog containing
     # information from COSMOS fits like redshifts, hlr, etc.   
     cosmos_cat = galsim.COSMOSCatalog(sbparams.cat_file_name, dir=sbparams.cosmosdir)
-    fitcat = Table.read(os.path.join(sbparams.cosmosdir, sbparams.fit_file_name))
+    fitcat = Table.read(os.path.join(os.path.join(sbparams.cosmosdir, sbparams.fit_file_name))
     logger.info('Read in %d galaxies from catalog and associated fit info', cosmos_cat.nobjects)
 
     cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)

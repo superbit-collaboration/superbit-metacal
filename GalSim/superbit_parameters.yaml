@@ -24,7 +24,7 @@ sky_bkg:            0.32        # mean sky background from AG's paper       [ADU
 sky_sigma:          0.0957      # standard deviation of sky background      [ADU / s / px]  
 nobj:               1000        # Number of galaxies (COSMOS 25.2 depth)    []
 nstars:             350         # Number of stars in the field              []
-nexp:               9           # Number of exposures per PSF model         []
+nexp:               1           # Number of exposures per PSF model         []
 nclustergal:        30          # Number of cluster galaxies (arbitrary)    []
 
 # Simulated cluster parameters
@@ -40,10 +40,10 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 # --------------
 # Define some paths and filenames
 psf_path:           './data/flight_jitter_only_oversampled_1x/'
-cosmosdir:          './data/catalogs/COSMOS_25.2_training_sample/' # Path to COSMOS data directory 
+cosmosdir:          '/Users/jemcclea/Research/GalSim/examples/data/COSMOS_25.2_training_sample/' # Path to COSMOS data directory 
 cat_file_name:      'real_galaxy_catalog_25.2.fits' # catalog file name for COSMOS (in cosmosdir)
 fit_file_name:      'real_galaxy_catalog_25.2_fits.fits' # fit file name for COSMOS (in cosmosdir)
-cluster_cat_name:   './data/catalogs/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
+cluster_cat_name:   '/Users/jemcclea/Research/GalSim/examples/data/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
 bp_file:            './data/lum_throughput.csv' # file with bandpass data
 outdir:             './output/' # directory where output images and truth catalogs are saved
 

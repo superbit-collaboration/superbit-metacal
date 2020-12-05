@@ -220,8 +220,8 @@ def make_cluster_galaxy(ud,wcs,psf,affine,centerpix):
     # So need to calculate dec first.
 
 
-    radius = 200
-    max_rsq = (radius+10)**2
+    radius = 150
+    max_rsq = (radius)**2
         
     while True:  # (This is essentially a do..while loop.)
         x = (2.*ud()-1) * radius 
@@ -229,7 +229,7 @@ def make_cluster_galaxy(ud,wcs,psf,affine,centerpix):
         rsq = x**2 + y**2        
         if rsq <= max_rsq: break
     
-    image_pos = galsim.PositionD(x+centerpix.x,y+centerpix.y)
+    image_pos = galsim.PositionD(x+centerpix.x+(ud()-0.5)*10,y+centerpix.y+(ud()-0.5)*10)
     world_pos = wcs.toWorld(image_pos)
     ra=world_pos.ra; dec = world_pos.dec
     
@@ -589,47 +589,55 @@ def main(argv):
                 pdb.set_trace()
                 
         
-        ###### Inject cluster galaxy objects:
-            
-        random_seed=892465352
-        
-        center_coords = galsim.CelestialCoord(center_ra,center_dec)
-        centerpix = wcs.toImage(center_coords)
-        
-        for k in range(30):
-            time1 = time.time()
-            
-            # The usual random number generator using a different seed for each galaxy.
-            ud = galsim.UniformDeviate(random_seed+k+1)
-        
-            try: 
-                # make single galaxy object and find overlapping bounds
-                    
-                cluster_stamp,truth = make_cluster_galaxy(ud=ud,wcs=wcs,psf=psf,affine=affine,centerpix=centerpix)                
-                bounds = cluster_stamp.bounds & full_image.bounds
-                
-                # We need to keep track of how much variance we have currently in the image, so when
-                # we add more noise, we can omit what is already there.
-                
-                noise_image[bounds] += truth.variance
-                
-                # Finally, add the stamp to the full image.
-                
-                full_image[bounds] += cluster_stamp[bounds]
-                time2 = time.time()
-                tot_time = time2-time1
-                logger.info('Cluster galaxy %d positioned relative to center t=%f s',
-                                k, tot_time)
-                this_flux=numpy.sum(stamp.array)
-                row = [ k,truth.x, truth.y, truth.ra, truth.dec, 
-                            g1_real, g2_real, truth.fwhm, truth.mom_size, truth.g1,
-                            truth.g2, truth.mu, truth.z, truth.flux, sum_flux]
-                truth_catalog.addRow(row)
-                
-            except:
-                logger.info('Cluster galaxy %d has failed, skipping...',k)
-                pdb.set_trace()
+            #####
+            ### Inject cluster galaxy objects:
+            ### - Note that this "cluster" is just for aesthetics
+            ### - So, 'n_cluster_gals' is arbitrary
+            ### - You could concievably create a method to base the number of galaxies injected
+            ###   using some scaling relation between (NFW) mass and richness to set n_cluster_gals
+            ###   to something based in reality. 
+            #####
 
+
+            random_seed=892375351
+
+            center_coords = galsim.CelestialCoord(center_ra,center_dec)
+            centerpix = wcs.toImage(center_coords)
+            n_cluster_gals = 30
+            
+            for k in range(n_cluster_gals):
+                time1 = time.time()
+            
+                # The usual random number generator using a different seed for each galaxy.
+                ud = galsim.UniformDeviate(random_seed+k+1)
+                
+                try: 
+                    # make single galaxy object
+                    cluster_stamp,truth = make_cluster_galaxy(ud=ud,wcs=wcs,affine=affine,psf=psf,
+                                                                  centerpix=centerpix,cluster_cat=cluster_cat)                
+                    # Find the overlapping bounds:
+                    bounds = cluster_stamp.bounds & full_image.bounds
+                    
+                    # We need to keep track of how much variance we have currently in the image, so when
+                    # we add more noise, we can omit what is already there. This is more relevant to
+                    # "real" galaxy images, not parametric like we have
+            
+                    #noise_image[bounds] += truth.variance
+            
+                    # Finally, add the stamp to the full image.
+                    
+                    full_image[bounds] += cluster_stamp[bounds]
+                    time2 = time.time()
+                    tot_time = time2-time1
+                    logger.info('Cluster galaxy %d positioned relative to center t=%f s',
+                                    k, tot_time)
+                    this_flux=numpy.sum(stamp.array)
+                    row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z, this_flux]
+                    truth_catalog.addRow(row)
+                except:
+                    logger.info('Cluster galaxy %d has failed, skipping...',k)
+                    pdb.set_trace()
+                
 
         ####
         ### Now repeat process for stars!
