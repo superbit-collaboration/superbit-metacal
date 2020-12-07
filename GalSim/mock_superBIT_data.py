@@ -509,7 +509,8 @@ def main(argv):
     # information from COSMOS fits like redshifts, hlr, etc.   
     cosmos_cat = galsim.COSMOSCatalog(sbparams.cat_file_name, dir=sbparams.cosmosdir)
     fitcat = Table.read(os.path.join(os.path.join(sbparams.cosmosdir, sbparams.fit_file_name)))
-    print('Read in %d galaxies from catalog and associated fit info' % cosmos_cat.nobjects)
+    logger.info('Read in %d galaxies from catalog and associated fit info', cosmos_cat.nobjects)
+
 
     cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
     print('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
