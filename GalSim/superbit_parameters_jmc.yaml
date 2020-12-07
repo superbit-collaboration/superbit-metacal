@@ -2,7 +2,7 @@
 # -------------------
 pixel_scale:        0.206       # Pixel scale                               [arcsec/px]
 gain:               3.33        # Camera gain                               [ADU / e-]
-read_noise:         12          # Read noise                                [e-]
+read_noise:         4           # Read noise                                [e-]
 dark_current:       0.33        # mean dark current                         [ADU / px / s]
 dark_current_std:   0.043       # standard deviation dark current           [ADU /px / s]
 image_xsize:        6665        # Horizontal image size                     [px]
@@ -22,15 +22,15 @@ center_ra:          19.3        # Central Right Ascension                   [hrs
 center_dec:         -33.1       # Central Declination                       [deg]
 sky_bkg:            0.32        # mean sky background from AG's paper       [ADU / s / px]
 sky_sigma:          0.0957      # standard deviation of sky background      [ADU / s / px]  
-nobj:               16250       # Number of galaxies (COSMOS 25.2 depth)    []
+nobj:               16250        # Number of galaxies (COSMOS 25.2 depth)    []
 nstars:             350         # Number of stars in the field              []
-nexp:               9           # Number of exposures per PSF model         []
-nclustergal:        30          # Number of cluster galaxies (arbitrary)    []
+nexp:               6           # Number of exposures per PSF model         []
+nclustergal:        35          # Number of cluster galaxies (arbitrary)    []
 
 # Simulated cluster parameters
 # ----------------------------
 lam:                625         # Fiducial wavelength for abberations       [nm]
-mass:               1.0e15      # Cluster mass                              [Msol / h]
+mass:               5.0e14      # Cluster mass                              [Msol / h]
 nfw_z_halo:         0.17        # redshift of the halo                      []
 nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
 omega_m:            0.3         # Omega matter for the background cosmology.
@@ -39,13 +39,13 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 # Run parameters
 # --------------
 # Define some paths and filenames
-psf_path:           '/Users/jemcclea/Research/GalSim/examples/data/flight_jitter_only_oversampled_1x'
-cosmosdir:          './data/catalogs/COSMOS_25.2_training_sample/' # Path to COSMOS data directory 
+psf_path:           './data/flight_jitter_only_oversampled_1x/'
+cosmosdir:          '/users/jmcclear/data/superbit/galsim/data/COSMOS_25.2_training_sample/' # Path to COSMOS data directory 
 cat_file_name:      'real_galaxy_catalog_25.2.fits' # catalog file name for COSMOS (in cosmosdir)
 fit_file_name:      'real_galaxy_catalog_25.2_fits.fits' # fit file name for COSMOS (in cosmosdir)
-cluster_cat_name:   './data/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
+cluster_cat_name:   '/users/jmcclear/data/superbit/galsim/data/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
 bp_file:            './data/lum_throughput.csv' # file with bandpass data
-outdir:             './output-jitter/' # directory where output images and truth catalogs are saved
+outdir:             './output/round1/' # directory where output images and truth catalogs are saved
 
 # Misc parameters
 # ---------------

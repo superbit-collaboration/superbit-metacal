@@ -182,7 +182,7 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
     """
     
     # Choose a random position within 200 pixels of the sky_center
-    radius = 200
+    radius = 180
     max_rsq = radius**2
     while True:  # (This is essentially a do..while loop.)
         x = (2.*ud()-1) * radius 
@@ -193,7 +193,7 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
 
     # We will need the image position as well, so use the wcs to get that,
     # plus a small gaussian jitter so cluster doesn't look too box-like
-    image_pos = galsim.PositionD(x+centerpix.x+(ud()-0.5)*10,y+centerpix.y+(ud()-0.5)*10)
+    image_pos = galsim.PositionD(x+centerpix.x+(ud()-0.5)*30,y+centerpix.y+(ud()-0.5)*30)
     world_pos = wcs.toWorld(image_pos)
     ra=world_pos.ra; dec = world_pos.dec
    
@@ -217,7 +217,7 @@ def make_cluster_galaxy(ud, wcs, psf, affine, centerpix, cluster_cat, optics, ba
     
     # This automatically scales up the noise variance by flux_scaling**2.
     # The "magnify" is just for drama
-    gal *= sbparams.flux_scaling
+    gal *= (sbparams.flux_scaling*2)
     gal.magnify(10)
     logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
 
@@ -320,7 +320,7 @@ class SuperBITParameters:
             """
             # Define some default default parameters below.
             # These are used in the absence of a .yaml config_file or command line args.
-            self._load_config_file("superbit_parameters.yaml")
+            self._load_config_file("superbit_parameters_ccv.yaml")
 
             # Check for config_file params to overwrite defaults
             if config_file is not None:
@@ -508,11 +508,11 @@ def main(argv):
     # Read in galaxy catalog, as well as catalog containing
     # information from COSMOS fits like redshifts, hlr, etc.   
     cosmos_cat = galsim.COSMOSCatalog(sbparams.cat_file_name, dir=sbparams.cosmosdir)
-    fitcat = Table.read(os.path.join(os.path.join(sbparams.cosmosdir, sbparams.fit_file_name))
-    logger.info('Read in %d galaxies from catalog and associated fit info', cosmos_cat.nobjects)
+    fitcat = Table.read(os.path.join(os.path.join(sbparams.cosmosdir, sbparams.fit_file_name)))
+    print('Read in %d galaxies from catalog and associated fit info' % cosmos_cat.nobjects)
 
     cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
-    logger.info('Read in %d cluster galaxies from catalog', cosmos_cat.nobjects)
+    print('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
     
 
     ### Now create PSF. First, define Zernicke polynomial component
@@ -564,7 +564,7 @@ def main(argv):
                 root=psf_filen.split('data/')[1].split('/')[0]
                 timescale=str(sbparams.exp_time)
                 outname=''.join(['mock_superbit_',root,timescale,str(i).zfill(3),'.fits'])
-                truth_file_name=''.join([sbparams.outdir, 'truth_', root, timescale, str(i).zfill(3), '.dat'])
+                truth_file_name=''.join([sbparams.outdir, '/truth_', root, timescale, str(i).zfill(3), '.dat'])
                 file_name = os.path.join(sbparams.outdir, outname)
 
             except galsim.errors.GalSimError:
@@ -584,7 +584,7 @@ def main(argv):
             full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
             sky_level = sbparams.exp_time * sbparams.sky_bkg
             # fill with sky_level moved until after MPI results summed
-            full_image.fill(0.)
+            full_image.fill(sky_level)
             full_image.setOrigin(0,0)
             
     
@@ -753,18 +753,21 @@ def main(argv):
             # The first thing to do is to make the Gaussian noise uniform across the whole image.
             
             # Add dark current
+            """
             logger.info('Adding Dark current')
+            
             dark_noise = sbparams.dark_current * sbparams.exp_time
             # np.random.normal(
             #     sbparams.dark_current, sbparams.dark_current_std,
             #     size=(sbparams.image_ysize, sbparams.image_xsize)) * sbparams.exp_time
             # dark_noise = np.clip(dark_noise, a_min=0, a_max=2**16)
+            
             full_image += dark_noise
-
+            """
             # Add ccd noise
             logger.info('Adding CCD noise')
             noise = galsim.CCDNoise(
-                rng, sky_level=sky_level, gain=1/sbparams.gain,
+                rng, sky_level=0, gain=1/sbparams.gain,
                 read_noise=sbparams.read_noise)
             full_image.addNoise(noise)
         
