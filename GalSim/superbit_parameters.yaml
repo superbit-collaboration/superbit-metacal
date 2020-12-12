@@ -2,7 +2,7 @@
 # -------------------
 pixel_scale:        0.206       # Pixel scale                               [arcsec/px]
 gain:               3.33        # Camera gain                               [ADU / e-]
-read_noise:         12          # Read noise                                [e-]
+read_noise:         6          # Read noise                                [e-]
 dark_current:       0.003        # mean dark current                         [ADU / px / s]
 dark_current_std:   0.001       # standard deviation dark current           [ADU /px / s]
 image_xsize:        6665        # Horizontal image size                     [px]
