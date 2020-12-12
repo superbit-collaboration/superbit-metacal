@@ -559,7 +559,7 @@ def main(argv):
             M.barrier()
             logger.info('Beginning loop %d'% i)
 
-            rng = galsim.BaseDeviate(sbparams.noise_seed+i)
+            #rng = galsim.BaseDeviate(sbparams.noise_seed+i)
 
             try:
                 root=psf_filen.split('data/')[1].split('/')[0]
@@ -754,7 +754,7 @@ def main(argv):
             # The first thing to do is to make the Gaussian noise uniform across the whole image.
             
             # Add dark current
-            """
+            
             logger.info('Adding Dark current')
             
             dark_noise = sbparams.dark_current * sbparams.exp_time
@@ -764,11 +764,11 @@ def main(argv):
             # dark_noise = np.clip(dark_noise, a_min=0, a_max=2**16)
             
             full_image += dark_noise
-            """
-            # Add ccd noise
+            
+            # Add ccd noise; removed rng in noise
             logger.info('Adding CCD noise')
             noise = galsim.CCDNoise(
-                rng, sky_level=0, gain=1/sbparams.gain,
+                sky_level=0, gain=1/sbparams.gain,
                 read_noise=sbparams.read_noise)
             full_image.addNoise(noise)
         
