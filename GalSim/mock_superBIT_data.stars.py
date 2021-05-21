@@ -102,26 +102,19 @@ def make_a_galaxy(ud,wcs,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbparams):
     # This is still an x/y corrdinate 
     uv_pos = affine.toWorld(image_pos)
 
-    
+    """
     # Create chromatic galaxy
     gal = cosmos_cat.makeGalaxy(gal_type='parametric', rng=ud)
     #logger.debug('created chromatic galaxy')
 
     # Obtain galaxy redshift from the COSMOS profile fit catalog
-    #gal_z=fitcat['zphot'][gal.index]
-
-    redshift_dist = galsim.DistDeviate(ud, function = lambda x:x**-2,
-                                           x_min = 0.5,
-                                           x_max = 1.5)
-    gal_z = redshift_dist()
-
+    gal_z=fitcat['zphot'][gal.index]
     
     # Apply a random rotation
     theta = ud()*2.0*numpy.pi*galsim.radians
     gal = gal.rotate(theta)
     # This automatically scales up the noise variance (if there is any) by flux_scaling**2.
-    gal *= sbparams.flux_scaling*10
-    gal.magnify(3)
+    gal *= sbparams.flux_scaling
     
     logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
     
@@ -148,16 +141,14 @@ def make_a_galaxy(ud,wcs,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbparams):
     deltastar = galsim.DeltaFunction(flux=star_flux)  
     #this_psf = psf.getPSF(image_pos)
     #final=galsim.Convolve([optics, this_psf,deltastar])
-    """
-    gauss_psf = galsim.Gaussian(flux=1,fwhm=0.5)
-    final=galsim.Convolve([gauss_psf,gal])
+    gauss_psf = galsim.Gaussian(flux=1,fwhm=0.35)
+    final=galsim.Convolve([gauss_psf,deltastar])
     
     logger.debug("Convolved star and PSF at galaxy position")
 
     
     # Account for the fractional part of the position
     # cf. demo9.py for an explanation of this nominal position stuff.
-    """
     x_nominal = image_pos.x + 0.5
     y_nominal = image_pos.y + 0.5
     ix_nominal = int(math.floor(x_nominal+0.5))
@@ -166,24 +157,25 @@ def make_a_galaxy(ud,wcs,affine,fitcat,cosmos_cat,nfw,optics,bandpass,sbparams):
     dy = y_nominal - iy_nominal
     offset = galsim.PositionD(dx,dy)
     position=[ix_nominal,iy_nominal,ra.deg,dec.deg]
-    """
+    
     # We use method='no_pixel' here because the SDSS PSF image that we are using includes the
     # pixel response already.
-    # this_stamp_image = galsim.Image(64, 64,scale=0.206)
-    #stamp = final.drawImage(image=this_stamp_image, offset=offset, method='no_pixel')
-    stamp = final.drawImage(wcs=wcs.local(image_pos))
-    stamp.setCenter(image_pos.x,image_pos.y)
+    this_stamp_image = galsim.Image(64, 64,wcs=wcs.local(image_pos))
+
+    """ I doubt this is the problem (the stamp_image bit) but you never know. 
+    Keep in mind for later testing """
+    stamp = final.drawImage(image=this_stamp_image, offset=offset, method='no_pixel')
+    stamp.setCenter(ix_nominal,iy_nominal)
     logger.debug('drew & centered galaxy!')    
     
     galaxy_truth=truth()
     galaxy_truth.ra=ra.deg; galaxy_truth.dec=dec.deg
-    #galaxy_truth.x=ix_nominal; galaxy_truth.y=iy_nominal
-    galaxy_truth.x=image_pos.x; galaxy_truth.y=image_pos.y
+    galaxy_truth.x=ix_nominal; galaxy_truth.y=iy_nominal
     galaxy_truth.g1=g1; galaxy_truth.g2=g2
     galaxy_truth.mu = mu; galaxy_truth.z = gal_z
     galaxy_truth.flux = stamp.added_flux
     logger.debug('created truth values')
-    #pdb.set_trace()
+    
     try:
         galaxy_truth.fwhm=final.calculateFWHM()
     except galsim.errors.GalSimError:
@@ -226,55 +218,50 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, bandpass
     # We also need this in the tangent plane, which we call "world coordinates" here,
     # This is still an x/y corrdinate 
     uv_pos = affine.toWorld(image_pos)
-   
+
     # Fixed redshift for cluster galaxies
-    gal_z = 0.17
+    gal_z = 0.0
     # FIXME: This appears to be missing and should be fixed????
     g1 = 0.0; g2 = 0.0
     mu = 1.0
     
-    # Create chromatic galaxy    
-    #gal = cluster_cat.makeGalaxy(gal_type='parametric', rng=ud,chromatic=True)
-    gal = cluster_cat.makeGalaxy(gal_type='parametric', rng=ud)
-    logger.debug('created cluster galaxy')
-
-    # Apply a random rotation
-    theta = ud()*2.0*numpy.pi*galsim.radians
-    gal = gal.rotate(theta)
-    
-    # This automatically scales up the noise variance by flux_scaling**2.
-    # The "magnify" is just for drama
-    gal *= (sbparams.flux_scaling*2)
-    gal.magnify(10)
-    logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
-
-    gauss_psf = galsim.Gaussian(flux=1,fwhm=0.5)
-    final=galsim.Convolve([gauss_psf,gal])
+    star_flux = 1E4
+    deltastar = galsim.DeltaFunction(flux=star_flux)  
+    #this_psf = psf.getPSF(image_pos)
+    #final=galsim.Convolve([optics, this_psf,deltastar])
+    gauss_psf = galsim.Gaussian(flux=1,fwhm=0.35)
+    final=galsim.Convolve([gauss_psf,deltastar])
 
     logger.debug("Convolved star and PSF at galaxy position")
 
     
+    # Account for the fractional part of the position
+    # cf. demo9.py for an explanation of this nominal position stuff.
+    x_nominal = image_pos.x + 0.5
+    y_nominal = image_pos.y + 0.5
+    ix_nominal = int(math.floor(x_nominal+0.5))
+    iy_nominal = int(math.floor(y_nominal+0.5))
+    dx = x_nominal - ix_nominal
+    dy = y_nominal - iy_nominal
+    offset = galsim.PositionD(dx,dy)
+    position=[ix_nominal,iy_nominal,ra.deg,dec.deg]
+    
     # Draw galaxy image
     this_stamp_image = galsim.Image(128, 128,wcs=wcs.local(image_pos))
-    #cluster_stamp = final.drawImage(bandpass,image=this_stamp_image)
-    cluster_stamp = final.drawImage(image=this_stamp_image)
-
-    #cluster_stamp.setCenter(ix_nominal,iy_nominal)
-    cluster_stamp.setCenter(image_pos.x,image_pos.y)
-
+    cluster_stamp = final.drawImage(image=this_stamp_image, offset=offset,method='no_pixel')
+    cluster_stamp.setCenter(ix_nominal,iy_nominal)
     logger.debug('drew & centered galaxy!')    
 
     cluster_galaxy_truth=truth()
     cluster_galaxy_truth.ra=ra.deg; cluster_galaxy_truth.dec=dec.deg
-    #cluster_galaxy_truth.x=ix_nominal; cluster_galaxy_truth.y=iy_nominal
-    cluster_galaxy_truth.x=image_pos.x; cluster_galaxy_truth.y=image_pos.y
+    cluster_galaxy_truth.x=ix_nominal; cluster_galaxy_truth.y=iy_nominal
     cluster_galaxy_truth.g1=g1; cluster_galaxy_truth.g2=g2
     cluster_galaxy_truth.mu = mu; cluster_galaxy_truth.z = gal_z
     cluster_galaxy_truth.flux = cluster_stamp.added_flux
     logger.debug('created truth values')
     
     try:
-        cluster_galaxy_truth.fwhm=cluster_stamp.calculateFWHM()
+        cluster_galaxy_truth.fwhm=final.calculateFWHM()
     except galsim.errors.GalSimError:
         logger.debug('fwhm calculation failed')
         cluster_galaxy_truth.fwhm=-9999.0
@@ -306,15 +293,14 @@ def make_a_star(ud, wcs, affine, optics, sbparams):
     uv_pos = affine.toWorld(image_pos)
 
     # Draw star flux at random; based on distribution of star fluxes in real images  
-    flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 799.2114, x_max = 890493.9)
-    #star_flux = 1E4
-    star_flux = flux_dist()
+    #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 799.2114, x_max = 890493.9)
+    star_flux = 1E4
     
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)  
     #this_psf = psf.getPSF(image_pos)
     #star=galsim.Convolve([optics, this_psf,deltastar])
-    gauss_psf = galsim.Gaussian(flux=1,fwhm=0.5)
+    gauss_psf = galsim.Gaussian(flux=1,fwhm=0.35)
     star=galsim.Convolve([gauss_psf,deltastar])
 
         
@@ -327,14 +313,14 @@ def make_a_star(ud, wcs, affine, optics, sbparams):
     dx = x_nominal - ix_nominal
     dy = y_nominal - iy_nominal
     offset = galsim.PositionD(dx,dy)
-    #star_stamp = star.drawImage(wcs=wcs.local(image_pos), offset=offset, method='no_pixel')
-    #star_stamp.setCenter(ix_nominal,iy_nominal)
-    star_stamp = star.drawImage(wcs=wcs.local(image_pos))
-    star_stamp.setCenter(image_pos.x,image_pos.y)
+    star_stamp = star.drawImage(wcs=wcs.local(image_pos), offset=offset, method='no_pixel')
+
+    # Recenter the stamp at the desired position:
+    star_stamp.setCenter(ix_nominal,iy_nominal)
     
     star_truth=truth()
     star_truth.ra = ra.deg; star_truth.dec = dec.deg
-    star_truth.x = image_pos.x; star_truth.y =image_pos.y
+    star_truth.x = ix_nominal; star_truth.y = iy_nominal
 
     try:
         star_truth.fwhm=star.calculateFWHM()
@@ -358,7 +344,7 @@ class SuperBITParameters:
             """
             # Define some default default parameters below.
             # These are used in the absence of a .yaml config_file or command line args.
-            self._load_config_file("superbit_parameters_ccv.yaml")
+            self._load_config_file("superbit_parameters_stars.yaml")
 
             # Check for config_file params to overwrite defaults
             if config_file is not None:
@@ -377,7 +363,6 @@ class SuperBITParameters:
             with open(config_file) as fsettings:
                 config = yaml.load(fsettings, Loader=yaml.FullLoader)
             self._load_dict(config)
-            
         def _args_to_dict(self, argv):
             """
             Converts a command line argument array to a dictionary.
@@ -601,8 +586,8 @@ def main(argv):
 
             try:
                 timescale=str(sbparams.exp_time)
-                outname=''.join(['superbit_gaussPSF_',str(i).zfill(3),'.fits'])
-                truth_file_name=''.join([sbparams.outdir, '/truth_gaussPSF_', str(i).zfill(3), '.dat'])
+                outname=''.join(['superbit_gaussStars_',str(i).zfill(3),'.fits'])
+                truth_file_name=''.join([sbparams.outdir, '/truth_gaussStars_', str(i).zfill(3), '.dat'])
                 file_name = os.path.join(sbparams.outdir, outname)
 
             except galsim.errors.GalSimError:
@@ -688,6 +673,7 @@ def main(argv):
                                 this_flux,truth.fwhm,truth.mom_size]
                     truth_catalog.addRow(row)
                 except galsim.errors.GalSimError:
+                    # picked catalogue galaxy outside redshift range
                     logger.info('Galaxy %d has failed, skipping...',k)
 
             #####
