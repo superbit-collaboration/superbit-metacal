@@ -11,8 +11,6 @@ from numpy import linalg as la
 import matplotlib.pyplot as plt
 from fiattools import *
 import nfwtools as nt
-import sqlcl
-import pyfits as pf
 import pdb
 
 
@@ -48,7 +46,7 @@ def get_sigmacrit(functor,zl):
 
     zlist=functor.z
     
-    # First, get redshifts 
+    # First, get redshifts (thaaaanks Rich!)
     Dd=nt.dist(0,zl)
     Ds=[]
     Dds=[]
@@ -68,7 +66,8 @@ def main(argv):
     global G
     G = 6.673e-11
     global h
-    h=0.678
+    #h=0.678
+    h =0.7
     global omega_m
     omega_m=0.306
     global omega_lambda
@@ -104,13 +103,13 @@ def main(argv):
     xcenter=3333  # x-center of image in pixels
     ycenter=2227  # y-center of image in pixels
     nt.pixscale = 0.206 # Detector pixel scale (for distances!)
-    m200 = 5E15
+    m200 = 1E15/h
        
     # Load in galaxy params
     gals = FiatCatalog()
-    catalog='truth_shear_300_0.fiat'
+    catalog='/Users/jemcclea/Research/SuperBIT/shear_profiles/truth_shear_forNFWplot.fiat'
     print("xcenter=%f ycenter=%f cat=%s" %(xcenter,ycenter, catalog))
-    gals.load_columns(catalog,["x","y","g1_meas","g2_meas","redshift"])
+    gals.load_columns(catalog,["x_image","y_image","g1_meas","g2_meas","redshift"])
     mean_z=np.median(gals.data['redshift'])
 
 
@@ -134,7 +133,7 @@ def main(argv):
     
     # OK, time to write out values
     f=open("nfw_plotted.txt",'w')
-    f.write("xcenter=%f ycenter=%f cat=%s" %(xcenter,ycenter, catalog))
+    f.write("#xcenter=%f ycenter=%f cat=%s\n#\n#\n" %(xcenter,ycenter, catalog))
     
     f.write("# radius reduced_shear g_no_prefactor x_value\n")
     for i in range(len(g)):

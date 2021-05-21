@@ -98,11 +98,14 @@ class Annular():
         self.gtan= -1.0*(g1*np.cos(2.0*phi) + g2*np.sin(2.0*phi))
         self.gcross = g1*np.sin(2.0*phi) + g2*np.cos(2.0*phi)
 
- 
+        """
+        self.gtan = self.gtan%/(2*np.std(g))
+        self.gcross = self.gcross
+        """
         if write==True:
             newtab=Table()
             newtab.add_columns([x,y,self.r,self.gtan,self.gcross],names=['x','y','r','gcross','gtan'])
-            newtab.write('shear_inputs.csv',format='csv',overwrite=True)
+            newtab.write('annular_inputs.csv',format='csv',overwrite=True)
         return
 
     def do_annular(self):
@@ -181,11 +184,11 @@ def main(args):
     g2_arg = args[5]
 
     # Define annular args
-    startrad = 250
-    endrad = 4000
-    nfw_center = [3511, 2349]
+    startrad = 150
+    endrad = 2200
+    nfw_center = [3505,2340]
     #nfw_center = [3333,2227]
-    nbins =20
+    nbins =12
 
     print_header(args)
     
@@ -196,7 +199,7 @@ def main(args):
     annular.run(write=True)
     
     #pdb.set_trace()
-    print("annular successfully completed, enjoy your shear profile")
+    print("annular successfully completed, enjoy your shear profile <3")
 
     
 if __name__ == '__main__':

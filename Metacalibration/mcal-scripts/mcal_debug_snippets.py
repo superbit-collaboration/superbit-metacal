@@ -25,12 +25,14 @@ sns.set()
 ### 
 ########################################################################
 
-python ngmix_fit_superbit.py meds_files/mock_jitter.meds 400 420 test.asc
+python ngmix_fit_superbit2.py /Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/output-stars/stars_only.meds 400 420 test.asc
 
-python make_annular_catalog.py mock_coadd_cat.ldac mcal-ngmix2-zreal.csv mcal-ngmix2-zreal*.asc
+python ../../make_annular_catalog_sizecut.py mock_coadd_bgGals.ldac cl3-nodilate-sizecut.csv mcal*.asc
 
 # copy to local for plotting
 scp jmcclear@ssh.ccv.brown.edu:/users/jmcclear/data/superbit/debug/*.annular /Users/jemcclea/Research/SuperBIT/shear_profiles/debug3
+
+python make_annular_catalog.py gauss-stars/mock_coadd_cat.ldac gauss_mcal_noCovarCut.csv gauss-stars/mcal-gaussStars*.asc  
 
 
 #######################################################################
@@ -40,15 +42,63 @@ scp jmcclear@ssh.ccv.brown.edu:/users/jmcclear/data/superbit/debug/*.annular /Us
 ########################################################################
 
 
-annular -c"x_image y_image g1_nopsf g2_nopsf" -f"nfw_mu >1.01" -s 250 -e 2500 -n 20 truth_5E14shear_300.0_5.fiat 3333 2227 > truth_5e14_nopsf.annular
+annular -c"x_image y_image g1_meas g2_meas" -s 50 -e 2500 -n 20 truth_gaussJitter_004.dat 3333 2227 > truth_5e14_nopsf.annular
 
-annular -c"X_IMAGE Y_IMAGE g1_Rinv g2_Rinv" -s 100 -e 2200 -n 12 mcal-ngmix2-jitter-Tcut.fiat 3505 2340  > mcal-ngmix2-jitter.Rinv.annular
+annular -c"X_IMAGE Y_IMAGE g1_MC g2_MC" -s 50 -e 2200 -n 10 superResolvedPSF_em3.fiat 3505 2340 > nodilate_sizecut2_gRinv.annular
 
-annular -c"X_IMAGE Y_IMAGE g1_Rinv g2_Rinv" -s 100 -e 2200 -n 11 mcal-ngmix2-zreal_debug.fiat 3505 2340 > mcal-ngmix1-shallow.Rinv.annular
+annular -c"X_IMAGE Y_IMAGE g1 g2" -s 120 -e 2200 -n 9 fitvd-flight-jitter-exp.fiat 3505 2340  > fitvd_optics_jitter.annular
 
-annular -c"X_IMAGE Y_IMAGE g1 g2" -s 120 -e 2200 -n 9 fitvd-optics-jitter-exp.fiat 3505 2340  > fitvd_optics_jitter.annular
+#for empirical with WCS
+annular -c"X_IMAGE Y_IMAGE g1 g2" -s 120 -e 1500 -n 5 fitvd-empirical-gauss.fiat 3371.5 4078.5
 
 python annular_jmac.py fitvd-optics-jitter-exp.csv X_IMAGE Y_IMAGE g1 g2
+
+#######################################################################
+###
+### Mcal/ngmix priors, if needed
+###
+########################################################################
+
+    def _get_priors():
+
+        # prior on ellipticity.  The details don't matter, as long
+        # as it regularizes the fit.  This one is from Bernstein & Armstrong 2014
+        
+        g_sigma = 0.3
+        g_prior = ngmix.priors.GPriorBA(g_sigma)
+        
+        # 2-d gaussian prior on the center
+        # row and column center (relative to the center of the jacobian, which would be zero)
+        # and the sigma of the gaussians
+        
+        # units same as jacobian, probably arcsec
+        row, col = 0.0, 0.0
+        row_sigma, col_sigma = 0.2,0.2 
+        cen_prior = ngmix.priors.CenPrior(row, col, row_sigma, col_sigma)
+        
+        # T prior.  This one is flat, but another uninformative you might
+        # try is the two-sided error function (TwoSidedErf)
+        
+        Tminval = 0.0 # arcsec squared
+        Tmaxval = 4000
+        T_prior = ngmix.priors.FlatPrior(Tminval, Tmaxval)
+        nodilate_sizecut_gMC.annular
+        # similar for flux.  Make sure the bounds make sense for
+        # your images
+        
+        Fminval = -1.e1
+        Fmaxval = 1.e5
+        F_prior = ngmix.priors.FlatPrior(Fminval, Fmaxval)
+        
+        # now make a joint prior.  This one takes priors
+        # for each parameter separately
+        priors = ngmix.joint_prior.PriorSimpleSep(
+        cen_prior,
+        g_prior,
+        T_prior,
+        F_prior)
+    
+        return priors
 
 
 ########################################################################
@@ -58,11 +108,15 @@ python annular_jmac.py fitvd-optics-jitter-exp.csv X_IMAGE Y_IMAGE g1 g2
 ##
 ########################################################################
 
-medsObj=meds.MEDS('/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/output-mock/mock_superbit.meds')
-index = 1260
-psf = medsObj.get_cutout(index,0,type='psf')
-im = medsObj.get_cutout(index,0,type='image') 
-weight = medsObj.get_cutout(index,0,type='weight')
+medsObj=meds.MEDS('/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/cluster3-debug/opticsSigmaJitter_noDilate/cluster3_debug_2hr.meds')
+index=12010
+psf = medsObj.get_cutout(index,20,type='psf')
+im = medsObj.get_cutout(index,20,type='image') 
+weight = medsObj.get_cutout(index,20,type='weight')
+plt.figure()
+plt.imshow(im)
+plt.figure()
+plt.imshow(psf)
 
 jj = medsObj.get_jacobian(index,0)
 jac = ngmix.Jacobian(row=jj['row0'],col=jj['col0'],dvdrow = jj['dvdrow'],dvdcol=jj['dvdcol'],dudrow=jj['dudrow'],dudcol=jj['dudcol'])
@@ -82,29 +136,35 @@ mcb=ngmix.bootstrap.MaxMetacalBootstrapper(imageObs)
 # This will return sigma, etc. of psf of medsObj
 # Then multiply by pixscale & scale to get FWHM
 psfim=galsim.Image(psf,scale=0.206)
-psfmom = psfim.FindAdaptiveMom()
-psfmom.moments_sigma*.206*2.355
+psfmom = psfim.FindAdaptiveMom() # not working for all of the GaussPSF stars...
+psfmom.moments_sigma*.206*2.355  # returns 0.1471" sigma or 0.346" FWHM for GaussPSF
 
 # What about when we load the PSF with galsim.des.DES_PSFEx?
 # Importing with filename, because galsim knows how to apply WCS
-psf_name = '/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/debug3-kron/psfex_output/mockSuperbit_shear_300_1_cat.psf'
-im_name = '/Users/jemcclea/Research/GalSim/examples/output-debug/0.4FWHM/mockSuperbit_shear_300_1.fits'
+psf_name = '/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/cluster3-debug/GaussPSF/psfex_output/superbit_gaussStars_002_cat.psf'
+im_name = '/Users/jemcclea/Research/SuperBIT/superbit-metacal/GalSim/cluster3-debug/gaussPSF/round1/superbit_gaussStars_002.sub.fits'
 psf_DES = galsim.des.DES_PSFEx(psf_name, im_name) # Do I need to add no_pixel kw here????
-psf_DES.sample_scale # yields 0.54230469...
-image_pos = galsim.PositionD(2350,2389)   
+psf_DES.sample_scale # yields 0.54230469... which is consistent with triple convolving an airy disk, which I was doing before. 
+image_pos = galsim.PositionD(y=5326.64288632,x=2117.90435123)   
 plt.imshow(psf_DES.getPSFArray(image_pos))
 this_psf_des = psf_DES.getPSF(image_pos=image_pos) # returns a whole bunch of attributes; do I need to add no_pixel kw here?
-this_psf_des.calculateFWHM() # wait this is STILL too large!!!
+this_psf_des.calculateFWHM()  # This is in physical units i.e. arcseconds!
+T_psf_des = (this_psf_des.calculateFWHM()/2.355*2)**2
+print(T_psf_des) 
 
 # enough screwing around; let's do a maxMetacalBootstrap()
 # started by defining _get_priors as in ngmix_fit_superbit.py...
 prior = _get_priors()
-psf_model='em5'
-gal_model='gauss'
+psf_model='gauss'
+gal_model='exp'
 ntry=3
 Tguess=4*imageObs.jacobian.get_scale()**2
 #Tguess=0.169744
 metacal_pars={'step': 0.01}
+
+lm_pars = {'maxfev':2000, 'xtol':5.0e-5, 'ftol':5.0e-5}
+max_pars = {'method':'lm','lm_pars':lm_pars}
+
 mcb.fit_metacal(psf_model, gal_model, max_pars, Tguess, prior=prior, ntry=ntry,metacal_pars=metacal_pars)
 mcr = mcb.get_metacal_result() # this is a dict
 
@@ -153,7 +213,26 @@ plt.plot(full_full[sex_ind]['FLUX_RADIUS'],full_full[sex_ind]['FLUX_RADIUS'],'--
 plt.xlabel('FLUX_RADIUS'); plt.ylabel('other size measures')
 plt.legend()
 
+#######################################################################
+###
+### Tpsf stuff
+###
+### 
+########################################################################
+psf_name = '/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/cluster3-debug/GaussPSF/psfex_output/superbit_gaussStars_002_cat.psf'
+im_name = '/Users/jemcclea/Research/SuperBIT/superbit-metacal/GalSim/cluster3-debug/gaussPSF/round1/superbit_gaussStars_002.sub.fits'
+psf_DES = galsim.des.DES_PSFEx(psf_name, im_name) # Do I need to add no_pixel kw here????
 
+full_mcal = Table.read('/Users/jemcclea/Research/SuperBIT/metacal/cluster3-debug/gauss-psf/full_metacal_cat.csv') 
+real_Tpsf = []; ngmix_Tpsf = []
+
+for i in range(len(full_mcal)):
+    this_coord = galsim.CelestialCoord(full_mcal[i]['ra']*galsim.degrees,full_mcal[i]['dec']*galsim.degrees)
+    this_psf_des = psf_DES.getPSF(image_pos=psf_DES.wcs.toImage(this_coord))
+    T_psf_des = 2*(this_psf_des.calculateFWHM()/2.355)**2
+    real_Tpsf.append(T_psf_des)
+    
+real_Tpsf=np.array(real_Tpsf)
 #######################################################################
 ###
 ### In case I ever want to compare truths against indiv. empirical cats
