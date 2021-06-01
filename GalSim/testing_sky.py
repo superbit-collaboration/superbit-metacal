@@ -1,25 +1,38 @@
 import numpy as np
-import matplotlib.pyplot as plt
-plt.ion()
-
 import sys
 import os
 import galsim
 import galsim.des
 import pdb
 import scipy
-import ngmix
-import meds
-import mof
-from numpy import random
+from astropy.table import Table
+from matplotlib import rc,rcParams
+import matplotlib.pyplot as plt
+#plt.ion()
 from mpl_toolkits.axes_grid1 import ImageGrid
+from matplotlib.colorbar import Colorbar
+
+
 
 """
  - Purpose of this code is to... find the place at which the breakdown of galaxy detection occurs in b filter
 
  - What am I trying to prove?  Which sky background matches expection that a mag=19 galaxy can  
    be detected on a single 300s exposure, while a mag=24 galaxy can be detected in 4000s of exposure
+
+ - Some paramter notes. TO DO: build a class that can access this information
+     - mean HLR of sample = 0.609"
+     - mean HLR of mag 24 gal = 0.78"; median HLR of mag 24 gal = 0.375"
+     - mean HLR of mag 19.5 gal = 1.08"; median HLR of mag 19.5 gal = 1.25"
+     - mean b flux of mag 19.5 gal = 16.9 ADU/s; mean shape flux of mag 19.5 gal = 33.5 ADU/s
+     - mean b flux of mag 24 gal = 0.268 ADU/s; mean shape flux of mag 24 gal = 0.422 ADU/s
+     - AG base_sky_level in b = 0.039 ADU/s/pix // shape =  0.125 ADU/s/pix
+     - MS base_sky_level in b = 0.12 ADU/s/pix // shape = 0.303 ADU/s/pix
+
+
 """
+
+#cosmos=Table.read('data/cosmos2015_cam2021_filt2021.csv')
 
 ###
 ### Set some parameters
@@ -27,30 +40,33 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 
 # define an inclinedSersic galaxy
 
-gal_flux = 4844.7                    # flux of m=19.5 galaxy observed for 300 s
-half_light_radius = 0.6094           # np.mean(cosmos_cat['hlr_cosmos10']*0.03)
-n = 2.479                            # cosmos_cat['n_sersic_cosmos10'][index]
-scale_h_over_r = 0.53                # np.mean(cosmos['q_cosmos10'])
-inclination = (np.pi - 0.202)*galsim.radians  # np.mean(cosmos['phi_cosmos10']) = 0.202
+base_gal_flux = 16.90                # flux of m=19.5 galaxy (ADU/s)
+n = 2.479                            # cosmos['n_sersic_cosmos10'][index]
+scale_h_over_r = 0.53                # np.mean(cosmos['q_cosmos10']) for m=24 gal
+half_light_radius = 1.08             # np.mean(cosmos['hlr_cosmos10']*0.03)
+inclination = 0.202*galsim.radians   # np.mean(cosmos['phi_cosmos10']) = 0.202
+half_light_radius = half_light_radius*np.sqrt(scale_h_over_r)
 
 # Characterizing IMX455
 
-read_noise = 2                       # e-
+read_noise = 1.8                     # e-
 gain = 0.81                          # e-/ADU, which tells GalSim what to do with RN in e-.
 pixel_scale = 0.144                  # arcsec / pixel
-psf_fwhm = 0.33                      # arcsec
-base_sky_level = 0.12               # ADU / s / pix; 0.048 = Ajay estim., 0.12 = Shaaban estim.
+psf_fwhm = 0.30                      # arcsec
+base_sky_level = 0.039               # ADU / s / pix
 
 # Characterizing observations
 
-n_obs = 14
-exp_time = 300                           # s
+band = 'b'                               # name of filter in which galaxy is being observed
+n_obs = 30                               # number of observations of duration 'exp_time'
+exp_time = 600                           # s
 sky_level =  base_sky_level * exp_time   # ADU / pix
-seed = random.randint(11111111,99999999)
+gal_flux = base_gal_flux * exp_time      # ADU
+seed = np.random.randint(11111111,99999999)
 
 
 ###      
-### Draw galaxy and PSF
+### Draw galaxy and PSF, correcting for (what I think) are inclination effects
 ###
 
 gal = galsim.InclinedSersic(n = n,
@@ -63,53 +79,66 @@ gal = galsim.InclinedSersic(n = n,
 psf = galsim.Gaussian(flux=1., fwhm=psf_fwhm)
 final = galsim.Convolve([gal, psf])
 
-gal_only_stamp = gal.drawImage(scale=pixel_scale)
-psf_stamp = psf.drawImage(scale=psf_pixel_scale) 
-obs_stamp = final.drawImage(scale=pixel_scale,nx=50,ny=50)
+gal_only_stamp = gal.drawImage(scale=pixel_scale,nx=32,ny=32)
+psf_stamp = psf.drawImage(scale=pixel_scale,nx=32,ny=32)
 
-## Inspect single galaxy observation before noise
+obs_stamp = final.drawImage(scale=pixel_scale,nx=32,ny=32)
 
-plt.figure()
-plt.imshow(obs_stamp.array)
-plt.title('PSF-convolved galaxy\n%d s observation (noise-free)' % int(exp_time))
-plt.savefig('diagnostics_plots/m19.5_noisefree_gal.png')
 
 ## Create noisy observations
+
 image_obslist = [] 
-for n in range(n_obs):
+for obs in range(n_obs):
     ##
     ## Define noise, add it to stamps
     ##
     this_gal_stamp = final.drawImage(scale=pixel_scale,nx=50,ny=50)
-    ud = galsim.UniformDeviate(seed+n+1)
-    noise = galsim.CCDNoise(rng=ud,sky_level=sky_level,gain=1/gain,read_noise=read_noise)
+    ud = galsim.UniformDeviate(seed+obs+1)
+    noise = galsim.CCDNoise(rng=ud,sky_level=sky_level,gain=gain,read_noise=read_noise)
     this_gal_stamp.addNoise(noise)
     image_cutout = this_gal_stamp.array
     image_obslist.append(image_cutout)
     del(this_gal_stamp)
 
-## Inspect a single noisy observation
+
+####################################################
+## Uncomment if using script in interactive mode
+"""
+## Inspect single galaxy observation before noise
+plt.figure()
+plt.imshow(obs_stamp.array)
+plt.title('PSF-convolved galaxy\n%d s observation (noise-free)' % int(exp_time))
+plt.colorbar()
+plt.savefig('diagnostics_plots/m24_noisefree_gal.png')
+
+# Inspect single noisy observation
 plt.figure()
 plt.imshow(image_cutout)
 plt.title('Single galaxy observation \nbase sky bkg = %.3f exptime = %d s' % (base_sky_level,int(exp_time)))
 plt.colorbar()
-plt.savefig('diagnostics_plots/brightgal_single_noisyObs2.png')
+plt.savefig('diagnostics_plots/m24_hisky_single300sObs.png')
 
 # See what coadded image might look like
-junk_avg = np.median(image_obslist,axis=0)
+junk_avg = np.mean(image_obslist,axis=0)
 plt.figure()
 plt.imshow(junk_avg)
+plt.colorbar()
 plt.title('Noisy galaxy nexp=%d "coadd"\nbase sky bkg = %.3f exptime = %d s' % (n_obs,base_sky_level,int(exp_time)))
-plt.savefig('diagnostics_plots/brightgal_medianCombine_noisyObs2.png')
+plt.savefig('diagnostics_plots/m24_hisky_80exposures_meanCombine.png')
 
-#####################################################
-#####################################################
+"""
+
+
+###########################################################
+###########################################################
 
 # Set up figure and image grid
-fig = plt.figure(figsize=(21, 10))
+rcParams['mpl_toolkits.legacy_colorbar']=False
+
+fig = plt.figure(figsize=(15, 5))
 grid = ImageGrid(fig, 111,          # as in plt.subplot(111)
-                 nrows_ncols=(2,3),
-                 axes_pad=1.0,
+                 nrows_ncols=(1,3),
+                 axes_pad=0.5,
                  #share_all=True,
                  cbar_location="right",
                  cbar_mode="single",
@@ -120,59 +149,28 @@ axes=[]
 for ax in grid: 
      axes.append(ax) 
 ax1=axes[0];ax2=axes[1];ax3=axes[2]
-ax4=axes[3];ax5=axes[4];ax6=axes[5]
 
-image_cutout = junk_avg
+## Show theoretical galaxy model
+ax1.imshow(obs_stamp.array)
+ax1.set_title('PSF-convolved galaxy HLR=%.2f"\n%d s observation (noise-free)' \
+                  % (half_light_radius,int(exp_time)),fontsize=10)
 
-fl1 = gal_stamp.FindAdaptiveMom().moments_sigma*pixel_scale
-fl2=gal_stamp.FindAdaptiveMom().observed_shape.g1; fl3=gal_stamp.FindAdaptiveMom().observed_shape.g2
-ax1.imshow(image_cutout,vmin=0,vmax=(image_cutout.max()*.90))
-ax1.set_title('obs shear = [%.3e,%.3e]\nobs sigmaMom = %.3e' % (fl1,fl2,fl3),fontsize=10)
+## Show single observation of galaxy
+ax2.imshow(image_cutout)
+ax2.set_title('Single galaxy observation \nbase sky bkg = %.3f exptime = %d s'\
+                  % (base_sky_level,int(exp_time)),fontsize=10)
 
-[fl1,fl2]=res['g']; fl3=(np.sqrt(res['T']/2))
-x,y=gal_gm.get_cen()
-ax2.imshow(gal_model_im,vmin=0,vmax=(image_cutout.max()*.90))
-ax2.set_title('psf_pixscale=0.206" model\nshear  = [%.3e,%.3e]\nmodel sigma = %.3e' % (fl1,fl2,fl3),fontsize=10)
-ax2.plot((x+image_cutout.shape[0]/2),(y+image_cutout.shape[1]/2),'pr')
+## Make & show a "coadd" image with simple average
+junk_avg = np.mean(image_obslist,axis=0)
+coadd = ax3.imshow(junk_avg)
+ax3.set_title('Noisy galaxy nexp=%d "coadd"\nbase sky bkg = %.3f exptime = %d s'\
+                  % (n_obs,base_sky_level,int(exp_time)),fontsize=10)
+ax3.cax.colorbar(coadd)
 
-resi = ax3.imshow(gal_model_im-image_cutout,vmin=-10,vmax=10)
-ax3.set_title('psf_pixscale=0.206" residuals',fontsize=10)
-ax3.cax.colorbar(resi)
-#ax3.cax.toggle_label(True)
-
-
-fl1 = gal_stamp.FindAdaptiveMom().moments_sigma*pixel_scale
-fl2=gal_stamp.FindAdaptiveMom().observed_shape.g1; fl3=gal_stamp.FindAdaptiveMom().observed_shape.g2
-ax4.imshow(junk_avg,vmin=0,vmax=(image_cutout.max()*.90))
-ax4.set_title('obs shear = [%.3e,%.3e]\nobs sigmaMom = %.3e' % (fl1,fl2,fl3),fontsize=10)
-
-[fl1,fl2]=res_realsigma['g']; fl3=(np.sqrt(res_realsigma['T']/2))
-x,y=gal_gm2.get_cen()
-print("realSigma model x=%.3f,y=%.3f" % (x,y))
-ax5.imshow(gal_model_im2,vmin=0,vmax=(image_cutout.max()*.90))
-ax5.plot((x+image_cutout.shape[0]/2),(y+image_cutout.shape[1]/2),'pr')
-ax5.set_title('psf_pixscale=0.05"\nshear = [%.3e,%.3e]\nsigmaMom = %.3e' % (fl1,fl2,fl3),fontsize=10)
-
-resi2 = ax6.imshow(gal_model_im2-image_cutout,vmin=-10,vmax=10)
-ax6.set_title('psf_pixscale=0.05" residuals',fontsize=10)
-ax6.cax.colorbar(resi2)
-#ax3.cax.toggle_label(True)
-
-fl1 = sheared_stamp.FindAdaptiveMom().moments_sigma*pixel_scale
-fig.suptitle('%e flux/%f" FWHM galaxy + real PSF + 0.206" plate scale\napplied shear = [-0.02,0.02] real sigmaMom = %.3e'
-                 % (gal_flux,gal_fwhm,fl1))
-
-fig.savefig('GalModel_diagnostic_psfPixscales_em3_gal3.png')
+outdir = '.'#/diagnostics_plots'
+outroot = "{0}_mag24gal_hlr{4}_{1}s_{2}nObs_{3}SkyLevel1.png"\
+  .format(band,exp_time,n_obs,base_sky_level,half_light_radius)
+outname = os.path.join(outdir,outroot)
+fig.savefig(outname)
 plt.close(fig)
 
-
-####
-#### Favorite comparison tool: how would this look in a coadd?
-####
-"""
-junk_im = []
-for i in range(n_obs): 
-    junk_im.append(image_obslist[i].image) 
-junk_avg = np.mean(junk_im,axis=0)
-
-"""

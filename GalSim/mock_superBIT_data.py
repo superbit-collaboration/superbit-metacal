@@ -44,7 +44,6 @@ class truth():
         :g1/g2: NFW shear moments
         :mu: NFW magnification
         :z: galaxy redshift
-        :variance: of stamp pixel noise
         '''
     
         self.x = None 
@@ -57,6 +56,10 @@ class truth():
         self.z = 0.0
         self.fwhm = 0.0
         self.mom_size = 0.0
+        self.n = 0.0
+        self.hlr = 0.0
+        self.inclination = 0.0
+        self.scale_h_over_r = 0.0
 
 def nfw_lensing(nfw_halo, pos, nfw_z_source):
     """ 
@@ -109,26 +112,41 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
     # Obtain galaxy redshift from the COSMOS profile fit catalog
     gal_z=fitcat['zphot'][gal.index]
     """
-    # Draw a Sersic galaxy from scratch
+    ## Draw a Sersic galaxy from scratch
     index = int(np.floor(ud()*len(cosmos_cat))) # This is a kludge to obain a repeatable index
     gal_z = cosmos_cat[index]['ZPDF']                    
     gal_flux = cosmos_cat[index][sbparams.bandpass]*sbparams.exp_time
-    half_light_radius=cosmos_cat[index]['hlr_cosmos10']*0.03 # Cosmos HLR is in units of HST pix, convert to arcsec
-    logger.debug('galaxy z=%f flux=%f hlr=%f sersic_index=%f'%(gal_z,gal_flux,half_light_radius,cosmos_cat[index]['n_sersic_cosmos10']))
+    inclination = cosmos_cat[index]['phi_cosmos10']*galsim.radians 
+    scale_h_over_r = cosmos_cat[index]['q_cosmos10']
+    # Cosmos HLR is in units of HST pix, convert to arcsec.
+    # AG put a factor of q in there, unclear why?
+    half_light_radius=cosmos_cat[index]['hlr_cosmos10']*0.03*np.sqrt(scale_h_over_r) 
+    n = cosmos_cat[index]['n_sersic_cosmos10']
+    logger.debug('galaxy z=%f flux=%f hlr=%f sersic_index=%f'%(gal_z,gal_flux,half_light_radius,n))
 
-    
-    gal = galsim.Sersic(
-        n=cosmos_cat[index]['n_sersic_cosmos10'],
-        half_light_radius=half_light_radius,
-        flux=gal_flux
-        )
+    ## InclinedSersic requires 0.3 < n < 6;
+    ## set galaxy's n to another value if it falls outside this range
+    if n<0.3:
+        n=0.3
+    elif n>6:
+        n=4
+    else:
+        pass
+
+    gal = galsim.InclinedSersic(n=n,
+                                flux=gal_flux,
+                                half_light_radius=half_light_radius,
+                                inclination=inclination,
+                                scale_h_over_r=scale_h_over_r
+                                )
+
     logger.debug('created galaxy')
             
-    # Apply a random rotation
+    ## Apply a random rotation
     theta = ud()*2.0*numpy.pi*galsim.radians
     gal = gal.rotate(theta)    
     
-    # Get the reduced shears and magnification at this point
+    ## Get the reduced shears and magnification at this point
     try:
         nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
         g1=nfw_shear.g1; g2=nfw_shear.g2
@@ -139,29 +157,27 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
         g1 = 0.0; g2 = 0.0
         mu = 1.0
 
-    """
-    g1 = 0.0; g2 = 0.0
-    mu = 1.0
-    gal_z = 0
-    
-    #this_psf = psf.getPSF(image_pos)
-    """
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.3)
+    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.1)
     final=galsim.Convolve([jitter_psf,gal,optics])
     
     logger.debug("Convolved star and PSF at galaxy position")
     
-    #stamp = final.drawImage(image=this_stamp_image, offset=offset, method='no_pixel')
     stamp = final.drawImage(wcs=wcs.local(image_pos))
+    #this_stamp_image = galsim.Image(64, 64,scale=sbparams.pixel_scale)
+    #stamp = final.drawImage(image=this_stamp_image)
+
     stamp.setCenter(image_pos.x,image_pos.y)
     logger.debug('drew & centered galaxy!')    
-    
     galaxy_truth=truth()
     galaxy_truth.ra=ra.deg; galaxy_truth.dec=dec.deg
     galaxy_truth.x=image_pos.x; galaxy_truth.y=image_pos.y
     galaxy_truth.g1=g1; galaxy_truth.g2=g2
     galaxy_truth.mu = mu; galaxy_truth.z = gal_z
     galaxy_truth.flux = stamp.added_flux
+    galaxy_truth.n = n; galaxy_truth.hlr = half_light_radius
+    galaxy_truth.inclination = inclination.deg # storing in degrees for human readability
+    galaxy_truth.scale_h_over_r = scale_h_over_r
+
     logger.debug('created truth values')
 
     try:
@@ -223,11 +239,12 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     
     # This automatically scales up the noise variance by flux_scaling**2.
     # The "magnify" is just for drama
-    gal *= (sbparams.flux_scaling*2)
+    #gal *= (sbparams.flux_scaling*2)
+    gal *= (sbparams.flux_scaling)
     gal.magnify(10)
     logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
 
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.3)
+    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.1)
     final=galsim.Convolve([jitter_psf,gal,optics])
 
     logger.debug("Convolved star and PSF at galaxy position")
@@ -286,12 +303,13 @@ def make_a_star(ud, wcs, affine, optics, sbparams):
     uv_pos = affine.toWorld(image_pos)
 
     # Draw star flux at random; based on distribution of star fluxes in real images  
-    flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 799.2114, x_max = 890493.9)
+    #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 799.2114, x_max = 890493.9)
+    flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 533, x_max = 59362)
     star_flux = flux_dist()
     
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)  
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.3)
+    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.1)
     star=galsim.Convolve([jitter_psf,deltastar,optics])
 
     star_stamp = star.drawImage(wcs=wcs.local(image_pos)) # before it was scale = 0.206, and that was bad!
@@ -495,7 +513,7 @@ def main(argv):
     """
     
     global logger
-    logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stdout)
+    logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
     logger = logging.getLogger("mock_superbit_data")
 
     M = MPIHelper()
@@ -544,9 +562,7 @@ def main(argv):
                         aberrations=aberrations)
 
     logger.info('Made telescope PSF profile')
-    
-    # load SuperBIT bandpass
-    
+        
     ###
     ### MAKE SIMULATED OBSERVATIONS 
     ### ITERATE n TIMES TO MAKE n SEPARATE IMAGES
@@ -572,24 +588,20 @@ def main(argv):
             
         # Setting up a truth catalog
         names = [ 'gal_num', 'x_image', 'y_image',
-                    'ra', 'dec', 'g1_meas', 'g2_meas', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom']
+                    'ra', 'dec', 'g1_meas', 'g2_meas', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom',
+                      'n','hlr','inclination','scale_h_over_r']
         types = [ int, float, float, float,float,float,
-                    float, float, float, float, float, float]
+                    float, float, float, float, float, float,
+                      float, float, float, float]
         truth_catalog = galsim.OutputCatalog(names, types)
 
         
         # Set up the image:
         full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
         sky_level = sbparams.exp_time * sbparams.sky_bkg
-        # fill with sky_level moved until after MPI results summed
         full_image.fill(sky_level)
         full_image.setOrigin(0,0)
         
-        
-        # We keep track of how much noise is already in the image from the RealGalaxies.
-        noise_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
-        noise_image.setOrigin(0,0)
-
         
         # If you wanted to make a non-trivial WCS system, could set theta to a non-zero number
         theta = 0.0 * galsim.degrees
@@ -645,7 +657,8 @@ def main(argv):
                             k, tot_time)
                 this_flux=numpy.sum(stamp.array)
                 row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
-                            this_flux,truth.fwhm,truth.mom_size]
+                            this_flux,truth.fwhm, truth.mom_size,
+                            truth.n, truth.hlr, truth.inclination, truth.scale_h_over_r]
                 truth_catalog.addRow(row)
             except galsim.errors.GalSimError:
                 logger.info('Galaxy %d has failed, skipping...',k)
@@ -690,7 +703,8 @@ def main(argv):
                                 k, tot_time)
                 this_flux=numpy.sum(stamp.array)
                 row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
-                            this_flux,truth.fwhm,truth.mom_size]
+                            this_flux,truth.fwhm,truth.mom_size,
+                            truth.n, truth.hlr, truth.inclination, truth.scale_h_over_r]
                 truth_catalog.addRow(row)
             except galsim.errors.GalSimError:
                 logger.info('Cluster galaxy %d has failed, skipping...',k)
@@ -722,7 +736,8 @@ def main(argv):
                             k,  tot_time)
                 this_flux=numpy.sum(star_stamp.array)
                 row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,
-                            truth.z, this_flux,truth.fwhm,truth.mom_size]
+                            truth.z, this_flux,truth.fwhm,truth.mom_size,
+                            truth.n, truth.hlr, truth.inclination, truth.scale_h_over_r]
                 truth_catalog.addRow(row)
                 
             except galsim.errors.GalSimError:
@@ -732,11 +747,9 @@ def main(argv):
         # Using same names on left and right sides is hiding lots of MPI magic
         full_image = M.gather(full_image)
         truth_catalog = M.gather(truth_catalog)
-        #noise_image = M.gather(noise_image)
         if M.is_mpi_root():
             full_image = reduce(combine_images, full_image)
             truth_catalog = reduce(combine_catalogs, truth_catalog)
-            #noise_image = reduce(combine_images, noise_image)
         else:
             # do the adding of noise and writing to disk entirely on root
             # root and the rest meet again at barrier at start of loop

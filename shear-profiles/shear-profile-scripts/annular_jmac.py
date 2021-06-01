@@ -83,7 +83,7 @@ class Annular():
 
         #wg=(self.mu>1)
         wg = (self.g1> -2)
-        print("%d galaxies were actually lensed" % len(wg.nonzero()[0]))
+        print("## %d galaxies were actually lensed" % len(wg.nonzero()[0]))
         
         g1=self.g1[wg]
         g2=self.g2[wg]
@@ -96,7 +96,7 @@ class Annular():
         g = np.sqrt(g1**2 + g2**2)
         print("## Mean g: %f " % np.mean(g))
         self.gtan= -1.0*(g1*np.cos(2.0*phi) + g2*np.sin(2.0*phi))
-        self.gcross = g1*np.sin(2.0*phi) + g2*np.cos(2.0*phi)
+        self.gcross = g1*np.sin(2.0*phi) - g2*np.cos(2.0*phi) # note that annular.c has opposite sign convention 
 
         """
         self.gtan = self.gtan%/(2*np.std(g))
@@ -156,7 +156,7 @@ def print_header(args):
     print("## err_gtan: standard error of gtan")
     print("## gcross: cross (B-mode) reduced-shear")
     print("## err_gcross: standard error of gcross")
-    print("#\nr       n        gtan      err_gtan     gcross     err_gcross")
+    print("##\n## r       n        gtan      err_gtan     gcross     err_gcross")
     
     return
 
@@ -184,11 +184,11 @@ def main(args):
     g2_arg = args[5]
 
     # Define annular args
-    startrad = 150
+    startrad = 50
     endrad = 2200
     nfw_center = [3505,2340]
     #nfw_center = [3333,2227]
-    nbins =12
+    nbins =20
 
     print_header(args)
     
