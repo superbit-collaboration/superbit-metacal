@@ -5,7 +5,6 @@ import galsim
 import galsim.des
 import pdb
 import scipy
-from numpy import random
 from astropy.table import Table
 from matplotlib import rc,rcParams
 import matplotlib.pyplot as plt
@@ -41,32 +40,33 @@ from matplotlib.colorbar import Colorbar
 
 # define an inclinedSersic galaxy
 
-base_gal_flux = 0.422                # flux of m=24 galaxy (ADU/s)
-half_light_radius = 0.4              # np.mean(cosmos['hlr_cosmos10']*0.03)
+base_gal_flux = 16.90                # flux of m=19.5 galaxy (ADU/s)
 n = 2.479                            # cosmos['n_sersic_cosmos10'][index]
 scale_h_over_r = 0.53                # np.mean(cosmos['q_cosmos10']) for m=24 gal
-inclination = (np.pi - 0.202)*galsim.radians  # np.mean(cosmos['phi_cosmos10']) = 0.202
+half_light_radius = 1.08             # np.mean(cosmos['hlr_cosmos10']*0.03)
+inclination = 0.202*galsim.radians   # np.mean(cosmos['phi_cosmos10']) = 0.202
+half_light_radius = half_light_radius*np.sqrt(scale_h_over_r)
 
 # Characterizing IMX455
 
 read_noise = 1.8                     # e-
 gain = 0.81                          # e-/ADU, which tells GalSim what to do with RN in e-.
 pixel_scale = 0.144                  # arcsec / pixel
-psf_fwhm = 0.33                      # arcsec
-base_sky_level = 0.303               # ADU / s / pix
+psf_fwhm = 0.30                      # arcsec
+base_sky_level = 0.039               # ADU / s / pix
 
 # Characterizing observations
 
-band = 'shape'                           # name of filter in which galaxy is being observed
+band = 'b'                               # name of filter in which galaxy is being observed
 n_obs = 30                               # number of observations of duration 'exp_time'
-exp_time = 300                           # s
+exp_time = 600                           # s
 sky_level =  base_sky_level * exp_time   # ADU / pix
 gal_flux = base_gal_flux * exp_time      # ADU
-seed = random.randint(11111111,99999999)
+seed = np.random.randint(11111111,99999999)
 
 
 ###      
-### Draw galaxy and PSF
+### Draw galaxy and PSF, correcting for (what I think) are inclination effects
 ###
 
 gal = galsim.InclinedSersic(n = n,
@@ -79,9 +79,10 @@ gal = galsim.InclinedSersic(n = n,
 psf = galsim.Gaussian(flux=1., fwhm=psf_fwhm)
 final = galsim.Convolve([gal, psf])
 
-gal_only_stamp = gal.drawImage(scale=pixel_scale)
-psf_stamp = psf.drawImage(scale=pixel_scale) 
-obs_stamp = final.drawImage(scale=pixel_scale,nx=50,ny=50)
+gal_only_stamp = gal.drawImage(scale=pixel_scale,nx=32,ny=32)
+psf_stamp = psf.drawImage(scale=pixel_scale,nx=32,ny=32)
+
+obs_stamp = final.drawImage(scale=pixel_scale,nx=32,ny=32)
 
 
 ## Create noisy observations
@@ -155,7 +156,7 @@ ax1.set_title('PSF-convolved galaxy HLR=%.2f"\n%d s observation (noise-free)' \
                   % (half_light_radius,int(exp_time)),fontsize=10)
 
 ## Show single observation of galaxy
-ax2.imshow(image_cutout,vmax=(image_cutout.max()*0.90))
+ax2.imshow(image_cutout)
 ax2.set_title('Single galaxy observation \nbase sky bkg = %.3f exptime = %d s'\
                   % (base_sky_level,int(exp_time)),fontsize=10)
 
@@ -167,7 +168,7 @@ ax3.set_title('Noisy galaxy nexp=%d "coadd"\nbase sky bkg = %.3f exptime = %d s'
 ax3.cax.colorbar(coadd)
 
 outdir = '.'#/diagnostics_plots'
-outroot = "{0}_mag24gal_hlr{4}_{1}s_{2}nObs_{3}SkyLevel_2.png"\
+outroot = "{0}_mag24gal_hlr{4}_{1}s_{2}nObs_{3}SkyLevel1.png"\
   .format(band,exp_time,n_obs,base_sky_level,half_light_radius)
 outname = os.path.join(outdir,outroot)
 fig.savefig(outname)
