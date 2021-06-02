@@ -75,12 +75,14 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
     nfw_mu = nfw_halo.getMagnification( pos , nfw_z_source )
 
     if nfw_mu < 0:
-        import warnings
+        """                                                                                                                                                                               
+        This doesn't seem to play well with MPI/batch scripting...                                                                                                                                      import warnings
         warnings.warn("Warning: mu < 0 means strong lensing!  Using mu=25.")
+        """
+        print("Warning: mu < 0 means strong lensing!  Using mu=25.")
         nfw_mu = 25
     elif nfw_mu > 25:
-        import warnings
-        warnings.warn("Warning: mu > 25 means strong lensing!  Using mu=25.")
+        print("Warning: mu > 25 means strong lensing!  Using mu=25.")
         nfw_mu = 25        
     
     return nfw_shear, nfw_mu

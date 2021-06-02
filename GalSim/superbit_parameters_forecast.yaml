@@ -23,9 +23,9 @@ center_ra:          13.3        # Central Right Ascension                   [hrs
 center_dec:         33.1        # Central Declination                       [deg]
 sky_bkg:            0.039       # mean sky background from AG's paper       [ADU / s / px]
 sky_sigma:          0.06        # standard deviation of sky background      [ADU / s / px]
-nobj:               33810       # Number of galaxies (COSMOS 25.2 depth)    []
+nobj:               34010       # Number of galaxies (COSMOS 25.2 depth)    []
 nstars:             350         # Number of stars in the field              []
-nexp:               3           # Number of exposures per PSF model         []
+nexp:               2           # Number of exposures per PSF model         []
 nclustergal:        35          # Number of cluster galaxies (arbitrary)    []
 
 # Simulated cluster parameters
@@ -43,7 +43,7 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 cosmosdir:          './data/' # Path to catalog data directory 
 cat_file_name:      'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
 cluster_cat_name:   './data/catalogs/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
-outdir:             './forecasting/round1' # directory where output images and truth catalogs are saved
+outdir:             './forecasting/cluster3' # directory where output images and truth catalogs are saved
 
 # Misc parameters
 # ---------------
