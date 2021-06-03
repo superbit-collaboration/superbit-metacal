@@ -124,7 +124,7 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
     # AG put a factor of q in there, unclear why?
     half_light_radius=cosmos_cat[index]['hlr_cosmos10']*0.03*np.sqrt(scale_h_over_r) 
     n = cosmos_cat[index]['n_sersic_cosmos10']
-    logger.debug('galaxy z=%f flux=%f hlr=%f sersic_index=%f'%(gal_z,gal_flux,half_light_radius,n))
+    print('galaxy index=%d z=%f flux=%f hlr=%f sersic_index=%f'%(index,gal_z,gal_flux,half_light_radius,n))
 
     ## InclinedSersic requires 0.3 < n < 6;
     ## set galaxy's n to another value if it falls outside this range
@@ -132,6 +132,13 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
         n=0.3
     elif n>6:
         n=4
+    else:
+        pass
+
+    ## Very large HLRs will also make GalSim fail
+    ## Set to a default, large value.
+    if half_light_radius > 3:
+        half_light_radius = 3
     else:
         pass
 
@@ -273,7 +280,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     logger.debug('created truth values')
     
     try:
-        cluster_galaxy_truth.fwhm=cluster_stamp.calculateFWHM()
+        cluster_galaxy_truth.fwhm=final.calculateFWHM()
     except galsim.errors.GalSimError:
         logger.debug('fwhm calculation failed')
         cluster_galaxy_truth.fwhm=-9999.0
@@ -515,7 +522,7 @@ def main(argv):
     """
     
     global logger
-    logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
+    logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stdout)
     logger = logging.getLogger("mock_superbit_data")
 
     M = MPIHelper()
@@ -701,7 +708,7 @@ def main(argv):
                 full_image[bounds] += cluster_stamp[bounds]
                 time2 = time.time()
                 tot_time = time2-time1
-                logger.info('Cluster galaxy %d positioned relative to center t=%f s',
+                logger.info('Cluster galaxy %d positioned relative to center t=%f s\n',
                                 k, tot_time)
                 this_flux=numpy.sum(stamp.array)
                 row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
