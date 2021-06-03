@@ -108,12 +108,6 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
     uv_pos = affine.toWorld(image_pos)
     logger.debug('created galaxy position')
     
-    """
-    # Create chromatic galaxy
-    gal = cosmos_cat.makeGalaxy(gal_type='parametric', rng=ud)
-    # Obtain galaxy redshift from the COSMOS profile fit catalog
-    gal_z=fitcat['zphot'][gal.index]
-    """
     ## Draw a Sersic galaxy from scratch
     index = int(np.floor(ud()*len(cosmos_cat))) # This is a kludge to obain a repeatable index
     gal_z = cosmos_cat[index]['ZPDF']                    
@@ -129,14 +123,14 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
     ## InclinedSersic requires 0.3 < n < 6;
     ## set galaxy's n to another value if it falls outside this range
     if n<0.3:
-        n=0.3
-    elif n>6:
+        n=0.5
+    elif n>=6:
         n=4
     else:
         pass
 
     ## Very large HLRs will also make GalSim fail
-    ## Set to a default, large value.
+    ## Set to a default, ~large but physical value.
     if half_light_radius > 3:
         half_light_radius = 3
     else:
@@ -166,15 +160,12 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
         g1 = 0.0; g2 = 0.0
         mu = 1.0
 
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.1)
+    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.05)
     final=galsim.Convolve([jitter_psf,gal,optics])
     
     logger.debug("Convolved star and PSF at galaxy position")
     
     stamp = final.drawImage(wcs=wcs.local(image_pos))
-    #this_stamp_image = galsim.Image(64, 64,scale=sbparams.pixel_scale)
-    #stamp = final.drawImage(image=this_stamp_image)
-
     stamp.setCenter(image_pos.x,image_pos.y)
     logger.debug('drew & centered galaxy!')    
     galaxy_truth=truth()
@@ -253,7 +244,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     gal.magnify(10)
     logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
 
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.1)
+    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.05)
     final=galsim.Convolve([jitter_psf,gal,optics])
 
     logger.debug("Convolved star and PSF at galaxy position")
@@ -318,7 +309,7 @@ def make_a_star(ud, wcs, affine, optics, sbparams):
     
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)  
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.1)
+    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.05)
     star=galsim.Convolve([jitter_psf,deltastar,optics])
 
     star_stamp = star.drawImage(wcs=wcs.local(image_pos)) # before it was scale = 0.206, and that was bad!
@@ -483,14 +474,14 @@ class SuperBITParameters:
                 else:
                     raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
-            # Derive the parameters from the base parameters
+            # Derive image parameters from the base parameters
             self.image_xsize_arcsec = self.image_xsize * self.pixel_scale 
             self.image_ysize_arcsec = self.image_ysize * self.pixel_scale 
             self.center_coords = galsim.CelestialCoord(self.center_ra,self.center_dec)
             self.strut_angle = self.strut_theta * galsim.degrees
             
             # OUR NEW CATALOG IS ALREADY SCALED TO SUPERBIT 0.5 m MIRROR.  
-            # So now use scale by exposure time and detector gain   
+            # Scaling used for cluster galaxies, which are drawn from default GalSim-COSMOS catalog   
             hst_eff_area = 2.4**2 #* (1.-0.33**2)
             sbit_eff_area = self.tel_diam**2 #* (1.-0.380**2) 
             self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain 
@@ -513,12 +504,10 @@ def combine_catalogs(t1, t2):
 def main(argv):
     """
     Make images using model PSFs and galaxy cluster shear:
-      - The galaxies come from COSMOSCatalog, which can produce either RealGalaxy profiles
-        (like in demo10) and parametric fits to those profiles. We chose parametric fits since
-        these are required for chromatic galaxies (ones with filter response included)
-      - The real galaxy images include some initial correlated noise from the original HST
-        observation, which would need to be whitened. But we are using parametric galaxies, 
-        so this isn't a concern.
+      - The galaxies come from a processed COSMOS 2015 Catalog, scaled to match
+        anticipated SuperBIT 2021 observations
+      - The galaxy shape parameters are assigned in a probabilistic way through matching
+        galaxy fluxes and redshifts to similar GalSim-COSMOS galaxies (see A. Gill+ 2021)
     """
     
     global logger
@@ -545,7 +534,7 @@ def main(argv):
     logger.info('Read in %d galaxies from catalog and associated fit info', len(cosmos_cat))
 
     cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
-    #print('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
+    logger.debug('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
     
 
     ### Now create PSF. First, define Zernicke polynomial component
@@ -626,11 +615,12 @@ def main(argv):
         full_image.wcs = wcs
 
         
-        # Now let's read in the PSFEx PSF model.  We read the image directly into an
-        # InterpolatedImage GSObject, so we can manipulate it as needed 
-        psf_wcs=wcs
+        ## Now let's read in the PSFEx PSF model, if using.
+        ## We read the image directly into an InterpolatedImage GSObject,
+        ## so we can manipulate it as needed 
+        #psf_wcs=wcs
         #psf = galsim.des.DES_PSFEx(psf_filen,wcs=psf_wcs)
-        logger.info('Constructed PSF object from PSFEx file')
+        #logger.info('Constructed PSF object from PSFEx file')
 
         #####
         ## Loop over galaxy objects:
