@@ -632,16 +632,18 @@ plt.plot(gals['MAG_AUTO'],gals['FWHM_IMAGE'],'.r',alpha=0.4,label='analysis obje
 #plt.plot(stars['MAG_AUTO'],stars['FWHM_IMAGE'],'*b',alpha=0.4,label='stars') 
 
 # Quality cuts
-#truthcat=Table.read('/Users/jemcclea/Research/SuperBIT/superbit-metacal/GalSim/output-gaussian/truth_gaussian300.0001.dat',format='ascii')
-truthcat=Table.read('truth_gaussJitter_004.dat',format='ascii')
-bg_gals = truthcat[truthcat['redshift']>0.45]
+truthcat=Table.read('/Users/jemcclea/Research/SuperBIT/superbit-metacal/GalSim/forecasting/round2/truth_gaussJitter_002.dat',format='ascii')
+#truthcat=Table.read('truth_gaussJitter_004.dat',format='ascii')
+bg_gals = truthcat[truthcat['redshift']>0.17]
 gal_matcher = htm.Matcher(16,ra=bg_gals['ra'],dec=bg_gals['dec'])
 matches,bg_galmatches,dist = gal_matcher.match(ra=gals['ALPHAWIN_J2000'],
                                                     dec=gals['DELTAWIN_J2000'],radius=6E-4,maxmatch=1)
 print(len(matches))
 
 gals=gals[matches]
-gals = gals[gals['FWHM_IMAGE']>2]
+plt.plot(gals['MAG_AUTO'],gals['FWHM_IMAGE'],'.r',alpha=0.4,label='background objects')
+
+gals = gals[gals['FWHM_IMAGE']>2.1]
 
 fitvd=Table.read('/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/output-stars/fitvd-stars.fit',format='fits',hdu=1)
 #fitvd_success =  (fitvd['exp_T']>=1.15*fitvd['psf_T']) #&  (fitvd['psf_flux_s2n'] >5) #

@@ -1,8 +1,5 @@
-# Copyright (c) 2012-2019 by the GalSim developers team on GitHub
+# GalSim is opyright (c) 2012-2019 by the GalSim developers team on GitHub
 # https://github.com/GalSim-developers
-#
-# This file is part of GalSim: The modular galaxy image simulation toolkit.
-# https://github.com/GalSim-developers/GalSim
 #
 # GalSim is free software: redistribution and use in source and binary forms,
 # with or without modification, are permitted provided that the following
@@ -14,7 +11,8 @@
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions, and the disclaimer given in the documentation
 #    and/or other materials provided with the distribution.
-#
+##
+## TO DO: find a way to write n_obj, exptime, filter, and other useful info to a FITS header
 
 import sys
 import os
@@ -58,7 +56,6 @@ class truth():
         self.mom_size = 0.0
         self.n = 0.0
         self.hlr = 0.0
-        self.inclination = 0.0
         self.scale_h_over_r = 0.0
 
 def nfw_lensing(nfw_halo, pos, nfw_z_source):
@@ -91,6 +88,7 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
     """
     Method to make a single galaxy object and return stamp for 
     injecting into larger GalSim image
+    
     """
     # Choose a random RA, Dec around the sky_center.
     # Note that for this to come out close to a square shape, we need to account for the
@@ -108,41 +106,42 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
     uv_pos = affine.toWorld(image_pos)
     logger.debug('created galaxy position')
     
-    ## Draw a Sersic galaxy from scratch
+    ## Draw a Galaxy from scratch
     index = int(np.floor(ud()*len(cosmos_cat))) # This is a kludge to obain a repeatable index
     gal_z = cosmos_cat[index]['ZPDF']                    
     gal_flux = cosmos_cat[index][sbparams.bandpass]*sbparams.exp_time
     inclination = cosmos_cat[index]['phi_cosmos10']*galsim.radians 
-    scale_h_over_r = cosmos_cat[index]['q_cosmos10']
+    q = cosmos_cat[index]['q_cosmos10']
     # Cosmos HLR is in units of HST pix, convert to arcsec.
-    # AG put a factor of q in there, unclear why?
-    half_light_radius=cosmos_cat[index]['hlr_cosmos10']*0.03*np.sqrt(scale_h_over_r) 
+    half_light_radius=cosmos_cat[index]['hlr_cosmos10']*0.03*np.sqrt(q) 
     n = cosmos_cat[index]['n_sersic_cosmos10']
-    print('galaxy index=%d z=%f flux=%f hlr=%f sersic_index=%f'%(index,gal_z,gal_flux,half_light_radius,n))
+    logger.debug('galaxy z=%f flux=%f hlr=%f sersic_index=%f'%(gal_z,gal_flux,half_light_radius,n))
 
     ## InclinedSersic requires 0.3 < n < 6;
     ## set galaxy's n to another value if it falls outside this range
     if n<0.3:
-        n=0.5
-    elif n>=6:
+        n=0.3
+    elif n>6:
         n=4
     else:
         pass
 
     ## Very large HLRs will also make GalSim fail
     ## Set to a default, ~large but physical value.
-    if half_light_radius > 3:
-        half_light_radius = 3
+    if half_light_radius > 2:
+            half_light_radius = 2
     else:
         pass
+
 
     gal = galsim.InclinedSersic(n=n,
                                 flux=gal_flux,
                                 half_light_radius=half_light_radius,
                                 inclination=inclination,
-                                scale_h_over_r=scale_h_over_r
+                                scale_h_over_r=q
                                 )
 
+   
     logger.debug('created galaxy')
             
     ## Apply a random rotation
@@ -160,7 +159,7 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
         g1 = 0.0; g2 = 0.0
         mu = 1.0
 
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.05)
+    jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
     final=galsim.Convolve([jitter_psf,gal,optics])
     
     logger.debug("Convolved star and PSF at galaxy position")
@@ -175,8 +174,8 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
     galaxy_truth.mu = mu; galaxy_truth.z = gal_z
     galaxy_truth.flux = stamp.added_flux
     galaxy_truth.n = n; galaxy_truth.hlr = half_light_radius
-    galaxy_truth.inclination = inclination.deg # storing in degrees for human readability
-    galaxy_truth.scale_h_over_r = scale_h_over_r
+    #galaxy_truth.inclination = inclination.deg # storing in degrees for human readability
+    galaxy_truth.scale_h_over_r = q
 
     logger.debug('created truth values')
 
@@ -205,7 +204,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     """
     
     # Choose a random position within 200 pixels of the sky_center
-    radius = 180
+    radius = 200
     max_rsq = radius**2
     while True:  # (This is essentially a do..while loop.)
         x = (2.*ud()-1) * radius 
@@ -216,7 +215,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
 
     # We will need the image position as well, so use the wcs to get that,
     # plus a small gaussian jitter so cluster doesn't look too box-like
-    image_pos = galsim.PositionD(x+centerpix.x+(ud()-0.5)*30,y+centerpix.y+(ud()-0.5)*30)
+    image_pos = galsim.PositionD(x+centerpix.x+(ud()-0.5)*50,y+centerpix.y+(ud()-0.5)*50)
     world_pos = wcs.toWorld(image_pos)
     ra=world_pos.ra; dec = world_pos.dec
    
@@ -225,7 +224,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     uv_pos = affine.toWorld(image_pos)
    
     # Fixed redshift for cluster galaxies
-    gal_z = 0.17
+    gal_z = sbparams.nfw_z_halo
     g1 = 0.0; g2 = 0.0
     mu = 1.0
     
@@ -237,14 +236,12 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     theta = ud()*2.0*numpy.pi*galsim.radians
     gal = gal.rotate(theta)
     
-    # This automatically scales up the noise variance by flux_scaling**2.
-    # The "magnify" is just for drama
-    #gal *= (sbparams.flux_scaling*2)
-    gal *= (sbparams.flux_scaling)
-    gal.magnify(10)
+    # The "magnify" is just for drama; factor of 1.2207 turns us into e-
+    gal *= (sbparams.flux_scaling*1.2207)
+    gal.magnify(4)
     logger.debug('rescaled galaxy with scaling factor %f' % sbparams.flux_scaling)
 
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.05)
+    jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
     final=galsim.Convolve([jitter_psf,gal,optics])
 
     logger.debug("Convolved star and PSF at galaxy position")
@@ -252,7 +249,6 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     
     # Draw galaxy image
     this_stamp_image = galsim.Image(128, 128,wcs=wcs.local(image_pos))
-    #this_stamp_image = galsim.Image(128, 128,scale=0.206)
     #cluster_stamp = final.drawImage(bandpass,image=this_stamp_image)
     cluster_stamp = final.drawImage(image=this_stamp_image)
 
@@ -305,11 +301,11 @@ def make_a_star(ud, wcs, affine, optics, sbparams):
     # Draw star flux at random; based on distribution of star fluxes in real images  
     #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 799.2114, x_max = 890493.9)
     flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 533, x_max = 59362)
-    star_flux = flux_dist()
+    star_flux = flux_dist()*1.2207
     
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)  
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=0.05)
+    jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
     star=galsim.Convolve([jitter_psf,deltastar,optics])
 
     star_stamp = star.drawImage(wcs=wcs.local(image_pos)) # before it was scale = 0.206, and that was bad!
@@ -346,6 +342,7 @@ class SuperBITParameters:
             else:
                 # Define some default default parameters below.
                 # These are used in the absence of a .yaml config_file or command line args.
+                logger.info('Using default config file')
                 self._load_config_file("superbit_parameters_forecast.yaml")
 
 
@@ -395,11 +392,11 @@ class SuperBITParameters:
                 elif option == "sky_sigma":     
                     self.sky_sigma = float(value)
                 elif option == "gain":          
-                    self. gain = float(value)   
+                    self.gain = float(value)   
                 elif option == "read_noise":
-                    self. read_noise = float(value)
+                    self.read_noise = float(value)
                 elif option == "dark_current":
-                    self. dark_current = float(value)
+                    self.dark_current = float(value)
                 elif option == "dark_current_std":
                     self. dark_current_std = float(value)
                 elif option == "image_xsize":   
@@ -471,6 +468,8 @@ class SuperBITParameters:
                     self.obscuration = float(0.380)
                 elif option == "bandpass":
                     self.bandpass=str(value)
+                elif option == "jitter_fwhm":
+                    self.jitter_fwhm=float(value)
                 else:
                     raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
@@ -485,6 +484,8 @@ class SuperBITParameters:
             hst_eff_area = 2.4**2 #* (1.-0.33**2)
             sbit_eff_area = self.tel_diam**2 #* (1.-0.380**2) 
             self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain 
+            if not hasattr(self,'jitter_fwhm'):
+                self.jitter_fwhm = 0.1
 
 # function to help with reducing MPI results from each process to single result
 def combine_images(im1, im2):
@@ -511,7 +512,7 @@ def main(argv):
     """
     
     global logger
-    logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stdout)
+    logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
     logger = logging.getLogger("mock_superbit_data")
 
     M = MPIHelper()
@@ -534,7 +535,7 @@ def main(argv):
     logger.info('Read in %d galaxies from catalog and associated fit info', len(cosmos_cat))
 
     cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
-    logger.debug('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
+    #logger.debug('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
     
 
     ### Now create PSF. First, define Zernicke polynomial component
@@ -586,11 +587,11 @@ def main(argv):
             
         # Setting up a truth catalog
         names = [ 'gal_num', 'x_image', 'y_image',
-                    'ra', 'dec', 'g1_meas', 'g2_meas', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom',
-                      'n','hlr','inclination','scale_h_over_r']
+                    'ra', 'dec', 'nfw_g1', 'nfw_g2', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom',
+                      'n','hlr','scale_h_over_r']
         types = [ int, float, float, float,float,float,
                     float, float, float, float, float, float,
-                      float, float, float, float]
+                      float, float, float]
         truth_catalog = galsim.OutputCatalog(names, types)
 
         
@@ -657,7 +658,7 @@ def main(argv):
                 this_flux=numpy.sum(stamp.array)
                 row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
                             this_flux,truth.fwhm, truth.mom_size,
-                            truth.n, truth.hlr, truth.inclination, truth.scale_h_over_r]
+                            truth.n, truth.hlr, truth.scale_h_over_r]
                 truth_catalog.addRow(row)
             except galsim.errors.GalSimError:
                 logger.info('Galaxy %d has failed, skipping...',k)
@@ -703,7 +704,7 @@ def main(argv):
                 this_flux=numpy.sum(stamp.array)
                 row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
                             this_flux,truth.fwhm,truth.mom_size,
-                            truth.n, truth.hlr, truth.inclination, truth.scale_h_over_r]
+                            truth.n, truth.hlr,truth.scale_h_over_r]
                 truth_catalog.addRow(row)
             except galsim.errors.GalSimError:
                 logger.info('Cluster galaxy %d has failed, skipping...',k)
@@ -736,7 +737,7 @@ def main(argv):
                 this_flux=numpy.sum(star_stamp.array)
                 row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,
                             truth.z, this_flux,truth.fwhm,truth.mom_size,
-                            truth.n, truth.hlr, truth.inclination, truth.scale_h_over_r]
+                            truth.n, truth.hlr,truth.scale_h_over_r]
                 truth_catalog.addRow(row)
                 
             except galsim.errors.GalSimError:
@@ -765,7 +766,7 @@ def main(argv):
         # Add ccd noise
         logger.info('Adding CCD noise')
         noise = galsim.CCDNoise(
-            sky_level=0, gain=1/sbparams.gain,
+            sky_level=0, gain=sbparams.gain,
             read_noise=sbparams.read_noise)
         full_image.addNoise(noise)
         

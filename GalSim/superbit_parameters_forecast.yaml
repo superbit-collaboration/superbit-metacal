@@ -1,7 +1,7 @@
 # SuperBIT parameters
 # -------------------
 pixel_scale:        0.144       # Pixel scale                               [arcsec/px]
-gain:               1.2207      # Camera gain                               [ADU / e-]
+gain:               1.2207      # Camera gain                               [e- / ADU]
 read_noise:         1.8         # Read noise                                [e-]
 dark_current:       0.0046      # mean dark current                         [ADU / px / s]
 dark_current_std:   0.001       # standard deviation dark current           [ADU /px / s]
@@ -16,6 +16,7 @@ strut_thick:        0.087       # Fraction of diameter strut thickness      [m/m
 strut_theta:        90          # Angle between vertical and nearest        [deg]
 obscuration:        0.380       # Fraction of aperture obscured by M2       []
 bandpass:     'crates_adu_b'    # Catalog filter name for simulation        []
+jitter_fwhm:        0.1         # Kernel size of SuperBIT jitter            [arcsec]
 
 # Simulated image parameters
 # --------------------------
@@ -23,7 +24,7 @@ center_ra:          13.3        # Central Right Ascension                   [hrs
 center_dec:         33.1        # Central Declination                       [deg]
 sky_bkg:            0.039       # mean sky background from AG's paper       [ADU / s / px]
 sky_sigma:          0.06        # standard deviation of sky background      [ADU / s / px]
-nobj:               34010       # Number of galaxies (COSMOS 25.2 depth)    []
+nobj:               340          # Number of galaxies (COSMOS 25.2 depth)    []
 nstars:             350         # Number of stars in the field              []
 nexp:               2           # Number of exposures per PSF model         []
 nclustergal:        35          # Number of cluster galaxies (arbitrary)    []
@@ -31,8 +32,8 @@ nclustergal:        35          # Number of cluster galaxies (arbitrary)    []
 # Simulated cluster parameters
 # ----------------------------
 lam:                625         # Fiducial wavelength for abberations       [nm]
-mass:               1.0e15      # Cluster mass                              [Msol / h]
-nfw_z_halo:         0.17        # redshift of the halo                      []
+mass:               7.0e15      # Cluster mass                              [Msol / h]
+nfw_z_halo:         0.3        # redshift of the halo                      []
 nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
 omega_m:            0.3         # Omega matter for the background cosmology.
 omega_lam:          0.7         # Omega lambda for the background cosmology.
@@ -42,8 +43,9 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 # Define some paths and filenames
 cosmosdir:          './data/' # Path to catalog data directory 
 cat_file_name:      'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
-cluster_cat_name:   './data/catalogs/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
-outdir:             './forecasting/cluster3' # directory where output images and truth catalogs are saved
+cluster_cat_name:   './data/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
+outdir:             './forecasting/cluster5' # directory where output images and truth catalogs are saved
+
 
 # Misc parameters
 # ---------------
