@@ -436,8 +436,8 @@ class SuperBITParameters:
                     self._load_config_file(str(value))
                 elif option == "cosmosdir":
                     self.cosmosdir = str(value)
-                elif option == "cosmosdir":
-                    self.cosmosdir = str(value)
+                elif option == "datadir":
+                    self.datadir = str(value)
                 elif option == "cat_file_name":
                     self.cat_file_name = str(value)
                 elif option == "fit_file_name":
@@ -528,13 +528,13 @@ def main(argv):
 
     # Read in galaxy catalog, as well as catalog containing
     # information from COSMOS fits like redshifts, hlr, etc.   
-    # cosmos_cat = galsim.COSMOSCatalog(sbparams.cat_file_name, dir=sbparams.cosmosdir)
+    # cosmos_cat = galsim.COSMOSCatalog(sbparams.cat_file_name, dir=sbparams.datadir)
     # fitcat = Table.read(os.path.join(sbparams.cosmosdir, sbparams.fit_file_name))
 
-    cosmos_cat = Table.read(os.path.join(sbparams.cosmosdir,sbparams.cat_file_name))
+    cosmos_cat = Table.read(os.path.join(sbparams.datadir,sbparams.cat_file_name))
     logger.info('Read in %d galaxies from catalog and associated fit info', len(cosmos_cat))
 
-    cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
+    cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name, dir=sbparams.cosmosdir)
     #logger.debug('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
     
 
