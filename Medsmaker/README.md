@@ -10,7 +10,7 @@ The following python packages are required to run:
   - `astropy`
   - `fitsio`
   - `astroquery`
-  - `psfex` (AstrOmatic) 
+  - `psfex` (AstrOmatic & esheldon, see below)
   - `sextractor` (AstrOmatic) 
   - `swarp` (AstrOmatic) 
 
