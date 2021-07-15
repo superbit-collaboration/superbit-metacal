@@ -211,12 +211,13 @@ class BITMeasurement():
             pass
 
 
-    def make_mask(self, global_dark_thresh = 10, global_flat_thresh = 0.85,overwrite=False):
+    def make_mask(self, mask_name='mask.fits',global_dark_thresh = 10, global_flat_thresh = 0.85,overwrite=False):
         '''
         Use master flat and dark to generate a bad pixel mask.
         Default values for thresholds may be superseded in function call
         '''
-        self.mask_file = os.path.join(self.mask_path,'supermask.fits')
+        self.mask_file = os.path.join(self.mask_path,mask_name)
+        print("\nUsing mask %s\n" % str(self.mask_file))
 
         if (not os.path.exists(self.mask_file)) or (overwrite==True):
             # It's bad practice to hard-code filenames in
@@ -274,20 +275,23 @@ class BITMeasurement():
         detection_file = os.path.join(self.work_path,outfile_name) # This is coadd
         weight_file = os.path.join(self.work_path,weightout_name) # This is coadd weight
         config_arg = '-c ../superbit/astro_config/swarp.config'
-        weight_arg = '-WEIGHT_IMAGE '+self.mask_file
+        #weight_arg = '-WEIGHT_IMAGE '+self.mask_file
         outfile_arg = '-IMAGEOUT_NAME '+ detection_file + ' -WEIGHTOUT_NAME ' + weight_file
-        cmd = ' '.join(['swarp ',image_args,weight_arg,outfile_arg,config_arg])
+        #cmd = ' '.join(['swarp ',image_args,weight_arg,outfile_arg,config_arg])
+        cmd = ' '.join(['swarp ',image_args,outfile_arg,config_arg]) 
         print("swarp cmd is " + cmd)
         os.system(cmd)
         return detection_file,weight_file
 
-    def _select_sources_from_catalog(self,fullcat,catname='catalog.ldac',min_size =2,max_size=16.0,size_key='KRON_RADIUS'):
+
+    def _select_sources_from_catalog(self,fullcat,catname='catalog.ldac',min_size =2,max_size=24.0,size_key='KRON_RADIUS'):
         # Choose sources based on quality cuts on this catalog.
         keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size) 
         self.catalog = self.catalog[keep.nonzero()[0]]
         
-        print("Selecting analysis objects on FWHM and CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
-        keep2 = (self.catalog['FWHM_IMAGE']>3.4) & (self.catalog['CLASS_STAR']<=0.8) & (self.catalog['MAG_AUTO']>16.5)
+
+        print("Selecting analysis objects on CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
+        keep2 = self.catalog['CLASS_STAR']<=0.9
         self.catalog = self.catalog[keep2.nonzero()[0]]
 
         # Write trimmed catalog to file
@@ -320,23 +324,22 @@ class BITMeasurement():
         
         cat_name=detection_file.replace('.fits','_cat.ldac')
         name_arg='-CATALOG_NAME ' + cat_name
-        weight_arg = '-WEIGHT_IMAGE '+weight_file
-        #config_arg = sextractor_config_path+'sextractor.empirical.config'
-        config_arg = sextractor_config_path+'sextractor.config'
+        #weight_arg = '-WEIGHT_IMAGE '+weight_file
+        config_arg = sextractor_config_path+'sextractor.mock.config'
         param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
         nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
         filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
-        bkgname=outfile_name.replace('.fits','.sub.fits')
+        bkgname=os.path.join(self.work_path,outfile_name.replace('.fits','.sub.fits'))
         bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
-        cmd = ' '.join(['sex',detection_file,weight_arg,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
+        #cmd = ' '.join(['sex',detection_file,weight_arg,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
+        cmd = ' '.join(['sex',detection_file,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg]) 
         print("sex cmd is " + cmd)
         os.system(cmd)
         try:
-            #le_cat = fits.open('A2218_coadd_catalog.fits')
             le_cat = fits.open(cat_name)
             self.catalog = le_cat[2].data
             if source_selection is True:
-                print("I get here")
+                print("selecting sources")
                 self._select_sources_from_catalog(fullcat=le_cat,catname=cat_name)
         except:
             print("coadd catalog could not be loaded; check name?")
@@ -366,8 +369,7 @@ class BITMeasurement():
         # First, run SExtractor.
         # Hopefully imagefile is an absolute path!
 
-        sextractor_config_file = sextractor_config_path+'sextractor.config'
-        #sextractor_config_file = sextractor_config_path+'sextractor.empirical.config'
+        sextractor_config_file = sextractor_config_path+'sextractor.mock.config'
         sextractor_param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
         sextractor_nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
         sextractor_filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
@@ -386,8 +388,8 @@ class BITMeasurement():
         # At some point, make truthfilen a command line argument
         if select_stars==True:
             
-            truthdir = '/users/jmcclear/data/superbit/galsim/output-jitter/'
-            truthcat = 'truth_superbit300004.dat'
+            truthdir='/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/b/round1'
+            truthcat = 'truth_gaussJitter_001.dat'
             truthfilen=os.path.join(truthdir,truthcat)           
             print("using truth catalog %s" % truthfilen)
             psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,truthfile=truthfilen)
@@ -396,12 +398,11 @@ class BITMeasurement():
             psfcat_name=imcat_ldac_name
             
         # Now run PSFEx on that image and accompanying catalog
-        psfex_config_arg = '-c '+sextractor_config_path+'psfex.config'
-        #psfex_config_arg = '-c '+sextractor_config_path+'psfex.empirical.config'
+        psfex_config_arg = '-c '+sextractor_config_path+'psfex.mock.config'
         # Will need to make that tmp/psfex_output generalizable
         outcat_name = imagefile.replace('.fits','.psfex.star')
         cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
-                            outcat_name, '-PSFVAR_DEGREES','3','-PSF_DIR', self.psf_path])
+                            outcat_name, '-PSFVAR_DEGREES','2','-PSF_DIR', self.psf_path])
         print("psfex cmd is " + cmd)
         os.system(cmd)
         psfex_name_tmp1=(imcat_ldac_name.replace('.ldac','.psf'))
@@ -423,12 +424,14 @@ class BITMeasurement():
         # Read in truthfile, obtain stars with redshift cut
         truthcat = Table.read(truthfile,format='ascii')
         stars=truthcat[truthcat['redshift']==0] 
-
+        
+        print("selecting on truth catalog, %d stars found"%len(stars))
         # match sscat against truth star catalog
         ss = fits.open(sscat)
         star_matcher = eu.htm.Matcher(16,ra=stars['ra'],dec=stars['dec'])
         ssmatches,starmatches,dist = star_matcher.match(ra=ss[2].data['ALPHAWIN_J2000'],
-                                                            dec=ss[2].data['DELTAWIN_J2000'],radius=1.4E-4,maxmatch=1)
+                                                    dec=ss[2].data['DELTAWIN_J2000'],radius=5E-4,maxmatch=1)
+
         
         # Save result to file, return filename
         outname = sscat.replace('.ldac','.star')
@@ -437,7 +440,7 @@ class BITMeasurement():
 
         return outname
 
-    def make_image_info_struct(self,max_len_of_filepath = 120):
+    def make_image_info_struct(self,max_len_of_filepath = 200):
         # max_len_of_filepath may cause issues down the line if the file path
         # is particularly long
 
@@ -505,6 +508,9 @@ class BITMeasurement():
         if catalog is None:
             catalog = self.catalog
 
+        ###
+        ### Need to figure out a way to add redshifts here...
+        ###
         
         obj_str = meds.util.get_meds_input_struct(catalog.size,extra_fields = [('KRON_RADIUS',np.float),('number',np.int)])
         obj_str['id'] = catalog['NUMBER']
@@ -534,7 +540,7 @@ class BITMeasurement():
         # self.reduce(overwrite=clobber,skip_sci_reduce=True)
         # Make a mask.
         # NB: can also read in a pre-existing mask by setting self.mask_file
-        self.make_mask(overwrite=clobber)
+        #self.make_mask(mask_name='mask.fits',overwrite=clobber)
         # Combine images, make a catalog.
         self.make_catalog(source_selection=source_selection)
         # Build a PSF model for each image.
