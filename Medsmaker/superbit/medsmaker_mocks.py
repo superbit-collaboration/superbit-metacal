@@ -5,7 +5,8 @@ import os
 import psfex
 from astropy.io import fits
 import string
-import pdb
+from pathlib import Path
+import pdb, pudb
 from astropy import wcs
 import fitsio
 import esutil as eu
@@ -13,7 +14,6 @@ from astropy.table import Table
 import astropy.units as u
 import astropy.coordinates
 from astroquery.gaia import Gaia
-
 
 '''
 Goals:
@@ -35,7 +35,8 @@ TO DO:
 
 
 class BITMeasurement():
-    def __init__(self, image_files = None, flat_files = None, dark_files = None, bias_files= None):
+    def __init__(self, image_files=None, flat_files=None, dark_files=None,
+                 bias_files=None, data_dir=None):
         '''
         :image_files: Python List of image filenames; must be complete relative or absolute path.
         :flat_files: Python List of image filenames; must be complete relative or absolute path.
@@ -47,11 +48,21 @@ class BITMeasurement():
         self.flat_files = flat_files
         self.dark_files = dark_files
         self.bias_files = bias_files
+        self.data_dir = None
         self.catalog = None
         self.psf_path = None
         self.work_path = None
-        self.mask_path = './mask_files'
-        
+
+        if data_dir is None:
+            self.mask_path = './mask_files'
+        else:
+            self.mask_path = os.path.join(data_dir, 'mask_files')
+
+        filepath = Path(os.path.realpath(__file__))
+        self.base_dir = filepath.parents[1]
+
+        return
+
     def set_working_dir(self,path=None):
         if path is None:
             self.work_path = './tmp'
@@ -211,12 +222,13 @@ class BITMeasurement():
             pass
 
 
-    def make_mask(self, mask_name='mask.fits',global_dark_thresh = 10, global_flat_thresh = 0.85,overwrite=False):
+    def make_mask(self, mask_name='mask.fits', global_dark_thresh=10,
+                  global_flat_thresh=0.85, overwrite=False):
         '''
         Use master flat and dark to generate a bad pixel mask.
         Default values for thresholds may be superseded in function call
         '''
-        self.mask_file = os.path.join(self.mask_path,mask_name)
+        self.mask_file = os.path.join(self.mask_path, mask_name)
         print("\nUsing mask %s\n" % str(self.mask_file))
 
         if (not os.path.exists(self.mask_file)) or (overwrite==True):
@@ -262,7 +274,7 @@ class BITMeasurement():
         else:
             pass
 
-    def _make_detection_image(self,outfile_name = 'detection.fits',weightout_name='weight.fits'):
+    def _make_detection_image(self, outfile_name='detection.fits', weightout_name='weight.fits'):
         '''
         :output: output file where detection image is written.
 
@@ -274,21 +286,21 @@ class BITMeasurement():
         image_args = ' '.join(self.image_files)
         detection_file = os.path.join(self.work_path,outfile_name) # This is coadd
         weight_file = os.path.join(self.work_path,weightout_name) # This is coadd weight
-        config_arg = '-c ../superbit/astro_config/swarp.config'
+        config_arg = '-c ' + os.path.join(self.base_dir, 'superbit/astro_config/swarp.config')
         #weight_arg = '-WEIGHT_IMAGE '+self.mask_file
         outfile_arg = '-IMAGEOUT_NAME '+ detection_file + ' -WEIGHTOUT_NAME ' + weight_file
         #cmd = ' '.join(['swarp ',image_args,weight_arg,outfile_arg,config_arg])
         cmd = ' '.join(['swarp ',image_args,outfile_arg,config_arg]) 
         print("swarp cmd is " + cmd)
         os.system(cmd)
+        print('\n')
         return detection_file,weight_file
 
-
-    def _select_sources_from_catalog(self,fullcat,catname='catalog.ldac',min_size =2,max_size=24.0,size_key='KRON_RADIUS'):
+    def _select_sources_from_catalog(self, fullcat, catname='catalog.ldac', min_size =2, max_size=24.0, size_key='KRON_RADIUS'):
         # Choose sources based on quality cuts on this catalog.
-        keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size) 
+        keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
         self.catalog = self.catalog[keep.nonzero()[0]]
-        
+
 
         print("Selecting analysis objects on CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
         keep2 = self.catalog['CLASS_STAR']<=0.9
@@ -298,13 +310,13 @@ class BITMeasurement():
         fullcat_name=catname.replace('.ldac','_full.ldac')
         cmd =  ' '.join(['mv',catname,fullcat_name])
         os.system(cmd)
-       
+
         # "fullcat" is now actually the filtered-out analysis catalog
         fullcat[2].data = self.catalog
         #fullcat[2].data = gals
-        
+
         fullcat.writeto(catname,overwrite=True)
-        
+
     def select_sources_from_gaia():
         # Use some set of criteria to choose sources for measurement.
 
@@ -313,15 +325,19 @@ class BITMeasurement():
         catalog = result.get_data()
         pass
 
-    def make_catalog(self, sextractor_config_path = '../superbit/astro_config/',source_selection = False):
+    def make_catalog(self, sextractor_config_path=None, source_selection=False):
         '''
         Wrapper for astromatic tools to make catalog from provided images.
         This returns catalog for (stacked) detection image
         '''
+
+        if sextractor_config_path is None:
+            sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
+
         #outfile_name='mock_empirical_psf_coadd.fits'; weightout_name='mock_empirical_psf_coadd.weight.fits'
         outfile_name='mock_coadd.fits'; weightout_name='mock_coadd.weight.fits'
         detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
-        
+
         cat_name=detection_file.replace('.fits','_cat.ldac')
         name_arg='-CATALOG_NAME ' + cat_name
         #weight_arg = '-WEIGHT_IMAGE '+weight_file
@@ -361,13 +377,17 @@ class BITMeasurement():
             except:
                 pdb.set_trace()
 
-    def _make_psf_model(self,imagefile,weightfile = 'weight.fits',sextractor_config_path = '../superbit/astro_config/',psfex_out_dir='./tmp/',select_stars=False):
+    def _make_psf_model(self, imagefile, weightfile='weight.fits', sextractor_config_path=None,
+                        psfex_out_dir='./tmp/', select_stars=False):
         '''
         Gets called by make_psf_models for every image in self.image_files
         Wrapper for PSFEx. Requires a FITS-LDAC format catalog with vignettes
         '''
         # First, run SExtractor.
         # Hopefully imagefile is an absolute path!
+
+        if sextractor_config_path is None:
+            sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
 
         sextractor_config_file = sextractor_config_path+'sextractor.mock.config'
         sextractor_param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
@@ -387,16 +407,16 @@ class BITMeasurement():
         # Get a "clean" star catalog for PSFEx input
         # At some point, make truthfilen a command line argument
         if select_stars==True:
-            
+
             truthdir='/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/b/round1'
             truthcat = 'truth_gaussJitter_001.dat'
-            truthfilen=os.path.join(truthdir,truthcat)           
+            truthfilen=os.path.join(truthdir,truthcat)
             print("using truth catalog %s" % truthfilen)
             psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,truthfile=truthfilen)
-            
+
         else:
             psfcat_name=imcat_ldac_name
-            
+
         # Now run PSFEx on that image and accompanying catalog
         psfex_config_arg = '-c '+sextractor_config_path+'psfex.mock.config'
         # Will need to make that tmp/psfex_output generalizable
@@ -411,20 +431,18 @@ class BITMeasurement():
 
         # Just return name, the make_psf_models method reads it in as a PSFEx object
         return psfex_model_file
-    
 
     def _select_stars_for_psf(self,sscat,truthfile):
         '''
         Method to obtain stars from SExtractor catalog using the truth catalog from GalSim 
             sscat : input ldac-format catalog from which to select stars
             truthcat : the simulation truth catalog written out by GalSim
-                      
         '''
-        
+
         # Read in truthfile, obtain stars with redshift cut
         truthcat = Table.read(truthfile,format='ascii')
         stars=truthcat[truthcat['redshift']==0] 
-        
+
         print("selecting on truth catalog, %d stars found"%len(stars))
         # match sscat against truth star catalog
         ss = fits.open(sscat)
@@ -432,7 +450,6 @@ class BITMeasurement():
         ssmatches,starmatches,dist = star_matcher.match(ra=ss[2].data['ALPHAWIN_J2000'],
                                                     dec=ss[2].data['DELTAWIN_J2000'],radius=5E-4,maxmatch=1)
 
-        
         # Save result to file, return filename
         outname = sscat.replace('.ldac','.star')
         ss[2].data=ss[2].data[ssmatches]
@@ -504,14 +521,14 @@ class BITMeasurement():
             box_size = np.min( available_sizes[ available_sizes > box_size_float ] )
         return box_size
 
-    def make_object_info_struct(self,catalog=None):
+    def make_object_info_struct(self, catalog=None):
         if catalog is None:
             catalog = self.catalog
 
         ###
         ### Need to figure out a way to add redshifts here...
         ###
-        
+
         obj_str = meds.util.get_meds_input_struct(catalog.size,extra_fields = [('KRON_RADIUS',np.float),('number',np.int)])
         obj_str['id'] = catalog['NUMBER']
         obj_str['number'] = np.arange(catalog.size)+1
@@ -519,12 +536,12 @@ class BITMeasurement():
         obj_str['ra'] = catalog['ALPHAWIN_J2000']
         obj_str['dec'] = catalog['DELTAWIN_J2000']
         obj_str['KRON_RADIUS'] = catalog['KRON_RADIUS']
-       
-        
+
         return obj_str
 
 
-    def run(self,outfile = "mock_superbit.meds",clobber=True, source_selection=False, select_stars=False):
+    def run(self,outfile='mock_superbit.meds', clobber=True, source_selection=False,
+            select_stars=False):
         # Make a MEDS, clobbering if needed
 
         #### ONLY FOR DEBUG
@@ -535,14 +552,16 @@ class BITMeasurement():
         # Add a WCS to the science
         #self.add_wcs_to_science_frames()
         ####################
-        
+
         # Reduce the data.
         # self.reduce(overwrite=clobber,skip_sci_reduce=True)
         # Make a mask.
         # NB: can also read in a pre-existing mask by setting self.mask_file
         #self.make_mask(mask_name='mask.fits',overwrite=clobber)
         # Combine images, make a catalog.
-        self.make_catalog(source_selection=source_selection)
+        config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
+        self.make_catalog(sextractor_config_path=config_path,
+                          source_selection=source_selection)
         # Build a PSF model for each image.
         self.make_psf_models(select_stars=select_stars)
         # Make the image_info struct.
@@ -554,7 +573,7 @@ class BITMeasurement():
         # Create metadata for MEDS
         meta = self._meds_metadata(magzp=30.0)
         # Finally, make and write the MEDS file.
-        medsObj = meds.maker.MEDSMaker(obj_info,image_info,config=meds_config,psf_data = self.psfEx_models,meta_data=meta)
+        medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
+                                       psf_data=self.psfEx_models,meta_data=meta)
         medsObj.write(outfile)
 
-        
