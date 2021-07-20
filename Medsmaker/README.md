@@ -9,7 +9,8 @@ The following python packages are required to run:
   - `meds`
   - `astropy`
   - `fitsio`
-  - `psfex` (AstrOmatic) 
+  - `astroquery`
+  - `psfex` (AstrOmatic & esheldon, see below)
   - `sextractor` (AstrOmatic) 
   - `swarp` (AstrOmatic) 
 
