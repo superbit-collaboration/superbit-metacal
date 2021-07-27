@@ -42,13 +42,15 @@ class BITMeasurement():
         :flat_files: Python List of image filenames; must be complete relative or absolute path.
         :dark_files: Python List of image filenames; must be complete relative or absolute path.
         :catalog: Object that stores FITS array of catalog
+        :coadd: Set to true if the first image file is a coadd image (must be first)
         '''
 
         self.image_files = image_files
         self.flat_files = flat_files
         self.dark_files = dark_files
         self.bias_files = bias_files
-        self.data_dir = None
+        self.data_dir = data_dir
+        self.coadd_file = None
         self.catalog = None
         self.psf_path = None
         self.work_path = None
@@ -150,10 +152,12 @@ class BITMeasurement():
         wrapper for _make_new_fits() which returns astrometry-corrected images
         '''
         fixed_image_files = []
+
         for image_file in self.image_files:
             fixed_image_file = self._make_new_fits(image_file)
             if fixed_image_file is not None:
                 fixed_image_files.append(fixed_image_file)
+
         self.image_files = fixed_image_files
 
     def reduce(self,overwrite=False,skip_sci_reduce=False):
@@ -204,6 +208,7 @@ class BITMeasurement():
             master_flat=fitsio.read(fname)
         if not skip_sci_reduce:
             reduced_image_files=[]
+
             for this_image_file in self.image_files:
                 # WARNING: as written, function assumes science data is in 0th extension
                 this_image_fits=fits.open(this_image_file)
@@ -217,7 +222,8 @@ class BITMeasurement():
                 reduced_image_files.append(this_image_outname)
                 this_outfits=fits.PrimaryHDU(this_reduced_image,header=updated_header)
                 this_outfits.writeto(this_image_outname,overwrite=True)
-            self.image_files=reduced_image_files
+
+            self.image_files = reduced_image_files
         else:
             pass
 
@@ -290,11 +296,11 @@ class BITMeasurement():
         #weight_arg = '-WEIGHT_IMAGE '+self.mask_file
         outfile_arg = '-IMAGEOUT_NAME '+ detection_file + ' -WEIGHTOUT_NAME ' + weight_file
         #cmd = ' '.join(['swarp ',image_args,weight_arg,outfile_arg,config_arg])
-        cmd = ' '.join(['swarp ',image_args,outfile_arg,config_arg]) 
+        cmd = ' '.join(['swarp ',image_args,outfile_arg,config_arg])
         print("swarp cmd is " + cmd)
         os.system(cmd)
         print('\n')
-        return detection_file,weight_file
+        return detection_file, weight_file
 
     def _select_sources_from_catalog(self, fullcat, catname='catalog.ldac', min_size =2, max_size=24.0, size_key='KRON_RADIUS'):
         # Choose sources based on quality cuts on this catalog.
@@ -337,6 +343,7 @@ class BITMeasurement():
         #outfile_name='mock_empirical_psf_coadd.fits'; weightout_name='mock_empirical_psf_coadd.weight.fits'
         outfile_name='mock_coadd.fits'; weightout_name='mock_coadd.weight.fits'
         detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
+        self.coadd_file = detection_file
 
         cat_name=detection_file.replace('.fits','_cat.ldac')
         name_arg='-CATALOG_NAME ' + cat_name
@@ -361,15 +368,31 @@ class BITMeasurement():
             print("coadd catalog could not be loaded; check name?")
             pdb.set_trace()
 
-    def make_psf_models(self,select_stars=False):
+    def make_psf_models(self, select_stars=False, use_coadd=False):
 
         self.psfEx_models = []
-        for imagefile in self.image_files:
-            #update as necessary
-            weightfile=self.mask_file
-            psfex_model_file = self._make_psf_model(imagefile,weightfile = weightfile,select_stars=select_stars)
+
+        Nim = len(self.image_files)
+
+        # Will be placed first
+        if use_coadd is True:
+            Nim += 1
+
+        k = 0
+        for i in range(Nim):
+            if (i == 0) and (use_coadd is True):
+                imagefile = self.coadd_file
+            else:
+                if use_coadd is True:
+                    imagefile = self.image_files[i-1]
+                else:
+                    imagefile = self.image_files[i]
+
+            # TODO: update as necessary
+            weightfile = self.mask_file
+            psfex_model_file = self._make_psf_model(imagefile, weightfile=weightfile, select_stars=select_stars)
             # move checkimages to psfex_output
-            cmd = ' '.join(['mv chi* resi* samp* snap* proto*',self.psf_path])
+            cmd = ' '.join(['mv chi* resi* samp* snap* proto*', self.psf_path])
             os.system(cmd)
 
             try:
@@ -457,15 +480,29 @@ class BITMeasurement():
 
         return outname
 
-    def make_image_info_struct(self,max_len_of_filepath = 200):
+    def make_image_info_struct(self, max_len_of_filepath=200, use_coadd=False):
         # max_len_of_filepath may cause issues down the line if the file path
         # is particularly long
 
-        image_info = meds.util.get_image_info_struct(len(self.image_files),max_len_of_filepath)
+        Nim = len(self.image_files)
+
+        # If used, will be put first
+        if use_coadd is True:
+            Nim += 1
+
+        image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
 
         i=0
-        for image_file in self.image_files:
-            bkgsub_name=image_file.replace('.fits','.sub.fits')
+        for image_file in range(Nim):
+            if (i == 0) and (use_coadd is True):
+                image_file = self.coadd_file
+            else:
+                if use_coadd is True:
+                    image_file = self.image_files[i-1]
+                else:
+                    image_file = self.image_files[i]
+
+            bkgsub_name = image_file.replace('.fits','.sub.fits')
 
             image_info[i]['image_path'] = bkgsub_name
             image_info[i]['image_ext'] = 0
@@ -476,17 +513,22 @@ class BITMeasurement():
             image_info[i]['bmask_path'] = self.mask_file
             image_info[i]['bmask_ext'] = 0
             i+=1
+
         return image_info
 
-    def make_meds_config(self,extra_parameters = None):
+    def make_meds_config(self, extra_parameters=None, use_coadd=False):
         '''
         :extra_parameters: dictionary of keys to be used to update the base MEDS configuration dict
 
         '''
         # sensible default config.
-        config = {'first_image_is_coadd': False,'cutout_types':['weight','seg','bmask'],'psf_type':'psfex'}
+        config = {'first_image_is_coadd': use_coadd,
+                  'cutout_types':['weight','seg','bmask'],
+                  'psf_type':'psfex'}
+
         if extra_parameters is not None:
             config.update(extra_parameters)
+
         return config
 
     def _meds_metadata(self,magzp=0.0):
