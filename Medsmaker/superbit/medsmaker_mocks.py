@@ -512,6 +512,13 @@ class BITMeasurement():
             image_info[i]['weight_ext'] = 0
             image_info[i]['bmask_path'] = self.mask_file
             image_info[i]['bmask_ext'] = 0
+
+            # The default is for 0 offset between the internal numpy arrays
+            # and the images, but we use the FITS standard of a (1,1) origin.
+            # In principle we could probably set this automatically by checking
+            # the images
+            image_info[i]['position_offset'] = 1
+
             i+=1
 
         return image_info
