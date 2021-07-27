@@ -20,6 +20,8 @@ parser.add_argument('--mock_dir', action='store', type=str, default=None,
                     help='Directory containing mock data')
 parser.add_argument('--fname_base', action='store', type=str, default=None,
                     help='Basename of mock image files')
+parser.add_argument('--meds_coadd', action='store_true', default=False,
+                    help='Set to keep coadd cutout in MEDS file')
 parser.add_argument('-v', '--verbose', action='store', type=int, default=1,
                     help='Verbosity (0: None, default: 1)')
 
@@ -31,6 +33,7 @@ def vbprint(s, vb):
 
 def main():
     args = parser.parse_args()
+    use_coadd = args.meds_coadd
     vb = args.verbose
 
     ## Get either one or two hours' worth of exposures
@@ -67,18 +70,18 @@ def main():
 
         # Build a PSF model for each image.
         vbprint('Making PSF models...', vb)
-        bm.make_psf_models(select_stars=select_stars)
+        bm.make_psf_models(select_stars=select_stars, use_coadd=use_coadd)
 
         vbprint('Making MEDS...', vb)
 
         # Make the image_info struct.
-        image_info = bm.make_image_info_struct()
+        image_info = bm.make_image_info_struct(use_coadd=use_coadd)
 
         # Make the object_info struct.
         obj_info = bm.make_object_info_struct()
 
         # Make the MEDS config file.
-        meds_config = bm.make_meds_config()
+        meds_config = bm.make_meds_config(use_coadd=use_coadd)
 
         # Create metadata for MEDS
         meta = bm._meds_metadata(magzp=30.0)
