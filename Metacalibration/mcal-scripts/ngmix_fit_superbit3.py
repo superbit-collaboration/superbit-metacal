@@ -369,8 +369,7 @@ def main(args):
     identifying={'meds_index':[],'id':[],'ra':[],'dec':[]}
     mcal={'noshear':[],'1p':[],'1m':[],'2p':[],'2m':[]}
     
-    homedir='/Users/jemcclea/Research/SuperBIT/metacal/forecasting/cluster5/newshape_nobkg'
-    #homedir='./'
+    homedir='./'
     
     # Set up for saving files 
     im_savedir=os.path.join(homedir,'diagnostics_plots/')
