@@ -1,7 +1,7 @@
 # SuperBIT parameters
 # -------------------
 pixel_scale:        0.144       # Pixel scale                               [arcsec/px]
-gain:               1           # Camera gain                               [ADU / e-]
+gain:               1.2207           # Camera gain                               [ADU / e-]
 read_noise:         1.0         # Read noise                                [e-]
 dark_current:       0.0056      # mean dark current                         [ADU / px / s]
 dark_current_std:   0.001       # standard deviation dark current           [ADU /px / s]
@@ -16,7 +16,7 @@ strut_thick:        0.087       # Fraction of diameter strut thickness      [m/m
 strut_theta:        90          # Angle between vertical and nearest        [deg]
 obscuration:        0.380       # Fraction of aperture obscured by M2       []
 bandpass:    'crates_adu_shape' # Catalog filter name for simulation        []
-jitter_fwhm:        0.1         # Kernel size of SuperBIT jitter            [arcsec] 
+jitter_fwhm:        0.1         # Kernel size of SuperBIT jitter            [arcsec]
 
 # Simulated image parameters
 # --------------------------
@@ -41,7 +41,7 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 # Run parameters
 # --------------
 # Define some paths and filenames
-cosmosdir:          './data/' # Path to catalog data directory 
+cosmosdir:          './data/' # Path to catalog data directory
 cat_file_name:      'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
 cluster_cat_name:   './data/catalogs/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
 outdir:             './forecasting/cluster5/no_bkg' # directory where output images and truth catalogs are saved

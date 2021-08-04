@@ -623,11 +623,11 @@ fitvd --seed 67857848 --config /Users/jemcclea/Research/SuperBIT/superbit-ngmix/
 #gals=Table.read('mock_empirical_psf_coadd_cat.ldac',format='fits',hdu=2) #contains only analysis objects.
 #full=Table.read('mock_empirical_psf_coadd_cat_full.ldac',format='fits',hdu=2)
 
-gals=Table.read('mock_coadd_cat.ldac',format='fits',hdu=2) #contains only analysis objects.
-full=Table.read('mock_coadd_cat_full.ldac',format='fits',hdu=2)
+gals_b=Table.read('mock_coadd_cat.ldac',format='fits',hdu=2) #contains only analysis objects.
+full_b=Table.read('mock_coadd_cat_full.ldac',format='fits',hdu=2)
 
-plt.plot(full['MAG_AUTO'],full['FWHM_IMAGE'],'.b',alpha=0.4,label='all objects') 
-plt.plot(gals['MAG_AUTO'],gals['FWHM_IMAGE'],'.r',alpha=0.4,label='analysis objects')
+plt.plot(full_b['MAG_AUTO'],full_newshape['FWHM_IMAGE'],'.b',alpha=0.4,label='all objects') 
+plt.plot(gals_b['MAG_AUTO'],gals_newshape['FWHM_IMAGE'],'.r',alpha=0.4,label='analysis objects')
 
 #plt.plot(stars['MAG_AUTO'],stars['FWHM_IMAGE'],'*b',alpha=0.4,label='stars') 
 

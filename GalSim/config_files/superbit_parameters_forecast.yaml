@@ -41,9 +41,9 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 # Run parameters
 # --------------
 # Define some paths and filenames
-cosmosdir:          './data/' # Path to catalog data directory 
+datadir:          './data/' # Path to catalog data directory
 cat_file_name:      'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
-cluster_cat_name:   './data/real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
+cluster_cat_name:   'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
 outdir:             './forecasting/cluster5' # directory where output images and truth catalogs are saved
 
 

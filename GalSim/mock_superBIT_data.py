@@ -342,9 +342,8 @@ class SuperBITParameters:
             else:
                 # Define some default default parameters below.
                 # These are used in the absence of a .yaml config_file or command line args.
-                logger.info('Using default config file')
+                logger.info('Loading default config file...')
                 self._load_config_file("superbit_parameters_forecast.yaml")
-
 
             # Check for command line args to overwrite config_file and / or defaults
             if argv is not None:
@@ -385,7 +384,10 @@ class SuperBITParameters:
             Load parameters from a dictionary.
             """
             for (option, value) in d.items():
-                if option == "pixel_scale":     
+                if option == "config_file":
+                    logger.info('Overriding default config!\nLoading parameters from %s' % (value))
+                    self._load_config_file(str(value))
+                elif option == "pixel_scale":     
                     self.pixel_scale = float(value)
                 elif option == "sky_bkg":        
                     self.sky_bkg = float(value) 
@@ -431,9 +433,6 @@ class SuperBITParameters:
                     self.omega_m = float(value)  
                 elif option == "omega_lam":
                     self.omega_lam = float(value)
-                elif option == "config_file":
-                    logger.info('Loading parameters from %s' % (value))
-                    self._load_config_file(str(value))
                 elif option == "cosmosdir":
                     self.cosmosdir = str(value)
                 elif option == "datadir":
@@ -533,8 +532,11 @@ def main(argv):
 
     cosmos_cat = Table.read(os.path.join(sbparams.datadir,sbparams.cat_file_name))
     logger.info('Read in %d galaxies from catalog and associated fit info', len(cosmos_cat))
-
-    cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name, dir=sbparams.cosmosdir)
+    
+    try:
+        cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name, dir=sbparams.datadir)
+    except:
+        cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
     #logger.debug('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
     
 
@@ -701,7 +703,7 @@ def main(argv):
                 tot_time = time2-time1
                 logger.info('Cluster galaxy %d positioned relative to center t=%f s\n',
                                 k, tot_time)
-                this_flux=numpy.sum(stamp.array)
+                this_flux=numpy.sum(cluster_stamp.array)
                 row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
                             this_flux,truth.fwhm,truth.mom_size,
                             truth.n, truth.hlr,truth.scale_h_over_r]
