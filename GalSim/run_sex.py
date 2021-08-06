@@ -6,30 +6,33 @@ import pdb
 def main(argv):
     sextractor_config_path = '/Users/jemcclea/Research/SuperBIT/superbit-ngmix/superbit/astro_config/'
     #all_fits_files=glob.glob("/Users/jemcclea/Research/GalSim/examples/output-bandpass/mockSuperbit_scaled_empiricalPSF_???_?.fits")
-    all_fits_files=glob.glob("/Users/jemcclea/Research/SuperBIT/superbit-metacal/GalSim/output-stars/gaussPSF/testPSFEx_gaussStars_1.fits")
+    all_fits_files=glob.glob("/Users/jemcclea/Research/SuperBIT/A2218/Clean/other_filters/dwb*.fits")
     
     for fits in all_fits_files:
         detection_file=fits
-        weight_file ='/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/output-real2/supermask.fits' #for want of st better...
-        weight_arg = '-WEIGHT_IMAGE '+weight_file
-        config_arg = sextractor_config_path+'sextractor.mock.config'
+        weight_file ='/Users/jemcclea/Research/SuperBIT/superbit-ngmix/scripts/mask_files/supermask.fits' #for want of st better...
+        #weight_arg = '-WEIGHT_IMAGE '+weight_file
+        weight_arg = '-WEIGHT_TYPE NONE'
+        config_arg = sextractor_config_path+'sextractor.config'
         param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
         nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
         filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
 
         try:
+
+            outname=fits.split('dwb_')[1].replace('.fits','.ldac')
+            bkgname=fits.split('dwb_')[1].replace('.fits','aper.fits')
+
+        except:
             #outname=fits.split('mockSuperbit_')[1].replace('.fits','.ldac')
             #bkgname=fits.split('mockSuperbit_')[1].replace('.fits','.sub.fits')
             outname=fits.replace('.fits','.ldac')
-            bkgname=fits.replace('.fits','.sub.fits')
-        except:
-            outname=fits.split('dwb_')[1].replace('.fits','.ldac')
-            bkgname=fits.split('dwb_')[1].replace('.fits','sub.fits')
+            bkgname=fits.replace('.fits','.aper.fits')
             #outname='A2218_coadd_cat2.fits'
         name_arg ='-CATALOG_NAME ' + outname
         bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
         
-        cmd = ' '.join(['sex',detection_file,name_arg,bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
+        cmd = ' '.join(['sex',detection_file,name_arg,bkg_arg, weight_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
         print("sex cmd is " + cmd)
         os.system(cmd)
         

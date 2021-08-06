@@ -48,7 +48,6 @@ cat_file_name:      'cosmos2015_cam2021_filt2021.csv' # catalog file name for CO
 cluster_cat_name:   '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
 outdir:             './forecasting/offset' # directory where output images and truth catalogs are saved
 
-
 # Misc parameters
 # ---------------
 noise_seed:         95967076    # Random number seed for image noise
