@@ -1,3 +1,5 @@
 *catalog*
 *.vscode
 *.pyc
+GalSim/data/*.csv
+notebooks/*

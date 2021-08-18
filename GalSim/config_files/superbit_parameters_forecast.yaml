@@ -28,6 +28,7 @@ nobj:               340          # Number of galaxies (COSMOS 25.2 depth)    []
 nstars:             350         # Number of stars in the field              []
 nexp:               2           # Number of exposures per PSF model         []
 nclustergal:        35          # Number of cluster galaxies (arbitrary)    []
+#index_convention:   '1'
 
 # Simulated cluster parameters
 # ----------------------------
@@ -41,11 +42,11 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 # Run parameters
 # --------------
 # Define some paths and filenames
-datadir:          './data/' # Path to catalog data directory
+cosmosdir:          '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_25.2_training_sample/' # Path to COSMOS data directory
+datadir:          '/Users/sweveret/repos/superbit-metacal/GalSim/data' # Path to repo/GalSim data directory
 cat_file_name:      'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
-cluster_cat_name:   'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
-outdir:             './forecasting/cluster5' # directory where output images and truth catalogs are saved
-
+cluster_cat_name:   '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
+outdir:             './forecasting/offset' # directory where output images and truth catalogs are saved
 
 # Misc parameters
 # ---------------
