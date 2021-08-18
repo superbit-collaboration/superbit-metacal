@@ -396,7 +396,7 @@ def make_output_table(outfilename, mcal, identifying, return_table=False):
     TO DO: find more compact/pythonic way of doing this exercise?
     """
 
-    join_tab = mcaldict2tab(mcal, identifying)
+    join_tab = mcal_dict2tab(mcal, identifying)
 
     write_output_table(outfilename, join_tab)
 
