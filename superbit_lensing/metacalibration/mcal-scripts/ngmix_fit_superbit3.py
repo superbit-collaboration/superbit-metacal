@@ -17,7 +17,8 @@ import time
 
 from multiprocessing import Pool
 import multiprocessing
-import logging
+
+import superbit_lensing.utils as sb_utils
 
 #sing.log_to_stderr()
 # mpl.setLevel(logging.INFO)
@@ -38,21 +39,6 @@ parser.add_argument('--n', type=int, default=None,
                     help='Number of cores to use')
 parser.add_argument('-v', '--verbose', action='store_true',
                     help='Make verbose')
-
-class LogPrint(object):
-
-    def __init__(self, log, vb):
-        self.log = log
-        self.vb = vb
-
-        return
-
-    def __call__(self, msg):
-        self.log.info(msg)
-        if self.vb is True:
-            print(msg)
-
-        return
 
 class ForkedPdb(pdb.Pdb):
     """A Pdb subclass that may be used
@@ -369,23 +355,6 @@ def set_seed(config):
 
     return
 
-def setup_log(config):
-    '''setup log in same dir as meds file'''
-    f = config['medsfile']
-    logdir = os.path.dirname(f)
-    logfile = os.path.join(logdir, 'mcal-fitting.log')
-
-    # only works for newer versions of python
-    # log = logging.basicConfig(filename=logfile, level=logging.DEBUG)
-
-    log = logging.getLogger()
-    log.setLevel(logging.DEBUG)
-    handler = logging.FileHandler(logfile, 'w', 'utf-8')
-    handler.setFormatter(logging.Formatter('%(name)s %(message)s'))
-    log.addHandler(handler)
-
-    return log
-
 def make_output_table(outfilename, mcal, identifying, return_table=False):
     """
     Create an output table and add in metacal/ngmix galaxy fit parameters
@@ -628,8 +597,10 @@ def main():
     set_seed(config)
 
     # Setup log in same dir as meds file
-    log = setup_log(config)
-    logprint = LogPrint(log, vb)
+    logdir = os.path.dirname(config['medsfile'])
+    logfile = 'mcal_fitting.log'
+    log = sb_utils.setup_log(logfile, logdir=logdir)
+    logprint = sb_utils.LogPrint(log, vb)
 
     log.info(f'MEDS file: {medsfile}')
     log.info(f'index start, end: {index_start}, {index_end}')
