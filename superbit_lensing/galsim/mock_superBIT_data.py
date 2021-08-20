@@ -343,11 +343,13 @@ class SuperBITParameters:
                 # Define some default default parameters below.
                 # These are used in the absence of a .yaml config_file or command line args.
                 logger.info('Loading default config file...')
-                self._load_config_file("superbit_parameters_forecast.yaml")
+                self._load_config_file('config_files/superbit_parameters_forecast.yaml')
 
             # Check for command line args to overwrite config_file and / or defaults
             if argv is not None:
                 self._load_command_line(argv)
+
+            return
 
         def _load_config_file(self, config_file):
             """
@@ -357,7 +359,9 @@ class SuperBITParameters:
             with open(config_file) as fsettings:
                 config = yaml.load(fsettings, Loader=yaml.FullLoader)
             self._load_dict(config)
-            
+
+            return
+
         def _args_to_dict(self, argv):
             """
             Converts a command line argument array to a dictionary.
