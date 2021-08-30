@@ -1,17 +1,11 @@
 from abc import ABC, abstractmethod
-from glob import glob
 import os
 import yaml
 import utils
 import logging
 import subprocess
 import superbit_lensing as sb
-
-# TODO: We should move this stuff into a separate diagnostics.py file
-#       at some point
-import matplotlib.pyplot as plt
-from astropy.table import Table
-
+from diagnostics import build_diagnostics
 import pudb
 
 class SuperBITModule(dict):
@@ -35,10 +29,9 @@ class SuperBITModule(dict):
             raise TypeError(f'The passed config for module {name} was not a dict!')
 
         self._config = config
-
         self._check_config(set_defaults=set_defaults)
 
-        self.plotdir = None
+        self.diagnostics = build_diagnostics(name, config)
 
         return
 
@@ -98,7 +91,9 @@ class SuperBITModule(dict):
         pass
 
     def run_diagnostics(self, run_options, logprint):
-        pass
+        self.diagnostics.run(run_options, logprint)
+
+        return
 
     def _run_command(self, cmd, logprint):
         '''
@@ -207,7 +202,7 @@ class SuperBITPipeline(SuperBITModule):
     # This is how modules are registered
     # _opt_fields = {get_module_types().keys()}
     _opt_fields = [] # Gets setup in constructor
-    _opt_run_options_fields = ['ncores', 'diagnostics']
+    _opt_run_options_fields = ['ncores', 'run_diagnostics']
 
     def __init__(self, config_file, log=None):
 
@@ -225,12 +220,12 @@ class SuperBITPipeline(SuperBITModule):
             ncores = os.cpu_count() // 2
             self._config['run_options']['ncores'] = ncores
 
-        col = 'diagnostics'
+        col = 'run_diagnostics'
         # if hasattr(self._config['run_options'], col):
         if col in self._config['run_options']:
-            self.diagnostics = self._config['run_options'][col]
+            self.run_diagnostics = self._config['run_options'][col]
         else:
-            self.diagnostics = False
+            self.run_diagnostics = False
 
         self.log = log
         self.vb = self._config['run_options']['vb']
@@ -286,7 +281,7 @@ class SuperBITPipeline(SuperBITModule):
                 self.logprint.warning(f'Exception occured during {module.name}.run()')
                 return 1
 
-            if self.diagnostics is True:
+            if self.run_diagnostics is True:
                 module.run_diagnostics(self._config['run_options'], self.logprint)
 
         return 0
@@ -351,61 +346,6 @@ class GalSimModule(SuperBITModule):
     def run_diagnostics(self, run_options, logprint):
 
         super(GalSimModule, self).run_diagnostics(run_options, logprint)
-
-        logprint(f'Running diagnostics for {self.name}')
-
-        plotdir = os.path.join(self._config['outdir'], 'plots')
-        plot_outdir = os.path.join(plotdir, self.name)
-
-        for d in [plotdir, plot_outdir]:
-            if not os.path.exists(d):
-                os.mkdir(d)
-
-        self.plotdir = plot_outdir
-
-        ## Check consistency of truth tables
-        self.plot_compare_truths(run_options, logprint)
-
-        return
-
-    def plot_compare_truths(self, run_options, logprint):
-        # TODO: Not obvious to me why there are multiple tables - this here
-        # just to prove this. Can remove later
-
-        truth_tables = glob(os.path.join(self._config['outdir'], 'truth*.fits'))
-        N = len(truth_tables)
-
-        tables = []
-        for fname in truth_tables:
-            tables.append(Table.read(fname))
-
-        cols = ['ra', 'flux', 'hlr']
-        Nrows = len(cols)
-        Nbins = 30
-        ec = 'k'
-        alpha = 0.75
-
-        for i in range(1, Nrows+1):
-            plt.subplot(Nrows, 1, i)
-
-            col = cols[i-1]
-
-            k = 1
-            for t in tables:
-                plt.hist(t[col], bins=Nbins, ec=ec, alpha=alpha, label=f'Truth_{k}')
-                k += 1
-
-            plt.xlabel(f'True {col}')
-            plt.ylabel('Counts')
-            plt.legend()
-
-            if ('flux' in col) or ('hlr' in col):
-                plt.yscale('log')
-
-        plt.gcf().set_size_inches(9, 3*Nrows+2)
-
-        outfile = os.path.join(self.plotdir, 'compare_truth_tables.pdf')
-        plt.savefig(outfile, bbox_inches='tight')
 
         return
 
@@ -507,7 +447,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     # 'outdir':
                     'vb': True,
                     'ncores': 4,
-                    'diagnostics': True,
+                    'run_diagnostics': True,
                     'order': [
                         'galsim',
                         'medsmaker',
@@ -543,10 +483,10 @@ def get_module_types():
 
 # NOTE: This is where you must register a new module
 MODULE_TYPES = {
-    'galsim' : GalSimModule,
-    'medsmaker' : MedsmakerModule,
-    'metacal' : MetacalModule,
-    'shear-profile' : ShearProfileModule,
+    'galsim': GalSimModule,
+    'medsmaker': MedsmakerModule,
+    'metacal': MetacalModule,
+    'shear-profile': ShearProfileModule,
     }
 
 def main():
