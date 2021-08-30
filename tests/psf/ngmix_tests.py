@@ -22,11 +22,16 @@ parser.add_argument('--nreal', type=int, default=1, help='Number of realizations
 parser.add_argument('--seed', type=int, default=72396, help='Number of CPU cores to use')
 parser.add_argument('-v', '--verbose', action='store_true', default=False, help='Verbose')
 
-def setup_test_config(gal_model='exp', psf_model='gauss'):
+def setup_test_config():
 
     config = {
-        'gal_model': gal_model,
-        'psf_model': psf_model,
+        'gal_type': 'inclined_exp',
+        'gal_model': 'exp',
+        'psf_type': 'gauss',
+        'psf_model': 'gauss',
+        # 'ngmix_type': 'base',
+        'ngmix_type': 'metacal',
+        'mcal_shear': 0.01,
         'pixel_scale': 0.144, # arcsec/pixel
         # 'psf_scale': 0.144, # arcsec/pixel
         'centroid_offset': 0, # pixels
@@ -34,13 +39,14 @@ def setup_test_config(gal_model='exp', psf_model='gauss'):
         'nobs': 1,
         'gal_flux': 1000.,
         'gal_hlr': 2., # arcsec
-        'psf_noise': 1e-3,
-        'gal_noise': 1e-1,
-        # 'psf_noise': 1e-9,
-        # 'gal_noise': 1e-9,
-        'psf_fwhm': 0.1, # arcsec
-        'g1': 0.,
-        'g2': 0.,
+        'gal_inclination': 0, # degrees
+        # 'psf_noise': 1e-3,
+        # 'gal_noise': 1e-1,
+        'psf_noise': 1e-9,
+        'gal_noise': 1e-9,
+        'psf_fwhm': 0.3, # arcsec
+        'g1': 0.05,
+        'g2': 0.1,
         }
 
     return config
@@ -124,6 +130,11 @@ def make_model(config, obj, model):
         hlr = config[f'{obj}_hlr']
         gs = galsim.Exponential(half_light_radius=hlr, flux=flux)
 
+    elif model == 'inclined_exp':
+        inc = galsim.Angle(config[f'{obj}_inclination'], unit=galsim.degrees)
+        hlr = config[f'{obj}_hlr']
+        gs = galsim.InclinedExponential(inc, half_light_radius=hlr, flux=flux)
+
     else:
         raise ValueError('Warning: `make_data` is not yet implemented ' +
                          f'for gal_model={gal_model}!')
@@ -150,12 +161,12 @@ def make_obj(i, config):
         dx, dy = 0., 0.
 
     # Make galaxy
-    gal = make_model(config, 'gal', config['gal_model'])
-    gal.shear(g1=g1, g2=g2)
-    gal.shift(dx=dx, dy=dy)
+    gal = make_model(config, 'gal', config['gal_type'])
+    gal = gal.shear(g1=g1, g2=g2)
+    gal = gal.shift(dx=dx, dy=dy)
 
     # Make PSF
-    psf = make_model(config, 'psf', config['psf_model'])
+    psf = make_model(config, 'psf', config['psf_type'])
 
     # Make object observation
     obj = galsim.Convolve(psf, gal)
@@ -267,6 +278,9 @@ def main():
         logprint(f'Reading config file {config_file}')
         config = utils.read_yaml(config_file)
 
+    if 'ngmix_type' not in config:
+        config['ngmix_type'] = 'base'
+
     for key, val in vars(args).items():
         config[key] = val
 
@@ -280,33 +294,34 @@ def main():
     logprint('Making data')
     obs_list = make_data(config)
 
-    # Will eventually do a mcal setup:
-    # Metacal setup
-    # mcal_shear = 0.01
-    # metacal_pars={'step':mcal_shear}
-    # lm_pars = {'maxfev':2000, 'xtol':5.0e-5, 'ftol':5.0e-5}
-    # max_pars = {'method':'lm','lm_pars':lm_pars,'find_center':True}
-    # prior=_get_priors()
-    # Tguess=4*jj_im.get_scale()**2
-    # ntry=3
-
     for i in range(nobjs):
         logprint(f'Starting object {i}')
 
         obs = obs_list[i]
+        res, boot = do_fit(obs, priors, config, logprint)
+
+        make_plots(config, obs, boot, logprint)
+
+    logprint('Done!')
+
+    return
+
+def do_fit(obs, priors, config, logprint):
+    ngmix_type = config['ngmix_type'].lower()
+
+    psf_Tguess = config['psf_fwhm']*config['pixel_scale']**2
+
+    pars = {
+        'method': 'lm',
+        'lm_pars': {},
+    }
+
+    if ngmix_type == 'base':
         boot = ngmix.Bootstrapper(obs)
-
-        psf_Tguess = config['psf_fwhm']*config['pixel_scale']**2
-
         boot.fit_psfs(
             config['psf_model'],
             psf_Tguess,
         )
-
-        pars = {
-            'method': 'lm',
-            'lm_pars': {},
-        }
 
         logprint('Starting fit...')
         boot.fit_max(
@@ -315,28 +330,45 @@ def main():
         )
 
         res = boot.get_fitter().get_result()
-        assert res['flags'] == 0
 
-        make_plots(config, obs, boot, logprint)
+    if ngmix_type == 'metacal':
+        ntry = 3
+        mcal_shear = config['mcal_shear']
+        mcal_pars = {'step':mcal_shear}
+        boot = ngmix.bootstrap.MaxMetacalBootstrapper(obs)
 
-        # Will eventually use mcal:
-        # mcal_boot = ngmix.bootstrap.MaxMetacalBootstrapper(obs_list)
-        # mcal_boot.fit_metacal(config['psf_model'],
-        #                       config['gal_model'],
-        #                       max_pars,
-        #                       Tguess,
-        #                       prior=priors,
-        #                       ntry=ntry,
-        #                       metacal_pars=mcal_pars)
+        logprint('Starting fit...')
+        boot.fit_metacal(config['psf_model'],
+                         config['gal_model'],
+                         pars,
+                         psf_Tguess,
+                         prior=priors,
+                         ntry=ntry,
+                         metacal_pars=mcal_pars)
 
-    logprint('Done!')
+        # To generate a model image, we have to call the following:
+        lm_pars = {'maxfev':2000, 'xtol':5.0e-5, 'ftol':5.0e-5}
+        max_pars = {'method':'lm', 'lm_pars':lm_pars, 'find_center':True}
+        boot.fit_psfs(config['psf_model'], 1.)
+        boot.fit_max(config['gal_model'], max_pars, prior=priors)
 
-    return
+    res = boot.get_fitter().get_result()
+
+    assert res['flags'] == 0
+
+    return res, boot
+
+def get_adaptive_moment(im, scale):
+    gs_im = galsim.Image(im, scale=scale)
+    return gs_im.FindAdaptiveMom().moments_sigma
 
 def make_plots(config, obs, boot, logprint):
 
     run_name = config['run_name']
     outdir = config['outdir']
+
+    scale = config['pixel_scale']
+    g1, g2 = config['g1'], config['g2']
 
     ###############################################
     # Make PSF plots
@@ -349,18 +381,31 @@ def make_plots(config, obs, boot, logprint):
 
     im1 = ax1.imshow(psf_obs, origin='lower')
     plt.colorbar(im1, ax=ax1)
-    ax1.set_title('Observed PSF')
+    am1 = get_adaptive_moment(psf_obs, scale)
+    ax1.set_title(f'Observed PSF\nAdaptive Moment = {am1:.5f}')
 
     im2 = ax2.imshow(psf_model, origin='lower')
     plt.colorbar(im2, ax=ax2)
-    ax2.set_title('Model PSF')
+    am2 = get_adaptive_moment(psf_model, scale)
+    ax2.set_title(f'Model PSF\nAdaptive Moment = {am2:.5f}')
 
     im3 = ax3.imshow(psf_obs - psf_model, origin='lower')
     plt.colorbar(im3, ax=ax3)
-    ax3.set_title('Observed - Model PSF')
+    diff = 100.*(am1-am2) / am2
+    ax3.set_title(f'Observed - Model PSF\nAM diff = {diff:.5f}%')
 
     fwhm = config['psf_fwhm']
-    fig.suptitle(f'Run {run_name}: Exponential Galaxy + Gaussian PSF; FWHM={fwhm}')
+    gal_meas = config['gal_model']
+    psf_meas = config['psf_model']
+    gal_true = config['gal_type']
+    psf_true = config['psf_type']
+    fig.suptitle(f'Run: {run_name}\n' +
+                 f'Meas `{gal_meas}` Galaxy + `{psf_meas}` PSF; FWHM={fwhm}\n' +
+                 f'True `{gal_true}` Galaxy + `{psf_true}` PSF; ' +
+                 f'(g1, g2) = ({g1:.4f}, {g2:.4f})\n',
+                 y=1.)
+
+    plt.tight_layout()
 
     outfile = f'ngmix-test-{run_name}-psf-compare-fwhm-{fwhm}.png'
     fig.savefig(os.path.join(outdir, outfile), bbox_inches='tight')
@@ -378,20 +423,30 @@ def make_plots(config, obs, boot, logprint):
 
     im1 = ax1.imshow(gal_obs, origin='lower')
     plt.colorbar(im1, ax=ax1)
-    ax1.set_title('Observed source')
+    am1 = get_adaptive_moment(gal_obs, scale)
+    ax1.set_title(f'Observed source\nAdaptive Moment = {am1:.5f}')
 
     im2 = ax2.imshow(gal_model, origin='lower')
     plt.colorbar(im2, ax=ax2)
-    ax2.set_title('Model profile')
+    am2 = get_adaptive_moment(gal_model, scale)
+    ax2.set_title(f'Model profile\nAdaptive Moment = {am2:.5f}')
 
     im3 = ax3.imshow(gal_obs - gal_model, origin='lower')
     plt.colorbar(im3, ax=ax3)
-    ax3.set_title('Observed - Model source')
+    diff = 100.*(am1-am2) / am2
+    ax3.set_title(f'Observed - Model source\nAM diff = {diff:.5f}%')
 
-    fig.suptitle(f'Run {run_name}: Exponential Galaxy + Gaussian PSF; FWHM={fwhm}')
+    fig.suptitle(f'Run: {run_name}\n' +
+                 f'Meas `{gal_meas}` Galaxy + `{psf_meas}` PSF; FWHM={fwhm}\n' +
+                 f'True `{gal_true}` Galaxy + `{psf_true}` PSF; ' +
+                 f'(g1, g2) = ({g1:.4f}, {g2:.4f})\n',
+                 y=1.)
+
+    plt.tight_layout()
 
     outfile = f'ngmix-test-{run_name}-gal-compare-fwhm-{fwhm}.png'
     fig.savefig(os.path.join(outdir, outfile), bbox_inches='tight')
+
     plt.show()
     plt.close()
 
