@@ -414,7 +414,7 @@ class BITMeasurement():
             weightfile = self.mask_file.replace('mask', 'weight')
             psfex_model_file = self._make_psf_model(imagefile, weightfile=weightfile, select_stars=select_stars)
             # move checkimages to psfex_output
-            cmd = ' '.join(['mv chi* resi* samp* snap* proto*', self.psf_path])
+            cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', self.psf_path])
             os.system(cmd)
             # utils.run_command(cmd, logprint=self.logprint)
 

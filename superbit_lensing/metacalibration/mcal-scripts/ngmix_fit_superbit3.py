@@ -18,7 +18,7 @@ import time
 from multiprocessing import Pool
 import multiprocessing
 
-import superbit_lensing.utils as sb_utils
+import superbit_lensing.utils as utils
 
 #sing.log_to_stderr()
 # mpl.setLevel(logging.INFO)
@@ -29,41 +29,28 @@ parser.add_argument('medsfile', type=str,
                     help='MEDS file to process')
 parser.add_argument('outfile', type=str,
                     help='Output filename')
+parser.add_argument('--outdir', type=str, default=None,
+                    help='Output directory')
 parser.add_argument('--start', type=int, default=None,
                     help='Starting index for MEDS processing')
 parser.add_argument('--end', type=int, default=None,
                     help='Ending index for MEDS processing')
 parser.add_argument('--plot', type=str, default=True,
                     help='Make diagnoistic plots')
-parser.add_argument('--n', type=int, default=None,
+parser.add_argument('--n', type=int, default=1,
                     help='Number of cores to use')
 parser.add_argument('-v', '--verbose', action='store_true',
                     help='Make verbose')
-
-class ForkedPdb(pdb.Pdb):
-    """A Pdb subclass that may be used
-    from a forked multiprocessing child
-    https://stackoverflow.com/questions/4716533/how-to-attach-debugger-to-a-python-subproccess
-    """
-    def interaction(self, *args, **kwargs):
-        _stdin = sys.stdin
-        try:
-            sys.stdin = open('/dev/stdin')
-            pdb.Pdb.interaction(self, *args, **kwargs)
-        finally:
-            sys.stdin = _stdin
-
-        return
 
 class SuperBITNgmixFitter():
     """
     class to process a set of observations from a MEDS file.
 
-    meds_info: A dict or list of dicts telling us how to process the one or meds
-               files provided.
-
+    config: A dictionary that holds all relevant info for class construction,
+            including meds file location
     """
-    def __init__(self, config, meds_info=None):
+
+    def __init__(self, config):
 
         # The meds file groups data together by source.
         # To run, we need to make an ObservationList object for each source.
@@ -81,7 +68,9 @@ class SuperBITNgmixFitter():
 
         self.config = config
         self.seed = config['seed']
-        self.medsObj = meds.MEDS(meds_info['meds_file'])
+
+        fname = os.path.join(config['outdir'], config['medsfile'])
+        self.medsObj = meds.MEDS(fname)
         self.catalog = self.medsObj.get_cat()
 
         try:
@@ -507,7 +496,7 @@ def mp_run_fit(i, obj, jaclist, obslist, prior, imc, plotter, config, logprint):
 
     start = time.time()
 
-    # ForkedPdb().set_trace()
+    # utils.ForkedPdb().set_trace()
 
     logprint(f'Starting fit for obj {i}')
 
@@ -553,7 +542,9 @@ def mp_run_fit(i, obj, jaclist, obslist, prior, imc, plotter, config, logprint):
         logprint(e)
         logprint('object {i} failed, skipping...')
 
-        mcal_tab = None
+        return Table()
+
+        # mcal_tab = None
 
     end = time.time()
 
@@ -568,18 +559,19 @@ def main():
     vb = args.verbose # if True, prints out values of R11/R22 for every galaxy
     medsfile = args.medsfile
     outfilename = args.outfile
+    outdir = args.outdir
     index_start  = args.start
     index_end = args.end
     make_plots = args.plot
     nproc = args.n
-    meds_info = {'meds_file':medsfile}
     identifying = {'meds_index':[], 'id':[], 'ra':[], 'dec':[]}
     mcal = {'noshear':[], '1p':[], '1m':[], '2p':[], '2m':[]}
 
-    homedir = './'
+    if outdir is None:
+        outdir = os.getcwd()
 
     # Set up for saving files
-    im_savedir = os.path.join(homedir, 'diagnostics_plots/')
+    im_savedir = os.path.join(outdir, 'plots/metacalibration/')
     if make_plots is True:
         if not os.path.isdir(im_savedir):
             cmd = 'mkdir -p %s' % im_savedir
@@ -590,28 +582,28 @@ def main():
     config = {}
     config['medsfile'] = medsfile
     config['outfile'] = outfilename
+    config['outdir'] = outdir
     config['verbose'] = vb
     config['make_plots'] = make_plots
     config['im_savedir'] = im_savedir
     config['nproc'] = nproc
     set_seed(config)
 
-    # Setup log in same dir as meds file
-    logdir = os.path.dirname(config['medsfile'])
+    logdir = outdir
     logfile = 'mcal_fitting.log'
-    log = sb_utils.setup_log(logfile, logdir=logdir)
-    logprint = sb_utils.LogPrint(log, vb)
+    log = utils.setup_logger(logfile, logdir=logdir)
+    logprint = utils.LogPrint(log, vb)
 
-    log.info(f'MEDS file: {medsfile}')
-    log.info(f'index start, end: {index_start}, {index_end}')
-    log.info(f'outfile: {outfilename}')
-    log.info(f'make_plots: {make_plots}')
-    log.info(f'im_savedir: {im_savedir}')
-    log.info(f'nproc: {nproc}')
-    log.info(f'vb: {vb}')
-    log.info(f'seed: {config["seed"]}')
+    logprint(f'MEDS file: {medsfile}')
+    logprint(f'index start, end: {index_start}, {index_end}')
+    logprint(f'outfile: {os.path.join(outdir, outfilename)}')
+    logprint(f'make_plots: {make_plots}')
+    logprint(f'im_savedir: {im_savedir}')
+    logprint(f'nproc: {nproc}')
+    logprint(f'vb: {vb}')
+    logprint(f'seed: {config["seed"]}')
 
-    BITfitter = SuperBITNgmixFitter(config, meds_info) # MEDS file
+    BITfitter = SuperBITNgmixFitter(config)
 
     priors = BITfitter._get_priors()
 
@@ -638,6 +630,8 @@ def main():
     # for no multiprocessing:
     # mcal_res = []
     # for i in range(index_start, index_end):
+    #     # if i == 3:
+    #     #     pudb.set_trace()
     #     mcal_res.append(mp_run_fit(
     #                       i,
     #                       setup_obj(i, BITfitter.medsObj[i]),
@@ -678,7 +672,7 @@ def main():
     logprint(f'{T/N} seconds per object (wall time)')
     logprint(f'{T/N*nproc} seconds per object (CPU time)')
 
-    out = os.path.join(homedir, outfilename)
+    out = os.path.join(outdir, outfilename)
 
     logprint(f'Writing results to {out}')
 
@@ -689,10 +683,11 @@ def main():
     return
 
 if __name__ == '__main__':
+    main()
 
-    try:
-        main()
-    except:
-        thingtype, value, tb = sys.exc_info()
-        traceback.print_exc()
-        pdb.post_mortem(tb)
+    # try:
+    #     main()
+    # except:
+    #     thingtype, value, tb = sys.exc_info()
+    #     traceback.print_exc()
+    #     pdb.post_mortem(tb)

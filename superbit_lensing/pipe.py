@@ -70,9 +70,9 @@ class SuperBITModule(dict):
 
     def _setup_options(self, run_options):
         options = ''
-        # for opt in self._opt_fields:
-            # if opt in self._config:
-            #     options += f' --{opt}={self._config[opt]}'
+        for opt in self._opt_fields:
+            if opt in self._config:
+                options += f' --{opt}={self._config[opt]}'
 
         vb = ' -v' if run_options['vb'] is True else ''
         options += vb
@@ -215,22 +215,23 @@ class SuperBITPipeline(SuperBITModule):
                                                # set_defaults=False)
         self._check_config()
 
-        if self._config['run_options']['ncores'] is None:
-            # use half by default
-            ncores = os.cpu_count() // 2
-            self._config['run_options']['ncores'] = ncores
-
-        col = 'run_diagnostics'
-        # if hasattr(self._config['run_options'], col):
-        if col in self._config['run_options']:
-            self.run_diagnostics = self._config['run_options'][col]
-        else:
-            self.run_diagnostics = False
-
         self.log = log
         self.vb = self._config['run_options']['vb']
 
         self.logprint = utils.LogPrint(log, self.vb)
+
+        if self._config['run_options']['ncores'] is None:
+            # use half available cores by default
+            ncores = os.cpu_count() // 2
+            self._config['run_options']['ncores'] = ncores
+            self.logprint(f'`ncores` was not set; using half available ({ncores})')
+
+        col = 'run_diagnostics'
+        if col in self._config['run_options']:
+            self.do_diagnostics = self._config['run_options'][col]
+        else:
+            self.do_diagnostics = False
+            self._config['run_options'][col] = False
 
         module_names = list(self._config['run_options']['order'])
         # module_names.remove('run_options') # Not really a module
@@ -273,7 +274,7 @@ class SuperBITPipeline(SuperBITModule):
         Run each module in order
         '''
 
-        self.logprint('Starting pipeline run')
+        self.logprint('\nStarting pipeline run\n')
         for module in self.modules:
             rc = module.run(self._config['run_options'], self.logprint)
 
@@ -281,8 +282,10 @@ class SuperBITPipeline(SuperBITModule):
                 self.logprint.warning(f'Exception occured during {module.name}.run()')
                 return 1
 
-            if self.run_diagnostics is True:
+            if self.do_diagnostics is True:
                 module.run_diagnostics(self._config['run_options'], self.logprint)
+
+        logprint('\nFinished pipeline run\n')
 
         return 0
 
@@ -304,7 +307,7 @@ class GalSimModule(SuperBITModule):
         taken place
         '''
 
-        logprint(f'Running module {self.name}')
+        logprint(f'\nRunning module {self.name}\n')
         logprint(f'config:\n{self._config}')
 
         self.gs_config_path = os.path.join(self._config['config_dir'],
@@ -326,14 +329,15 @@ class GalSimModule(SuperBITModule):
         outdir = self._config['outdir']
         base = f'python {galsim_filepath} {self.gs_config_path} --outdir={outdir}'
 
-        options = self._setup_options(run_options)
+        # options = self._setup_options(run_options)
+        options = ''
 
-        # if not hasattr(self._config, 'run_name'):
         if 'run_name' not in self._config:
             run_name = run_options['run_name']
             options += f' --run_name={run_name}'
 
-        # options = f'--run_name={run_name} --outdir={outdir}' + vb
+        if run_options['vb'] is True:
+            options += ' -v'
 
         cmd = base + options
 
@@ -362,7 +366,7 @@ class MedsmakerModule(SuperBITModule):
         return
 
     def run(self, run_options, logprint):
-        logprint(f'Running module {self.name}')
+        logprint(f'\nRunning module {self.name}\n')
         logprint(f'config:\n{self._config}')
 
         cmd = self._setup_run_command(run_options)
@@ -373,11 +377,10 @@ class MedsmakerModule(SuperBITModule):
 
     def _setup_run_command(self, run_options):
 
-
         mock_dir = self._config['mock_dir']
         outfile = self._config['outfile']
 
-        filepath = os.path.join(utils.MODULE_DIR,
+        filepath = os.path.join(utils.get_module_dir(),
                                 'medsmaker',
                                 'scripts',
                                 'process_mocks.py')
@@ -391,19 +394,59 @@ class MedsmakerModule(SuperBITModule):
         return cmd
 
 class MetacalModule(SuperBITModule):
-    _req_fields = []
-    _opt_fields = ['config_file', 'config_dir']
+    _req_fields = ['medsfile', 'outfile']
+    _opt_fields = ['outdir', 'start', 'end', 'plot', 'n', 'vb']
+
+    def __init__(self, name, config):
+        super(MetacalModule, self).__init__(name, config)
+
+        col = 'outdir'
+        if col not in self._config:
+            self._config[col] = os.getcwd()
+
+        return
 
     def run(self, run_options, logprint):
-        logprint(f'Warning: run method for {self.name} module not yet implemented!')
-        logprint('Normally this would error, but doing test runs.')
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
 
-        # cmd = self._setup_run_comand(run_options)
+        cmd = self._setup_run_command(run_options)
 
-        # rc = self._run_command(cmd, logprint)
-        rc = 0
+        rc = self._run_command(cmd, logprint)
 
         return rc
+
+    def _setup_run_command(self, run_options):
+
+        run_name = run_options['run_name']
+        outdir = self._config['outdir']
+
+        medsfile = self._config['medsfile']
+        outfile = self._config['outfile']
+        outfile = os.path.join(outdir, outfile)
+
+        mcal_dir = os.path.join(utils.get_module_dir(),
+                                'metacalibration',
+                                'mcal-scripts')
+        filepath = os.path.join(mcal_dir, 'ngmix_fit_superbit3.py')
+
+        base = f'python {filepath} {medsfile} {outfile}'
+
+        col = 'n'
+        if col not in self._config:
+            self._config['n'] = run_options['ncores']
+
+        col = 'plot'
+        if col not in self._config:
+            self._config['plot'] = run_options['run_diagnostics']
+
+        # options = f' --outdir={outdir} --plot={plot} --n={ncores}' + \
+        #     self._setup_options(run_options)
+        options = self._setup_options(run_options)
+
+        cmd = base + options
+
+        return cmd
 
 class ShearProfileModule(SuperBITModule):
     _req_fields = []
@@ -444,9 +487,10 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
             CONFIG = {
                 'run_options': {
                     'run_name': run_name,
-                    # 'outdir':
+                    # 'outdir': os.path.join(utils.get_test_dir(),
+                    #                        run_name),
                     'vb': True,
-                    'ncores': 4,
+                    'ncores': 8,
                     'run_diagnostics': True,
                     'order': [
                         'galsim',
@@ -469,8 +513,13 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'outfile': f'{run_name}_meds.fits'
                 },
                 'metacal': {
-                    'config_file': 'test.yaml',
-                    'config_dir': 'test'
+                    'medsfile': os.path.join(utils.get_test_dir(),
+                                             run_name,
+                                             f'{run_name}_meds.fits'),
+                    'outfile': f'{run_name}_mcal.fits',
+                    'outdir': os.path.join(utils.get_test_dir(),
+                                           run_name),
+                    'end': 200
                 },
             }
 
@@ -515,6 +564,6 @@ if __name__ == '__main__':
     rc = main()
 
     if rc == 0:
-        print('Tests have completed without errors')
+        print('\nTests have completed without errors')
     else:
-        print(f'Tests failed with rc={rc}')
+        print(f'\nTests failed with rc={rc}')
