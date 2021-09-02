@@ -285,7 +285,7 @@ class SuperBITPipeline(SuperBITModule):
             if self.do_diagnostics is True:
                 module.run_diagnostics(self._config['run_options'], self.logprint)
 
-        logprint('\nFinished pipeline run\n')
+        self.logprint('\nFinished pipeline run')
 
         return 0
 
@@ -482,6 +482,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
 
     if (clobber is True) or (not os.path.exists(filename)):
         run_name = 'pipe_test'
+        outdir = os.path.join(utils.TEST_DIR, run_name)
         with open(filename, 'w') as f:
             # Create dummy config file
             CONFIG = {
@@ -504,21 +505,16 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'config_dir': os.path.join(utils.MODULE_DIR,
                                                'galsim',
                                                'config_files'),
-                    'outdir': os.path.join(utils.TEST_DIR,
-                                           run_name)
+                    'outdir': outdir
                 },
                 'medsmaker': {
-                    'mock_dir': os.path.join(utils.TEST_DIR,
-                                             run_name),
+                    'mock_dir': outdir,
                     'outfile': f'{run_name}_meds.fits'
                 },
                 'metacal': {
-                    'medsfile': os.path.join(utils.get_test_dir(),
-                                             run_name,
-                                             f'{run_name}_meds.fits'),
+                    'medsfile': os.path.join(outdir, f'{run_name}_meds.fits'),
                     'outfile': f'{run_name}_mcal.fits',
-                    'outdir': os.path.join(utils.get_test_dir(),
-                                           run_name),
+                    'outdir': outdir,
                     'end': 200
                 },
             }
