@@ -673,22 +673,24 @@ def main():
 
         try:
             timescale=str(sbparams.exp_time)
-            outname=''.join(['superbit_gaussJitter_',str(i).zfill(3),'.fits'])
-            truth_file_name=''.join([sbparams.outdir, '/truth_gaussJitter_', str(i).zfill(3), '.fits'])
-            file_name = os.path.join(sbparams.outdir, outname)
-
+            outnum = str(i).zfill(3)
+            outname = f'{sbparams.run_name}_{outnum}.fits'
         except galsim.errors.GalSimError:
             print("naming failed, check path")
-            pdb.set_trace()
 
-        # Setting up a truth catalog
-        names = [ 'gal_num', 'x_image', 'y_image',
-                    'ra', 'dec', 'nfw_g1', 'nfw_g2', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom',
-                      'n','hlr','scale_h_over_r']
-        types = [ int, float, float, float,float,float,
-                    float, float, float, float, float, float,
-                      float, float, float]
-        truth_catalog = galsim.OutputCatalog(names, types)
+        # Set up a truth catalog during first image generation
+        if i == 1:
+            truth_file_name=''.join([sbparams.outdir, sbparams.run_name, '.fits'])
+            truth_file_name = os.path.join(sbparams.outdir,
+                                           f'{sbparams.run_name}_truth.fits')
+            file_name = os.path.join(sbparams.outdir, outname)
+            names = [ 'gal_num', 'x_image', 'y_image',
+                        'ra', 'dec', 'nfw_g1', 'nfw_g2', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom',
+                        'n','hlr','scale_h_over_r']
+            types = [ int, float, float, float,float,float,
+                        float, float, float, float, float, float,
+                        float, float, float]
+            truth_catalog = galsim.OutputCatalog(names, types)
 
         # Set up the image:
         full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
@@ -711,7 +713,7 @@ def main():
 
         ## Now let's read in the PSFEx PSF model, if using.
         ## We read the image directly into an InterpolatedImage GSObject,
-        ## so we can manipulate it as needed 
+        ## so we can manipulate it as needed
         #psf_wcs=wcs
         #psf = galsim.des.DES_PSFEx(psf_filen,wcs=psf_wcs)
         #logprint('Constructed PSF object from PSFEx file')
@@ -752,12 +754,14 @@ def main():
                 full_image[bounds] += stamp[bounds]
                 time2 = time.time()
                 tot_time = time2-time1
-                logprint(f'Galaxy {k} positioned relative to center t={tot_time} s\n')
+                logprint(f'Galaxy {k} positioned relative to center t={tot_time} s')
                 this_flux=numpy.sum(stamp.array)
-                row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
-                            this_flux,truth.fwhm, truth.mom_size,
-                            truth.n, truth.hlr, truth.scale_h_over_r]
-                truth_catalog.addRow(row)
+
+                if i == 1:
+                    row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
+                                this_flux,truth.fwhm, truth.mom_size,
+                                truth.n, truth.hlr, truth.scale_h_over_r]
+                    truth_catalog.addRow(row)
             except galsim.errors.GalSimError:
                 logprint(f'Galaxy {k} has failed, skipping...')
 
@@ -798,12 +802,14 @@ def main():
                 full_image[bounds] += cluster_stamp[bounds]
                 time2 = time.time()
                 tot_time = time2-time1
-                logprint(f'Cluster galaxy {k} positioned relative to center t={tot_time} s\n')
+                logprint(f'Cluster galaxy {k} positioned relative to center t={tot_time} s')
                 this_flux=numpy.sum(cluster_stamp.array)
-                row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
-                            this_flux,truth.fwhm,truth.mom_size,
-                            truth.n, truth.hlr,truth.scale_h_over_r]
-                truth_catalog.addRow(row)
+
+                if i == 1:
+                    row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
+                                this_flux,truth.fwhm,truth.mom_size,
+                                truth.n, truth.hlr,truth.scale_h_over_r]
+                    truth_catalog.addRow(row)
             except galsim.errors.GalSimError:
                 logprint(f'Cluster galaxy {k} has failed, skipping...')
 
@@ -835,10 +841,12 @@ def main():
 
                 logprint(f'Star {k}: positioned relative to center, t={tot_time} s')
                 this_flux=numpy.sum(star_stamp.array)
-                row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,
-                            truth.z, this_flux,truth.fwhm,truth.mom_size,
-                            truth.n, truth.hlr,truth.scale_h_over_r]
-                truth_catalog.addRow(row)
+
+                if i == 1:
+                    row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,
+                                truth.z, this_flux,truth.fwhm,truth.mom_size,
+                                truth.n, truth.hlr,truth.scale_h_over_r]
+                    truth_catalog.addRow(row)
 
             except galsim.errors.GalSimError:
                 logprint(f'Star {k} has failed, skipping...')
@@ -849,7 +857,9 @@ def main():
         truth_catalog = M.gather(truth_catalog)
         if M.is_mpi_root():
             full_image = reduce(combine_images, full_image)
-            truth_catalog = reduce(combine_catalogs, truth_catalog)
+
+            if i == 1:
+                truth_catalog = reduce(combine_catalogs, truth_catalog)
         else:
             # do the adding of noise and writing to disk entirely on root
             # root and the rest meet again at barrier at start of loop
@@ -875,8 +885,9 @@ def main():
         full_image.write(file_name)
 
         # Write truth catalog to file.
-        truth_catalog.write(truth_file_name)
-        logprint(f'Wrote image to {file_name}')
+        if i == 1:
+            truth_catalog.write(truth_file_name)
+            logprint(f'Wrote image to {file_name}')
 
     logprint('')
     logprint('completed all images')
