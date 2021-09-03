@@ -93,7 +93,41 @@ class MedsmakerDiagnostics(Diagnostics):
     pass
 
 class MetacalDiagnostics(Diagnostics):
-    pass
+
+    def __init__(self, name, config):
+        super(MetaCaldiagnostics, self).__init__(name, config)
+
+        if 'outdir' in config:
+            self.outdir = config['outdir']
+        else:
+            self.outdir = os.getcwd()
+
+        return
+
+    def run(run_options, logprint):
+        super(MetacalDiagnostics, self).run(run_options, logprint)
+
+        self.plot_compare_mags(run_options, logprint)
+
+        return
+
+    def plot_compare_mags(run_options, logprint):
+
+        # In current setup, can't guarantee that truth catalogs
+        # are in same directory
+        try:
+            true_dir = self.outdir
+            true_file = glob(os.path.join(true_dir, 'truth*.fits'))
+            assert len(true_file) == 1
+            true_file = true_file[0]
+            true = Table.read(true_file)
+        except OSError:
+            logprint('Cannot find truth catalogs - skipping test')
+            return
+
+        print(true)
+
+        return
 
 class ShearProfileDiagnostics(Diagnostics):
     pass

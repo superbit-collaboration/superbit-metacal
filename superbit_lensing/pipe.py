@@ -291,7 +291,7 @@ class SuperBITPipeline(SuperBITModule):
 
 class GalSimModule(SuperBITModule):
     _req_fields = ['config_file', 'outdir']
-    _opt_fields = ['config_dir', 'vb', 'use_mpi', 'run_name']
+    _opt_fields = ['config_dir', 'vb', 'use_mpi', 'run_name', 'clobber']
 
     def __init__(self, name, config):
         super(GalSimModule, self).__init__(name, config)
@@ -335,6 +335,9 @@ class GalSimModule(SuperBITModule):
         if 'run_name' not in self._config:
             run_name = run_options['run_name']
             options += f' --run_name={run_name}'
+
+        if 'clobber' in self._config:
+            options += ' --clobber'
 
         if run_options['vb'] is True:
             options += ' -v'
@@ -505,11 +508,13 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'config_dir': os.path.join(utils.MODULE_DIR,
                                                'galsim',
                                                'config_files'),
-                    'outdir': outdir
+                    'outdir': outdir,
+                    'clobber': True
                 },
                 'medsmaker': {
                     'mock_dir': outdir,
-                    'outfile': f'{run_name}_meds.fits'
+                    'outfile': f'{run_name}_meds.fits',
+                    'fname_base': run_name
                 },
                 'metacal': {
                     'medsfile': os.path.join(outdir, f'{run_name}_meds.fits'),
