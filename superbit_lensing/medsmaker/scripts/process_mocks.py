@@ -54,7 +54,8 @@ def main():
     else:
         fname_base = args.fname_base
 
-    science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,.sub].fits')
+    science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub].fits')
+    logprint(f'Science frames: {science}')
 
     outfile = os.path.join(mock_dir, outfile)
 

@@ -554,9 +554,9 @@ def main():
     testdir = utils.get_test_dir()
 
     if fresh is True:
-        outdir = os.pat.join(testdir, 'pipe_test')
+        outdir = os.path.join(testdir, 'pipe_test')
         print(f'Deleting old test directory {outdir}...')
-        shutils.rmtree(outdir)
+        shutil.rmtree(outdir)
 
     logfile = 'pipe_test.log'
     logdir = os.path.join(testdir, 'pipe_test')
