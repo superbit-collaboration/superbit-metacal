@@ -607,10 +607,15 @@ def main():
 
     priors = BITfitter._get_priors()
 
+    Ncat = len(BITfitter.catalog)
     if index_start is None:
         index_start = 0
     if index_end is None:
-        index_end = len(BITfitter.catalog)
+        index_end = Ncat
+
+    if index_end > Ncat:
+        logprint(f'Warning: index_end={index_end} larger than ' +\
+                 f'catalog size of {Ncat}; running over full catalog')
 
     # Needed for making plots on each worker
     plotter = SuperBITPlotter()

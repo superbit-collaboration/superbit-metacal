@@ -54,7 +54,7 @@ def main():
     else:
         fname_base = args.fname_base
 
-    science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!.sub].fits')
+    science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,.sub].fits')
 
     outfile = os.path.join(mock_dir, outfile)
 
@@ -66,7 +66,7 @@ def main():
 
     # Make a mask.
     logprint('Making mask...')
-    bm.make_mask(overwrite=clobber, mask_name='forecast_weight.fits')
+    bm.make_mask(overwrite=clobber, mask_name='forecast_mask.fits')
 
     # Combine images, make a catalog.
     logprint('Making catalog...')

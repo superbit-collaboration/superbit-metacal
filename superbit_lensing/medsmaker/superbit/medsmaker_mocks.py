@@ -451,7 +451,7 @@ class BITMeasurement():
         # Get a "clean" star catalog for PSFEx input
         # At some point, make truthfilen a command line argument
         if select_stars==True:
-
+            # TODO: Needs to be generalized to new pipeline!
             truthdir='/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/b/round1'
             truthcat = 'truth_gaussJitter_001.dat'
             truthfilen=os.path.join(truthdir,truthcat)

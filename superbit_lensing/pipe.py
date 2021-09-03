@@ -1,12 +1,19 @@
 from abc import ABC, abstractmethod
 import os
+import shutil
 import yaml
 import utils
 import logging
 import subprocess
+from argparse import ArgumentParser
 import superbit_lensing as sb
 from diagnostics import build_diagnostics
 import pudb
+
+parser = ArgumentParser()
+
+parser.add_argument('--fresh', action='store_true', default=False,
+                    help='Clean test directory of old outputs')
 
 class SuperBITModule(dict):
     '''
@@ -541,7 +548,15 @@ MODULE_TYPES = {
 
 def main():
 
+    args = parser.parse_args()
+    fresh = args.fresh
+
     testdir = utils.get_test_dir()
+
+    if fresh is True:
+        outdir = os.pat.join(testdir, 'pipe_test')
+        print(f'Deleting old test directory {outdir}...')
+        shutils.rmtree(outdir)
 
     logfile = 'pipe_test.log'
     logdir = os.path.join(testdir, 'pipe_test')

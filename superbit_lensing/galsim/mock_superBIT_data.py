@@ -43,6 +43,8 @@ parser.add_argument('--run_name', action='store', type=str, default='',
                     help='Name of mock simulation run')
 parser.add_argument('--outdir', action='store', type=str,
                     help='Output directory of simulated files')
+parser.add_argument('--clobber', action='store_true', default=False,
+                    help='Turn on to overwrite existing files')
 parser.add_argument('-v', '--verbose', action='store_true', default=False,
                     help='Turn on for verbose prints')
 
@@ -498,6 +500,8 @@ class SuperBITParameters:
                 self.jitter_fwhm=float(value)
             elif option == "run_name":
                 self.run_name=str(value)
+            elif option == "clobber":
+                self.clobber=bool(value)
             else:
                 raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
@@ -518,7 +522,7 @@ class SuperBITParameters:
         return
 
     # TODO: This should be updated to be sensible. see issue #10
-    def make_mask_files(self):
+    def make_mask_files(self, logprint, clobber):
         mask_dir = os.path.join(self.outdir, 'mask_files')
         mask_file = 'forecast_mask.fits'
         mask_outfile = os.path.join(mask_dir, mask_file)
@@ -534,18 +538,22 @@ class SuperBITParameters:
         Ny = self.image_ysize
 
         # x and y are flipped in fits convention vs. numpy array
-        mask = np.ones((Ny, Nx), dtype='i4')
-        # mask = np.ones((Nx, Ny), dtype='i4')
+        mask = np.zeros((Ny, Nx), dtype='i4')
 
         fits = fitsio.FITS(mask_outfile, 'rw')
 
         for ext in range(self.nexp):
-            fits.write(mask, ext=ext)
+            try:
+                fits.write(mask, ext=ext, clobber=clobber)
+                logprint(f'Wrote mask to {mask_outfile}')
+            except OSError as e:
+                logprint(f'OSError: {e}')
+                raise e
 
         return
 
     # TODO: This should be updated to be sensible. see issue #10
-    def make_weight_files(self):
+    def make_weight_files(self, logprint, clobber):
         weight_dir = os.path.join(self.outdir, 'weight_files')
         weight_file = 'forecast_weight.fits'
         weight_outfile = os.path.join(weight_dir, weight_file)
@@ -562,12 +570,16 @@ class SuperBITParameters:
 
         # x and y are flipped in fits convention vs. numpy array
         weight = np.ones((Ny, Nx), dtype='f8')
-        # weight = np.ones((Nx, Ny), dtype='f8')
 
         fits = fitsio.FITS(weight_outfile, 'rw')
 
         for ext in range(self.nexp):
-            fits.write(weight, ext=ext)
+            try:
+                fits.write(weight, ext=ext, clobber=clobber)
+                logprint(f'Wrote weight to {weight_outfile}')
+            except OSError as e:
+                logprint(f'OSError: {e}')
+                raise e
 
         return
 
@@ -597,6 +609,7 @@ def main():
 
     args = parser.parse_args()
     config_file = args.config_file
+    clobber = args.clobber
     vb = args.verbose
 
     # If outdir is None, will need to move it later after it is set
@@ -665,25 +678,22 @@ def main():
     ### ITERATE n TIMES TO MAKE n SEPARATE IMAGES
     ###
 
-    for i in numpy.arange(1,sbparams.nexp+1):
+    for i in numpy.arange(1, sbparams.nexp+1):
         # get MPI processes in sync at start of each image
         M.barrier()
 
         #rng = galsim.BaseDeviate(sbparams.noise_seed+i)
 
-        try:
-            timescale=str(sbparams.exp_time)
-            outnum = str(i).zfill(3)
-            outname = f'{sbparams.run_name}_{outnum}.fits'
-        except galsim.errors.GalSimError:
-            print("naming failed, check path")
+        timescale=str(sbparams.exp_time)
+        outnum = str(i).zfill(3)
+        outname = f'{sbparams.run_name}_{outnum}.fits'
+        file_name = os.path.join(sbparams.outdir, outname)
 
         # Set up a truth catalog during first image generation
         if i == 1:
             truth_file_name=''.join([sbparams.outdir, sbparams.run_name, '.fits'])
             truth_file_name = os.path.join(sbparams.outdir,
                                            f'{sbparams.run_name}_truth.fits')
-            file_name = os.path.join(sbparams.outdir, outname)
             names = [ 'gal_num', 'x_image', 'y_image',
                         'ra', 'dec', 'nfw_g1', 'nfw_g2', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom',
                         'n','hlr','scale_h_over_r']
@@ -882,25 +892,33 @@ def main():
         logprint.debug('Added noise to final output image')
         if not os.path.exists(os.path.dirname(file_name)):
             os.makedirs(os.path.dirname(file_name))
-        full_image.write(file_name)
+
+        try:
+            full_image.write(file_name, clobber=clobber)
+            logprint(f'Wrote image to {file_name}')
+        except OSError as e:
+            logprint(f'OSError: {e}')
+            raise e
 
         # Write truth catalog to file.
         if i == 1:
-            truth_catalog.write(truth_file_name)
-            logprint(f'Wrote image to {file_name}')
+            try:
+                truth_catalog.write(truth_file_name)
+                logprint(f'Wrote truth to {truth_file_name}')
+            except OSError as e:
+                logprint(f'OSError: {e}')
+                raise e
 
-    logprint('')
-    logprint('completed all images')
-    logprint('')
+    logprint('\nCompleted all images\n')
 
     if M.is_mpi_root():
         logprint('Creating masks')
         logprint.warning('For now, we just write a simple mask file with all 1s')
-        sbparams.make_mask_files()
+        sbparams.make_mask_files(logprint, clobber)
 
         logprint('Creating weights')
         logprint.warning('For now, we just write a simple weight file with all 1s')
-        sbparams.make_weight_files()
+        sbparams.make_weight_files(logprint, clobber)
 
     # Log file was created before outdir is setup in some cases
     # If so, move from temp location to there
