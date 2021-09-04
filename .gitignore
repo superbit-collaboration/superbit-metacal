@@ -3,3 +3,5 @@
 *.pyc
 GalSim/data/*.csv
 notebooks/*
+superbit_lensing.egg-info/
+.DS_Store

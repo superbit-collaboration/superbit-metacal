@@ -43,7 +43,7 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 # --------------
 # Define some paths and filenames
 cosmosdir:          '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_25.2_training_sample/' # Path to COSMOS data directory
-datadir:          '/Users/sweveret/repos/superbit-metacal/GalSim/data' # Path to repo/GalSim data directory
+datadir:          '/Users/sweveret/repos/superbit-metacal/superbit_lensing/galsim/data' # Path to repo/GalSim data directory
 cat_file_name:      'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
 cluster_cat_name:   '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
 outdir:             './forecasting/offset' # directory where output images and truth catalogs are saved
