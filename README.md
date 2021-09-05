@@ -38,4 +38,4 @@ The available config options for each submodule are defined in the various modul
 
 If you want to add a new submodule to the pipeline, simply define a new subclass `MyCustomModule(SuperBITModule)` that implements the abstract `run()` function of the parent class and add it to `pipe.MODULE_TYPES` to register it with the rest of the pipeline. You should also implement the desired required & optional parameters that can be present in the module config with the class variables `_req_fields` and `_opt_fields`, which should be lists.
 
-Contact @sweverett at spencer.w.everett@jpl.nasa.gov if you have any questions about running the pipeline - or even better, create an issue!
+Contact @sweverett at spencer.w.everett@jpl.nasa.gov or @mccleary jat j.mccleary@northeastern.edu you have any questions about running the pipeline - or even better, create an issue!
