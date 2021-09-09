@@ -2,15 +2,13 @@ from abc import ABC, abstractmethod
 import os
 import shutil
 import yaml
-import utils
-import ngmix_fit
 import logging
 import subprocess
 from argparse import ArgumentParser
 import superbit_lensing as sb
-import superbit_lensing.ngmix_fit as ngmix_fit
+import superbit_lensing.utils as utils
 
-from diagnostics import build_diagnostics
+from superbit_lensing.diagnostics import build_diagnostics
 import pudb
 
 parser = ArgumentParser()
