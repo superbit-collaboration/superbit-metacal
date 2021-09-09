@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import yaml
+from astropy.table import Table
 import superbit_lensing as sb
 import numpy as np
 import subprocess
@@ -242,6 +243,17 @@ def run_command(cmd, logprint=None):
     # rc = process.returncode
 
     return rc
+
+def ngmix_dict2table(d):
+    '''
+    convert the result of a ngmix fit to an astropy table
+    '''
+
+    # Annoying, but have to do this to make Table from scalars
+    for key, val in d.items():
+        d[key] = np.array([val])
+
+    return Table(data=d)
 
 def get_base_dir():
     '''

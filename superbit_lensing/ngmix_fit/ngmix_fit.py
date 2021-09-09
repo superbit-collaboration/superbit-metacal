@@ -1,6 +1,8 @@
 import numpy as np
 import os
+import time
 import ngmix
+from astropy.table import Table, vstack
 from ngmix.medsreaders import NGMixMEDS
 from multiprocessing import Pool
 from argparse import ArgumentParser
@@ -9,14 +11,22 @@ import pudb
 
 parser = ArgumentParser()
 
-parser.add_argument('--meds_file', type=str,
+parser.add_argument('--medsfile', type=str, default=None,
                     help='MEDS filename to run ngmix on')
+parser.add_argument('--outfile', type=str, default=None,
+                    help='Name of output file')
 parser.add_argument('--config', type=str,
                     help='ngmix config filename')
 parser.add_argument('--outdir', type=str, default=None,
                     help='Output directory')
+parser.add_argument('--start', type=int, default=None,
+                    help='Starting index for MEDS processing')
+parser.add_argument('--end', type=int, default=None,
+                    help='Ending index for MEDS processing')
 parser.add_argument('--n', type=int, default=1,
                     help='Number of CPU cores to use')
+parser.add_argument('--clobber', action='store_true', default=False,
+                    help='Set to overwrite existing outfile')
 parser.add_argument('--test', action='store_true', default=False,
                     help='Use to do a test run w/ provided config')
 parser.add_argument('-v', action='store_true', default=False,
@@ -24,7 +34,7 @@ parser.add_argument('-v', action='store_true', default=False,
 
 class SuperBITngmixRunner(object):
     _req_fields = ['gal', 'psf', 'priors', 'fit_pars',
-                   'run_name', 'pixel_scale', 'nband',
+                   'run_name', 'pixel_scale', 'nbands',
                    'seed']
     _opt_fields = []
 
@@ -34,10 +44,10 @@ class SuperBITngmixRunner(object):
                           'F_range',
                           'g_sigma']
 
-    def __init__(self, meds_file, config, logprint):
+    def __init__(self, medsfile, config, logprint):
 
-        assert isinstance(meds_file, str)
-        self.meds_file = meds_file
+        assert isinstance(medsfile, str)
+        self.medsfile = medsfile
 
         if isinstance(config, str):
             config = utils.read_yaml(config)
@@ -103,8 +113,8 @@ class SuperBITngmixRunner(object):
                                             maxval=F_range[1],
                                             rng=rng)
 
-        if self.config['nband'] > 1:
-            F_prior = [F_prior]*nband
+        if self.config['nbands'] > 1:
+            F_prior = [F_prior]*nbands
 
         cols = ['cen', 'g', 'T', 'F']
         prior_list = [cen_prior, g_prior, T_prior, F_prior]
@@ -137,7 +147,7 @@ class SuperBITngmixRunner(object):
 
         self.logprint('Loading MEDS file')
 
-        self.meds = NGMixMEDS(self.meds_file)
+        self.meds = NGMixMEDS(self.medsfile)
         self.nobjs = len(self.meds._cat)
 
         return
@@ -146,53 +156,107 @@ class SuperBITngmixRunner(object):
         '''i: MEDS index'''
         return self.meds.get_obslist(i)
 
-    def fit(self, ncores):
+    def fit(self, ncores, index_start, index_end):
 
         self.logprint('Starting ngmix fit')
+        self.logprint(f'Using {ncores} cores')
 
-        ngmix_fits = []
-        with Pool(ncores) as pool:
-            ngmix_fits.append(
-                pool.starmap(_fit_one,
-                             [(i,
-                               self._setup_obs_list(i),
-                               self.config,
-                               self.logprint
-                               ) for i in range(self.nobjs)]
-                             )
-                )
+        start = time.time()
 
-        return
+        ngmix_range = range(index_start, index_end)
+
+        # for single core processing:
+        if ncores == 1:
+            ngmix_fits = []
+            for i in ngmix_range:
+                ngmix_fits.append(
+                    _fit_one(i,
+                            self._setup_obs_list(i),
+                            self.priors,
+                            self.config,
+                            self.logprint,
+                            ))
+
+            res = vstack(ngmix_fits)
+
+        # for multiprocessing:
+        else:
+            with Pool(ncores) as pool:
+                res = vstack(pool.starmap(_fit_one,
+                                          [(i,
+                                          self._setup_obs_list(i),
+                                          self.priors,
+                                          self.config,
+                                          self.logprint)
+                                          for i in ngmix_range]
+                                          )
+                    )
+
+        self.logprint('Fitting has completed')
+
+        end = time.time()
+
+        T = end - start
+        self.logprint(f'Total fitting and stacking time: {T} seconds')
+
+        N = index_end - index_start
+        self.logprint(f'{T/N} seconds per object (wall time)')
+        self.logprint(f'{T/N*ncores} seconds per object (CPU time)')
+
+        return res
 
 def setup_bootstrapper(obs_list):
     boot = ngmix.Bootstrapper(obs_list)
     return boot
 
-def _fit_one(i, obs_list, config, logprint):
+def _fit_one(i, obs_list, priors, config, logprint):
     '''
     i: MEDS index
     obs_list: ngmix observation list for index i
+
+    return: an astropy Table containing fit data
     '''
 
     pars = config['fit_pars']
 
     boot = setup_bootstrapper(obs_list)
 
-    logprint('Starting PSF fit')
-    psf_Tguess = None
-    boot.fit_psfs(
-        config['psf']['model'],
-        psf_Tguess
-        )
+    try:
 
-    model = config['gal']['model']
-    logprint(f'Starting {model} fit')
-    boot.fit_max(
-        model,
-        pars
-        )
+        logprint('Starting PSF fit')
+        pixscale = config['pixel_scale']
+        fwhm_guess = 2*pixscale # arcsec corresponding to 2 pixels
+        psf_Tguess = fwhm_guess*pixscale**2
+        boot.fit_psfs(
+            config['psf']['model'],
+            psf_Tguess
+            )
 
-    return boot
+        # Guesses taken from ngmix.test_guessers.py
+        T_center = 0.001
+        flux_center = [1.]*config['nbands']
+        guesser = ngmix.guessers.BDFGuesser(
+                    T_center, flux_center, priors,
+                )
+        model = config['gal']['model']
+        logprint(f'Starting {model} fit')
+        boot.fit_max(
+            model,
+            pars,
+            prior=priors,
+            guesser=guesser,
+            ntry=3
+            )
+
+        res = boot.get_fitter().get_result()
+
+        return utils.ngmix_dict2table(res)
+
+    except Exception as e:
+        logprint(e)
+        logprint(f'object {i} failed, skipping...')
+
+        return Table()
 
 def build_ngmix_priors(model, prior_dict):
     '''
@@ -214,7 +278,15 @@ def build_ngmix_priors(model, prior_dict):
 
     return priors
 
-def _make_test_ngmix_config():
+def write_output_table(outfile, table, clobber=False):
+    table.write(outfile, format='fits', overwrite=clobber)
+
+    return
+
+def _make_test_ngmix_config(run_name=None):
+    if run_name is None:
+        run_name = 'bfd_test'
+
     test_config = {
         'gal': {
             'model': 'bdf',
@@ -231,12 +303,16 @@ def _make_test_ngmix_config():
         },
         'fit_pars': {
             'method': 'lm',
-            'lm_pars': {}
+            'lm_pars': {
+                'maxfev':2000,
+                'xtol':5.0e-5,
+                'ftol':5.0e-5
+                }
         },
         'pixel_scale': 0.144, # arcsec / pixel
-        'nband': 1,
+        'nbands': 1,
         'seed': 172396,
-        'run_name': 'bfd_test'
+        'run_name': run_name
     }
 
     return test_config
@@ -247,18 +323,30 @@ def _return_test_medsfile():
                             'test_meds.fits')
     return medsfile
 
+def _return_test_outfile():
+    outfile = os.path.join(utils.get_test_dir(),
+                           'ngmix_fit',
+                           'test_ngmix.fits')
+
+    return outfile
+
 def main():
     args = parser.parse_args()
-    meds_file = args.meds_file
+    medsfile = args.medsfile
+    outfile = args.outfile
     config_file = args.config
     outdir = args.outdir
+    index_start  = args.start
+    index_end = args.end
     ncores = args.n
+    clobber = args.clobber
     test = args.test
     vb = args.v
 
     if test is True:
         config = _make_test_ngmix_config()
-        meds_file = _return_test_medsfile()
+        medsfile = _return_test_medsfile()
+        outfile = _return_test_outfile()
 
         logfile = 'ngmix-fit-test.log'
         outdir = os.path.join(utils.TEST_DIR,
@@ -268,21 +356,39 @@ def main():
 
     else:
         config = utils.read_yaml(config_file)
-        assert meds_file is not None
+
+        z = zip(['medsfile', 'outfile'], [medsfile, outfile])
+        for name, val in z:
+            if val is None:
+                raise ValueError(f'Must pass a {name} if --test is not True!')
 
         try:
             run_name = config['run_name']
         except KeyError:
-            print('run_name is a required field in the ngmix config!')
+            raise ValueError('run_name is a required field in the ngmix config!')
 
         logfile = f'{run_name}-ngmix-fit.log'
         outdir = os.path.join(utils.TEST_DIR, 'ngmix_fit')
-        log = utils.setup_logger(logfile, outdir=outdir)
+        log = utils.setup_logger(logfile, logdir=outdir)
         logprint = utils.LogPrint(log, vb)
 
-    sb_runner = SuperBITngmixRunner(meds_file, config, logprint)
+    sb_runner = SuperBITngmixRunner(medsfile, config, logprint)
 
-    rc = sb_runner.fit(ncores=ncores)
+    nobjs = sb_runner.nobjs
+    if index_start is None:
+        index_start = 0
+    if index_end is None:
+        index_end = nobjs
+
+    if index_end > nobjs:
+        logprint(f'Warning: index_end={index_end} larger than ' +\
+                 f'catalog size of {nobjs}; running over full catalog')
+
+    res = sb_runner.fit(ncores=ncores, index_start=index_start, index_end=index_end)
+
+    logprint(f'Writing results to {outfile}')
+
+    write_output_table(outfile, res, clobber=clobber)
 
     print('Done!')
 
