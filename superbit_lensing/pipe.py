@@ -596,8 +596,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
             CONFIG = {
                 'run_options': {
                     'run_name': run_name,
-                    # 'outdir': os.path.join(utils.get_test_dir(),
-                    #                        run_name),
+                    'outdir': outdir,
                     'vb': True,
                     'ncores': 8,
                     'run_diagnostics': True,
