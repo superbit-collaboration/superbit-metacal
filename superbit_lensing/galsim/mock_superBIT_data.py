@@ -691,7 +691,6 @@ def main():
 
         # Set up a truth catalog during first image generation
         if i == 1:
-            truth_file_name=''.join([sbparams.outdir, sbparams.run_name, '.fits'])
             truth_file_name = os.path.join(sbparams.outdir,
                                            f'{sbparams.run_name}_truth.fits')
             names = [ 'gal_num', 'x_image', 'y_image',
