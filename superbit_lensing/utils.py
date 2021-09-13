@@ -2,10 +2,11 @@ import logging
 import os
 import sys
 import yaml
+from astropy.table import Table
 import superbit_lensing as sb
 import numpy as np
 import subprocess
-import pdb
+import pdb, pudb
 
 class ForkedPdb(pdb.Pdb):
     """A Pdb subclass that may be used
@@ -68,7 +69,7 @@ class Logger(object):
 
     def __init__(self, logfile, logdir=None):
         if logdir is None:
-            logdir = ''
+            logdir = './'
 
         self.logfile = os.path.join(logdir, logfile)
 
@@ -126,6 +127,41 @@ def check_req_params(config, params, defaults):
         if (not hasattr(config, param)) or (getattr(config, param) == default):
             e_msg = f'Must set {param} either on command line or in passed config!'
             raise Exception(e_msg)
+
+    return
+
+def check_req_fields(config, req, name=None):
+    for field in req:
+        if not field in config:
+            raise ValueError(f'{name}config must have field {field}')
+
+    return
+
+def check_fields(config, req, opt, name=None):
+    '''
+    req: list of required field names
+    opt: list of optional field names
+    name: name of config type, for extra print info
+    '''
+    assert isinstance(config, dict)
+
+    if name is None:
+        name = ''
+    else:
+        name = name + ' '
+
+    if req is None:
+        req = []
+    if opt is None:
+        opt = []
+
+    # ensure all req fields are present
+    check_req_fields(config, req, name=name)
+
+    # now check for fields not in either
+    for field in config:
+        if (not field in req) and (not field in opt):
+            raise ValueError(f'{field} not a valid field for {name}config!')
 
     return
 
@@ -208,6 +244,27 @@ def run_command(cmd, logprint=None):
 
     return rc
 
+def ngmix_dict2table(d):
+    '''
+    convert the result of a ngmix fit to an astropy table
+    '''
+
+    # Annoying, but have to do this to make Table from scalars
+    for key, val in d.items():
+        d[key] = np.array([val])
+
+    return Table(data=d)
+
+def make_dir(d):
+    '''
+    Makes dir if it does not already exist
+    '''
+
+    if not os.path.exists(d):
+        os.mkdir(d)
+
+    return
+
 def get_base_dir():
     '''
     base dir is parent repo dir
@@ -219,8 +276,8 @@ def get_module_dir():
     return os.path.dirname(__file__)
 
 def get_test_dir():
-    mod_dir = get_module_dir()
-    return os.path.join(mod_dir, 'tests')
+    base_dir = get_base_dir()
+    return os.path.join(base_dir, 'tests')
 
 BASE_DIR = get_base_dir()
 MODULE_DIR = get_module_dir()

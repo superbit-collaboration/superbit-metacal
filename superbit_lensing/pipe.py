@@ -2,12 +2,13 @@ from abc import ABC, abstractmethod
 import os
 import shutil
 import yaml
-import utils
 import logging
 import subprocess
 from argparse import ArgumentParser
 import superbit_lensing as sb
-from diagnostics import build_diagnostics
+import superbit_lensing.utils as utils
+
+from superbit_lensing.diagnostics import build_diagnostics
 import pudb
 
 parser = ArgumentParser()
@@ -107,7 +108,7 @@ class SuperBITModule(dict):
         Run bash command
         '''
 
-        logprint(cmd)
+        logprint(f'\n{cmd}\n')
 
         # for live prints but no error handling:
         # process = subprocess.Popen(cmd.split(),
@@ -206,7 +207,6 @@ class SuperBITPipeline(SuperBITModule):
     _req_fields = ['run_options']
     _req_run_options_fields = ['run_name', 'order', 'vb']
 
-    # This is how modules are registered
     # _opt_fields = {get_module_types().keys()}
     _opt_fields = [] # Gets setup in constructor
     _opt_run_options_fields = ['ncores', 'run_diagnostics']
@@ -428,7 +428,6 @@ class MetacalModule(SuperBITModule):
 
     def _setup_run_command(self, run_options):
 
-        run_name = run_options['run_name']
         outdir = self._config['outdir']
 
         medsfile = self._config['medsfile']
@@ -442,6 +441,7 @@ class MetacalModule(SuperBITModule):
 
         base = f'python {filepath} {medsfile} {outfile}'
 
+        # Set up some default values that require the run config
         col = 'n'
         if col not in self._config:
             self._config['n'] = run_options['ncores']
@@ -452,6 +452,59 @@ class MetacalModule(SuperBITModule):
 
         # options = f' --outdir={outdir} --plot={plot} --n={ncores}' + \
         #     self._setup_options(run_options)
+        options = self._setup_options(run_options)
+
+        cmd = base + options
+
+        return cmd
+
+class NgmixFitModule(SuperBITModule):
+    _req_fields = ['medsfile', 'outfile', 'config']
+    _opt_fields = ['outdir', 'start', 'end', 'n', 'clobber', 'vb']
+
+    def __init__(self, name, config):
+        super(NgmixFitModule, self).__init__(name, config)
+
+        col = 'outdir'
+        if col not in self._config:
+            self._config[col] = os.getcwd()
+
+        return
+
+    def run(self, run_options, logprint):
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
+
+        cmd = self._setup_run_command(run_options)
+
+        rc = self._run_command(cmd, logprint)
+
+        return rc
+
+    def _setup_run_command(self, run_options):
+
+        outdir = self._config['outdir']
+
+        medsfile = self._config['medsfile']
+        outfile = self._config['outfile']
+        outfile = os.path.join(outdir, outfile)
+        config = self._config['config']
+
+        ngmix_dir = os.path.join(utils.get_module_dir(),
+                                'ngmix_fit')
+        filepath = os.path.join(ngmix_dir, 'ngmix_fit.py')
+
+        base = f'python {filepath} '
+
+        # While these are considered required for the pipeline, they are
+        # technically optional args in ngmix_fit.py due to testing option
+        base += f'--medsfile={medsfile} --outfile={outfile} --config={config}'
+
+        # Setup some options that rquire the run config
+        col = 'n'
+        if col not in self._config:
+            self._config['n'] = run_options['ncores']
+
         options = self._setup_options(run_options)
 
         cmd = base + options
@@ -486,6 +539,47 @@ def build_module(name, config, logprint):
 
     return module
 
+def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
+                           run_name=None, clobber=False):
+    if outdir is not None:
+        filename = os.path.join(outdir, config_file)
+
+    if run_name is None:
+        run_name = 'pipe_test'
+
+    if (clobber is True) or (not os.path.exists(filename)):
+        with open(filename, 'w') as f:
+            CONFIG = {
+                'gal': {
+                    'model': 'bdf',
+                },
+                'psf': {
+                    'model': 'gauss'
+                },
+                'priors': {
+                    'T_range': [-1., 1.e3],
+                    'F_range': [-100., 1.e9],
+                    'g_sigma': 0.1,
+                    'fracdev_mean': 0.5,
+                    'fracdev_sigma': 0.1
+                },
+                'fit_pars': {
+                    'method': 'lm',
+                    'lm_pars': {
+                        'maxfev':2000,
+                        'xtol':5.0e-5,
+                        'ftol':5.0e-5
+                        }
+                },
+                'pixel_scale': 0.144, # arcsec / pixel
+                'nbands': 1,
+                'seed': 172396,
+                'run_name': run_name
+            }
+            yaml.dump(CONFIG, f, default_flow_style=False)
+
+    return filename
+
 def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
     if outdir is not None:
         filename = os.path.join(outdir, config_file)
@@ -493,20 +587,24 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
     if (clobber is True) or (not os.path.exists(filename)):
         run_name = 'pipe_test'
         outdir = os.path.join(utils.TEST_DIR, run_name)
+        medsfile = os.path.join(outdir, f'{run_name}_meds.fits')
+        ngmix_test_config = make_test_ngmix_config('ngmix_test.yaml',
+                                                   outdir=outdir,
+                                                   run_name=run_name)
         with open(filename, 'w') as f:
             # Create dummy config file
             CONFIG = {
                 'run_options': {
                     'run_name': run_name,
-                    # 'outdir': os.path.join(utils.get_test_dir(),
-                    #                        run_name),
+                    'outdir': outdir,
                     'vb': True,
                     'ncores': 8,
                     'run_diagnostics': True,
                     'order': [
                         'galsim',
                         'medsmaker',
-                        'metacal'
+                        'metacal',
+                        'ngmix-fit'
                         ]
                 },
                 'galsim': {
@@ -520,15 +618,22 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                 },
                 'medsmaker': {
                     'mock_dir': outdir,
-                    'outfile': f'{run_name}_meds.fits',
+                    'outfile': medsfile,
                     'fname_base': run_name
                 },
                 'metacal': {
-                    'medsfile': os.path.join(outdir, f'{run_name}_meds.fits'),
+                    'medsfile': medsfile,
                     'outfile': f'{run_name}_mcal.fits',
                     'outdir': outdir,
-                    'end': 200
+                    'end': 100
                 },
+                'ngmix-fit': {
+                    'medsfile': medsfile,
+                    'outfile': f'{run_name}_ngmix.fits',
+                    'config': ngmix_test_config,
+                    'outdir': outdir,
+                    'end': 100
+                }
             }
 
             yaml.dump(CONFIG, f, default_flow_style=False)
@@ -543,6 +648,7 @@ MODULE_TYPES = {
     'galsim': GalSimModule,
     'medsmaker': MedsmakerModule,
     'metacal': MetacalModule,
+    'ngmix-fit': NgmixFitModule,
     'shear-profile': ShearProfileModule,
     }
 
