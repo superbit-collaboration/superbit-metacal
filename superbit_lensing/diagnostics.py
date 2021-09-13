@@ -3,37 +3,108 @@ import sys
 from glob import glob
 from astropy.table import Table
 import matplotlib.pyplot as plt
+import utils
 import pudb
 
 class Diagnostics(object):
     def __init__(self, name, config):
         self.name = name
         self.config = config
+
+        # plotdir is the directory where all pipeline plots are saved
+        # plot_outdir is the output plot directory for *this* diagnostic type
         self.plotdir = None
         self.plot_outdir = None
+
+        # outdir is the location of module outputs
+        if 'outdir' in config:
+            self.outdir = config['outdir']
+        else:
+            # Will be set using run_options
+            self.outdir = None
 
         return
 
     def run(self, run_options, logprint):
         logprint(f'Running diagnostics for {self.name}')
 
+        # If outdir wasn't set in init, do it now
+        if self.outdir is None:
+            try:
+                self.outdir = run_options['outdir']
+            except KeyError as e:
+                logprint('ERROR: Outdir must be set in either module ' +\
+                         'config or run_options!')
+                raise e
+
+        self._setup_plot_dirs()
+
         return
 
-class GalSimDiagnostics(Diagnostics):
+    def _setup_plot_dirs(self):
+        '''
+        Must be run after self.outdir is set
+        '''
+
+        assert(hasattr(self, 'outdir'))
+
+        self.plotdir = os.path.join(self.outdir, 'plots')
+        self.plot_outdir = os.path.join(self.plotdir, self.name)
+
+        for p in [self.plotdir, self.plot_outdir]:
+            utils.make_dir(p)
+
+        return
+
+class TruthDiagnostics(Diagnostics):
+    '''
+    Some modules have a corresponding truth catalog
+    to compare to
+    '''
+
+    def __init__(self, name, config):
+        super(TruthDiagnostics, self).__init__(name, config)
+
+        self.truth = None
+
+        return
+
+    def run(self, run_options, logprint):
+        super(TruthDiagnostics, self).run(run_options, logprint)
+
+        self._setup_truth_cat()
+
+        return
+
+    def _setup_truth_cat(self):
+        '''
+        Some diagnostics will require a truth catalog
+
+        Assumes the truth cat is in self.outdir, which
+        must be set beforehand
+        '''
+
+        assert(hasattr(self, 'outdir'))
+
+        truth_files = glob(os.path.join(self.outdir, '*truth*.fits'))
+
+        # After update, there should only be one
+        N = len(truth_files)
+        if N != 1:
+            raise Exception(f'There should only be 1 truth table, not {N}!')
+
+        truth_file = truth_files[0]
+
+        self.truth = Table.read(truth_file)
+
+        return
+
+class GalSimDiagnostics(TruthDiagnostics):
 
     def __init__(self, name, config):
         super(GalSimDiagnostics, self).__init__(name, config)
 
-        self.outdir = config['outdir']
-        plotdir = os.path.join(self.outdir, 'plots')
-        plot_outdir = os.path.join(plotdir, name)
-
-        for d in [plotdir, plot_outdir]:
-            if not os.path.exists(d):
-                os.mkdir(d)
-
-        self.outdir = config['outdir']
-        self.plotdir = plot_outdir
+        # ...
 
         return
 
@@ -47,6 +118,13 @@ class GalSimDiagnostics(Diagnostics):
         return
 
     def plot_compare_truths(self, run_options, logprint):
+        '''
+        NOTE: No longer relevant, we have updated code
+        to produce only one truth cat
+
+        That is why this function does not use self.truth
+        '''
+
         # Not obvious to me why there are multiple tables - this here
         # just to prove this.
 
@@ -92,15 +170,12 @@ class GalSimDiagnostics(Diagnostics):
 class MedsmakerDiagnostics(Diagnostics):
     pass
 
-class MetacalDiagnostics(Diagnostics):
+class MetacalDiagnostics(TruthDiagnostics):
 
     def __init__(self, name, config):
-        super(MetaCaldiagnostics, self).__init__(name, config)
+        super(MetaCalDiagnostics, self).__init__(name, config)
 
-        if 'outdir' in config:
-            self.outdir = config['outdir']
-        else:
-            self.outdir = os.getcwd()
+        # ...
 
         return
 
@@ -112,20 +187,39 @@ class MetacalDiagnostics(Diagnostics):
         return
 
     def plot_compare_mags(run_options, logprint):
+        pass
 
-        # In current setup, can't guarantee that truth catalogs
-        # are in same directory
-        try:
-            true_dir = self.outdir
-            true_file = glob(os.path.join(true_dir, 'truth*.fits'))
-            assert len(true_file) == 1
-            true_file = true_file[0]
-            true = Table.read(true_file)
-        except OSError:
-            logprint('Cannot find truth catalogs - skipping test')
-            return
+class NgmixFitDiagnostics(TruthDiagnostics):
 
-        print(true)
+    def __init__(self, name, config):
+        super(NgmixFitDiagnositcs, self).__init__(name, config)
+
+        return
+
+    def run(run_options, logprint):
+        super(NgmixFitDiagnostics, self).run(run_options, logprint)
+
+        # outdir is now guaranteed to be set
+        # self.ngmix_config_file =
+
+        self.compare_to_truth(run_options, logprint)
+
+        return
+
+    def compare_to_truth(run_options, logprint):
+        '''
+        Plot meas vs. true for a variety of quantities
+        '''
+
+        self.plot_pars_compare(run_options, logprint)
+
+        return
+
+    def plot_pars_compare(run_options, logprint):
+        logprint('Comparing meas vs. true ngmix pars')
+
+        # gal_model = ngmix_config[]
+        # true_pars = self.truth['']
 
         return
 
