@@ -255,6 +255,16 @@ def ngmix_dict2table(d):
 
     return Table(data=d)
 
+def make_dir(d):
+    '''
+    Makes dir if it does not already exist
+    '''
+
+    if not os.path.exists(d):
+        os.mkdir(d)
+
+    return
+
 def get_base_dir():
     '''
     base dir is parent repo dir
