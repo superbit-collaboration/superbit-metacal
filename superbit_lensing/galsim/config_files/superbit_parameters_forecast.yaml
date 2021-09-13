@@ -24,17 +24,17 @@ center_ra:          13.3        # Central Right Ascension                   [hrs
 center_dec:         33.1        # Central Declination                       [deg]
 sky_bkg:            0.039       # mean sky background from AG's paper       [ADU / s / px]
 sky_sigma:          0.06        # standard deviation of sky background      [ADU / s / px]
-nobj:               340          # Number of galaxies (COSMOS 25.2 depth)    []
+nobj:               340         # Number of galaxies (COSMOS 25.2 depth)    []
 nstars:             350         # Number of stars in the field              []
 nexp:               2           # Number of exposures per PSF model         []
 nclustergal:        35          # Number of cluster galaxies (arbitrary)    []
-#index_convention:   '1'
+#index_convention:  '1'
 
 # Simulated cluster parameters
 # ----------------------------
 lam:                625         # Fiducial wavelength for abberations       [nm]
-mass:               7.0e15      # Cluster mass                              [Msol / h]
-nfw_z_halo:         0.3        # redshift of the halo                      []
+mass:               7.0e14      # Cluster mass                              [Msol / h]
+nfw_z_halo:         0.3         # redshift of the halo                      []
 nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
 omega_m:            0.3         # Omega matter for the background cosmology.
 omega_lam:          0.7         # Omega lambda for the background cosmology.
@@ -42,11 +42,11 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 # Run parameters
 # --------------
 # Define some paths and filenames
-cosmosdir:          '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_25.2_training_sample/' # Path to COSMOS data directory
-datadir:          '/Users/sweveret/repos/superbit-metacal/superbit_lensing/galsim/data' # Path to repo/GalSim data directory
-cat_file_name:      'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
-cluster_cat_name:   '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
-outdir:             './forecasting/offset' # directory where output images and truth catalogs are saved
+cosmosdir:        '/Users/jemcclea/Research/SuperBIT/superbit_galsim_v1.0/data/' # Path to COSMOS data directory
+datadir:          '/Users/jemcclea/Research/SuperBIT/superbit_galsim_v1.0/data' # Path to repo/GalSim data directory
+cat_file_name:    'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
+cluster_cat_name: 'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
+outdir:            './forecasting/offset' # directory where output images and truth catalogs are saved
 
 # Misc parameters
 # ---------------

@@ -58,7 +58,7 @@ class SuperBITNgmixFitter():
         
         # units same as jacobian, probably arcsec
         row, col = 0.0, 0.0
-        row_sigma, col_sigma = 0.2, 0.2 # a bit smaller than pix size of SuperBIT
+        row_sigma, col_sigma = 10, 10 # a bit smaller than pix size of SuperBIT
         cen_prior = ngmix.priors.CenPrior(row, col, row_sigma, col_sigma)
         
         # T prior.  This one is flat, but another uninformative you might
@@ -143,7 +143,7 @@ class SuperBITNgmixFitter():
         this_psf = psf_cutout + 1e-6*np.random.randn(psf_cutout.shape[0],psf_cutout.shape[1])
         psf_weight_image = np.zeros_like(this_psf) + 1./psf_noise**2
 
-        sky_sigma = (0.0957*300)**2    # exp_time = 300, sky_var = 0.0957 ADU/pix/s
+        sky_sigma = (0.0557*300)**2    # exp_time = 300, sky_var = 0.0957 ADU/pix/s
         weight_image = np.zeros_like(image_cutout)+ 1./sky_sigma
         
         jj_im = ngmix.jacobian.DiagonalJacobian(scale=0.206,x=(image_cutout.shape[0])/2,y=(image_cutout.shape[1])/2)
@@ -170,8 +170,8 @@ class SuperBITNgmixFitter():
             lm_pars = {'maxfev':2000, 'xtol':5.0e-5, 'ftol':5.0e-5}
             max_pars = {'method':'lm','lm_pars':lm_pars}
 
-        psf_model = 'em3' # should come up with diagnostics for PSF quality
-        gal_model = 'exp'
+        psf_model = 'gauss' # should come up with diagnostics for PSF quality
+        gal_model = 'gauss'
 
         mcal_obs = ngmix.metacal.get_all_metacal(obslist)
         
@@ -186,10 +186,12 @@ class SuperBITNgmixFitter():
                 boot.fit_max(gal_model,max_pars)
                 res = boot.get_fitter().get_result()
                 #result.update({ikey:res['g']})
-                res['Tpsf']=boot.psf_fitter._gm.get_T()
+                try:
+                        res['Tpsf']=boot.psf_fitter._gm.get_T()
+                except:
+                        res['Tpsf']=boot.psf_fitter._result['T']
                 result.update({ikey:res})
                 
-        #pdb.set_trace()
         
         R1 = (result['1p']['g'][0] - result['1m']['g'][0])/(2*mcal_shear)
         R2 = (result['2p']['g'][1] - result['2m']['g'][1])/(2*mcal_shear)
@@ -242,14 +244,21 @@ class SuperBITNgmixFitter():
                              mcr['1m']['T'], mcr['1m']['Tpsf'], mcr['1m']['g_cov'][0,0], mcr['1m']['g_cov'][1,1], mcr['1m']['chi2per'],
                              mcr['2p']['T'], mcr['2p']['Tpsf'],mcr['2p']['g_cov'][0,0], mcr['2p']['g_cov'][1,1], mcr['2p']['chi2per'],
                              mcr['2m']['T'], mcr['2m']['Tpsf'], mcr['2m']['g_cov'][0,0], mcr['2m']['g_cov'][1,1], mcr['2m']['chi2per'],
-                             mcr['noshear']['s2n'], mcr['1p']['s2n'], mcr['1m']['s2n'], mcr['2p']['s2n'], mcr['2m']['s2n']
+                             mcr['noshear']['s2n'], mcr['1p']['s2n'], mcr['1m']['s2n'], mcr['2p']['s2n'], mcr['2m']['s2n'],
+                             mcr['1p']['g'][0],mcr['1p']['g'][1],mcr['1m']['g'][0],mcr['1m']['g'][1],
+                             mcr['2p']['g'][0],mcr['2p']['g'][1],mcr['2m']['g'][0],mcr['2m']['g'][1]
                              ]
         except:
             pdb.set_trace()
-            fit_result = [-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,
-                              -9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,
-                              -9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,
-                              -9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.,-9999.]
+            fit_result = [-9999.,-9999.,-9999.,-9999.,-9999.,
+                              -9999.,-9999.,-9999.,-9999.,-9999.,
+                              -9999.,-9999.,-9999.,-9999.,-9999.,
+                              -9999.,-9999.,-9999.,-9999.,-9999.,
+                              -9999.,-9999.,-9999.,-9999.,-9999.,
+                              -9999.,-9999.,-9999.,-9999.,-9999.,
+                              -9999.,-9999.,-9999.,-9999.,-9999.,
+                              -9999.,-9999.,-9999.,-9999.,-9999.,
+                              -9999.,-9999.,-9999.,-9999.,-9999.]
                 
             
         return fit_result
@@ -269,9 +278,13 @@ def make_output_table(outfilename, gmix, mcal,identifying):
     t = Table.Table()
     gmix=(np.array(gmix)); mcal=(np.array(mcal))
     identifying = np.array(identifying)
-    
-    t['id'] = identifying[:,0]
-    t['ra'] = identifying[:,1]; t['dec'] = identifying[:,2]
+    try:
+        t['id'] = identifying[:,0]
+        t['ra'] = identifying[:,1]; t['dec'] = identifying[:,2]
+    except:
+        t['id'] = -9999.
+        t['ra'] = -9999.; t['dec'] = -9999.
+
     try:
         t['g1_boot'] = gmix[:,2]       # Ellipticity moments from the basic Bootstrapper fit
         t['g2_boot'] = gmix[:,3]
@@ -299,26 +312,34 @@ def make_output_table(outfilename, gmix, mcal,identifying):
         t['g2cov_noshear'] = mcal[:,10]
         t['chi2per_noshear'] = mcal[:,11]
 
-        t['T_1p'] = mcal[:,12]          # "1p" fit parameters, for 
-        t['Tpsf_1p'] = mcal[:,13]       #  making quality cuts
+        t['g1_1p'] = mcal[:,37]       # "1p" fit parameters, for 
+        t['g2_1p'] = mcal[:,38]       #  making quality cuts
+        t['T_1p'] = mcal[:,12]          
+        t['Tpsf_1p'] = mcal[:,13]       
         t['g1cov_1p'] = mcal[:,14]
         t['g2cov_1p'] = mcal[:,15]
         t['chi2per_1p'] = mcal[:,16]
        
-        t['T_1m'] = mcal[:,17]           # "1m" fit parameters, for 
-        t['Tpsf_1m'] = mcal[:,18]       #  making quality cuts
+        t['g1_1m'] = mcal[:,39]       # "1m" fit parameters, for 
+        t['g2_1m'] = mcal[:,40]       #  making quality cuts
+        t['T_1m'] = mcal[:,17]           
+        t['Tpsf_1m'] = mcal[:,18]       
         t['g1cov_1m'] = mcal[:,19]
         t['g2cov_1m'] = mcal[:,20]
         t['chi2per_1m'] = mcal[:,21]
 
-        t['T_2p'] = mcal[:,22]          # "2p" fit parameters,for 
-        t['Tpsf_2p'] = mcal[:,23]       #  making quality cuts
+        t['g1_2p'] = mcal[:,41]       # "2p" fit parameters,for 
+        t['g2_2p'] = mcal[:,42]       #  making quality cuts
+        t['T_2p'] = mcal[:,22]          
+        t['Tpsf_2p'] = mcal[:,23]       
         t['g1cov_2p'] = mcal[:,24]
         t['g2cov_2p'] = mcal[:,25]
         t['chi2per_2p'] = mcal[:,26]
 
-        t['T_2m'] = mcal[:,27]          # "2m" fit parameters,for 
-        t['Tpsf_2m'] = mcal[:,28]       #  making quality cuts
+        t['g1_2m'] = mcal[:,43]       # "2m" fit parameters,for 
+        t['g2_2m'] = mcal[:,44]       #  making quality cuts
+        t['T_2m'] = mcal[:,27]          
+        t['Tpsf_2m'] = mcal[:,28]       
         t['g1cov_2m'] = mcal[:,29]
         t['g2cov_2m'] = mcal[:,30]
         t['chi2per_2m'] = mcal[:,31]
@@ -340,31 +361,39 @@ def make_output_table(outfilename, gmix, mcal,identifying):
         t['flux'] = -9999.
         
         t['T_noshear'] = -9999.        # "noshear" fit parameters, for 
-        t['Tpsf_noshear'] = -9999.      #  making quality cuts
+        t['Tpsf_noshear'] = -9999.     #  making quality cuts
         t['g1cov_noshear'] = -9999.
         t['g2cov_noshear'] = -9999.
         t['chi2per_noshear'] = -9999.
 
-        t['T_1p'] = -9999.          # "1p" fit parameters, for 
-        t['Tpsf_1p'] = -9999.  #  making quality cuts
+        t['g1_1p'] = -9999.       # "1p" fit parameters, for 
+        t['g2_1p'] = -9999.       #  making quality cuts
+        t['T_1p'] = -9999.          
+        t['Tpsf_1p'] = -9999.  
         t['g1cov_1p'] =-9999.
         t['g2cov_1p'] = -9999.
         t['chi2per_1p'] = -9999.
-       
-        t['T_1m'] = -9999.       # "1m" fit parameters, for 
-        t['Tpsf_1m'] = -9999.    #  making quality cuts
+
+        t['g1_1m'] = -9999.       # "1p" fit parameters, for 
+        t['g2_1m'] = -9999.       #  making quality cuts
+        t['T_1m'] = -9999.       
+        t['Tpsf_1m'] = -9999.    
         t['g1cov_1m'] =-9999.
         t['g2cov_1m'] = -9999.
         t['chi2per_1m'] = -9999.
 
-        t['T_2p'] = -9999.         # "2p" fit parameters,for 
-        t['Tpsf_2p'] = -9999.     #  making quality cuts
+        t['g1_2p'] = -9999.       # "2p" fit parameters, for 
+        t['g2_2p'] = -9999.       #  making quality cuts
+        t['T_2p'] = -9999.         
+        t['Tpsf_2p'] = -9999.     
         t['g1cov_2p'] = -9999.
         t['g2cov_2p'] = -9999.
         t['chi2per_2p'] = -9999.
 
-        t['T_2m'] = -9999.        # "2m" fit parameters,for 
-        t['Tpsf_2m'] = -9999.   #  making quality cuts
+        t['g1_2m'] = -9999.       # "2m" fit parameters, for 
+        t['g2_2m'] = -9999.       #  making quality cuts
+        t['T_2m'] = -9999.        
+        t['Tpsf_2m'] = -9999.   
         t['g1cov_2m'] = -9999.
         t['g2cov_2m'] = -9999.
         t['chi2per_2m'] = -9999.
@@ -399,7 +428,7 @@ def main(args):
     
     for i in range(index_start, index_end):
 
-        
+        identifying.append([BITfitter.medsObj['id'][i],BITfitter.medsObj['ra'][i],BITfitter.medsObj['dec'][i]])
         try:
             
             # metacal_fit is shear calibrated, gmix_fit is just Bootstrapper 
@@ -414,11 +443,10 @@ def main(args):
                 
                 bootfit.append(np.array([-99999, -99999, -99999, -99999, -99999, -99999]))
 
-            identifying.append([BITfitter.medsObj['id'][i],BITfitter.medsObj['ra'][i],BITfitter.medsObj['dec'][i]])
+            
             
             # Now for some plotting!
             image_cutout = BITfitter.medsObj.get_cutout(i,0)
-            image_cutout[image_cutout <=0] = 1E-2
             jj = ngmix.jacobian.DiagonalJacobian(scale=0.206,x=(image_cutout.shape[0])/2,y=(image_cutout.shape[1])/2)
 
             try:
@@ -426,9 +454,9 @@ def main(args):
                 model_image = gmix.make_image(image_cutout.shape,jacobian=jj)
                 
                 fig,(ax1,ax2,ax3) = plt.subplots(nrows=1,ncols=3,figsize=(21,7))
-                ax1.imshow(image_cutout)
-                ax2.imshow(model_image)
-                ax3.imshow(image_cutout - model_image)
+                ax1.imshow(image_cutout)#,vmin=0,vmax=(image_cutout.max()*.90))
+                ax2.imshow(model_image)#,vmin=0,vmax=(image_cutout.max()*.90))
+                ax3.imshow(image_cutout - model_image)#,vmin=0,vmax=(image_cutout.max()*.90))
                 fig.savefig('diagnostics_plots/diagnostics-ngmix2-'+str(i)+'.png')
                 plt.close(fig)
                 
@@ -439,8 +467,9 @@ def main(args):
             
             
         except:
+            
             print("object %d failed, skipping..." % i)
-            pdb.set_trace()
+
             
     make_output_table(outfilename, bootfit, mcal, identifying)
     

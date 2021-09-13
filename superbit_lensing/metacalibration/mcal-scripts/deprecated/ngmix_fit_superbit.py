@@ -144,7 +144,7 @@ class SuperBITNgmixFitter():
         prior = self._get_priors()
         
         # Construct an initial guess.
-        psf_model='em3'        
+        psf_model='gauss'        
         gal_model='exp'
         ntry=3
         #Tguess=4*obslist[0].jacobian.get_scale()**2
@@ -182,7 +182,7 @@ class SuperBITNgmixFitter():
 
         except:
             print("Creation of MaxMetacalBootstrapper failed, skipping object...")
-            pdb.set_trace()
+            #pdb.set_trace()
             gal_fit = None
             mcr = None
 
@@ -380,6 +380,7 @@ def main(args):
             metacal_fit,gmix_fit = BITfitter._fit_one(i)
             mcal_fit_pars = BITfitter.get_mcalib_shears(i)
             mcal.append(mcal_fit_pars)
+
             try:
                 bootfit.append(gmix_fit.get_result()['pars'])
             except:

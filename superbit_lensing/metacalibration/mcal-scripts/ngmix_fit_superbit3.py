@@ -14,6 +14,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from numba.core.errors import NumbaExperimentalFeatureWarning, NumbaDeprecationWarning
 import warnings
 import time
+warnings.simplefilter('ignore', category=NumbaExperimentalFeatureWarning)
+warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 from multiprocessing import Pool
 import multiprocessing
@@ -36,7 +38,7 @@ parser.add_argument('--start', type=int, default=None,
 parser.add_argument('--end', type=int, default=None,
                     help='Ending index for MEDS processing')
 parser.add_argument('--plot', type=str, default=True,
-                    help='Make diagnoistic plots')
+                    help='Make diagnstic plots')
 parser.add_argument('--n', type=int, default=1,
                     help='Number of cores to use')
 parser.add_argument('-v', '--verbose', action='store_true',

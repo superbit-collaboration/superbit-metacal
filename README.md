@@ -24,13 +24,13 @@ import superbit_lensing.utils as utils
 from superbit_lensing.pipe import SuperBITPipeline
 
 log = utils.setup_logger({logfile}, logdir={logdir})
-pipe = SuperBitPipeline(config_file, log)
+pipe = SuperBITPipeline(config_file, log)
 
 rc = pipe.run()
 
 assert(rc == 0)
 ```
-An example of a pipeline run along with a test configuration is given in `pipe.main()`, which can be run with `python pipe.py`.
+An example of a pipeline run along with a test configuration is given in `pipe.main()`, which can be run with `python pipe.py`. A more general configuration file is shown in `configs/pipe_test_real_sims.yaml` An example wrapper script you can use to run the `SuperBITPipeline` is shown in `superbit-lensing/process_all.py`.
 
 The available config options for each submodule are defined in the various module classes in `superbit_lensing.pipe.py`, such as `GalSimModule`. The required & optional fields are given in `_req_fields` and `_opt_fields` respectively. The pipeline runner tells you if you fail to pass a required field or if you pass something that it doesn't understand.
 

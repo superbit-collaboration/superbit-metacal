@@ -364,7 +364,7 @@ class GalSimModule(SuperBITModule):
         return
 
 class MedsmakerModule(SuperBITModule):
-    _req_fields = ['mock_dir', 'outfile']
+    _req_fields = ['mock_dir', 'outfile','outdir']
     _opt_fields = ['fname_base', 'meds_coadd', 'clobber', 'source_select',
                    'cut_stars', 'vb']
 
@@ -389,13 +389,14 @@ class MedsmakerModule(SuperBITModule):
 
         mock_dir = self._config['mock_dir']
         outfile = self._config['outfile']
+        outdir = self._config['outdir']
 
         filepath = os.path.join(utils.get_module_dir(),
                                 'medsmaker',
                                 'scripts',
                                 'process_mocks.py')
 
-        base = f'python {filepath} {mock_dir} {outfile}'
+        base = f'python {filepath} {mock_dir} {outfile} {outdir}'
 
         options = self._setup_options(run_options)
 
@@ -404,8 +405,8 @@ class MedsmakerModule(SuperBITModule):
         return cmd
 
 class MetacalModule(SuperBITModule):
-    _req_fields = ['medsfile', 'outfile']
-    _opt_fields = ['outdir', 'start', 'end', 'plot', 'n', 'vb']
+    _req_fields = ['medsfile', 'outfile','outdir']
+    _opt_fields = ['start', 'end', 'plot', 'n', 'vb']
 
     def __init__(self, name, config):
         super(MetacalModule, self).__init__(name, config)
