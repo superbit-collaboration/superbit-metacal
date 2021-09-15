@@ -571,13 +571,15 @@ def main():
 
     if outdir is None:
         outdir = os.getcwd()
-
+    
     # Set up for saving files
+    pdb.set_trace()
     im_savedir = os.path.join(outdir, 'plots/metacalibration/')
-    if make_plots is True:
-        if not os.path.isdir(im_savedir):
-            cmd = 'mkdir -p %s' % im_savedir
-            os.system(cmd)
+    if ((make_plots == "True") or (make_plots == "true")):
+       print("\n\nmake plots is true!\n\n")
+       if not os.path.isdir(im_savedir):	
+       	  cmd = 'mkdir -p %s' % im_savedir
+          os.system(cmd)
 
     # Added to handle rng initialization
     # Could put everything through here instead
@@ -679,8 +681,12 @@ def main():
     logprint(f'{T/N} seconds per object (wall time)')
     logprint(f'{T/N*nproc} seconds per object (CPU time)')
 
+    
+    if not os.path.isdir(outdir):
+       cmd='mkdir -p %s' % outdir
+       os.system(cmd)
+       
     out = os.path.join(outdir, outfilename)
-
     logprint(f'Writing results to {out}')
 
     write_output_table(out, mcal_res)

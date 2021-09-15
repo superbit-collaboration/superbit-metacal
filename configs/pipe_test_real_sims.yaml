@@ -15,21 +15,23 @@ medsmaker:
   mock_dir: /Users/jemcclea/Research/SuperBIT/mock_forecasting_data/cluster5/round*
   fname_base: superbit_gaussJitter
   #outdir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/sexparam_tests/sigthresh1.1_minarea5
-  outdir: ./pipe_sexparam_tests/sigthresh1.1_minarea5
+  outdir: ./pipe_sexparam_tests/sigthresh1.1_minarea5/metacal
   outfile: sigthresh1.1_minarea5.meds
 
   
 metacal:
-  # :plot: make diagnostics plots, saved in '{outdir}/plots/metacalibration/'
-  start: 6000
-  end: 6200
+  # :plot: Boolean condition to create diagnostics plots, saved in '{outdir}/plots/metacalibration/'
+  #        ["True"/"False", default="True"]
+  
+  start: 6200
+  end: 6202
   medsfile: ./pipe_sexparam_tests/sigthresh1.1_minarea5/sigthresh1.1_minarea5.meds
   outdir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/superbit_lensing/sigthresh1.1_minarea5/metacal
   outfile: sigthresh1.1_minarea5_mcal_fitting.fits
   plot: True 
   
 run_options:
-  ncores: 8
+  ncores: 10
   order:
   #- galsim
   #- medsmaker
