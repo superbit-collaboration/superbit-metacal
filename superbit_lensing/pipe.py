@@ -405,8 +405,8 @@ class MedsmakerModule(SuperBITModule):
         return cmd
 
 class MetacalModule(SuperBITModule):
-    _req_fields = ['medsfile', 'outfile','outdir']
-    _opt_fields = ['start', 'end', 'plot', 'n', 'vb']
+    _req_fields = ['medsfile', 'outfile']
+    _opt_fields = ['outdir','start', 'end', 'plot', 'n', 'vb']
 
     def __init__(self, name, config):
         super(MetacalModule, self).__init__(name, config)
@@ -430,12 +430,10 @@ class MetacalModule(SuperBITModule):
     def _setup_run_command(self, run_options):
 
         run_name = run_options['run_name']
+        
         outdir = self._config['outdir']
-
         medsfile = self._config['medsfile']
         outfile = self._config['outfile']
-        outfile = os.path.join(outdir, outfile)
-
         mcal_dir = os.path.join(utils.get_module_dir(),
                                 'metacalibration',
                                 'mcal-scripts')

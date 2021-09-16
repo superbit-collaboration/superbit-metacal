@@ -23,15 +23,15 @@ metacal:
   # :plot: Boolean condition to create diagnostics plots, saved in '{outdir}/plots/metacalibration/'
   #        ["True"/"False", default="True"]
   
-  start: 6200
-  end: 6202
+  start: 6000
+  end: 6020
   medsfile: ./pipe_sexparam_tests/sigthresh1.1_minarea5/sigthresh1.1_minarea5.meds
-  outdir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/superbit_lensing/sigthresh1.1_minarea5/metacal
+  outdir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/pipe_sexparam_tests/sigthresh1.1_minarea5/metacal
   outfile: sigthresh1.1_minarea5_mcal_fitting.fits
   plot: True 
   
 run_options:
-  ncores: 10
+  ncores: 8
   order:
   #- galsim
   #- medsmaker

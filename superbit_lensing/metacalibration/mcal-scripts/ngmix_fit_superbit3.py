@@ -71,10 +71,15 @@ class SuperBITNgmixFitter():
         self.config = config
         self.seed = config['seed']
 
-        fname = os.path.join(config['outdir'], config['medsfile'])
-        self.medsObj = meds.MEDS(fname)
-        self.catalog = self.medsObj.get_cat()
+        try:
+            fname = os.path.join(config['outdir'], config['medsfile'])
+            self.medsObj = meds.MEDS(fname)
+        except OSError:
+            fname =config['medsfile']
+            self.medsObj = meds.MEDS(fname)
 
+        self.catalog = self.medsObj.get_cat()
+        
         try:
             self.verbose = config['verbose']
         except KeyError:
@@ -487,7 +492,7 @@ def setup_obj(i, meds_obj):
 
     return obj
 
-def mp_run_fit(i, obj, jaclist, obslist, prior, imc, plotter, config, logprint):
+def mp_run_fit(i, start_ind,obj, jaclist, obslist, prior, imc, plotter, config, logprint):
     '''
     parallelized version of original ngmix_fit_superbit3 code
 
@@ -501,7 +506,7 @@ def mp_run_fit(i, obj, jaclist, obslist, prior, imc, plotter, config, logprint):
     # utils.ForkedPdb().set_trace()
 
     logprint(f'Starting fit for obj {i}')
-
+    
     try:
         # mcal_res: the bootstrapper's get_mcal_result() dict
         # mcal_fit: the mcal model image
@@ -520,7 +525,9 @@ def mp_run_fit(i, obj, jaclist, obslist, prior, imc, plotter, config, logprint):
 
         if config['make_plots'] is True:
             image_cutout = imc
-            jdict = plotter.jdict_list[i]
+            #jdict = plotter.jdict_list[i]
+            #logprint("\n\nlength of plotter.jdict_list is %d\n\n" % len(plotter.jdict_list))
+            jdict = plotter.jdict_list[i-start_ind] # need to change that so allows for i-start_index
             jac = ngmix.Jacobian(row=jdict['row0'],
                                  col=jdict['col0'],
                                  dvdrow=jdict['dvdrow'],
@@ -564,19 +571,40 @@ def main():
     outdir = args.outdir
     index_start  = args.start
     index_end = args.end
-    make_plots = args.plot
+    make_plots_arg = args.plot
     nproc = args.n
     identifying = {'meds_index':[], 'id':[], 'ra':[], 'dec':[]}
     mcal = {'noshear':[], '1p':[], '1m':[], '2p':[], '2m':[]}
 
+
+    # Test for existence of the "outdir" argument. If the "outdir" argument is
+    # not given, set it to a default value (current working directory).
+    # If the "outdir" argument is given in config but the "outdir" directory
+    # itself doesn't exist, create it.
+    
     if outdir is None:
         outdir = os.getcwd()
+
+    if not os.path.isdir(outdir):	
+       	  cmd = 'mkdir -p %s' % outdir
+          os.system(cmd)
+
+    # old make_plots arg was a string; evaluating it 
+    # as a boolean
     
-    # Set up for saving files
-    pdb.set_trace()
-    im_savedir = os.path.join(outdir, 'plots/metacalibration/')
-    if ((make_plots == "True") or (make_plots == "true")):
-       print("\n\nmake plots is true!\n\n")
+    if ((make_plots_arg == "True") or (make_plots_arg == "true")):
+        print('diagnostic plotting enabled')
+        make_plots = True
+    elif ((make_plots_arg == "False") or (make_plots_arg == "false")):
+        print('no diagnostic plots will be generated')
+        make_plots = False
+    else:
+        print('make_plots argument not in recognized format, setting value to False')
+        make_plots = False
+        
+    # Set up for saving plots
+    im_savedir = os.path.join(outdir, 'plots/')
+    if (make_plots == True):
        if not os.path.isdir(im_savedir):	
        	  cmd = 'mkdir -p %s' % im_savedir
           os.system(cmd)
@@ -658,7 +686,7 @@ def main():
     # for multiprocessing:
     with Pool(nproc) as pool:
         mcal_res = vstack(pool.starmap(mp_run_fit,
-                                       [(i,
+                                       [(i,index_start,
                                          setup_obj(i, BITfitter.medsObj[i]),
                                          BITfitter._get_jacobians(i),
                                          BITfitter._get_source_observations(i),
@@ -697,10 +725,11 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-    # try:
-    #     main()
-    # except:
-    #     thingtype, value, tb = sys.exc_info()
-    #     traceback.print_exc()
-    #     pdb.post_mortem(tb)
+    """
+    try:
+        main()
+    except:
+        thingtype, value, tb = sys.exc_info()
+        traceback.print_exc()
+        pdb.post_mortem(tb)
+    """
