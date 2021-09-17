@@ -415,9 +415,9 @@ class BITMeasurement():
             psfex_model_file = self._make_psf_model(imagefile, weightfile=weightfile, select_stars=select_stars)
             # move checkimages to psfex_output
             cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', self.psf_path])
-	    cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', self.psf_path])
+            cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', self.psf_path])
             os.system(cleanup_cmd)
-	    os.system(cleanup_cmd2)
+            os.system(cleanup_cmd2)
             # utils.run_command(cmd, logprint=self.logprint)
 
             self.psfEx_models.append(psfex.PSFEx(psfex_model_file))
