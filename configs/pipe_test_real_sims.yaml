@@ -33,9 +33,9 @@ metacal:
 run_options:
   ncores: 8
   order:
-  #- galsim
+  - galsim
   #- medsmaker
-  - metacal
+  #- metacal
   run_diagnostics: true
   run_name: sigthresh1.1_minarea5
   vb: true

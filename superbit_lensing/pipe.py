@@ -364,8 +364,8 @@ class GalSimModule(SuperBITModule):
         return
 
 class MedsmakerModule(SuperBITModule):
-    _req_fields = ['mock_dir', 'outfile','outdir']
-    _opt_fields = ['fname_base', 'meds_coadd', 'clobber', 'source_select',
+    _req_fields = ['mock_dir', 'outfile']
+    _opt_fields = ['fname_base', 'meds_coadd', 'outdir', 'clobber', 'source_select',
                    'cut_stars', 'vb']
 
     def __init__(self, name, config):
@@ -396,7 +396,7 @@ class MedsmakerModule(SuperBITModule):
                                 'scripts',
                                 'process_mocks.py')
 
-        base = f'python {filepath} {mock_dir} {outfile} {outdir}'
+        base = f'python {filepath} {mock_dir} {outfile}'
 
         options = self._setup_options(run_options)
 
@@ -503,7 +503,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'ncores': 8,
                     'run_diagnostics': True,
                     'order': [
-                        'galsim',
+                        #'galsim',
                         'medsmaker',
                         'metacal'
                         ]
@@ -520,7 +520,8 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                 'medsmaker': {
                     'mock_dir': outdir,
                     'outfile': f'{run_name}_meds.fits',
-                    'fname_base': run_name
+                    'fname_base': run_name,
+                    'outdir': outdir
                 },
                 'metacal': {
                     'medsfile': os.path.join(outdir, f'{run_name}_meds.fits'),
