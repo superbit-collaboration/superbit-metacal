@@ -503,7 +503,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'ncores': 8,
                     'run_diagnostics': True,
                     'order': [
-                        #'galsim',
+                        'galsim',
                         'medsmaker',
                         'metacal'
                         ]
