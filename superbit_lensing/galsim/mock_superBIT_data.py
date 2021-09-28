@@ -251,8 +251,8 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     theta = ud()*2.0*numpy.pi*galsim.radians
     gal = gal.rotate(theta)
     
-    # The "magnify" is just for drama; factor of 1.2207 turns us into e-
-    gal *= (sbparams.flux_scaling*1.2207)
+    # The "magnify" is just for drama
+    gal *= sbparams.flux_scaling
     gal.magnify(4)
     logprint.debug(f'rescaled galaxy with scaling factor {sbparams.flux_scaling}')
 
@@ -314,10 +314,12 @@ def make_a_star(ud, wcs, affine, optics, sbparams, logprint):
     uv_pos = affine.toWorld(image_pos)
 
     # Draw star flux at random; based on distribution of star fluxes in real images  
-    #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 799.2114, x_max = 890493.9)
-    flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 533, x_max = 59362)
-    star_flux = flux_dist()*1.2207
-    
+    #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 533, x_max = 59362)
+    flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 333, x_max = 890494)
+    star_flux=flux_dist()
+    if sbparams.bandpass=='crates_adu_b':
+        star_flux*=0.8271672
+
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)  
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
@@ -644,7 +646,7 @@ def main():
 
     try:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name,
-                                           dir=sbparams.datadir)
+                                           dir=sbparams.cosmosdir)
     except:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
     #logprint.debug('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
@@ -764,7 +766,7 @@ def main():
                 full_image[bounds] += stamp[bounds]
                 time2 = time.time()
                 tot_time = time2-time1
-                logprint(f'Galaxy {k} positioned relative to center t={tot_time} s')
+                logprint(f'Galaxy {k} positioned relative to center t={tot_time} s\n')
                 this_flux=numpy.sum(stamp.array)
 
                 if i == 1:
