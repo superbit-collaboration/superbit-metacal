@@ -1,0 +1,39 @@
+galsim:
+  clobber: true
+  config_dir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/superbit_lensing/galsim/config_files
+  config_file: superbit_parameters_forecast.yaml
+  outdir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/superbit_lensing/tests/pipe_test2
+  
+medsmaker:
+  # These are config parameters for: superbit-metacal/superbit_lensing/scripts/process_mocks.py
+  # :mock_dir: directory from which to access mock images
+  # :fname_base: what is the base filename for mock images;
+  #      --> do NOT append "fits", wildcards, etc. to end. Code does that for you.
+  # :outdir: directory for all output files (MEDS, catalogs, images, etc.)
+  # :outfile: name of output MEDS file, default behavior is storage in ???
+  
+  mock_dir: /Users/jemcclea/Research/SuperBIT/mock_forecasting_data/cluster5/round*
+  fname_base: superbit_gaussJitter
+  #outdir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/sexparam_tests/sigthresh1.1_minarea5
+  outdir: ./pipe_sexparam_tests/sigthresh1.1_minarea5
+  outfile: sigthresh1.1_minarea5.meds
+
+  
+metacal:
+  # :plot: make diagnostics plots, saved in '{outdir}/plots/metacalibration/'
+  start: 6000
+  end: 6200
+  medsfile: /Users/jemcclea/Research/SuperBIT/superbit-metacal/sexparam_tests/sigthresh1.1_minarea5/sigthresh1.1_minarea5.meds
+  outdir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/superbit_lensing/pipe_test2
+  outfile: sigthresh1.1_minarea5_mcal.fits
+  plot: True 
+  
+run_options:
+  ncores: 8
+  order:
+  #- galsim
+  - medsmaker
+  - metacal
+  run_diagnostics: true
+  run_name: sigthresh1.1_minarea5
+  vb: true
