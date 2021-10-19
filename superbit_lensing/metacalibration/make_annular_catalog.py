@@ -43,7 +43,7 @@ class McalCats():
         holding={}
         try:
             for i in np.arange(len(self.mcals)):
-                tab=Table.read(self.mcals[i],format='fits',hdu=2)
+                tab=Table.read(self.mcals[i],format='fits',hdu=1)
                 holding["tab{0}".format(i)] = tab
         except:
             for i in np.arange(len(self.mcals)):
@@ -67,27 +67,23 @@ class McalCats():
 
         # This step both applies selection cuts and returns shear-calibrated
         # tangential ellipticity moments
-        self._compute_metacal_quantities()
+        qualcuts = self._compute_metacal_quantities()
 
         # Now match trimmed & shear-calibrated catalog against sextractor
-        gals=Table.read(self.sexcat,format='fits',hdu=2) 
+        gals=Table.read(self.sexcat,format='fits',hdu=1) 
         master_matcher = htm.Matcher(16,ra=self.mcCat['ra'],dec=self.mcCat['dec'])
         gals_ind,master_ind,dist=master_matcher.match(ra=gals['ALPHAWIN_J2000'],dec=gals['DELTAWIN_J2000'],
-                                                          radius=5E-4,maxmatch=1)
+                                                          radius=1.4E-4,maxmatch=1)
         match_master=self.mcCat[master_ind]; gals=gals[gals_ind]
 
         # Write to file
         newtab=Table()
         newtab.add_columns([match_master['id'],match_master['ra'],match_master['dec']],names=['id','ra','dec'])
-        newtab.add_columns([gals['X_IMAGE'],gals['Y_IMAGE']])
-        newtab.add_columns([match_master['g1_boot'],match_master['g2_boot']],names=['g1_boot','g2_boot'])
-        
-        newtab.add_columns([match_master['g1_MC'],match_master['g2_MC']],names=['g1_MC','g2_MC'])
+        newtab.add_columns([gals['X_IMAGE'],gals['Y_IMAGE']])        
+        newtab.add_columns([match_master['g_noshear'][:,0],match_master['g_noshear'][:,1]],names=['g1_noshear','g2_noshear'])
         newtab.add_columns([match_master['g1_Rinv'],match_master['g2_Rinv']],names=['g1_Rinv','g2_Rinv'])
-        try:
-            newtab.add_columns([match_master['T_gmix'],match_master['flux_gmix']],names=['T_noshear','flux'])
-        except:
-            newtab.add_columns([match_master['T_noshear'],match_master['flux']],names=['T_noshear','flux'])
+        newtab.add_columns([match_master['T_noshear'],match_master['Tpsf_noshear'],match_master['flux_noshear']],\
+                               names=['T_noshear','Tpsf_noshear','flux'])
         
         newtab.write(self.outcat,format='csv',overwrite=True) # file gets replaced in the run_sdsscsv2fiat step
         self._run_sdsscsv2fiat()
@@ -101,69 +97,85 @@ class McalCats():
         - compute mean r11 and r22 for galaxies: responsivity & selection
         - divide "no shear" g1/g2 by r11 and r22, and return
 
-        & (self.mcCat['T_noshear']>1.5)
+        & (self.mcCat['T_noshear']>1.5
         """
         
         #noshear_selection = self.mcCat[(self.mcCat['T_noshear']>=1.2*self.mcCat['Tpsf_noshear'])& (self.mcCat['s2n_noshear']<400) & (self.mcCat['s2n_noshear']>10)]
 
-        noshear_selection = self.mcCat[(self.mcCat['T_noshear']<100)\
-                                           & (self.mcCat['s2n_noshear']<400)\
-                                           & (self.mcCat['s2n_noshear']>10)\
-                                           & (self.mcCat['g1cov_noshear']<1.5E-3)\
-                                           & (self.mcCat['g2cov_noshear']<1.5E-3)
+        min_Tpsf = 1.2
+        min_sn = 5
+        max_sn = 500
+        min_T = 0.05
+        covcut = 5e-3
+        
+        qualcuts=str('#\n# cuts applied: Tpsf_ratio>%.2f SN>%.1f T>%.2f covcut=%.1e\n#\n' \
+                         % (min_Tpsf,min_sn,min_T,covcut))
+        print(qualcuts)
+
+        noshear_selection = self.mcCat[(self.mcCat['T_noshear']>=min_Tpsf*self.mcCat['Tpsf_noshear'])\
+                                        & (self.mcCat['T_noshear']>min_T)\
+                                        & (self.mcCat['s2n_noshear']>min_sn)\
+                                        & (np.array(self.mcCat['pars_cov_noshear'].tolist())[:,0,0]<covcut)\
+                                        & (np.array(self.mcCat['pars_cov_noshear'].tolist())[:,1,1]<covcut)
                                            ]
-        selection_1p = self.mcCat[(self.mcCat['T_1p']<100)\
-                                      & (self.mcCat['s2n_1p']<400)\
-                                      & (self.mcCat['s2n_1p']>10)\
-                                      & (self.mcCat['g1cov_1p']<1.5E-3)\
-                                      & (self.mcCat['g2cov_1p']<1.5E-3)
+        
+        selection_1p = self.mcCat[(self.mcCat['T_1p']>=min_Tpsf*self.mcCat['Tpsf_1p'])\
+                                      & (self.mcCat['T_1p']>=min_T)\
+                                      & (self.mcCat['s2n_1p']>min_sn)\
+                                      & (np.array(self.mcCat['pars_cov_1p'].tolist())[:,0,0]<covcut)\
+                                      & (np.array(self.mcCat['pars_cov_1p'].tolist())[:,1,1]<covcut)
+                                       ]
+
+        selection_1m = self.mcCat[(self.mcCat['T_1m']>=min_Tpsf*self.mcCat['Tpsf_1m'])\
+                                      & (self.mcCat['T_1m']>=min_T)\
+                                      & (self.mcCat['s2n_1m']>min_sn)\
+                                      & (np.array(self.mcCat['pars_cov_1m'].tolist())[:,0,0]<covcut)\
+                                      & (np.array(self.mcCat['pars_cov_1m'].tolist())[:,1,1]<covcut)
+                                     ]
+        
+        selection_2p = self.mcCat[(self.mcCat['T_2p']>=min_Tpsf*self.mcCat['Tpsf_2p'])\
+                                      & (self.mcCat['T_2p']>=min_T)\
+                                      & (self.mcCat['s2n_2p']>min_sn)\
+                                      & (np.array(self.mcCat['pars_cov_2p'].tolist())[:,0,0]<covcut)\
+                                      & (np.array(self.mcCat['pars_cov_2p'].tolist())[:,1,1]<covcut)
                                       ]
 
-        selection_1m = self.mcCat[(self.mcCat['T_1m']<100)\
-                                      & (self.mcCat['s2n_1m']<400)\
-                                      & (self.mcCat['s2n_1m']>10)\
-                                      & (self.mcCat['g1cov_1m']<1.5E-3)\
-                                      & (self.mcCat['g2cov_1m']<1.5E-3)
-                                      ]
-
-        selection_2p = self.mcCat[(self.mcCat['T_2p']<100)\
-                                      & (self.mcCat['s2n_2p']<400)\
-                                      & (self.mcCat['s2n_2p']>10)\
-                                      & (self.mcCat['g1cov_2p']<1.5E-3)\
-                                      & (self.mcCat['g2cov_2p']<1.5E-3)
-                                      ]
-
-        selection_2m = self.mcCat[(self.mcCat['T_2m']<100)\
-                                      & (self.mcCat['s2n_2m']<400)\
-                                      & (self.mcCat['s2n_2m']>10)\
-                                      & (self.mcCat['g1cov_2m']<1.5E-3)\
-                                      & (self.mcCat['g2cov_2m']<1.5E-3)                                          
-                                      ]
+        selection_2m = self.mcCat[(self.mcCat['T_2m']>=min_Tpsf*self.mcCat['Tpsf_2m'])\
+                                      & (self.mcCat['T_2m']>=min_T)\
+                                      & (self.mcCat['s2n_2m']>min_sn)\
+                                      & (np.array(self.mcCat['pars_cov_2m'].tolist())[:,0,0]<covcut)\
+                                      & (np.array(self.mcCat['pars_cov_2m'].tolist())[:,1,1]<covcut)
+                                    ]
 
         """
         r11_gamma=np.mean(noshear_selection['r11'])
         r22_gamma=np.mean(noshear_selection['r22'])
         """
 
-        r11_gamma=(np.mean(noshear_selection['g1_1p']) -np.mean(noshear_selection['g1_1m']))/0.02
-        r22_gamma=(np.mean(noshear_selection['g2_2p']) -np.mean(noshear_selection['g2_2m']))/0.02
+        r11_gamma=(np.mean(noshear_selection['g_1p'][:,0]) -np.mean(noshear_selection['g_1m'][:,0]))/0.02
+        r22_gamma=(np.mean(noshear_selection['g_2p'][:,1]) -np.mean(noshear_selection['g_2m'][:,1]))/0.02
         
 
         # assuming delta_shear in ngmix_fit_superbit is 0.01                                                                                                                         
-        r11_S = (np.mean(selection_1p['g1_noshear'])-np.mean(selection_1m['g1_noshear']))/0.02
-        r22_S = (np.mean(selection_2p['g2_noshear'])-np.mean(selection_2m['g2_noshear']))/0.02
+        r11_S = (np.mean(selection_1p['g_noshear'][:,0])-np.mean(selection_1m['g_noshear'][:,0]))/0.02
+        r22_S = (np.mean(selection_2p['g_noshear'][:,1])-np.mean(selection_2m['g_noshear'][:,1]))/0.02
 
         print("# mean values <r11_gamma> = %f <r22_gamma> = %f" % (r11_gamma,r22_gamma))
         print("# mean values <r11_S> = %f <r22_S> = %f" % (r11_S,r22_S))
 
 
         # Write current mcCat to file for safekeeping!                                                                                                                               
-        # Then replace it with the "noshear"-selected catalog                                                                                                                        
-        self.mcCat.write('full_metacal_cat.csv',format='ascii.csv',overwrite=True)
+        # Then replace it with the "noshear"-selected catalog
 
+        #self.mcCat.write('full_metacal_cat.csv',format='ascii.csv',overwrite=True)
+        try:
+            self.mcCat.write('full_metacal_cat.fits',format='fits',overwrite=False)
+        except OSError as err:
+            print("{0}\nOverwrite set to False".format(err))
+            
         self.mcCat=noshear_selection
-        self.mcCat['g1_Rinv']= self.mcCat['g1_noshear']/(r11_gamma + r11_S)
-        self.mcCat['g2_Rinv']= self.mcCat['g2_noshear']/(r22_gamma + r22_S)
+        self.mcCat['g1_Rinv']= self.mcCat['g_noshear'][:,0]/(r11_gamma + r11_S)
+        self.mcCat['g2_Rinv']= self.mcCat['g_noshear'][:,1]/(r22_gamma + r22_S)
 
 
         return 0
@@ -221,7 +233,8 @@ def main(args):
     
     if (len(args)<4):
         print("arguments missing; call is:\n")
-        print("     python make_annular_catalog.py sexcat outcatname.asc mcalcat1 [mcalcat2 mcalcat3...]\n\n")
+        print("     python make_annular_catalog.py sexcat outcatname.csv mcalcat1 [mcalcat2 mcalcat3...]\n\n")
+        
     else:
         pass
     
@@ -251,5 +264,5 @@ if __name__ == '__main__':
     except:
         thingtype, value, tb = sys.exc_info()
         traceback.print_exc()
-        pdb.post_mortem(tb)    
+        #pdb.post_mortem(tb)    
         

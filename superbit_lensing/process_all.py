@@ -3,8 +3,8 @@ import superbit_lensing.utils as utils
 from superbit_lensing.pipe import SuperBITPipeline
 
 config_file='/Users/jemcclea/Research/SuperBIT/superbit-metacal/configs/pipe_test_real_sims.yaml'
-log_file='pipe_test_real_sims.log'
-logdir='./pipe_sexparam_tests/sigthresh1.1_minarea5/'
+log_file='psfex_test_real_sims.log'
+logdir='/Users/jemcclea/Research/SuperBIT/forecasting_analysis/psfex_test/'
 
 if not os.path.isdir(logdir):
     cmd='mkdir -p %s' % logdir

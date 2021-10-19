@@ -435,8 +435,7 @@ class MetacalModule(SuperBITModule):
         medsfile = self._config['medsfile']
         outfile = self._config['outfile']
         mcal_dir = os.path.join(utils.get_module_dir(),
-                                'metacalibration',
-                                'mcal-scripts')
+                                'metacalibration')
         filepath = os.path.join(mcal_dir, 'ngmix_fit_superbit3.py')
 
         base = f'python {filepath} {medsfile} {outfile}'

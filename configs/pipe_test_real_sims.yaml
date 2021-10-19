@@ -14,8 +14,8 @@ medsmaker:
   
   mock_dir: /Users/jemcclea/Research/SuperBIT/mock_forecasting_data/cluster5/round*
   fname_base: superbit_gaussJitter
-  #outdir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/sexparam_tests/sigthresh1.1_minarea5
-  outdir: ./pipe_sexparam_tests/sigthresh1.1_minarea5/metacal
+  outdir: /Users/jemcclea/Research/SuperBIT/forecasting_analysis/psfex_test/
+  #outdir: ./pipe_sexparam_tests/sigthresh1.1_minarea5/metacal
   outfile: sigthresh1.1_minarea5.meds
 
   
@@ -25,17 +25,17 @@ metacal:
   
   start: 6000
   end: 6020
-  medsfile: ./pipe_sexparam_tests/sigthresh1.1_minarea5/sigthresh1.1_minarea5.meds
-  outdir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/pipe_sexparam_tests/sigthresh1.1_minarea5/metacal
-  outfile: sigthresh1.1_minarea5_mcal_fitting.fits
+  medsfile: /Users/jemcclea/Research/SuperBIT/forecasting_analysis/psfex_test/sigthresh1.1_minarea5.meds
+  outdir: /Users/jemcclea/Research/SuperBIT/forecasting_analysis/psfex_test/metacal
+  outfile: galsim_des_psfex_mcalfitting.fits
   plot: True 
   
 run_options:
   ncores: 8
   order:
-  - galsim
+  #- galsim
   #- medsmaker
-  #- metacal
+  - metacal
   run_diagnostics: true
-  run_name: sigthresh1.1_minarea5
+  run_name: psfex_tests
   vb: true

@@ -6,6 +6,8 @@ import pickle
 from astropy.table import Table, Row, vstack, hstack
 import os, sys, time, traceback
 import galsim
+import galsim.des
+
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 import matplotlib.pyplot as plt
@@ -147,7 +149,8 @@ class SuperBITNgmixFitter():
         based on the one implemented in simulations
         """
         import galsim
-
+        import galsim.des
+        
         jitter_fwhm = 0.1
         jitter = galsim.Gaussian(flux=1., fwhm=jitter_fwhm)
 
@@ -171,6 +174,31 @@ class SuperBITNgmixFitter():
 
         return gpsf_cutout
 
+    def _make_psfex_cutouts(self,source_id=None,jaclist=None):
+
+        psf_box_size=17; psfex_cutouts = []
+        image_info = self.medsObj.get_image_info()
+        xcoord = self.medsObj[source_id]['orig_row']
+        ycoord = self.medsObj[source_id]['orig_col']
+        file_id = self.medsObj[source_id]['file_id']
+        
+        # obviously this should adapt for flexibility 
+        psf_name = '/Volumes/My Passport/SuperBIT/forecasting-analysis/param_tests/sigthresh1.1_minarea5/psfex_output/superbit_gaussJitter_001_cat.psf'
+
+        for i in range(len(file_id)):
+            
+            jj=jaclist[i]
+            pixel_scale = jj.get_scale()
+            im_name = image_info[file_id[i]][0]
+            im_name.replace('/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/',\
+                                '/Users/jemcclea/Research/SuperBIT/mock_forecasting_data/')
+            psfex_des = galsim.des.DES_PSFEx(psf_name, im_name)
+            this_psf_des=psfex_des.getPSF(galsim.PositionD(xcoord[i],ycoord[i]))
+            psf_cutout = this_psf_des.drawImage(scale=pixel_scale,nx=psf_box_size,ny=psf_box_size,method='no_pixel')
+            psfex_cutouts.append(psf_cutout.array)
+        
+        return psfex_cutouts
+    
     def _get_jacobians(self, source_id=None):
         jlist = self.medsObj.get_jacobian_list(source_id)
         jac = [ngmix.Jacobian(row=jj['row0'],col=jj['col0'],dvdrow = jj['dvdrow'],\
@@ -181,27 +209,28 @@ class SuperBITNgmixFitter():
     def _get_source_observations(self,source_id = None,psf_noise = 1e-6):
         jaclist = self._get_jacobians(source_id)
         psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
+        #psf_cutouts = self._make_psfex_cutouts(source_id,jaclist)
         weight_cutouts = self.medsObj.get_cutout_list(source_id, type='weight')
         image_cutouts = self.medsObj.get_cutout_list(source_id, type='image')
         image_obslist = ngmix.observation.ObsList()
-
+        
         for i in range(len(image_cutouts)):
 
+            jj = jaclist[i]
+            
             # Apparently it likes to add noise to the psf.
             this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
             this_psf_weight = np.zeros_like(this_psf) + 1./psf_noise**2
-
-            this_image = image_cutouts[i]
 
             # Treat sky background variance as a Poisson distribution, e.g.
             #     - mean bkg = 0.048*600
             #     - std_dev = sqrt(bkg) = 5.3
             #     - sky_sigma = std_dev**2 = 25.1
 
-            sky_sigma = (2)**2
+            this_image = image_cutouts[i]
+            sky_sigma = (5.5)**2
             this_weight = np.zeros_like(this_image)+ 1./sky_sigma
 
-            jj = jaclist[i]
 
             psfObs = ngmix.observation.Observation(this_psf,
                                                    weight=this_psf_weight,
@@ -215,9 +244,6 @@ class SuperBITNgmixFitter():
 
             image_obslist.append(imageObs)
 
-        # Handled by Plotter clas now
-        # Make an average cutout image for diagnostics plotting
-        # self._make_imc(source_id=source_id)
 
         return image_obslist
 
@@ -640,15 +666,16 @@ def main():
     priors = BITfitter._get_priors()
 
     Ncat = len(BITfitter.catalog)
-    if index_start is None:
+    if index_start == None:
         index_start = 0
-    if index_end is None:
+    if index_end == None:
         index_end = Ncat
 
     if index_end > Ncat:
         logprint(f'Warning: index_end={index_end} larger than ' +\
                  f'catalog size of {Ncat}; running over full catalog')
-
+        index_end = Ncat
+		 
     # Needed for making plots on each worker
     plotter = SuperBITPlotter()
 
