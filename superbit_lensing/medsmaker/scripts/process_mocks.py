@@ -45,7 +45,9 @@ def main():
     clobber = args.clobber
     source_selection = args.source_select
     select_stars = args.select_stars
-    data_dir = '/Users/jemcclea/Research/SuperBIT/mock_forecasting_data/'
+    data_dir = '/users/jmcclear/data/superbit/forecasting-analysis/'
+    #data_dir = args.mock_dir
+
     vb = args.verbose
 
     logfile = 'medsmaker.log'

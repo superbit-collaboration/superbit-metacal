@@ -468,7 +468,7 @@ class BITMeasurement():
         # Will need to make that tmp/psfex_output generalizable
         outcat_name = imagefile.replace('.fits','.psfex.star')
         cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
-                            outcat_name, '-PSFVAR_DEGREES','2','-PSF_DIR', self.psf_path])
+                            outcat_name,'-PSF_DIR', self.psf_path])
         self.logprint("psfex cmd is " + cmd)
         os.system(cmd)
         # utils.run_command(cmd, logprint=self.logprint)

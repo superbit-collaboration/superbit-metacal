@@ -77,7 +77,7 @@ class Logger(object):
 
         # instead:
         log = logging.getLogger()
-        log.setLevel(logging.DEBUG)
+        log.setLevel(logging.INFO)
         # log.setLevel(logging.ERROR)
         handler = logging.FileHandler(self.logfile, 'w', 'utf-8')
         handler.setFormatter(logging.Formatter('%(name)s %(message)s'))
@@ -97,7 +97,7 @@ def setup_logger(logfile, logdir=None):
 
     if logdir is not None:
         if not os.path.exists(logdir):
-            os.mkdir(logdir)
+            os.makedirs(logdir)
 
     logger = Logger(logfile, logdir=logdir)
 

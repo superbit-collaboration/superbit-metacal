@@ -11,5 +11,5 @@ meds_file:              "../../Medsmaker/output/test.meds"
 # ----------
 start_index:            null            # 1st object to analyze (null for start)
 end_index:              null            # last object to analyze (null for end)
-psf_model:              "gauss"         # PSF model: gauss or em
+psf_model:              "em2"         # PSF model: gauss or em
 gal_model:              "exp"           # Galaxy model: exp

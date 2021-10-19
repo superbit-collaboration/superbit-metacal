@@ -30,7 +30,7 @@ class GalSimDiagnostics(Diagnostics):
 
         for d in [plotdir, plot_outdir]:
             if not os.path.exists(d):
-                os.mkdir(d)
+                os.makedirs(d)
 
         self.outdir = config['outdir']
         self.plotdir = plot_outdir

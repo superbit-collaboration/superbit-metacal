@@ -1,10 +1,12 @@
 import os
 import superbit_lensing.utils as utils
 from superbit_lensing.pipe import SuperBITPipeline
+import time
 
-config_file='/Users/jemcclea/Research/SuperBIT/superbit-metacal/configs/pipe_test_real_sims.yaml'
-log_file='pipe_test_real_sims.log'
-logdir='./pipe_sexparam_tests/sigthresh1.1_minarea5/'
+start_time = time.time()
+config_file='./configs/test_psfex.yaml'
+log_file='psfex_cutout_test.log'
+logdir='/users/jmcclear/data/superbit/forecasting-analysis/psfex_cutout_tests'
 
 if not os.path.isdir(logdir):
     cmd='mkdir -p %s' % logdir
@@ -18,3 +20,6 @@ rc = pipe.run()
 
 assert(rc == 0)
 
+
+end_time=time.time()
+print("\n\n\n Pipeline execution time = %.2f\n\n\n" % (end_time - start_time))

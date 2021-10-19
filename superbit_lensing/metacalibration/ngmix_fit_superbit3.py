@@ -11,11 +11,11 @@ from argparse import ArgumentParser
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from numba.core.errors import NumbaExperimentalFeatureWarning, NumbaDeprecationWarning
-import warnings
+#from numba.core.errors import NumbaExperimentalFeatureWarning, NumbaDeprecationWarning
+#import warnings
 import time
-warnings.simplefilter('ignore', category=NumbaExperimentalFeatureWarning)
-warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
+#warnings.simplefilter('ignore', category=NumbaExperimentalFeatureWarning)
+#warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 from multiprocessing import Pool
 import multiprocessing
@@ -171,6 +171,35 @@ class SuperBITNgmixFitter():
 
         return gpsf_cutout
 
+
+    def _make_psfex_cutouts(self,source_id=None,jaclist=None):
+
+        import galsim.des
+
+        psf_box_size=17; psfex_cutouts = []
+        image_info = self.medsObj.get_image_info()
+        xcoord = self.medsObj[source_id]['orig_row']
+        ycoord = self.medsObj[source_id]['orig_col']
+        file_id = self.medsObj[source_id]['file_id']
+        
+        # obviously this should adapt for flexibility 
+        psf_name = '/users/jmcclear/data/superbit/forecasting-analysis/psfex_cutout_tests/psfex_output/superbit_gaussJitter_001_cat.psf'
+
+        for i in range(len(file_id)):
+            
+            jj=jaclist[i]
+            pixel_scale = jj.get_scale()
+            im_name = image_info[file_id[i]][0]
+            #im_name.replace('/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/',\
+            #                    '/Users/jemcclea/Research/SuperBIT/mock_forecasting_data/')
+            psfex_des = galsim.des.DES_PSFEx(psf_name, im_name)
+            this_psf_des=psfex_des.getPSF(galsim.PositionD(xcoord[i],ycoord[i]))
+            psf_cutout = this_psf_des.drawImage(scale=pixel_scale,nx=psf_box_size,ny=psf_box_size,method='no_pixel')
+            psfex_cutouts.append(psf_cutout.array)
+        
+        return psfex_cutouts
+
+
     def _get_jacobians(self, source_id=None):
         jlist = self.medsObj.get_jacobian_list(source_id)
         jac = [ngmix.Jacobian(row=jj['row0'],col=jj['col0'],dvdrow = jj['dvdrow'],\
@@ -180,7 +209,8 @@ class SuperBITNgmixFitter():
 
     def _get_source_observations(self,source_id = None,psf_noise = 1e-6):
         jaclist = self._get_jacobians(source_id)
-        psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
+        #psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
+        psf_cutouts = self._make_psfex_cutouts(source_id,jaclist)
         weight_cutouts = self.medsObj.get_cutout_list(source_id, type='weight')
         image_cutouts = self.medsObj.get_cutout_list(source_id, type='image')
         image_obslist = ngmix.observation.ObsList()
@@ -198,7 +228,7 @@ class SuperBITNgmixFitter():
             #     - std_dev = sqrt(bkg) = 5.3
             #     - sky_sigma = std_dev**2 = 25.1
 
-            sky_sigma = (2)**2
+            sky_sigma = (5.7)**2
             this_weight = np.zeros_like(this_image)+ 1./sky_sigma
 
             jj = jaclist[i]
@@ -454,7 +484,7 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
         metacal_pars={'step':mcal_shear}
 
     Tguess = 4*jaclist[0].get_scale()**2
-    ntry = 3
+    ntry = 4
     psf_model = 'gauss' # should come up with diagnostics for PSF quality
     gal_model = 'exp'
 
@@ -640,14 +670,15 @@ def main():
     priors = BITfitter._get_priors()
 
     Ncat = len(BITfitter.catalog)
-    if index_start is None:
+    if index_start == None:
         index_start = 0
-    if index_end is None:
+    if index_end == None:
         index_end = Ncat
 
     if index_end > Ncat:
         logprint(f'Warning: index_end={index_end} larger than ' +\
                  f'catalog size of {Ncat}; running over full catalog')
+        index_end = Ncat
 
     # Needed for making plots on each worker
     plotter = SuperBITPlotter()

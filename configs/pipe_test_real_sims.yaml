@@ -31,7 +31,7 @@ metacal:
   plot: True 
   
 run_options:
-  ncores: 8
+  ncores: 1
   order:
   - galsim
   #- medsmaker
