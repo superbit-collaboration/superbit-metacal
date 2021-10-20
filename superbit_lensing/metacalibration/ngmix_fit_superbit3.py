@@ -6,8 +6,7 @@ import pickle
 from astropy.table import Table, Row, vstack, hstack
 import os, sys, time, traceback
 import galsim
-import galsim.des
-
+import psfex
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 import matplotlib.pyplot as plt
@@ -183,23 +182,25 @@ class SuperBITNgmixFitter():
         ycoord = self.medsObj[source_id]['orig_col']
         file_id = self.medsObj[source_id]['file_id']
         
-        # obviously this should adapt for flexibility 
-        psf_name = '/users/jmcclear/data/superbit/forecasting-analysis/psfex_cutout_tests/psfex_output/superbit_gaussJitter_001_cat.psf'
-        #psf_name = '/Volumes/My Passport/SuperBIT/forecasting-analysis/param_tests/sigthresh1.1_minarea5/psfex_output/superbit_gaussJitter_001_cat.psf'
+        # TO DO: make naming more general; requires some rewrite of medsmaker and would ideally go into the file_id loop 
+        #psf_name = '/users/jmcclear/data/superbit/forecasting-analysis/psfex_cutout_tests/psfex_output/superbit_gaussJitter_001_cat.psf'
+        psf_name = '/Users/jemcclea/Research/SuperBIT/forecasting-analysis/psfex_cutout_tests/psfex_output/superbit_gaussJitter_001_cat.psf'
 
+        pex = psfex.PSFEx(psf_name)
+        
         for i in range(len(file_id)):
             
-            jj=jaclist[i]
-            pixel_scale = jj.get_scale()
             im_name = image_info[file_id[i]][0]
 
-            #im_name.replace('/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/',\
-            #                    '/Users/jemcclea/Research/SuperBIT/mock_forecasting_data/')
-
+            im_name.replace('/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/',\
+                                '/Users/jemcclea/Research/SuperBIT/mock_forecasting_data/')
+            """
             psfex_des = galsim.des.DES_PSFEx(psf_name, im_name)
             this_psf_des=psfex_des.getPSF(galsim.PositionD(xcoord[i],ycoord[i]))
             psf_cutout = this_psf_des.drawImage(scale=pixel_scale,nx=psf_box_size,ny=psf_box_size,method='no_pixel')
-            psfex_cutouts.append(psf_cutout.array)
+            """
+            psf_cutout = pex.get_rec(xcoord[i],ycoord[i])
+            psfex_cutouts.append(psf_cutout)
         
         return psfex_cutouts
     
@@ -232,7 +233,7 @@ class SuperBITNgmixFitter():
             #     - std_dev = sqrt(bkg) = 5.3
             #     - sky_sigma = std_dev**2 = 25.1
 
-            sky_sigma = (5.7)**2
+            sky_sigma = (5.6)**2
             this_image = image_cutouts[i]
 
             this_weight = np.zeros_like(this_image)+ 1./sky_sigma
@@ -558,8 +559,9 @@ def mp_run_fit(i, start_ind,obj, jaclist, obslist, prior, imc, plotter, config, 
         if config['make_plots'] is True:
             image_cutout = imc
             #jdict = plotter.jdict_list[i]
-            #logprint("\n\nlength of plotter.jdict_list is %d\n\n" % len(plotter.jdict_list))
             jdict = plotter.jdict_list[i-start_ind] # need to change that so allows for i-start_index
+            logprint("\n\nlength of plotter.jdict_list is %d\n\n" % len(plotter.jdict_list))
+
             jac = ngmix.Jacobian(row=jdict['row0'],
                                  col=jdict['col0'],
                                  dvdrow=jdict['dvdrow'],
@@ -578,6 +580,7 @@ def mp_run_fit(i, start_ind,obj, jaclist, obslist, prior, imc, plotter, config, 
             except:
                 # EM probably failed
                 logprint('Bad gmix model, no image made')
+                pdb.set_trace()
 
     except Exception as e:
         logprint(e)
