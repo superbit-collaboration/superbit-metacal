@@ -106,7 +106,7 @@ class McalCats():
         min_sn = 5
         max_sn = 500
         min_T = 0.05
-        covcut = 5e-3
+        covcut = 7e-3
         
         qualcuts=str('#\n# cuts applied: Tpsf_ratio>%.2f SN>%.1f T>%.2f covcut=%.1e\n#\n' \
                          % (min_Tpsf,min_sn,min_T,covcut))

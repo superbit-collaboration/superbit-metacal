@@ -1,5 +1,5 @@
 #!/bin/sh
-#SBATCH -t 6:00:00
+#SBATCH -t 3:00:00
 #SBATCH -N 1 
 #SBATCH -n 18
 #SBATCH --mem-per-cpu=5g
@@ -16,6 +16,6 @@
 
 echo $PYTHONPATH
 
-python /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/process_all.py
-#python /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/process_all2.py                                                                              
+#python /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/process_all.py
+python /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/process_all2.py                                                                              
 #python /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/process_all3.py
