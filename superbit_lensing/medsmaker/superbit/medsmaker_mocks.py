@@ -321,8 +321,8 @@ class BITMeasurement():
 
     def _select_sources_from_catalog(self, fullcat, catname='catalog.ldac', min_size =2, max_size=24.0, size_key='KRON_RADIUS'):
         # Choose sources based on quality cuts on this catalog.
-        keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
-        self.catalog = self.catalog[keep.nonzero()[0]]
+        #keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
+        #self.catalog = self.catalog[keep.nonzero()[0]]
 
 
         self.logprint("Selecting analysis objects on CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
@@ -604,7 +604,7 @@ class BITMeasurement():
         ###
 
         obj_str = meds.util.get_meds_input_struct(catalog.size,\
-                                                  extra_fields = [('KRON_RADIUS',np.float),('number',np.int)\
+                                                  extra_fields = [('KRON_RADIUS',np.float),('number',np.int),\
                                                                   ('x_coadd',np.float),('y_coadd',np.float)])
         obj_str['id'] = catalog['NUMBER']
         obj_str['number'] = np.arange(catalog.size)+1

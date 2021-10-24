@@ -5,8 +5,8 @@ import time
 
 start_time = time.time()
 config_file='./configs/test_psfex.yaml'
-log_file='psfex_cutout_test.log'
-logdir='/users/jmcclear/data/superbit/forecasting-analysis/psfex_cutout_tests'
+log_file='coaddxy_meds_test.log'
+logdir='/users/jmcclear/data/superbit/forecasting-analysis/'
 
 if not os.path.isdir(logdir):
     cmd='mkdir -p %s' % logdir

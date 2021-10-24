@@ -229,9 +229,9 @@ class SuperBITPipeline(SuperBITModule):
 
         if self._config['run_options']['ncores'] is None:
             # use half available cores by default
-            ncores = os.cpu_count() // 2
+            ncores = os.cpu_count() #// 2
             self._config['run_options']['ncores'] = ncores
-            self.logprint(f'`ncores` was not set; using half available ({ncores})')
+            self.logprint(f'`ncores` was not set; using all available ({ncores})')
 
         col = 'run_diagnostics'
         if col in self._config['run_options']:

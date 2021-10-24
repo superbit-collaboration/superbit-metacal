@@ -16,6 +16,6 @@
 
 echo $PYTHONPATH
 
-#python /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/process_all.py
-python /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/process_all2.py                                                                              
+python /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/process_all.py
+#python /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/process_all2.py                                                                              
 #python /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/process_all3.py
