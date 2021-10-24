@@ -522,8 +522,8 @@ def setup_obj(i, meds_obj):
     obj['id'] = meds_obj['id']
     obj['ra'] = meds_obj['ra']
     obj['dec'] = meds_obj['dec']
-    obj['X_IMAGE'] = meds_obj['x_coadd']
-    obj['Y_IMAGE'] = meds_obj['y_coadd']
+    obj['X_IMAGE'] = meds_obj['X_IMAGE']
+    obj['Y_IMAGE'] = meds_obj['Y_IMAGE']
 
 
     return obj

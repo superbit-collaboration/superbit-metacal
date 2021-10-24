@@ -611,8 +611,8 @@ class BITMeasurement():
         obj_str['box_size'] = self._calculate_box_size(catalog['KRON_RADIUS'])
         obj_str['ra'] = catalog['ALPHAWIN_J2000']
         obj_str['dec'] = catalog['DELTAWIN_J2000']
-        obj_str['x_coadd'] = catalog['X_IMAGE']
-        obj_str['y_coadd'] = catalog['Y_IMAGE']
+        obj_str['X_IMAGE'] = catalog['X_IMAGE']
+        obj_str['Y_IMAGE'] = catalog['Y_IMAGE']
         obj_str['KRON_RADIUS'] = catalog['KRON_RADIUS']
 
         return obj_str
