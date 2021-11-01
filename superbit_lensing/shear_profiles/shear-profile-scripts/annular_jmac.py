@@ -82,18 +82,19 @@ class Annular():
         yc = self.annular_info['nfw_center'][1]
 
         #wg=(self.mu>1)
-        wg = (self.g1> -2)
-        print("## %d galaxies were actually lensed" % len(wg.nonzero()[0]))
+        g = np.sqrt(self.g1**2 + self.g2**2)
+
+        wg = (self.g1>-2)
+        print("## %d galaxies actually used for calculation" % len(wg.nonzero()[0]))
         
-        g1=self.g1[wg]
-        g2=self.g2[wg]
+        g1=self.g1[wg] #*np.sqrt(2)
+        g2=self.g2[wg] #*np.sqrt(2)
         x=self.x[wg]
         y=self.y[wg]
 
         self.r=np.sqrt( ((x-xc)**2.0) + ((y-yc)**2))
         
         phi = np.arctan2((y-yc),(x-xc))
-        g = np.sqrt(g1**2 + g2**2)
         print("## Mean g: %f " % np.mean(g))
         self.gtan= -1.0*(g1*np.cos(2.0*phi) + g2*np.sin(2.0*phi))
         self.gcross = g1*np.sin(2.0*phi) - g2*np.cos(2.0*phi) # note that annular.c has opposite sign convention 
@@ -120,7 +121,8 @@ class Annular():
         number,bins = np.histogram(self.r,bins=num_bins,range=(minrad,maxrad))
 
        
-        
+        print("##\n r       n        gtan      err_gtan     gcross     err_gcross")
+
         
         for i in range(len(bins)-1):
             annulus = (self.r>=bins[i]) & (self.r<bins[i+1])          
@@ -156,7 +158,6 @@ def print_header(args):
     print("## err_gtan: standard error of gtan")
     print("## gcross: cross (B-mode) reduced-shear")
     print("## err_gcross: standard error of gcross")
-    print("##\n## r       n        gtan      err_gtan     gcross     err_gcross")
     
     return
 
@@ -184,11 +185,11 @@ def main(args):
     g2_arg = args[5]
 
     # Define annular args
-    startrad = 50
-    endrad = 2200
-    nfw_center = [3505,2340]
+    startrad = 180
+    endrad = 4000
+    nfw_center = [5031,3353]
     #nfw_center = [3333,2227]
-    nbins =20
+    nbins =16
 
     print_header(args)
     
@@ -199,16 +200,19 @@ def main(args):
     annular.run(write=True)
     
     #pdb.set_trace()
-    print("annular successfully completed, enjoy your shear profile <3")
+    #print("annular successfully completed, enjoy your shear profile <3")
 
     
 if __name__ == '__main__':
 
+    """
     import pdb, traceback, sys
     try:
         main(sys.argv)
     except:
         thingtype, value, tb = sys.exc_info()
         traceback.print_exc()
-        pdb.post_mortem(tb)    
+        pdb.post_mortem(tb)   
+    """
+    main(sys.argv)
         

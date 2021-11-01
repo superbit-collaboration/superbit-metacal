@@ -176,10 +176,10 @@ class SuperBITNgmixFitter():
     def _make_psfex_cutouts(self,source_id=None,jaclist=None):
 
 
-        psf_box_size=17; psfex_cutouts = []
+        psfex_cutouts = []
         image_info = self.medsObj.get_image_info()
-        xcoord = self.medsObj[source_id]['orig_row']
-        ycoord = self.medsObj[source_id]['orig_col']
+        ycoord = self.medsObj[source_id]['orig_row']
+        xcoord = self.medsObj[source_id]['orig_col']
         file_id = self.medsObj[source_id]['file_id']
         
         # TO DO: make naming more general; requires some rewrite of medsmaker and would ideally go into the file_id loop 
@@ -192,8 +192,8 @@ class SuperBITNgmixFitter():
             
             im_name = image_info[file_id[i]][0]
 
-            im_name.replace('/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/',\
-                                '/Users/jemcclea/Research/SuperBIT/mock_forecasting_data/')
+            im_name = im_name.replace('/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/',\
+                                '/Volumes/PassportWD/SuperBIT/mock-data-forecasting/')
             """
             psfex_des = galsim.des.DES_PSFEx(psf_name, im_name)
             this_psf_des=psfex_des.getPSF(galsim.PositionD(xcoord[i],ycoord[i]))
