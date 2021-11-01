@@ -10,32 +10,27 @@ medsmaker:
   # :fname_base: what is the base filename for mock images;
   #      --> do NOT append "fits", wildcards, etc. to end. Code does that for you.
   # :outdir: directory for all output files (MEDS, catalogs, images, etc.)
-  # :outfile: name of output MEDS file, default behavior is storage in ???
-  
-  mock_dir: /Users/jemcclea/Research/SuperBIT/mock_forecasting_data/cluster5/round*
+  # :outfile: name of output MEDS file
+  mock_dir: /users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/cluster5/round*/
   fname_base: superbit_gaussJitter
-  outdir: /Users/jemcclea/Research/SuperBIT/forecasting_analysis/psfex_test/
-  #outdir: ./pipe_sexparam_tests/sigthresh1.1_minarea5/metacal
-  outfile: sigthresh1.1_minarea5.meds
-
+  outdir: /users/jmcclear/data/superbit/forecasting-analysis/meds_xy_test
+  outfile: avgcoadd_tpv.meds
   
 metacal:
   # :plot: Boolean condition to create diagnostics plots, saved in '{outdir}/plots/metacalibration/'
   #        ["True"/"False", default="True"]
-  
-  start: 6000
-  end: 6020
-  medsfile: /Users/jemcclea/Research/SuperBIT/forecasting_analysis/psfex_test/sigthresh1.1_minarea5.meds
-  outdir: /Users/jemcclea/Research/SuperBIT/forecasting_analysis/psfex_test/metacal
-  outfile: galsim_des_psfex_mcalfitting.fits
-  plot: True 
+  medsfile: /users/jmcclear/data/superbit/forecasting-analysis/meds_xy_test/avgcoadd_tpv.meds
+  outdir: /users/jmcclear/data/superbit/forecasting-analysis/meds_xy_test/metacal
+  outfile: avgcoadd_tpv_mcalfitting.fits
+  plot: False 
+
   
 run_options:
-  ncores: 1
+  ncores: 18
   order:
   #- galsim
   #- medsmaker
   - metacal
-  run_diagnostics: true
-  run_name: psfex_tests
-  vb: true
+  run_diagnostics: false
+  run_name: psfex_cutout_test
+  vb: false

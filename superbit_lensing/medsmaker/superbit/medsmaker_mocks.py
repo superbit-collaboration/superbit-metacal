@@ -323,10 +323,8 @@ class BITMeasurement():
         # Choose sources based on quality cuts on this catalog.
         #keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
         #self.catalog = self.catalog[keep.nonzero()[0]]
-
-
         self.logprint("Selecting analysis objects on CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
-        keep2 = self.catalog['CLASS_STAR']<=0.9
+        keep2 = self.catalog['CLASS_STAR']<=0.92
         self.catalog = self.catalog[keep2.nonzero()[0]]
 
         # Write trimmed catalog to file
@@ -605,7 +603,7 @@ class BITMeasurement():
 
         obj_str = meds.util.get_meds_input_struct(catalog.size,\
                                                   extra_fields = [('KRON_RADIUS',np.float),('number',np.int),\
-                                                                  ('x_coadd',np.float),('y_coadd',np.float)])
+                                                                  ('X_IMAGE',np.float),('Y_IMAGE',np.float)])
         obj_str['id'] = catalog['NUMBER']
         obj_str['number'] = np.arange(catalog.size)+1
         obj_str['box_size'] = self._calculate_box_size(catalog['KRON_RADIUS'])

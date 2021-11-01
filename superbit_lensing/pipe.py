@@ -353,7 +353,7 @@ class GalSimModule(SuperBITModule):
 
         ncores = run_options['ncores']
         if ncores > 1:
-            cmd = f'mpiexec -n {ncores} ' + cmd
+            cmd = f'srun --mpi=pmix ' + cmd
 
         return cmd
 

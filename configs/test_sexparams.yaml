@@ -1,0 +1,36 @@
+galsim:
+  clobber: true
+  config_dir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/superbit_lensing/galsim/config_files
+  config_file: superbit_forecast_test.yaml
+  outdir: /users/jmcclear/data/superbit/forecasting-analysis/cluster5/
+  
+medsmaker:
+  # These are config parameters for: superbit-metacal/superbit_lensing/scripts/process_mocks.py
+  # :mock_dir: Directory from which to access mock images
+  # :fname_base: Base filename for mock images;
+  #      --> do NOT append "fits", wildcards, etc. to end. Code does that for you.
+  # :outdir: Directory for all output files (MEDS, catalogs, images, etc.)
+  # :outfile: Name of output MEDS file
+  # :clobber: Set to overwrite files
+  mock_dir: /users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/cluster5/round*/
+  fname_base: superbit_gaussJitter
+  outdir: /users/jmcclear/data/superbit/forecasting-analysis/param_tests2/psfex_poly3_medcombine_tpv
+  outfile: poly3_median_tpv.meds
+
+metacal:
+  # :plot: Boolean condition to create diagnostics plots, saved in '{outdir}/plots/metacalibration/'
+  #        ["True"/"False", default="True"]
+  medsfile: /users/jmcclear/data/superbit/forecasting-analysis/param_tests2/psfex_poly3_medcombine_tpv/poly3_median_tpv.meds
+  outdir: /users/jmcclear/data/superbit/forecasting-analysis/param_tests2/psfex_poly3_medcombine_tpv/metacal
+  outfile: poly3_medcombine_tpv_mcalfit.fits
+  plot: False 
+  
+run_options:
+  ncores:
+  order:
+  #- galsim
+  #- medsmaker
+  - metacal
+  run_diagnostics: false
+  run_name: poly3_medcombine_tpv
+  vb: false
