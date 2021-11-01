@@ -44,6 +44,7 @@ def main():
     use_coadd = args.meds_coadd
     clobber = args.clobber
     source_selection = args.source_select
+    #source_selection = True
     select_stars = args.select_stars
     data_dir = '/users/jmcclear/data/superbit/forecasting-analysis/'
     #data_dir = args.mock_dir

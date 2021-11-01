@@ -184,7 +184,7 @@ class SuperBITNgmixFitter():
         
         # TO DO: make naming more general; requires some rewrite of medsmaker and would ideally go into the file_id loop 
         #psf_name = '/users/jmcclear/data/superbit/forecasting-analysis/psfex_cutout_tests/psfex_output/superbit_gaussJitter_001_cat.psf'
-        psf_name = '/Users/jemcclea/Research/SuperBIT/forecasting-analysis/psfex_cutout_tests/psfex_output/superbit_gaussJitter_001_cat.psf'
+        psf_name = '/users/jmcclear/data/superbit/forecasting-analysis/meds_xy_test/psfex_output/superbit_gaussJitter_001_cat.psf'
 
         pex = psfex.PSFEx(psf_name)
         
@@ -214,8 +214,8 @@ class SuperBITNgmixFitter():
 
     def _get_source_observations(self,source_id = None,psf_noise = 1e-6):
         jaclist = self._get_jacobians(source_id)
-        #psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
-        psf_cutouts = self._make_psfex_cutouts(source_id,jaclist)
+        psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
+        #psf_cutouts = self._make_psfex_cutouts(source_id,jaclist)
         weight_cutouts = self.medsObj.get_cutout_list(source_id, type='weight')
         image_cutouts = self.medsObj.get_cutout_list(source_id, type='image')
         image_obslist = ngmix.observation.ObsList()
@@ -522,6 +522,9 @@ def setup_obj(i, meds_obj):
     obj['id'] = meds_obj['id']
     obj['ra'] = meds_obj['ra']
     obj['dec'] = meds_obj['dec']
+    obj['X_IMAGE'] = meds_obj['X_IMAGE']
+    obj['Y_IMAGE'] = meds_obj['Y_IMAGE']
+
 
     return obj
 

@@ -321,12 +321,10 @@ class BITMeasurement():
 
     def _select_sources_from_catalog(self, fullcat, catname='catalog.ldac', min_size =2, max_size=24.0, size_key='KRON_RADIUS'):
         # Choose sources based on quality cuts on this catalog.
-        keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
-        self.catalog = self.catalog[keep.nonzero()[0]]
-
-
+        #keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
+        #self.catalog = self.catalog[keep.nonzero()[0]]
         self.logprint("Selecting analysis objects on CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
-        keep2 = self.catalog['CLASS_STAR']<=0.9
+        keep2 = self.catalog['CLASS_STAR']<=0.92
         self.catalog = self.catalog[keep2.nonzero()[0]]
 
         # Write trimmed catalog to file
@@ -603,12 +601,16 @@ class BITMeasurement():
         ### Need to figure out a way to add redshifts here...
         ###
 
-        obj_str = meds.util.get_meds_input_struct(catalog.size,extra_fields = [('KRON_RADIUS',np.float),('number',np.int)])
+        obj_str = meds.util.get_meds_input_struct(catalog.size,\
+                                                  extra_fields = [('KRON_RADIUS',np.float),('number',np.int),\
+                                                                  ('X_IMAGE',np.float),('Y_IMAGE',np.float)])
         obj_str['id'] = catalog['NUMBER']
         obj_str['number'] = np.arange(catalog.size)+1
         obj_str['box_size'] = self._calculate_box_size(catalog['KRON_RADIUS'])
         obj_str['ra'] = catalog['ALPHAWIN_J2000']
         obj_str['dec'] = catalog['DELTAWIN_J2000']
+        obj_str['X_IMAGE'] = catalog['X_IMAGE']
+        obj_str['Y_IMAGE'] = catalog['Y_IMAGE']
         obj_str['KRON_RADIUS'] = catalog['KRON_RADIUS']
 
         return obj_str
