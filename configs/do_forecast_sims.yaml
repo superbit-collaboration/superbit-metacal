@@ -2,7 +2,7 @@ galsim:
   clobber: true
   config_dir: /users/jmcclear/data/superbit/superbit-metacal/superbit_lensing/galsim/config_files
   config_file: superbit_forecast_test.yaml
-  outdir: /users/jmcclear/data/superbit/forecasting-analysis/cluster5/v3/
+  outdir: /users/jmcclear/data/superbit/forecasting-analysis/cluster5/omp8/
   
 medsmaker:
   # These are config parameters for: superbit-metacal/superbit_lensing/scripts/process_mocks.py
@@ -25,11 +25,11 @@ metacal:
   plot: False 
   
 run_options:
-  ncores: 18
+  ncores: 8
   order:
   - galsim
   #- medsmaker
   #- metacal
   run_diagnostics: false
-  run_name: cluster5_v3
+  run_name: cluster5_omp8
   vb: false

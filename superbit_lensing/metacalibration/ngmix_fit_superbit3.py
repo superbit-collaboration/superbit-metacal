@@ -6,6 +6,7 @@ import pickle
 from astropy.table import Table, Row, vstack, hstack
 import os, sys, time, traceback
 import galsim
+import galsim.des
 import psfex
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
@@ -173,7 +174,7 @@ class SuperBITNgmixFitter():
 
         return gpsf_cutout
 
-    def _make_psfex_cutouts(self,source_id=None,jaclist=None):
+    def _make_psfex_cutouts(self,source_id=None):
 
 
         psfex_cutouts = []
@@ -183,8 +184,9 @@ class SuperBITNgmixFitter():
         file_id = self.medsObj[source_id]['file_id']
         
         # TO DO: make naming more general; requires some rewrite of medsmaker and would ideally go into the file_id loop 
+        #        have array of psf_pixel_scales if we go with drawing galsim.des PSFs
         #psf_name = '/users/jmcclear/data/superbit/forecasting-analysis/psfex_cutout_tests/psfex_output/superbit_gaussJitter_001_cat.psf'
-        psf_name = '/users/jmcclear/data/superbit/forecasting-analysis/meds_xy_test/psfex_output/superbit_gaussJitter_001_cat.psf'
+        psf_name = '/users/jmcclear/data/superbit/forecasting-analysis/psf_stamp_tests/psfex_output/superbit_gaussJitter_001_cat.psf'
 
         pex = psfex.PSFEx(psf_name)
         
@@ -192,14 +194,16 @@ class SuperBITNgmixFitter():
             
             im_name = image_info[file_id[i]][0]
 
+            """
             im_name = im_name.replace('/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/',\
-                                '/Volumes/PassportWD/SuperBIT/mock-data-forecasting/')
+            '/Volumes/PassportWD/SuperBIT/mock-data-forecasting/')
             """
             psfex_des = galsim.des.DES_PSFEx(psf_name, im_name)
             this_psf_des=psfex_des.getPSF(galsim.PositionD(xcoord[i],ycoord[i]))
-            psf_cutout = this_psf_des.drawImage(scale=pixel_scale,nx=psf_box_size,ny=psf_box_size,method='no_pixel')
-            """
-            psf_cutout = pex.get_rec(xcoord[i],ycoord[i])
+            psf_cutout = this_psf_des.drawImage(method='no_pixel')
+            #print("automatically made a PSF model of size %d x %d" % (psf_cutout.array.shape[0],psf_cutout.array.shape[0]))
+
+            #psf_cutout = pex.get_rec(xcoord[i],ycoord[i])
             psfex_cutouts.append(psf_cutout)
         
         return psfex_cutouts
@@ -215,7 +219,7 @@ class SuperBITNgmixFitter():
     def _get_source_observations(self,source_id = None,psf_noise = 1e-6):
         jaclist = self._get_jacobians(source_id)
         psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
-        #psf_cutouts = self._make_psfex_cutouts(source_id,jaclist)
+        #psf_cutouts = self._make_psfex_cutouts(source_id)
         weight_cutouts = self.medsObj.get_cutout_list(source_id, type='weight')
         image_cutouts = self.medsObj.get_cutout_list(source_id, type='image')
         image_obslist = ngmix.observation.ObsList()
@@ -223,9 +227,17 @@ class SuperBITNgmixFitter():
         for i in range(len(image_cutouts)):
 
             jj = jaclist[i]
-            
+
+            try:
+                xcenter = psf_cutouts[i].true_center.x
+                ycenter = psf_cutouts[i].true_center.y
+                jj_psf = ngmix.DiagonalJacobian(scale=psf_cutouts[i].scale,x=xcenter,y=ycenter)
+            except AttributeError:
+                jj_psf = jj
+                
             # Apparently it likes to add noise to the psf.
             this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
+            #this_psf = psf_cutouts[i].array + psf_noise * np.random.randn(psf_cutouts[i].array.shape[0],psf_cutouts[i].array.shape[1])
             this_psf_weight = np.zeros_like(this_psf) + 1./psf_noise**2
 
             # Treat sky background variance as a Poisson distribution, e.g.
@@ -238,10 +250,10 @@ class SuperBITNgmixFitter():
 
             this_weight = np.zeros_like(this_image)+ 1./sky_sigma
 
-
+            
             psfObs = ngmix.observation.Observation(this_psf,
                                                    weight=this_psf_weight,
-                                                   jacobian=jj)
+                                                   jacobian=jj_psf)
 
             imageObs = ngmix.observation.Observation(this_image,
                                                      weight=this_weight,

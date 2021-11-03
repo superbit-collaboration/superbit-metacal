@@ -4,9 +4,9 @@ from superbit_lensing.pipe import SuperBITPipeline
 import time
 
 start_time = time.time()
-config_file='./configs/test_sexparams.yaml'
-log_file='pipe_test'
-logdir='/users/jmcclear/data/superbit/forecasting-analysis/param_tests2'
+config_file='./configs/forecast_analysis.yaml'
+log_file='cluster5_v1.log'
+logdir='/users/jmcclear/data/superbit/forecasting-analysis/cluster5/'
 
 if not os.path.isdir(logdir):
     cmd='mkdir -p %s' % logdir
