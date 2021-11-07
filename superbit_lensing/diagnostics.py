@@ -1,6 +1,7 @@
 import os
 import sys
 from glob import glob
+from esutil import htm
 from astropy.table import Table
 import matplotlib.pyplot as plt
 import utils
@@ -65,12 +66,18 @@ class TruthDiagnostics(Diagnostics):
     def __init__(self, name, config):
         super(TruthDiagnostics, self).__init__(name, config)
 
-        self.truth = None
+        self.true = None
+        self.matched_cat = None
+
+        # Used for matching measured catalog to truth
+        self.ratag, self.dectag = 'ra', 'dec'
 
         return
 
     def run(self, run_options, logprint):
         super(TruthDiagnostics, self).run(run_options, logprint)
+
+        run_name = run_options['run_name']
 
         self._setup_truth_cat()
 
@@ -86,6 +93,20 @@ class TruthDiagnostics(Diagnostics):
 
         assert(hasattr(self, 'outdir'))
 
+        truth_file = self._get_truth_file()
+
+        self.true = Table.read(truth_file)
+
+        return
+
+    def _setup_matched_cat(self, meas_file):
+        true_file = self._get_truth_file()
+
+        self.matched_cat = MatchedTruthCatalog(true_file, meas_file)
+
+        return
+
+    def _get_truth_file(self):
         truth_files = glob(os.path.join(self.outdir, '*truth*.fits'))
 
         # After update, there should only be one
@@ -93,11 +114,7 @@ class TruthDiagnostics(Diagnostics):
         if N != 1:
             raise Exception(f'There should only be 1 truth table, not {N}!')
 
-        truth_file = truth_files[0]
-
-        self.truth = Table.read(truth_file)
-
-        return
+        return truth_files[0]
 
 class GalSimDiagnostics(TruthDiagnostics):
 
@@ -199,8 +216,9 @@ class NgmixFitDiagnostics(TruthDiagnostics):
     def run(run_options, logprint):
         super(NgmixFitDiagnostics, self).run(run_options, logprint)
 
-        # outdir is now guaranteed to be set
-        # self.ngmix_config_file =
+        outfile = self._config['outfile']
+
+        self._setup_matched_catalog(outfile)
 
         self.compare_to_truth(run_options, logprint)
 
@@ -212,6 +230,9 @@ class NgmixFitDiagnostics(TruthDiagnostics):
         '''
 
         self.plot_pars_compare(run_options, logprint)
+
+        # use matched catalog
+        # self.matched_cat ...
 
         return
 
