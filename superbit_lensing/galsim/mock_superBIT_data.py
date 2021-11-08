@@ -110,7 +110,6 @@ def make_obj_runner(batch_indices, *args, **kwargs):
     Handles the batch running of make_obj() over multiple cores
     '''
 
-    # return make_obj(i, obj_type, *args, **kwargs)
     res = []
     for i in batch_indices:
         res.append(make_obj(i, *args, **kwargs))
