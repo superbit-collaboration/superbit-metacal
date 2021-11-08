@@ -17,7 +17,6 @@
 import sys
 import os
 import math
-import numpy
 import logging
 import time
 import galsim
@@ -31,8 +30,10 @@ import numpy as np
 import fitsio
 from functools import reduce
 from astropy.table import Table
-from mpi_helper import MPIHelper
 from argparse import ArgumentParser
+from mpi_helper import MPIHelper
+from multiprocessing import Pool
+
 import superbit_lensing.utils as utils
 
 parser = ArgumentParser()
@@ -43,6 +44,10 @@ parser.add_argument('--run_name', action='store', type=str, default='',
                     help='Name of mock simulation run')
 parser.add_argument('--outdir', action='store', type=str,
                     help='Output directory of simulated files')
+parser.add_argument('--ncores', action='store', type=int, default=1,
+                    help='Number of cores to use for multiproessing')
+parser.add_argument('--mpi', action='store_true', default=False,
+                    help='Use to turn on mpi')
 parser.add_argument('--clobber', action='store_true', default=False,
                     help='Turn on to overwrite existing files')
 parser.add_argument('-v', '--verbose', action='store_true', default=False,
@@ -100,17 +105,78 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
 
     return nfw_shear, nfw_mu
 
-def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams, logprint):
+def make_obj(i, obj_type, *args, **kwargs):
+    '''
+    Runs the approrpriate "make_a_{obj}" function given object type.
+    Particularly useful for multiprocessing wrappers
+    '''
+
+    func = None
+
+    func_map = {
+        'gal': make_a_galaxy,
+        'cluster_gal': make_cluster_galaxy,
+        'star': make_a_star
+    }
+
+    obj_types = func_map.keys()
+    if obj_type not in obj_types:
+        raise ValueError(f'Object type must be one of {obj_types}!')
+
+    func = func_map[obj_type]
+
+    try:
+        stamp, truth = func(*args, **kwargs)
+    except galsim.errors.GalSimError:
+        logprint = args[-1]
+        logprint(f'Galaxy {i} has failed, skipping...')
+        return i, None, None
+
+    return i, stamp, truth
+
+def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
+    '''
+    (i, stamps, truths) are the output of make_obj
+    exp_num is the exposure number. Only add to truth table if == 1
+    '''
+
+    for i, stamp, truth in make_obj_outputs:
+
+        if (stamp is None) or (truth is None):
+            continue
+
+        # Find the overlapping bounds:
+        bounds = stamp.bounds & full_image.bounds
+
+        # We need to keep track of how much variance we have currently in the image, so when
+        # we add more noise, we can omit what is already there.
+
+        # noise_image[bounds] += truth.variance
+
+        # Finally, add the stamp to the full image.
+        full_image[bounds] += stamp[bounds]
+        this_flux = np.sum(stamp.array)
+
+        if exp_num == 1:
+            row = [i, truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2,
+                   truth.mu,truth.z, this_flux, truth.fwhm, truth.mom_size,
+                   truth.n, truth.hlr, truth.scale_h_over_r]
+            truth_catalog.addRow(row)
+
+    return full_image, truth_catalog
+
+def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
     """
     Method to make a single galaxy object and return stamp for
     injecting into larger GalSim image
     """
+
     # Choose a random RA, Dec around the sky_center.
     # Note that for this to come out close to a square shape, we need to account for the
     # cos(dec) part of the metric: ds^2 = dr^2 + r^2 d(dec)^2 + r^2 cos^2(dec) d(ra)^2
     # So need to calculate dec first.
     dec = sbparams.center_dec + (ud()-0.5) * sbparams.image_ysize_arcsec * galsim.arcsec
-    ra = sbparams.center_ra + (ud()-0.5) * sbparams.image_xsize_arcsec / numpy.cos(dec) * galsim.arcsec
+    ra = sbparams.center_ra + (ud()-0.5) * sbparams.image_xsize_arcsec / np.cos(dec) * galsim.arcsec
     world_pos = galsim.CelestialCoord(ra,dec)
 
     # We will need the image position as well, so use the wcs to get that
@@ -139,16 +205,11 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams, logprint):
         n=0.3
     elif n>6:
         n=4
-    else:
-        pass
 
     ## Very large HLRs will also make GalSim fail
     ## Set to a default, ~large but physical value.
     if half_light_radius > 2:
             half_light_radius = 2
-    else:
-        pass
-
 
     gal = galsim.InclinedSersic(n=n,
                                 flux=gal_flux,
@@ -157,11 +218,10 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams, logprint):
                                 scale_h_over_r=q
                                 )
 
-
     logprint.debug('created galaxy')
 
     ## Apply a random rotation
-    theta = ud()*2.0*numpy.pi*galsim.radians
+    theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
 
     ## Get the reduced shears and magnification at this point
@@ -169,7 +229,7 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams, logprint):
         nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
         g1=nfw_shear.g1; g2=nfw_shear.g2
         gal = gal.lens(g1, g2, mu)
-    except:
+    except galsim.errors.GalSimError:
         logprint(f'could not lens galaxy at z = {gal_z}, setting default values...')
         g1 = 0.0; g2 = 0.0
         mu = 1.0
@@ -205,7 +265,7 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams, logprint):
     except galsim.errors.GalSimError:
         logprint.debug('sigma calculation failed')
         galaxy_truth.mom_size=-9999.
-        
+
     logprint.debug('stamp made, moving to next galaxy')
     return stamp, galaxy_truth
 
@@ -248,7 +308,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     logprint.debug('created cluster galaxy')
 
     # Apply a random rotation
-    theta = ud()*2.0*numpy.pi*galsim.radians
+    theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
     
     # The "magnify" is just for drama; factor of 1.2207 turns us into e-
@@ -303,7 +363,7 @@ def make_a_star(ud, wcs, affine, optics, sbparams, logprint):
     
     # Choose a random RA, Dec around the sky_center.
     dec = sbparams.center_dec + (ud()-0.5) * sbparams.image_ysize_arcsec * galsim.arcsec
-    ra = sbparams.center_ra + (ud()-0.5) * sbparams.image_xsize_arcsec / numpy.cos(dec) * galsim.arcsec
+    ra = sbparams.center_ra + (ud()-0.5) * sbparams.image_xsize_arcsec / np.cos(dec) * galsim.arcsec
     world_pos = galsim.CelestialCoord(ra,dec)
     
     # We will need the image position as well, so use the wcs to get that
@@ -502,6 +562,10 @@ class SuperBITParameters:
                 self.run_name=str(value)
             elif option == "clobber":
                 self.clobber=bool(value)
+            elif option == "mpi":
+                self.mpi = bool(value)
+            elif option == "ncores":
+                self.ncores = int(value)
             else:
                 raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
@@ -537,7 +601,7 @@ class SuperBITParameters:
         Nx = self.image_xsize
         Ny = self.image_ysize
 
-        # x and y are flipped in fits convention vs. numpy array
+        # x and y are flipped in fits convention vs. np array
         mask = np.zeros((Ny, Nx), dtype='i4')
 
         fits = fitsio.FITS(mask_outfile, 'rw')
@@ -568,7 +632,7 @@ class SuperBITParameters:
         Nx = self.image_xsize
         Ny = self.image_ysize
 
-        # x and y are flipped in fits convention vs. numpy array
+        # x and y are flipped in fits convention vs. np array
         weight = np.ones((Ny, Nx), dtype='f8')
 
         fits = fitsio.FITS(weight_outfile, 'rw')
@@ -609,6 +673,8 @@ def main():
 
     args = parser.parse_args()
     config_file = args.config_file
+    mpi = args.mpi
+    ncores = args.ncores
     clobber = args.clobber
     vb = args.verbose
 
@@ -622,7 +688,8 @@ def main():
     log = utils.setup_logger(logfile, logdir=args.outdir)
     logprint = utils.LogPrint(log, vb)
 
-    M = MPIHelper()
+    if mpi is True:
+        M = MPIHelper()
 
     # Define some parameters we'll use below.
     sbparams = SuperBITParameters(config_file, logprint, args=args)
@@ -655,7 +722,7 @@ def main():
     lam_over_diam = sbparams.lam * 1.e-9 / sbparams.tel_diam    # radians
     lam_over_diam *= 206265.
 
-    aberrations = numpy.zeros(38)             # Set the initial size.
+    aberrations = np.zeros(38)             # Set the initial size.
     aberrations[0] = 0.                       # First entry must be zero
     aberrations[1] = -0.00305127
     aberrations[4] = -0.02474205              # Noll index 4 = Defocus
@@ -678,9 +745,10 @@ def main():
     ### ITERATE n TIMES TO MAKE n SEPARATE IMAGES
     ###
 
-    for i in numpy.arange(1, sbparams.nexp+1):
-        # get MPI processes in sync at start of each image
-        M.barrier()
+    for i in np.arange(1, sbparams.nexp+1):
+        if mpi is True:
+            # get MPI processes in sync at start of each image
+            M.barrier()
 
         #rng = galsim.BaseDeviate(sbparams.noise_seed+i)
 
@@ -709,10 +777,10 @@ def main():
 
         # If you wanted to make a non-trivial WCS system, could set theta to a non-zero number
         theta = 0.0 * galsim.degrees
-        dudx = numpy.cos(theta) * sbparams.pixel_scale
-        dudy = -numpy.sin(theta) * sbparams.pixel_scale
-        dvdx = numpy.sin(theta) * sbparams.pixel_scale
-        dvdy = numpy.cos(theta) * sbparams.pixel_scale
+        dudx = np.cos(theta) * sbparams.pixel_scale
+        dudy = -np.sin(theta) * sbparams.pixel_scale
+        dvdx = np.sin(theta) * sbparams.pixel_scale
+        dvdy = np.cos(theta) * sbparams.pixel_scale
         image_center = full_image.true_center
         affine = galsim.AffineTransform(dudx, dudy, dvdx, dvdy, origin=full_image.true_center)
         sky_center = galsim.CelestialCoord(ra=sbparams.center_ra, dec=sbparams.center_dec)
@@ -730,187 +798,252 @@ def main():
         #####
         ## Loop over galaxy objects:
         #####
+        print('Starting galaxy injections')
 
-        # get local range to iterate over in this process
-        local_start, local_end = M.mpi_local_range(sbparams.nobj)
-        for k in range(local_start, local_end):
-            time1 = time.time()
+        if mpi is False:
+            print(ncores)
+            with Pool(ncores) as pool:
+                full_image, truth_catalog = combine_objs(
+                    pool.starmap(
+                        make_obj,
+                        ([k,
+                          'gal',
+                          galsim.UniformDeviate(sbparams.galobj_seed+k+1),
+                          wcs,
+                          affine,
+                          cosmos_cat,
+                          nfw,
+                          optics,
+                          sbparams,
+                          logprint
+                          ] for k in range(sbparams.nobj))
+                        ),
+                    full_image,
+                    truth_catalog,
+                    i
+                    )
 
-            # The usual random number generator using a different seed for each galaxy.
-            ud = galsim.UniformDeviate(sbparams.galobj_seed+k+1)
+        else:
+            # get local range to iterate over in this process
+            local_start, local_end = M.mpi_local_range(sbparams.nobj)
+            for k in range(local_start, local_end):
+                time1 = time.time()
 
-            try:
-                # make single galaxy object
-                stamp,truth = make_a_galaxy(ud=ud,
-                                            wcs=wcs,
-                                            affine=affine,
-                                            cosmos_cat=cosmos_cat,
-                                            optics=optics,
-                                            nfw=nfw,
-                                            sbparams=sbparams,
-                                            logprint=logprint
-                                            )
-                # Find the overlapping bounds:
-                bounds = stamp.bounds & full_image.bounds
+                # The usual random number generator using a different seed for each galaxy.
+                ud = galsim.UniformDeviate(sbparams.galobj_seed+k+1)
 
-                # We need to keep track of how much variance we have currently in the image, so when
-                # we add more noise, we can omit what is already there.
+                try:
+                    # make single galaxy object
+                    stamp,truth = make_a_galaxy(ud=ud,
+                                                wcs=wcs,
+                                                affine=affine,
+                                                cosmos_cat=cosmos_cat,
+                                                optics=optics,
+                                                nfw=nfw,
+                                                sbparams=sbparams,
+                                                logprint=logprint
+                                                )
+                    # Find the overlapping bounds:
+                    bounds = stamp.bounds & full_image.bounds
 
-                # noise_image[bounds] += truth.variance
+                    # Finally, add the stamp to the full image.
 
-                # Finally, add the stamp to the full image.
+                    full_image[bounds] += stamp[bounds]
+                    time2 = time.time()
+                    tot_time = time2-time1
+                    logprint(f'Galaxy {k} positioned relative to center t={tot_time} s')
+                    this_flux=np.sum(stamp.array)
 
-                full_image[bounds] += stamp[bounds]
-                time2 = time.time()
-                tot_time = time2-time1
-                logprint(f'Galaxy {k} positioned relative to center t={tot_time} s')
-                this_flux=numpy.sum(stamp.array)
-
-                if i == 1:
-                    row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
-                                this_flux,truth.fwhm, truth.mom_size,
-                                truth.n, truth.hlr, truth.scale_h_over_r]
-                    truth_catalog.addRow(row)
-            except galsim.errors.GalSimError:
-                logprint(f'Galaxy {k} has failed, skipping...')
+                    if i == 1:
+                        row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
+                                    this_flux,truth.fwhm, truth.mom_size,
+                                    truth.n, truth.hlr, truth.scale_h_over_r]
+                        truth_catalog.addRow(row)
+                except galsim.errors.GalSimError:
+                    logprint(f'Galaxy {k} has failed, skipping...')
 
         #####
         ### Inject cluster galaxy objects:
         #####
+        print('Starting cluster galaxy injections')
 
         center_coords = galsim.CelestialCoord(sbparams.center_ra,sbparams.center_dec)
         centerpix = wcs.toImage(center_coords)
 
-        # get local range to iterate over in this process
-        local_start, local_end = M.mpi_local_range(sbparams.nclustergal)
-        for k in range(local_start, local_end):
+        if mpi is False:
+            with Pool(ncores) as pool:
+                full_image, truth_catalog = combine_objs(
+                    pool.starmap(
+                        make_obj,
+                        ([k,
+                          'cluster_gal',
+                          galsim.UniformDeviate(sbparams.cluster_seed+k+1),
+                          wcs,
+                          affine,
+                          centerpix,
+                          cluster_cat,
+                          optics,
+                          sbparams,
+                          logprint
+                          ] for k in range(sbparams.nobj))
+                        ),
+                    full_image,
+                    truth_catalog,
+                    i
+                    )
 
-            time1 = time.time()
+        else:
+            # get local range to iterate over in this process
+            local_start, local_end = M.mpi_local_range(sbparams.nclustergal)
+            for k in range(local_start, local_end):
 
-            # The usual random number generator using a different seed for each galaxy.
-            ud = galsim.UniformDeviate(sbparams.cluster_seed+k+1)
+                time1 = time.time()
 
-            try:
-                # make single galaxy object
-                cluster_stamp,truth = make_cluster_galaxy(ud=ud,wcs=wcs,affine=affine,
-                                                          centerpix=centerpix,
-                                                          cluster_cat=cluster_cat,
-                                                          optics=optics,
-                                                          sbparams=sbparams,
-                                                          logprint=logprint)
-                # Find the overlapping bounds:
-                bounds = cluster_stamp.bounds & full_image.bounds
+                # The usual random number generator using a different seed for each galaxy.
+                ud = galsim.UniformDeviate(sbparams.cluster_seed+k+1)
 
-                # We need to keep track of how much variance we have currently in the image, so when
-                # we add more noise, we can omit what is already there.
+                try:
+                    # make single galaxy object
+                    cluster_stamp,truth = make_cluster_galaxy(ud=ud,wcs=wcs,affine=affine,
+                                                            centerpix=centerpix,
+                                                            cluster_cat=cluster_cat,
+                                                            optics=optics,
+                                                            sbparams=sbparams,
+                                                            logprint=logprint)
+                    # Find the overlapping bounds:
+                    bounds = cluster_stamp.bounds & full_image.bounds
 
-                #noise_image[bounds] += truth.variance
+                    # Finally, add the stamp to the full image.
 
-                # Finally, add the stamp to the full image.
+                    full_image[bounds] += cluster_stamp[bounds]
+                    time2 = time.time()
+                    tot_time = time2-time1
+                    logprint(f'Cluster galaxy {k} positioned relative to center t={tot_time} s')
+                    this_flux=np.sum(cluster_stamp.array)
 
-                full_image[bounds] += cluster_stamp[bounds]
-                time2 = time.time()
-                tot_time = time2-time1
-                logprint(f'Cluster galaxy {k} positioned relative to center t={tot_time} s')
-                this_flux=numpy.sum(cluster_stamp.array)
-
-                if i == 1:
-                    row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
-                                this_flux,truth.fwhm,truth.mom_size,
-                                truth.n, truth.hlr,truth.scale_h_over_r]
-                    truth_catalog.addRow(row)
-            except galsim.errors.GalSimError:
-                logprint(f'Cluster galaxy {k} has failed, skipping...')
+                    if i == 1:
+                        row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
+                                    this_flux,truth.fwhm,truth.mom_size,
+                                    truth.n, truth.hlr,truth.scale_h_over_r]
+                        truth_catalog.addRow(row)
+                except galsim.errors.GalSimError:
+                    logprint(f'Cluster galaxy {k} has failed, skipping...')
 
         #####
         ### Now repeat process for stars!
         #####
+        print('Starting star injections')
 
-        # get local range to iterate over in this process
-        local_start, local_end = M.mpi_local_range(sbparams.nstars)
-        for k in range(local_start, local_end):
-            time1 = time.time()
-            ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
+        if mpi is False:
+            with Pool(ncores) as pool:
+                full_image, truth_catalog = combine_objs(
+                    pool.starmap(
+                        make_obj,
+                        ([k,
+                          'star',
+                          galsim.UniformDeviate(sbparams.stars_seed+k+1),
+                          wcs,
+                          affine,
+                          optics,
+                          sbparams,
+                          logprint
+                          ] for k in range(sbparams.nobj))
+                        ),
+                    full_image,
+                    truth_catalog,
+                    i
+                    )
 
-            star_stamp,truth = make_a_star(ud=ud,
-                                           wcs=wcs,
-                                           affine=affine,
-                                           optics=optics,
-                                           sbparams=sbparams,
-                                           logprint=logprint
-                                           )
-            bounds = star_stamp.bounds & full_image.bounds
+        else:
+            # get local range to iterate over in this process
+            local_start, local_end = M.mpi_local_range(sbparams.nstars)
+            for k in range(local_start, local_end):
+                time1 = time.time()
+                ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
 
-            # Add the stamp to the full image.
-            try:
-                full_image[bounds] += star_stamp[bounds]
+                star_stamp,truth = make_a_star(ud=ud,
+                                            wcs=wcs,
+                                            affine=affine,
+                                            optics=optics,
+                                            sbparams=sbparams,
+                                            logprint=logprint
+                                            )
+                bounds = star_stamp.bounds & full_image.bounds
 
-                time2 = time.time()
-                tot_time = time2-time1
+                # Add the stamp to the full image.
+                try:
+                    full_image[bounds] += star_stamp[bounds]
 
-                logprint(f'Star {k}: positioned relative to center, t={tot_time} s')
-                this_flux=numpy.sum(star_stamp.array)
+                    time2 = time.time()
+                    tot_time = time2-time1
+
+                    logprint(f'Star {k}: positioned relative to center, t={tot_time} s')
+                    this_flux=np.sum(star_stamp.array)
+
+                    if i == 1:
+                        row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,
+                                    truth.z, this_flux,truth.fwhm,truth.mom_size,
+                                    truth.n, truth.hlr,truth.scale_h_over_r]
+                        truth_catalog.addRow(row)
+
+                except galsim.errors.GalSimError:
+                    logprint(f'Star {k} has failed, skipping...')
+
+        # If not using MPI, then this is already done
+        if mpi is True:
+            # Gather results from MPI processes, reduce to single result on root
+            # Using same names on left and right sides is hiding lots of MPI magic
+            full_image = M.gather(full_image)
+            truth_catalog = M.gather(truth_catalog)
+            if M.is_mpi_root():
+                full_image = reduce(combine_images, full_image)
 
                 if i == 1:
-                    row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,
-                                truth.z, this_flux,truth.fwhm,truth.mom_size,
-                                truth.n, truth.hlr,truth.scale_h_over_r]
-                    truth_catalog.addRow(row)
-
-            except galsim.errors.GalSimError:
-                logprint(f'Star {k} has failed, skipping...')
-
-        # Gather results from MPI processes, reduce to single result on root
-        # Using same names on left and right sides is hiding lots of MPI magic
-        full_image = M.gather(full_image)
-        truth_catalog = M.gather(truth_catalog)
-        if M.is_mpi_root():
-            full_image = reduce(combine_images, full_image)
-
-            if i == 1:
-                truth_catalog = reduce(combine_catalogs, truth_catalog)
-        else:
-            # do the adding of noise and writing to disk entirely on root
-            # root and the rest meet again at barrier at start of loop
-            continue
+                    truth_catalog = reduce(combine_catalogs, truth_catalog)
+                else:
+                    # do the adding of noise and writing to disk entirely on root
+                    # root and the rest meet again at barrier at start of loop
+                    continue
 
         # The first thing to do is to make the Gaussian noise uniform across the whole image.
 
-        # Add dark current
-        logprint('Adding Dark current')
-        dark_noise = sbparams.dark_current * sbparams.exp_time
-        full_image += dark_noise
+        if (mpi is False) or (M.is_mpi_root()):
 
-        # Add ccd noise
-        logprint('Adding CCD noise')
-        noise = galsim.CCDNoise(
-            sky_level=0, gain=sbparams.gain,
-            read_noise=sbparams.read_noise)
-        full_image.addNoise(noise)
+            # Add dark current
+            logprint('Adding Dark current')
+            dark_noise = sbparams.dark_current * sbparams.exp_time
+            full_image += dark_noise
 
-        logprint.debug('Added noise to final output image')
-        if not os.path.exists(os.path.dirname(file_name)):
-            os.makedirs(os.path.dirname(file_name))
+            # Add ccd noise
+            logprint('Adding CCD noise')
+            noise = galsim.CCDNoise(
+                sky_level=0, gain=sbparams.gain,
+                read_noise=sbparams.read_noise)
+            full_image.addNoise(noise)
 
-        try:
-            full_image.write(file_name, clobber=clobber)
-            logprint(f'Wrote image to {file_name}')
-        except OSError as e:
-            logprint(f'OSError: {e}')
-            raise e
+            logprint.debug('Added noise to final output image')
+            if not os.path.exists(os.path.dirname(file_name)):
+                os.makedirs(os.path.dirname(file_name))
 
-        # Write truth catalog to file.
-        if i == 1:
             try:
-                truth_catalog.write(truth_file_name)
-                logprint(f'Wrote truth to {truth_file_name}')
+                full_image.write(file_name, clobber=clobber)
+                logprint(f'Wrote image to {file_name}')
             except OSError as e:
                 logprint(f'OSError: {e}')
                 raise e
 
+            # Write truth catalog to file.
+            if i == 1:
+                try:
+                    truth_catalog.write(truth_file_name)
+                    logprint(f'Wrote truth to {truth_file_name}')
+                except OSError as e:
+                    logprint(f'OSError: {e}')
+                    raise e
+
     logprint('\nCompleted all images\n')
 
-    if M.is_mpi_root():
+    if (mpi is False) or (M.is_mpi_root()):
         logprint('Creating masks')
         logprint.warning('For now, we just write a simple mask file with all 1s')
         sbparams.make_mask_files(logprint, clobber)
@@ -926,7 +1059,7 @@ def main():
         newfile = os.path.join(sbparams.outdir, logfile)
         os.replace(oldfile, newfile)
 
-    if M.is_mpi_root():
+    if (mpi is False) or (M.is_mpi_root()):
         logprint('')
         logprint('Done!')
         logprint('')
