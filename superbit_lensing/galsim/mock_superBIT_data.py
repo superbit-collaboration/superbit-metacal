@@ -105,6 +105,18 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
 
     return nfw_shear, nfw_mu
 
+def make_obj_runner(batch_indices, *args, **kwargs):
+    '''
+    Handles the batch running of make_obj() over multiple cores
+    '''
+
+    # return make_obj(i, obj_type, *args, **kwargs)
+    res = []
+    for i in batch_indices:
+        res.append(make_obj(i, *args, **kwargs))
+
+    return res
+
 def make_obj(i, obj_type, *args, **kwargs):
     '''
     Runs the approrpriate "make_a_{obj}" function given object type.
@@ -140,6 +152,10 @@ def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
     exp_num is the exposure number. Only add to truth table if == 1
     '''
 
+    # flatten outputs into 1 list
+    make_obj_outputs = [item for sublist in make_obj_outputs
+                        for item in sublist]
+
     for i, stamp, truth in make_obj_outputs:
 
         if (stamp is None) or (truth is None):
@@ -147,11 +163,6 @@ def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
 
         # Find the overlapping bounds:
         bounds = stamp.bounds & full_image.bounds
-
-        # We need to keep track of how much variance we have currently in the image, so when
-        # we add more noise, we can omit what is already there.
-
-        # noise_image[bounds] += truth.variance
 
         # Finally, add the stamp to the full image.
         full_image[bounds] += stamp[bounds]
@@ -800,13 +811,18 @@ def main():
         #####
         print('Starting galaxy injections')
 
+
         if mpi is False:
-            print(ncores)
+            start = time.time()
             with Pool(ncores) as pool:
+                # Create batches
+                batch_indices = utils.setup_batches(sbparams.nobj, ncores)
+
                 full_image, truth_catalog = combine_objs(
                     pool.starmap(
-                        make_obj,
-                        ([k,
+                        make_obj_runner,
+                        ([
+                          batch_indices[k],
                           'gal',
                           galsim.UniformDeviate(sbparams.galobj_seed+k+1),
                           wcs,
@@ -816,12 +832,15 @@ def main():
                           optics,
                           sbparams,
                           logprint
-                          ] for k in range(sbparams.nobj))
+                          ] for k in range(ncores))
                         ),
                     full_image,
                     truth_catalog,
                     i
                     )
+
+            dt = time.time() - start
+            logprint(f'Total time for galaxy injections: {dt:.1f}s')
 
         else:
             # get local range to iterate over in this process
@@ -871,11 +890,15 @@ def main():
         centerpix = wcs.toImage(center_coords)
 
         if mpi is False:
+            start = time.time()
             with Pool(ncores) as pool:
+                batch_indices = utils.setup_batches(sbparams.nclustergal, ncores)
+
                 full_image, truth_catalog = combine_objs(
                     pool.starmap(
-                        make_obj,
-                        ([k,
+                        make_obj_runner,
+                        ([
+                          batch_indices[k],
                           'cluster_gal',
                           galsim.UniformDeviate(sbparams.cluster_seed+k+1),
                           wcs,
@@ -885,12 +908,15 @@ def main():
                           optics,
                           sbparams,
                           logprint
-                          ] for k in range(sbparams.nobj))
+                          ] for k in range(ncores))
                         ),
                     full_image,
                     truth_catalog,
                     i
                     )
+
+            dt = time.time() - start
+            logprint(f'Total time for cluster galaxy injections: {dt:.1f}s')
 
         else:
             # get local range to iterate over in this process
@@ -935,11 +961,15 @@ def main():
         print('Starting star injections')
 
         if mpi is False:
+            start = time.time()
             with Pool(ncores) as pool:
+                batch_indices = utils.setup_batches(sbparams.nstars, ncores)
+
                 full_image, truth_catalog = combine_objs(
                     pool.starmap(
-                        make_obj,
-                        ([k,
+                        make_obj_runner,
+                        ([
+                          batch_indices[k],
                           'star',
                           galsim.UniformDeviate(sbparams.stars_seed+k+1),
                           wcs,
@@ -947,12 +977,15 @@ def main():
                           optics,
                           sbparams,
                           logprint
-                          ] for k in range(sbparams.nobj))
+                          ] for k in range(sbparams.ncores))
                         ),
                     full_image,
                     truth_catalog,
                     i
                     )
+
+            dt = time.time() - start
+            logprint(f'Total time for star injections: {dt:.1f}s')
 
         else:
             # get local range to iterate over in this process

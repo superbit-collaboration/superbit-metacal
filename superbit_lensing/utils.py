@@ -255,6 +255,25 @@ def ngmix_dict2table(d):
 
     return Table(data=d)
 
+def setup_batches(nobjs, ncores):
+    '''
+    Create list of batch indices for each core
+    '''
+
+    batch_len = [nobjs//ncores]*(ncores-1)
+
+    s = int(np.sum(batch_len))
+    batch_len.append(nobjs-s)
+
+    batch_indices = []
+
+    start = 0
+    for i in range(ncores):
+        batch_indices.append(range(start, start + batch_len[i]))
+        start += batch_len[i]
+
+    return batch_indices
+
 def make_dir(d):
     '''
     Makes dir if it does not already exist
