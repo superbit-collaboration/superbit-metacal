@@ -194,16 +194,12 @@ class SuperBITNgmixFitter():
             
             im_name = image_info[file_id[i]][0]
 
-            """
-            im_name = im_name.replace('/users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/',\
-            '/Volumes/PassportWD/SuperBIT/mock-data-forecasting/')
-            """
             psfex_des = galsim.des.DES_PSFEx(psf_name, im_name)
             this_psf_des=psfex_des.getPSF(galsim.PositionD(xcoord[i],ycoord[i]))
             psf_cutout = this_psf_des.drawImage(method='no_pixel')
             #print("automatically made a PSF model of size %d x %d" % (psf_cutout.array.shape[0],psf_cutout.array.shape[0]))
-
             #psf_cutout = pex.get_rec(xcoord[i],ycoord[i])
+            
             psfex_cutouts.append(psf_cutout)
         
         return psfex_cutouts
@@ -218,8 +214,8 @@ class SuperBITNgmixFitter():
 
     def _get_source_observations(self,source_id = None,psf_noise = 1e-6):
         jaclist = self._get_jacobians(source_id)
-        psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
-        #psf_cutouts = self._make_psfex_cutouts(source_id)
+        #psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
+        psf_cutouts = self._make_psfex_cutouts(source_id)
         weight_cutouts = self.medsObj.get_cutout_list(source_id, type='weight')
         image_cutouts = self.medsObj.get_cutout_list(source_id, type='image')
         image_obslist = ngmix.observation.ObsList()
@@ -227,17 +223,16 @@ class SuperBITNgmixFitter():
         for i in range(len(image_cutouts)):
 
             jj = jaclist[i]
-
             try:
                 xcenter = psf_cutouts[i].true_center.x
                 ycenter = psf_cutouts[i].true_center.y
                 jj_psf = ngmix.DiagonalJacobian(scale=psf_cutouts[i].scale,x=xcenter,y=ycenter)
-            except AttributeError:
+            except:
                 jj_psf = jj
-                
+
             # Apparently it likes to add noise to the psf.
-            this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
-            #this_psf = psf_cutouts[i].array + psf_noise * np.random.randn(psf_cutouts[i].array.shape[0],psf_cutouts[i].array.shape[1])
+            #this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
+            this_psf = psf_cutouts[i].array + psf_noise * np.random.randn(psf_cutouts[i].array.shape[0],psf_cutouts[i].array.shape[1])
             this_psf_weight = np.zeros_like(this_psf) + 1./psf_noise**2
 
             # Treat sky background variance as a Poisson distribution, e.g.
@@ -245,7 +240,7 @@ class SuperBITNgmixFitter():
             #     - std_dev = sqrt(bkg) = 5.3
             #     - sky_sigma = std_dev**2 = 25.1
 
-            sky_sigma = (2.2)**2
+            sky_sigma = (5.6)**2
             this_image = image_cutouts[i]
 
             this_weight = np.zeros_like(this_image)+ 1./sky_sigma
@@ -575,7 +570,7 @@ def mp_run_fit(i, start_ind,obj, jaclist, obslist, prior, imc, plotter, config, 
             image_cutout = imc
             #jdict = plotter.jdict_list[i]
             jdict = plotter.jdict_list[i-start_ind] # need to change that so allows for i-start_index
-            #logprint("\n\nlength of plotter.jdict_list is %d\n\n" % len(plotter.jdict_list))
+            logprint("\n\nlength of plotter.jdict_list is %d\n\n" % len(plotter.jdict_list))
 
             jac = ngmix.Jacobian(row=jdict['row0'],
                                  col=jdict['col0'],
@@ -653,7 +648,7 @@ def main():
         make_plots = False
         
     # Set up for saving plots
-    im_savedir = os.path.join(outdir, 'metacal-plots/')
+    im_savedir = os.path.join(outdir, 'plots/')
     if (make_plots == True):
        if not os.path.isdir(im_savedir):	
        	  cmd = 'mkdir -p %s' % im_savedir

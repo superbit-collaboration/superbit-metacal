@@ -18,8 +18,10 @@ pipe = SuperBITPipeline(config_file, log)
 
 rc = pipe.run()
 
-assert(rc == 0)
-
 
 end_time=time.time()
 print("\n\n\n Pipeline execution time = %.2f\n\n\n" % (end_time - start_time))
+
+assert(rc == 0)
+
+

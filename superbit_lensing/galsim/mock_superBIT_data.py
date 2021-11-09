@@ -935,4 +935,9 @@ def main():
         logprint('')
 
 if __name__ == "__main__":
+    import time
+    start_time = time.time()
     main()
+
+    end_time=time.time()
+    print("\n\ngalsim execution time = %fs\n\n" % (end_time - start_time))

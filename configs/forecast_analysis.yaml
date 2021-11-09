@@ -12,17 +12,17 @@ medsmaker:
   # :outdir: Directory for all output files (MEDS, catalogs, images, etc.)
   # :outfile: Name of output MEDS file
   # :clobber: Set to overwrite files
-  mock_dir: /users/jmcclear/data/superbit/mock-data-forecasting/cluster5/v1/round*
+  mock_dir: /users/jmcclear/data/superbit/mock-data-forecasting/cluster5/v3/round?
   fname_base: superbit_gaussJitter
-  outdir: /users/jmcclear/data/superbit/forecasting-analysis/cluster5/
-  outfile: cluster5_v1.meds
+  outdir: /users/jmcclear/data/superbit/forecasting-analysis/cluster5/v3
+  outfile: cluster5_v3.meds
 
 metacal:
   # :plot: Boolean condition to create diagnostics plots, saved in '{outdir}/plots/metacalibration/'
   #        ["True"/"False", default="True"]
-  medsfile: /users/jmcclear/data/superbit/forecasting-analysis/cluster5/cluster5_v1.meds
-  outdir: /users/jmcclear/data/superbit/forecasting-analysis/cluster5/metacal/
-  outfile: cl5_v1_mcalfit.fits
+  medsfile: /users/jmcclear/data/superbit/forecasting-analysis/cluster5/v3/cluster5_v3.meds
+  outdir: /users/jmcclear/data/superbit/forecasting-analysis/cluster5/v3
+  outfile: cl5_v3_mcalfit.fits
   plot: False 
   
 run_options:
@@ -30,7 +30,7 @@ run_options:
   order:
   #- galsim
   - medsmaker
-  #- metacal
+  - metacal
   run_diagnostics: false
-  run_name: cl5_v1
-  vb: true
+  run_name: cl5_v3
+  vb: false

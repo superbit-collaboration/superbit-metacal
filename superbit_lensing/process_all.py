@@ -5,8 +5,8 @@ import time
 
 start_time = time.time()
 config_file='./configs/forecast_analysis.yaml'
-log_file='cluster5_v1.log'
-logdir='/users/jmcclear/data/superbit/forecasting-analysis/cluster5/'
+log_file='cluster5_v3.log'
+logdir='/users/jmcclear/data/superbit/forecasting-analysis/cluster5/v3'
 
 if not os.path.isdir(logdir):
     cmd='mkdir -p %s' % logdir

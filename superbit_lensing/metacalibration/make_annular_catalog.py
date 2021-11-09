@@ -79,7 +79,7 @@ class McalCats():
         # Write to file
         newtab=Table()
         newtab.add_columns([match_master['id'],match_master['ra'],match_master['dec']],names=['id','ra','dec'])
-        newtab.add_columns([gals['X_IMAGE'],gals['Y_IMAGE']])        
+        newtab.add_columns([match_master['X_IMAGE'],match_master['Y_IMAGE']])        
         newtab.add_columns([match_master['g_noshear'][:,0],match_master['g_noshear'][:,1]],names=['g1_noshear','g2_noshear'])
         newtab.add_columns([match_master['g1_Rinv'],match_master['g2_Rinv']],names=['g1_Rinv','g2_Rinv'])
         newtab.add_columns([match_master['T_noshear'],match_master['Tpsf_noshear'],match_master['flux_noshear']],\
@@ -102,11 +102,11 @@ class McalCats():
         
         #noshear_selection = self.mcCat[(self.mcCat['T_noshear']>=1.2*self.mcCat['Tpsf_noshear'])& (self.mcCat['s2n_noshear']<400) & (self.mcCat['s2n_noshear']>10)]
 
-        min_Tpsf = 1.2
-        min_sn = 5
-        max_sn = 500
-        min_T = 0.05
-        covcut = 7e-3
+        min_Tpsf = 1.3
+        min_sn = 10
+        max_sn = 1000
+        min_T = 0.1
+        covcut = 5e-3
         
         qualcuts=str('#\n# cuts applied: Tpsf_ratio>%.2f SN>%.1f T>%.2f covcut=%.1e\n#\n' \
                          % (min_Tpsf,min_sn,min_T,covcut))
