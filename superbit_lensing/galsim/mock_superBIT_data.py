@@ -122,6 +122,8 @@ def make_obj(i, obj_type, *args, **kwargs):
     Particularly useful for multiprocessing wrappers
     '''
 
+    logprint = args[-1]
+
     func = None
 
     func_map = {
@@ -137,10 +139,11 @@ def make_obj(i, obj_type, *args, **kwargs):
     func = func_map[obj_type]
 
     try:
+        logprint(f'Starting {obj_type} {i}')
         stamp, truth = func(*args, **kwargs)
+        logprint(f'{obj_type} {i} completed succesfully')
     except galsim.errors.GalSimError:
-        logprint = args[-1]
-        logprint(f'Galaxy {i} has failed, skipping...')
+        logprint(f'{obj_type} {i} has failed, skipping...')
         return i, None, None
 
     return i, stamp, truth
