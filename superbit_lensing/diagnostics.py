@@ -1,10 +1,12 @@
 import os
 import sys
 from glob import glob
-from esutil import htm
 from astropy.table import Table
 import matplotlib.pyplot as plt
+
+from match import MatchedTruthCatalog
 import utils
+
 import pudb
 
 class Diagnostics(object):
@@ -190,41 +192,51 @@ class MedsmakerDiagnostics(Diagnostics):
 class MetacalDiagnostics(TruthDiagnostics):
 
     def __init__(self, name, config):
-        super(MetaCalDiagnostics, self).__init__(name, config)
-
-        # ...
+        super(MetacalDiagnostics, self).__init__(name, config)
 
         return
 
-    def run(run_options, logprint):
+    def run(self, run_options, logprint):
         super(MetacalDiagnostics, self).run(run_options, logprint)
 
-        self.plot_compare_mags(run_options, logprint)
+        outdir = self.config['outdir']
+        outfile = os.path.join(outdir, self.config['outfile'])
+
+        self._setup_matched_cat(outfile)
+
+        self.plot_compare_shear(run_options, logprint)
 
         return
 
-    def plot_compare_mags(run_options, logprint):
+    def plot_compare_shear(self, run_options, logprint):
         pass
 
 class NgmixFitDiagnostics(TruthDiagnostics):
 
     def __init__(self, name, config):
-        super(NgmixFitDiagnositcs, self).__init__(name, config)
+        super(NgmixFitDiagnostics, self).__init__(name, config)
 
         return
 
-    def run(run_options, logprint):
+    def run(self, run_options, logprint):
         super(NgmixFitDiagnostics, self).run(run_options, logprint)
 
-        outfile = self._config['outfile']
+        outdir = self.config['outdir']
+        outfile = os.path.join(outdir, self.config['outfile'])
 
-        self._setup_matched_catalog(outfile)
-
-        self.compare_to_truth(run_options, logprint)
-
+        # TODO: Fix in the future!
+        print('WARNING: NgmixFitDiagnostics cannot create ' +\
+              'a matched catalog as (ra,dec) are not currently ' +\
+              'in the ngmix catalog. Fix this to continue.')
         return
 
-    def compare_to_truth(run_options, logprint):
+        # self._setup_matched_cat(outfile)
+
+        # self.compare_to_truth(run_options, logprint)
+
+        # return
+
+    def compare_to_truth(self, run_options, logprint):
         '''
         Plot meas vs. true for a variety of quantities
         '''
@@ -236,7 +248,7 @@ class NgmixFitDiagnostics(TruthDiagnostics):
 
         return
 
-    def plot_pars_compare(run_options, logprint):
+    def plot_pars_compare(self, run_options, logprint):
         logprint('Comparing meas vs. true ngmix pars')
 
         # gal_model = ngmix_config[]
@@ -252,10 +264,12 @@ def get_diagnostics_types():
 
 # NOTE: This is where you must register a new diagnostics type
 DIAGNOSTICS_TYPES = {
+    'pipeline': Diagnostics,
     'galsim': GalSimDiagnostics,
     'medsmaker': MedsmakerDiagnostics,
-    'Metacal': MetacalDiagnostics,
-    'ShearProfile': ShearProfileDiagnostics,
+    'metacal': MetacalDiagnostics,
+    'ngmix-fit': NgmixFitDiagnostics,
+    'shear-profile': ShearProfileDiagnostics,
 }
 
 def build_diagnostics(name, config):
@@ -266,6 +280,8 @@ def build_diagnostics(name, config):
         diagnostics = DIAGNOSTICS_TYPES[name](name, config)
     else:
         # Attempt generic input construction
+        print(f'Warning: {name} is not a defined diagnostics type. ' +\
+              'Using the default.')
         diagnostics = Diagnostics(name, config)
 
     return diagnostics
