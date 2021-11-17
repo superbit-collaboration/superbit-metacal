@@ -496,8 +496,6 @@ def mp_run_fit(i, obj, jaclist, obslist, prior, imc, plotter, config, logprint):
 
     start = time.time()
 
-    # utils.ForkedPdb().set_trace()
-
     logprint(f'Starting fit for obj {i}')
 
     try:
