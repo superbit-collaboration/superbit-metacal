@@ -353,15 +353,13 @@ class GalSimModule(SuperBITModule):
 
         ncores = run_options['ncores']
         if ncores > 1:
-            cmd = f'mpiexec -n {ncores} ' + cmd
+            if hasattr(self._config, 'use_mpi'):
+                if self._config['use_mpi'] is True:
+                    cmd = f'mpiexec -n {ncores} ' + cmd
+            else:
+                cmd = cmd + f' --ncores={ncores}'
 
         return cmd
-
-    def run_diagnostics(self, run_options, logprint):
-
-        super(GalSimModule, self).run_diagnostics(run_options, logprint)
-
-        return
 
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
