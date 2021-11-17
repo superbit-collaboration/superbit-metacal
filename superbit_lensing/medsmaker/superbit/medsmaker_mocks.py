@@ -301,9 +301,10 @@ class BITMeasurement():
         weight_file = os.path.join(self.work_path, weightout_name) # This is coadd weight
         config_arg = '-c ' + os.path.join(self.base_dir, 'superbit/astro_config/swarp.config')
         #weight_arg = '-WEIGHT_IMAGE '+self.mask_file
+        resamp_arg = '-RESAMPLE_DIR ' + self.work_path
         outfile_arg = '-IMAGEOUT_NAME '+ detection_file + ' -WEIGHTOUT_NAME ' + weight_file
         #cmd = ' '.join(['swarp ',image_args,weight_arg,outfile_arg,config_arg])
-        cmd = ' '.join(['swarp ',image_args,outfile_arg,config_arg])
+        cmd = ' '.join(['swarp ',image_args,resamp_arg, outfile_arg,config_arg])
         self.logprint('swarp cmd is ' + cmd)
         # rc = utils.run_command(cmd, logprint=self.logprint)
         os.system(cmd)
@@ -466,15 +467,16 @@ class BITMeasurement():
         # Will need to make that tmp/psfex_output generalizable
         outcat_name = imagefile.replace('.fits','.psfex.star')
         cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
-                            outcat_name,'-PSF_DIR', self.psf_path])
+                            outcat_name])
         self.logprint("psfex cmd is " + cmd)
         os.system(cmd)
         # utils.run_command(cmd, logprint=self.logprint)
-
+        """
         psfex_name_tmp1=(imcat_ldac_name.replace('.ldac','.psf'))
         psfex_name_tmp2= psfex_name_tmp1.split('/')[-1]
         psfex_model_file='/'.join([self.psf_path,psfex_name_tmp2])
-
+        """
+        psfex_model_file=imcat_ldac_name.replace('.ldac','.psf')
         # Just return name, the make_psf_models method reads it in as a PSFEx object
         return psfex_model_file
 

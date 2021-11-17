@@ -102,11 +102,11 @@ class McalCats():
         
         #noshear_selection = self.mcCat[(self.mcCat['T_noshear']>=1.2*self.mcCat['Tpsf_noshear'])& (self.mcCat['s2n_noshear']<400) & (self.mcCat['s2n_noshear']>10)]
 
-        min_Tpsf = 1.3
-        min_sn = 10
+        min_Tpsf = 1.2
+        min_sn = 5
         max_sn = 1000
-        min_T = 0.1
-        covcut = 5e-3
+        min_T = 0.05
+        covcut = 7e-3
         
         qualcuts=str('#\n# cuts applied: Tpsf_ratio>%.2f SN>%.1f T>%.2f covcut=%.1e\n#\n' \
                          % (min_Tpsf,min_sn,min_T,covcut))
@@ -190,7 +190,7 @@ class McalCats():
         """
 
         name_arg = self.outcat
-        #fiat_name_arg = str(name_arg.split('.')[0]+'.fiat')        
+        #fiat_namearg = str(name_arg.split('.')[0]+'.fiat')        
         fiat_name_arg = name_arg.replace('csv','fiat')
         cmd = ' '.join(['sdsscsv2fiat',name_arg, ' > ',fiat_name_arg])
         os.system(cmd)

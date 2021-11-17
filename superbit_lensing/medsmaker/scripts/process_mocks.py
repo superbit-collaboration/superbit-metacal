@@ -51,7 +51,7 @@ def main():
     vb = args.verbose
 
     logfile = 'medsmaker.log'
-    logdir = mock_dir
+    logdir = outdir
     log = utils.setup_logger(logfile, logdir=logdir)
     logprint = utils.LogPrint(log, vb=vb)
 

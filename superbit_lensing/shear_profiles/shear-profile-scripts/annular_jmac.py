@@ -83,8 +83,8 @@ class Annular():
 
         #wg=(self.mu>1)
         g = np.sqrt(self.g1**2 + self.g2**2)
-
-        wg = (self.g1>-2)
+        
+        wg = (self.g1>-999)
         print("## %d galaxies actually used for calculation" % len(wg.nonzero()[0]))
         
         g1=self.g1[wg] #*np.sqrt(2)

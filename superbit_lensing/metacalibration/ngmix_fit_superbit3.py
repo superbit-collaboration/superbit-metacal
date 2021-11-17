@@ -276,8 +276,10 @@ class SuperBITPlotter(object):
         self.jdict_list = []
 
         for i in range(index_start, index_end):
-            self.jdict_list.append(meds_list.get_jacobian_list(i)[0])
-
+            try:
+                self.jdict_list.append(meds_list.get_jacobian_list(i)[0])
+            except ValueError:
+                pass
         return
 
     @staticmethod
@@ -595,7 +597,7 @@ def mp_run_fit(i, start_ind,obj, jaclist, obslist, prior, imc, plotter, config, 
             except:
                 # EM probably failed
                 logprint('Bad gmix model, no image made')
-                pdb.set_trace()
+
 
     except Exception as e:
         logprint(e)
