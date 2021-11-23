@@ -28,7 +28,7 @@ nobj:               34300       # Number of galaxies (COSMOS 25.2 depth)    []
 nstars:             1000        # Number of stars in the field              []
 nexp:               8           # Number of exposures per PSF model         []
 nclustergal:        35          # Number of cluster galaxies (arbitrary)    []
-#index_convention:  '1'
+im_rootname:   'stars_only'     # Root for exposure name creation           [] 
 
 # Simulated cluster parameters
 # ----------------------------
@@ -36,8 +36,8 @@ lam:                625         # Fiducial wavelength for abberations       [nm]
 mass:               7.0e14      # Cluster mass                              [Msol / h]
 nfw_z_halo:         0.3         # redshift of the halo                      []
 nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
-omega_m:            0.3         # Omega matter for the background cosmology.
-omega_lam:          0.7         # Omega lambda for the background cosmology.
+omega_m:            0.3         # Omega matter for the background cosmology []
+omega_lam:          0.7         # Omega lambda for the background cosmology []
 
 # Run parameters
 # --------------

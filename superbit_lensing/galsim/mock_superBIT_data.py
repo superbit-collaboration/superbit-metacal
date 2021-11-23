@@ -684,8 +684,6 @@ def main():
         # get MPI processes in sync at start of each image
         M.barrier()
 
-        #rng = galsim.BaseDeviate(sbparams.noise_seed+i)
-
         timescale=str(sbparams.exp_time)
         outnum = str(i).zfill(3)
         outname = f'{sbparams.run_name}_{outnum}.fits'
