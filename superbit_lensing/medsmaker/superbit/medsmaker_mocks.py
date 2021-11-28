@@ -325,7 +325,7 @@ class BITMeasurement():
         #keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
         #self.catalog = self.catalog[keep.nonzero()[0]]
         self.logprint("Selecting analysis objects on CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
-        keep2 = self.catalog['CLASS_STAR']<=0.92
+        keep2 = self.catalog['CLASS_STAR']<0.92
         self.catalog = self.catalog[keep2.nonzero()[0]]
 
         # Write trimmed catalog to file

@@ -27,10 +27,10 @@ metacal:
 
   
 run_options:
-  ncores: 18
+  ncores: 36
   order:
   #- galsim
-  - medsmaker
+  #- medsmaker
   - metacal
   run_diagnostics: false
   run_name: cl5_v6
