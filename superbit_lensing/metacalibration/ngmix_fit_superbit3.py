@@ -81,7 +81,7 @@ class SuperBITNgmixFitter():
             self.medsObj = meds.MEDS(fname)
 
         self.catalog = self.medsObj.get_cat()
-        
+
         try:
             self.verbose = config['verbose']
         except KeyError:
@@ -145,12 +145,12 @@ class SuperBITNgmixFitter():
     def _make_psf(self,psf_pixel_scale = 0.01,nx = 256,ny = 256):
 
         """
-        for debugging: make a GalSim PSF from scratch, 
+        for debugging: make a GalSim PSF from scratch,
         based on the one implemented in simulations
         """
         import galsim
         import galsim.des
-        
+
         jitter_fwhm = 0.1
         jitter = galsim.Gaussian(flux=1., fwhm=jitter_fwhm)
 
@@ -182,16 +182,16 @@ class SuperBITNgmixFitter():
         ycoord = self.medsObj[source_id]['orig_row']
         xcoord = self.medsObj[source_id]['orig_col']
         file_id = self.medsObj[source_id]['file_id']
-        
-        # TO DO: make naming more general; requires some rewrite of medsmaker and would ideally go into the file_id loop 
+
+        # TO DO: make naming more general; requires some rewrite of medsmaker and would ideally go into the file_id loop
         #        have array of psf_pixel_scales if we go with drawing galsim.des PSFs
         #psf_name = '/users/jmcclear/data/superbit/forecasting-analysis/psfex_cutout_tests/psfex_output/superbit_gaussJitter_001_cat.psf'
         psf_name = '/users/jmcclear/data/superbit/forecasting-analysis/psf_stamp_tests/psfex_output/superbit_gaussJitter_001_cat.psf'
 
         pex = psfex.PSFEx(psf_name)
-        
+
         for i in range(len(file_id)):
-            
+
             im_name = image_info[file_id[i]][0]
 
             """
@@ -205,9 +205,9 @@ class SuperBITNgmixFitter():
 
             #psf_cutout = pex.get_rec(xcoord[i],ycoord[i])
             psfex_cutouts.append(psf_cutout)
-        
+
         return psfex_cutouts
-    
+
 
     def _get_jacobians(self, source_id=None):
         jlist = self.medsObj.get_jacobian_list(source_id)
@@ -223,7 +223,7 @@ class SuperBITNgmixFitter():
         weight_cutouts = self.medsObj.get_cutout_list(source_id, type='weight')
         image_cutouts = self.medsObj.get_cutout_list(source_id, type='image')
         image_obslist = ngmix.observation.ObsList()
-        
+
         for i in range(len(image_cutouts)):
 
             jj = jaclist[i]
@@ -234,7 +234,7 @@ class SuperBITNgmixFitter():
                 jj_psf = ngmix.DiagonalJacobian(scale=psf_cutouts[i].scale,x=xcenter,y=ycenter)
             except AttributeError:
                 jj_psf = jj
-                
+
             # Apparently it likes to add noise to the psf.
             this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
             #this_psf = psf_cutouts[i].array + psf_noise * np.random.randn(psf_cutouts[i].array.shape[0],psf_cutouts[i].array.shape[1])
@@ -250,7 +250,7 @@ class SuperBITNgmixFitter():
 
             this_weight = np.zeros_like(this_image)+ 1./sky_sigma
 
-            
+
             psfObs = ngmix.observation.Observation(this_psf,
                                                    weight=this_psf_weight,
                                                    jacobian=jj_psf)
@@ -502,19 +502,31 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
 
     Tguess = 4*jaclist[0].get_scale()**2
     ntry = 4
-    psf_model = 'em3' # should come up with diagnostics for PSF quality
+    psf_model = 'gauss' # should come up with diagnostics for PSF quality
     gal_model = 'exp'
 
     # Run the actual metacalibration fits on the observed galaxies
     mcb = ngmix.bootstrap.MaxMetacalBootstrapper(obslist)
-    mcb.fit_metacal(psf_model, gal_model, max_pars, Tguess, prior=prior,
+    mcb.fit_metacal(psf_
+    model, gal_model, max_pars, Tguess, prior=prior,
                     ntry=ntry, metacal_pars=metacal_pars)
     mcal_res = mcb.get_metacal_result() # this is a dict
 
+    # Define full responsivity matrix, take inner product with shear moments
+    r11 = (mcal_res['1p']['g'][0] - mcal_res['1m']['g'][0])/(2*mcal_shear)
+    r12 = (mcal_res['2p']['g'][0] - mcal_res['2m']['g'][0])/(2*mcal_shear)
+    r21 = (mcal_res['1p']['g'][1] - mcal_res['1m']['g'][1])/(2*mcal_shear)
+    r22 = (mcal_res['2p']['g'][1] - mcal_res['2m']['g'][1])/(2*mcal_shear)
+
+    R = [ [r11, r12], [r21, r22] ]
+    Rinv = np.linalg.inv(R)
+    gMC = np.dot(Rinv,mcal_res['noshear']['g'])
+
+    mcal_res['g1_MC'] = gMC[0]
+    mcal_res['g2_MC'] = gMC[1]
+
     if logprint.vb is True:
-        R1 = (mcal_res['1p']['g'][0] - mcal_res['1m']['g'][0])/(2*mcal_shear)
-        R2 = (mcal_res['2p']['g'][1] - mcal_res['2m']['g'][1])/(2*mcal_shear)
-        logprint(f'R1: {R1:.3} \nR2:{R2:.3} ')
+        logprint(f'R11: {r11:.3} \nR22:{r22:.3} ')
 
     # To generate a model image, these calls do need to be here
     mcb.fit_psfs(psf_model, 1.)
@@ -556,7 +568,7 @@ def mp_run_fit(i, start_ind,obj, jaclist, obslist, prior, imc, plotter, config, 
     # utils.ForkedPdb().set_trace()
 
     logprint(f'Starting fit for obj {i}')
-    
+
     try:
         # mcal_res: the bootstrapper's get_mcal_result() dict
         # mcal_fit: the mcal model image
@@ -633,17 +645,17 @@ def main():
     # not given, set it to a default value (current working directory).
     # If the "outdir" argument is given in config but the "outdir" directory
     # itself doesn't exist, create it.
-    
+
     if outdir is None:
         outdir = os.getcwd()
 
-    if not os.path.isdir(outdir):	
+    if not os.path.isdir(outdir):
        	  cmd = 'mkdir -p %s' % outdir
           os.system(cmd)
 
-    # old make_plots arg was a string; evaluating it 
+    # old make_plots arg was a string; evaluating it
     # as a boolean
-    
+
     if ((make_plots_arg == "True") or (make_plots_arg == "true")):
         print('diagnostic plotting enabled')
         make_plots = True
@@ -653,11 +665,11 @@ def main():
     else:
         print('make_plots argument not in recognized format, setting value to False')
         make_plots = False
-        
+
     # Set up for saving plots
     im_savedir = os.path.join(outdir, 'metacal-plots/')
     if (make_plots == True):
-       if not os.path.isdir(im_savedir):	
+       if not os.path.isdir(im_savedir):
        	  cmd = 'mkdir -p %s' % im_savedir
           os.system(cmd)
 
@@ -762,11 +774,11 @@ def main():
     logprint(f'{T/N} seconds per object (wall time)')
     logprint(f'{T/N*nproc} seconds per object (CPU time)')
 
-    
+
     if not os.path.isdir(outdir):
        cmd='mkdir -p %s' % outdir
        os.system(cmd)
-       
+
     out = os.path.join(outdir, outfilename)
     logprint(f'Writing results to {out}')
 
