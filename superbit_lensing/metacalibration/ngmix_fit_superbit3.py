@@ -507,8 +507,7 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
 
     # Run the actual metacalibration fits on the observed galaxies
     mcb = ngmix.bootstrap.MaxMetacalBootstrapper(obslist)
-    mcb.fit_metacal(psf_
-    model, gal_model, max_pars, Tguess, prior=prior,
+    mcb.fit_metacal(psf_model, gal_model, max_pars, Tguess, prior=prior,
                     ntry=ntry, metacal_pars=metacal_pars)
     mcal_res = mcb.get_metacal_result() # this is a dict
 
