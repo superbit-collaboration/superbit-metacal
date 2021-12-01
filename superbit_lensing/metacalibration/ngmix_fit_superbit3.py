@@ -429,7 +429,7 @@ def mcal_dict2tab(mcal, ident):
     for key, val in ident.items():
         ident[key] = np.array([val])
 
-    tab_names = ['noshear', '1p', '1m', '2p', '2m']
+    tab_names = ['noshear', '1p', '1m', '2p', '2m','MC']
     for name in tab_names:
         tab = mcal[name]
 
@@ -445,8 +445,9 @@ def mcal_dict2tab(mcal, ident):
     tab_1m = Table(mcal['1m'])
     tab_2p = Table(mcal['2p'])
     tab_2m = Table(mcal['2m'])
+    tab_MC = Table(mcal['MC'])
 
-    join_tab = hstack([id_tab, hstack([tab_noshear, tab_1p,  tab_1m, tab_2p, tab_2m], \
+    join_tab = hstack([id_tab, hstack([tab_noshear, tab_1p,  tab_1m, tab_2p, tab_2m,tab_MC], \
                                       table_names=tab_names)])
 
     return join_tab
@@ -521,8 +522,10 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
     Rinv = np.linalg.inv(R)
     gMC = np.dot(Rinv,mcal_res['noshear']['g'])
 
-    mcal_res['g1_MC'] = gMC[0]
-    mcal_res['g2_MC'] = gMC[1]
+    MC = {'r11':r11,'r12':r12,'r21':r21,'r22':r22,'g1_MC':gMC[0],'g2_MC':gMC[1]}
+    mcal_res['MC']=MC
+    #mcal_res['g1_MC'] = gMC[0]
+    #mcal_res['g2_MC'] = gMC[1]
 
     if logprint.vb is True:
         logprint(f'R11: {r11:.3} \nR22:{r22:.3} ')
