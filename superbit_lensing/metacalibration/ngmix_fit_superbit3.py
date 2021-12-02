@@ -503,7 +503,7 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
 
     Tguess = 4*jaclist[0].get_scale()**2
     ntry = 4
-    psf_model = 'gauss' # should come up with diagnostics for PSF quality
+    psf_model = 'em3' # should come up with diagnostics for PSF quality
     gal_model = 'exp'
 
     # Run the actual metacalibration fits on the observed galaxies
