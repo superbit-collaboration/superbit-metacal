@@ -513,13 +513,56 @@ class ShearProfileModule(SuperBITModule):
     _req_fields = []
     _opt_fields = []
 
-    # will need to implement, but this way it will error until then
-    # def run(self, run_options, logprint):
-        # cmd = self._setup_run_comand(run_options)
+    def __init__(self, name, config):
+        super(ShearProfileModule, self).__init__(name, config)
 
-        # self._run_command(cmd, logprint)
+        raise Exception('Not yet implemented!')
 
-        # return
+        col = 'outdir'
+        if col not in self._config:
+            self._config[col] = os.getcwd()
+
+        return
+
+    def run(self, run_options, logprint):
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
+
+        cmd = self._setup_run_command(run_options)
+
+        rc = self._run_command(cmd, logprint)
+
+        return rc
+
+    def _setup_run_command(self, run_options):
+
+        outdir = self._config['outdir']
+
+        medsfile = self._config['medsfile']
+        outfile = self._config['outfile']
+        outfile = os.path.join(outdir, outfile)
+        config = self._config['config']
+
+        ngmix_dir = os.path.join(utils.get_module_dir(),
+                                'ngmix_fit')
+        filepath = os.path.join(ngmix_dir, 'ngmix_fit.py')
+
+        base = f'python {filepath} '
+
+        # While these are considered required for the pipeline, they are
+        # technically optional args in ngmix_fit.py due to testing option
+        base += f'--medsfile={medsfile} --outfile={outfile} --config={config}'
+
+        # Setup some options that rquire the run config
+        col = 'n'
+        if col not in self._config:
+            self._config['n'] = run_options['ncores']
+
+        options = self._setup_options(run_options)
+
+        cmd = base + options
+
+        return cmd
 
 def build_module(name, config, logprint):
     name = name.lower()
