@@ -10,14 +10,13 @@ class McalCats():
 
     """
     contains all metacal catalogs
-    
+
     This class will concatenate all metacal catalogs, and calculate shear-calibrated
     ellipticities based on metacal procedure. This will then match against the parent
     SExtractor catalog (set in option in main), and output a "fiat-format" ascii file
     for shear profile computation
     """
 
-    
     def __init__(self,cat_info = None):
 
         """
@@ -28,12 +27,12 @@ class McalCats():
         :shearcat: catalog for shear
 
         """
-        
+
         self.sexcat = cat_info['sexcat']
         self.outcat = cat_info['outcat']
         self.mcals = cat_info['mcals']
         self.mcCat = None
-        self.shearcat = None 
+        self.shearcat = None
 
     def _get_catalogs(self):
         """
