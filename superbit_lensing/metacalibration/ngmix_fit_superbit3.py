@@ -523,7 +523,7 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
     gMC = np.dot(Rinv,mcal_res['noshear']['g'])
 
     MC = {'r11':r11,'r12':r12,'r21':r21,'r22':r22,'g1_MC':gMC[0],'g2_MC':gMC[1]}
-    mcal_res['MC']=MC
+    mcal_res['MC'] = MC
     #mcal_res['g1_MC'] = gMC[0]
     #mcal_res['g2_MC'] = gMC[1]
 
