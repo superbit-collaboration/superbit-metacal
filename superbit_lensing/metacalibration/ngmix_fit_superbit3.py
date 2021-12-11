@@ -245,7 +245,7 @@ class SuperBITNgmixFitter():
             #     - std_dev = sqrt(bkg) = 5.3
             #     - sky_sigma = std_dev**2 = 25.1
 
-            sky_sigma = (3.2)**2
+            sky_sigma = (4.7)**2
             this_image = image_cutouts[i]
 
             this_weight = np.zeros_like(this_image)+ 1./sky_sigma
