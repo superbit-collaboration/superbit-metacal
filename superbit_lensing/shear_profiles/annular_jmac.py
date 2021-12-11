@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 #import nfwtools as nt
 from astropy.io import fits
 from astropy.table import Table
-
+import pdb
 
 class Annular():
 
@@ -56,7 +56,7 @@ class Annular():
         try:
             tab = Table.read(cat_info['incat'],format='ascii')
         except:
-            tab = Table.read(cat_info['incat'],format='csv')
+            tab = Table.read(cat_info['incat'],format='fits')
 
         try:
             self.x = tab[cat_info['xy_args'][0]]
@@ -186,8 +186,8 @@ def main(args):
     num_bins = int(args[6])
 
     # Define annular args
-    x_arg = 'X_IMAGE'
-    y_arg = 'Y_IMAGE'
+    x_arg = 'X_IMAGE_coadd'
+    y_arg = 'Y_IMAGE_coadd'
     #startrad = 180
     #endrad = 4000
     nfw_center = [5031,3353]
