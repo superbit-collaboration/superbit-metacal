@@ -102,7 +102,7 @@ class McalCats():
 
         #noshear_selection = self.mcCat[(self.mcCat['T_noshear']>=1.2*self.mcCat['Tpsf_noshear'])& (self.mcCat['s2n_noshear']<400) & (self.mcCat['s2n_noshear']>10)]
 
-        min_Tpsf = 1.2
+        min_Tpsf = 1.
         min_sn = 5
         max_sn = 1000
         min_T = 0.05
