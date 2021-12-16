@@ -84,7 +84,7 @@ class Annular():
         #wg=(self.mu>1)
         g = np.sqrt(self.g1**2 + self.g2**2)
         std_g = np.std(g)
-        wg = (g>0)
+        wg = (g>0.)
         print("## %d galaxies actually used for calculation" % len(wg.nonzero()[0]))
 
         g1=self.g1[wg] #*np.sqrt(2)
@@ -186,8 +186,8 @@ def main(args):
     num_bins = int(args[6])
 
     # Define annular args
-    x_arg = 'X_IMAGE_coadd'
-    y_arg = 'Y_IMAGE_coadd'
+    x_arg = 'X_IMAGE'
+    y_arg = 'Y_IMAGE'
     #startrad = 180
     #endrad = 4000
     nfw_center = [5031,3353]
