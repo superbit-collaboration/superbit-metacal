@@ -2,12 +2,12 @@ from abc import ABC, abstractmethod
 import os
 import shutil
 import yaml
-import utils
+from superbit_lensing import utils
 import logging
 import subprocess
 from argparse import ArgumentParser
 import superbit_lensing as sb
-from diagnostics import build_diagnostics
+from superbit_lensing.diagnostics import build_diagnostics
 import pudb
 
 parser = ArgumentParser()

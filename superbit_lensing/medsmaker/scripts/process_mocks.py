@@ -29,7 +29,7 @@ parser.add_argument('--meds_coadd', action='store_true', default=False,
                     help='Set to keep coadd cutout in MEDS file')
 parser.add_argument('--clobber', action='store_true', default=False,
                     help='Set to overwrite files')
-parser.add_argument('--source_select', action='store_true', default=True,
+parser.add_argument('--source_select', action='store_true', default=False,
                     help='Set to select sources during MEDS creation')
 parser.add_argument('--select_stars', action='store_true', default=False,
                     help='Set to remove stars during source selection')
