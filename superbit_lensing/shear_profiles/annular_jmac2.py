@@ -43,6 +43,7 @@ class Annular():
         self.gcross = None
         self.gtan = None
         self.Rgamma = None
+        self.Rcross = None
         self.Rs = None
 
 
@@ -118,10 +119,12 @@ class Annular():
             R11_S = self.cat['R11_S'] ; R22_S = self.cat['R22_S']
 
             Rtan_gamma = r11*(np.cos(2*phi)**2) + r22*(np.sin(2*phi)**2) + (r12+r21)*(np.sin(2*phi)*np.cos(2*phi))
+            #Rcross_gamma = r11*(np.sin(2*phi)**2) - r22*(np.cos(2*phi)**2) + (r12-r21)*(np.sin(2*phi)*np.cos(2*phi))
             Rtan_S = np.ones_like(self.cat['r11'])*((R11_S + R22_S)*0.5)
 
             # The Rtan_S is really more of a placeholder, doesn't get called under normal circumstances
             self.Rgamma = Rtan_gamma
+            #self.Rcross= Rcross_gamma
             self.Rs = Rtan_S
 
         if write==True:
@@ -142,12 +145,12 @@ class Annular():
         max_T = 10 # orig inf
         covcut=3E-3 # orig 1 for ensemble
         """
-        min_Tpsf = 1.15 # orig 1.15
+        min_Tpsf = 1. # orig 1.15
         max_sn = 1000
-        min_sn = 10# orig 8 for ensemble
-        min_T = 0.05 # orig 0.05
+        min_sn = 5 # orig 8 for ensemble
+        min_T = 0.04 # orig 0.05
         max_T = 10 # orig inf
-        covcut=4e-3 # orig 1 for ensemble
+        covcut=7e-3 # orig 1 for ensemble
 
         qualcuts=str('#\n# cuts applied: Tpsf_ratio>%.2f SN>%.1f T>%.2f covcut=%.1e\n#\n' \
                          % (min_Tpsf,min_sn,min_T,covcut))
@@ -245,15 +248,24 @@ class Annular():
                 this_Rs = 1
 
             sum_gtan = np.sum(self.gtan[annulus]*self.weight[annulus])
-            denom_gtan = np.sum(self.weight[annulus] * self.Rgamma[annulus]) + np.sum(self.weight[annulus])*this_Rs
+            denom_gtan = np.sum(self.weight[annulus] * self.Rgamma[annulus]) + np.sum(self.weight[annulus]*this_Rs)
             gtan_mean = sum_gtan/denom_gtan
-            #gtan_mean = np.mean(self.gtan[annulus]) #/(np.mean(self.Rgamma[annulus])+np.mean(self.Rs[annulus]) )
 
+            #sum_gcross = np.sum(self.gcross[annulus]*self.weight[annulus])
+            #denom_gcross = np.sum(self.weight[annulus] * self.Rcross[annulus]) + np.sum(self.weight[annulus]*this_Rs)
+            #gcross_mean = sum_gcross/denom_gcross
+
+
+            #gtan_mean = np.mean(self.gtan[annulus])
             gcross_mean=np.mean(self.gcross[annulus])
-            #gtan_err = np.std(self.gtan[annulus])/np.sqrt(n)
-            gtan_err = np.std(self.gtan[annulus]/(np.mean(self.Rgamma[annulus])+self.Rs[annulus]))/np.sqrt(n)
 
-            gcross_err = np.std(self.gcross[annulus])/np.sqrt(n)
+            #gtan_err = np.std(self.gtan[annulus])/np.sqrt(n)
+            #gcross_err = np.std(self.gcross[annulus])/np.sqrt(n)
+
+            gtan_err = np.std(self.gtan[annulus]/(np.mean(self.Rgamma[annulus])+self.Rs[annulus]))/np.sqrt(n)
+            gcross_err = np.std(self.gcross[annulus]/(np.mean(self.Rgamma[annulus])+self.Rs[annulus]))/np.sqrt(n)
+            #gcross_err = np.std(self.gcross[annulus]/(np.mean(self.Rcross[annulus])+self.Rs[annulus]))/np.sqrt(n)
+
             #gtan_err = np.std(gtan_mean)/np.sqrt(n)
 
             print("%.3f   %d   %f   %f   %f   %f" % (midpoint_r,n,gtan_mean,gtan_err,gcross_mean,gcross_err))

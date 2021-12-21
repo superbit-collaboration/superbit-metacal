@@ -188,11 +188,13 @@ def main(args):
     # Define annular args
     x_arg = 'X_IMAGE'
     y_arg = 'Y_IMAGE'
+    
+    #x_arg = 'x_image'
+    #y_arg = 'y_image'
     #startrad = 180
     #endrad = 4000
     nfw_center = [5031,3353]
-    #nfw_center = [3333,2227]
-    #nbins =16
+    #nfw_center = [4784,3190]
 
     print_header(args)
 

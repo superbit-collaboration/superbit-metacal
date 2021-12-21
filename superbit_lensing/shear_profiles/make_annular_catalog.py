@@ -136,12 +136,12 @@ class McalCats():
         covcut=1E-2 # orig 1 for ensemble
         """
 
-        min_Tpsf = 1.15 # orig 1.15
+        min_Tpsf = 1. # orig 1.15
         max_sn = 1000
-        min_sn = 10 # orig 8 for ensemble
-        min_T = 0.025 # orig 0.05
+        min_sn = 5 # orig 8 for ensemble
+        min_T = 0.04 # orig 0.05
         max_T = 10 # orig inf
-        covcut=1e-2 # orig 1 for ensemble
+        covcut=7e-3 # orig 1 for ensemble
 
         qualcuts=str('#\n# cuts applied: Tpsf_ratio>%.2f SN>%.1f T>%.2f covcut=%.1e\n#\n' \
                          % (min_Tpsf,min_sn,min_T,covcut))
@@ -149,44 +149,44 @@ class McalCats():
 
         noshear_selection = self.mcCat[(self.mcCat['T_noshear']>=min_Tpsf*self.mcCat['Tpsf_noshear'])\
                                         & (self.mcCat['T_noshear']<max_T)\
-                                        & (self.mcCat['Tpsf_noshear']>=min_T)\
-                                        & (self.mcCat['s2n_noshear']>min_sn)\
-                                        & (self.mcCat['s2n_noshear']<max_sn)\
+                                        & (self.mcCat['T_noshear']>=min_T)\
+                                        & (self.mcCat['s2n_r_noshear']>min_sn)\
+                                        & (self.mcCat['s2n_r_noshear']<max_sn)\
                                         & (np.array(self.mcCat['pars_cov0_noshear'].tolist())[:,0,0]<covcut)\
                                         & (np.array(self.mcCat['pars_cov0_noshear'].tolist())[:,1,1]<covcut)
                                            ]
 
         selection_1p = self.mcCat[(self.mcCat['T_1p']>=min_Tpsf*self.mcCat['Tpsf_1p'])\
                                       & (self.mcCat['T_1p']<=max_T)\
-                                      & (self.mcCat['Tpsf_1p']>=min_T)\
-                                      & (self.mcCat['s2n_1p']>min_sn)\
-                                      & (self.mcCat['s2n_1p']<max_sn)\
+                                      & (self.mcCat['T_1p']>=min_T)\
+                                      & (self.mcCat['s2n_r_1p']>min_sn)\
+                                      & (self.mcCat['s2n_r_1p']<max_sn)\
                                       & (np.array(self.mcCat['pars_cov0_1p'].tolist())[:,0,0]<covcut)\
                                       & (np.array(self.mcCat['pars_cov0_1p'].tolist())[:,1,1]<covcut)
                                        ]
 
         selection_1m = self.mcCat[(self.mcCat['T_1m']>=min_Tpsf*self.mcCat['Tpsf_1m'])\
                                       & (self.mcCat['T_1m']<=max_T)\
-                                      & (self.mcCat['Tpsf_1m']>=min_T)\
-                                      & (self.mcCat['s2n_1m']>min_sn)\
-                                      & (self.mcCat['s2n_1m']<max_sn)\
+                                      & (self.mcCat['T_1m']>=min_T)\
+                                      & (self.mcCat['s2n_r_1m']>min_sn)\
+                                      & (self.mcCat['s2n_r_1m']<max_sn)\
                                       & (np.array(self.mcCat['pars_cov0_1m'].tolist())[:,0,0]<covcut)\
                                       & (np.array(self.mcCat['pars_cov0_1m'].tolist())[:,1,1]<covcut)
                                      ]
 
         selection_2p = self.mcCat[(self.mcCat['T_2p']>=min_Tpsf*self.mcCat['Tpsf_2p'])\
                                       & (self.mcCat['T_2p']<=max_T)\
-                                      & (self.mcCat['Tpsf_2p']>=min_T)\
-                                      & (self.mcCat['s2n_2p']>min_sn)\
-                                      & (self.mcCat['s2n_2p']<max_sn)\
+                                      & (self.mcCat['T_2p']>=min_T)\
+                                      & (self.mcCat['s2n_r_2p']>min_sn)\
+                                      & (self.mcCat['s2n_r_2p']<max_sn)\
                                       & (np.array(self.mcCat['pars_cov0_2p'].tolist())[:,0,0]<covcut)\
                                       & (np.array(self.mcCat['pars_cov0_2p'].tolist())[:,1,1]<covcut)
                                       ]
 
         selection_2m = self.mcCat[(self.mcCat['T_2m']>=min_Tpsf*self.mcCat['Tpsf_2m'])\
                                       & (self.mcCat['T_2m']<=max_T)\
-                                      & (self.mcCat['Tpsf_2m']>=min_T)\
-                                      & (self.mcCat['s2n_2m']>min_sn)\
+                                      & (self.mcCat['T_2m']>=min_T)\
+                                      & (self.mcCat['s2n_r_2m']>min_sn)\
                                       & (self.mcCat['s2n_2m']<max_sn)\
                                       & (np.array(self.mcCat['pars_cov0_2m'].tolist())[:,0,0]<covcut)\
                                       & (np.array(self.mcCat['pars_cov0_2m'].tolist())[:,1,1]<covcut)
@@ -203,7 +203,7 @@ class McalCats():
 
         print("# mean values <r11_gamma> = %f <r22_gamma> = %f" % (r11_gamma,r22_gamma))
         print("# mean values <r11_S> = %f <r22_S> = %f" % (r11_S,r22_S))
-
+        print("%d objects passed selection criteria" % len(noshear_selection))
 
         # Write current mcCat to file for safekeeping!
         # Also record all individual responsivity values (gamma and selection)
@@ -214,8 +214,8 @@ class McalCats():
         # compute noise; not entirely sure whether there needs to be a factor of 0.5 on tot_covar...
         # seems like not if I'm applying it just to tangential ellip, yes if it's being applied to each
         #shape_noise = np.std(np.sqrt(self.mcCat['g_noshear'][:,0]**2 + self.mcCat['g_noshear'][:,1]**2))
-        shape_noise=0.25
-        tot_covar = shape_noise + np.array(self.mcCat['g_cov_noshear'].tolist())[:,1,1] + np.array(self.mcCat['g_cov_noshear'].tolist())[:,0,0]
+        shape_noise=0.1
+        tot_covar = shape_noise + np.array(self.mcCat['pars_cov_noshear'].tolist())[:,0,0] + np.array(self.mcCat['pars_cov_noshear'].tolist())[:,1,1]
         weight = 1/tot_covar
 
         r11=( noshear_selection['g_1p'][:,0] - noshear_selection['g_1m'][:,0] ) / 0.02
