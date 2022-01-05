@@ -5,6 +5,11 @@ import glob
 import sys, os
 from astropy.io import fits
 from esutil import htm
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+
+parser.add_argument('')
 
 class McalCats():
 
@@ -270,6 +275,8 @@ class McalCats():
 
 def main(args):
 
+    x = args.x
+    #...
 
     if (len(args)<4):
         print("arguments missing; call is:\n")
@@ -300,7 +307,8 @@ if __name__ == '__main__':
 
     import pdb, traceback, sys
     try:
-        main(sys.argv)
+        args = parser.parse_args()
+        main(args)
     except:
         thingtype, value, tb = sys.exc_info()
         traceback.print_exc()
