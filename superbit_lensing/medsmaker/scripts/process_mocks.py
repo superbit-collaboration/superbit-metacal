@@ -45,8 +45,6 @@ def main():
     clobber = args.clobber
     source_selection = args.source_select
     select_stars = args.select_stars
-    data_dir = '/users/jmcclear/data/superbit/forecasting-analysis/'
-    #data_dir = args.mock_dir
 
     vb = args.verbose
 
@@ -66,7 +64,7 @@ def main():
     outfile = os.path.join(outdir, outfile)
 
     logprint('Setting up configuration...')
-    bm = medsmaker.BITMeasurement(image_files=science, data_dir=data_dir, log=log, vb=vb)
+    bm = medsmaker.BITMeasurement(image_files=science, data_dir=mock_dir, log=log, vb=vb)
 
     bm.set_working_dir(path=outdir)
     bm.set_path_to_psf(path=os.path.join(outdir, 'psfex_output'))
