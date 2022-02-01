@@ -556,7 +556,8 @@ def setup_obj(i, meds_obj):
 
     return obj
 
-def mp_run_fit(i, start_ind,obj, jaclist, obslist, prior, imc, plotter, config, logprint):
+def mp_run_fit(i, start_ind, obj, jaclist, obslist, prior, imc,
+               plotter, config, logprint):
     '''
     parallelized version of original ngmix_fit_superbit3 code
 
@@ -566,8 +567,6 @@ def mp_run_fit(i, start_ind,obj, jaclist, obslist, prior, imc, plotter, config, 
     '''
 
     start = time.time()
-
-    # utils.ForkedPdb().set_trace()
 
     logprint(f'Starting fit for obj {i}')
 
@@ -615,11 +614,9 @@ def mp_run_fit(i, start_ind,obj, jaclist, obslist, prior, imc, plotter, config, 
 
     except Exception as e:
         logprint(e)
-        logprint('object {i} failed, skipping...')
+        logprint(f'object {i} failed, skipping...')
 
         return Table()
-
-        # mcal_tab = None
 
     end = time.time()
 
@@ -732,40 +729,41 @@ def main():
     start = time.time()
 
     # for no multiprocessing:
-    # mcal_res = []
-    # for i in range(index_start, index_end):
-    #     # if i == 3:
-    #     #     pudb.set_trace()
-    #     mcal_res.append(mp_run_fit(
-    #                       i,
-    #                       setup_obj(i, BITfitter.medsObj[i]),
-    #                       BITfitter._get_jacobians(i),
-    #                       BITfitter._get_source_observations(i),
-    #                       priors,
-    #                       imc_list[i-index_start],
-    #                       plotter,
-    #                       config,
-    #                       logprint)
-    #                     )
+    if nproc == 1:
+        mcal_res = []
+        for i in range(index_start, index_end):
+            mcal_res.append(mp_run_fit(
+                            i,
+                            setup_obj(i, BITfitter.medsObj[i]),
+                            BITfitter._get_jacobians(i),
+                            BITfitter._get_source_observations(i),
+                            priors,
+                            imc_list[i-index_start],
+                            plotter,
+                            config,
+                            logprint)
+                            )
 
-    # mcal_res = vstack(mcal_res)
+        mcal_res = vstack(mcal_res)
 
     # for multiprocessing:
-    with Pool(nproc) as pool:
-        mcal_res = vstack(pool.starmap(mp_run_fit,
-                                       [(i,index_start,
-                                         setup_obj(i, BITfitter.medsObj[i]),
-                                         BITfitter._get_jacobians(i),
-                                         BITfitter._get_source_observations(i),
-                                         priors,
-                                         imc_list[i-index_start],
-                                         plotter,
-                                         config,
-                                         logprint
-                                         ) for i in range(index_start, index_end)
-                                        ]
-                                       )
-                          )
+    else:
+        with Pool(nproc) as pool:
+            mcal_res = vstack(pool.starmap(mp_run_fit,
+                                        [(i,
+                                          index_start,
+                                          setup_obj(i, BITfitter.medsObj[i]),
+                                          BITfitter._get_jacobians(i),
+                                          BITfitter._get_source_observations(i),
+                                          priors,
+                                          imc_list[i-index_start],
+                                          plotter,
+                                          config,
+                                          logprint
+                                          ) for i in range(index_start, index_end)
+                                          ]
+                                        )
+                            )
 
     end = time.time()
 

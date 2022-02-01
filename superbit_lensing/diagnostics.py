@@ -3,37 +3,127 @@ import sys
 from glob import glob
 from astropy.table import Table
 import matplotlib.pyplot as plt
+
+from match import MatchedTruthCatalog
+import utils
+
 import pudb
 
 class Diagnostics(object):
     def __init__(self, name, config):
         self.name = name
         self.config = config
+
+        # plotdir is the directory where all pipeline plots are saved
+        # plot_outdir is the output plot directory for *this* diagnostic type
         self.plotdir = None
         self.plot_outdir = None
+
+        # outdir is the location of module outputs
+        if 'outdir' in config:
+            self.outdir = config['outdir']
+        else:
+            # Will be set using run_options
+            self.outdir = None
 
         return
 
     def run(self, run_options, logprint):
         logprint(f'Running diagnostics for {self.name}')
 
+        # If outdir wasn't set in init, do it now
+        if self.outdir is None:
+            try:
+                self.outdir = run_options['outdir']
+            except KeyError as e:
+                logprint('ERROR: Outdir must be set in either module ' +\
+                         'config or run_options!')
+                raise e
+
+        self._setup_plot_dirs()
+
         return
 
-class GalSimDiagnostics(Diagnostics):
+    def _setup_plot_dirs(self):
+        '''
+        Must be run after self.outdir is set
+        '''
+
+        assert(hasattr(self, 'outdir'))
+
+        self.plotdir = os.path.join(self.outdir, 'plots')
+        self.plot_outdir = os.path.join(self.plotdir, self.name)
+
+        for p in [self.plotdir, self.plot_outdir]:
+            utils.make_dir(p)
+
+        return
+
+class TruthDiagnostics(Diagnostics):
+    '''
+    Some modules have a corresponding truth catalog
+    to compare to
+    '''
+
+    def __init__(self, name, config):
+        super(TruthDiagnostics, self).__init__(name, config)
+
+        self.true = None
+        self.matched_cat = None
+
+        # Used for matching measured catalog to truth
+        self.ratag, self.dectag = 'ra', 'dec'
+
+        return
+
+    def run(self, run_options, logprint):
+        super(TruthDiagnostics, self).run(run_options, logprint)
+
+        run_name = run_options['run_name']
+
+        self._setup_truth_cat()
+
+        return
+
+    def _setup_truth_cat(self):
+        '''
+        Some diagnostics will require a truth catalog
+
+        Assumes the truth cat is in self.outdir, which
+        must be set beforehand
+        '''
+
+        assert(hasattr(self, 'outdir'))
+
+        truth_file = self._get_truth_file()
+
+        self.true = Table.read(truth_file)
+
+        return
+
+    def _setup_matched_cat(self, meas_file):
+        true_file = self._get_truth_file()
+
+        self.matched_cat = MatchedTruthCatalog(true_file, meas_file)
+
+        return
+
+    def _get_truth_file(self):
+        truth_files = glob(os.path.join(self.outdir, '*truth*.fits'))
+
+        # After update, there should only be one
+        N = len(truth_files)
+        if N != 1:
+            raise Exception(f'There should only be 1 truth table, not {N}!')
+
+        return truth_files[0]
+
+class GalSimDiagnostics(TruthDiagnostics):
 
     def __init__(self, name, config):
         super(GalSimDiagnostics, self).__init__(name, config)
 
-        self.outdir = config['outdir']
-        plotdir = os.path.join(self.outdir, 'plots')
-        plot_outdir = os.path.join(plotdir, name)
-
-        for d in [plotdir, plot_outdir]:
-            if not os.path.exists(d):
-                os.makedirs(d)
-
-        self.outdir = config['outdir']
-        self.plotdir = plot_outdir
+        # ...
 
         return
 
@@ -47,6 +137,13 @@ class GalSimDiagnostics(Diagnostics):
         return
 
     def plot_compare_truths(self, run_options, logprint):
+        '''
+        NOTE: No longer relevant, we have updated code
+        to produce only one truth cat
+
+        That is why this function does not use self.truth
+        '''
+
         # Not obvious to me why there are multiple tables - this here
         # just to prove this.
 
@@ -92,40 +189,70 @@ class GalSimDiagnostics(Diagnostics):
 class MedsmakerDiagnostics(Diagnostics):
     pass
 
-class MetacalDiagnostics(Diagnostics):
+class MetacalDiagnostics(TruthDiagnostics):
 
     def __init__(self, name, config):
-        super(MetaCaldiagnostics, self).__init__(name, config)
-
-        if 'outdir' in config:
-            self.outdir = config['outdir']
-        else:
-            self.outdir = os.getcwd()
+        super(MetacalDiagnostics, self).__init__(name, config)
 
         return
 
-    def run(run_options, logprint):
+    def run(self, run_options, logprint):
         super(MetacalDiagnostics, self).run(run_options, logprint)
 
-        self.plot_compare_mags(run_options, logprint)
+        outdir = self.config['outdir']
+        outfile = os.path.join(outdir, self.config['outfile'])
+
+        self._setup_matched_cat(outfile)
+
+        self.plot_compare_shear(run_options, logprint)
 
         return
 
-    def plot_compare_mags(run_options, logprint):
+    def plot_compare_shear(self, run_options, logprint):
+        pass
 
-        # In current setup, can't guarantee that truth catalogs
-        # are in same directory
-        try:
-            true_dir = self.outdir
-            true_file = glob(os.path.join(true_dir, 'truth*.fits'))
-            assert len(true_file) == 1
-            true_file = true_file[0]
-            true = Table.read(true_file)
-        except OSError:
-            logprint('Cannot find truth catalogs - skipping test')
-            return
+class NgmixFitDiagnostics(TruthDiagnostics):
 
-        print(true)
+    def __init__(self, name, config):
+        super(NgmixFitDiagnostics, self).__init__(name, config)
+
+        return
+
+    def run(self, run_options, logprint):
+        super(NgmixFitDiagnostics, self).run(run_options, logprint)
+
+        outdir = self.config['outdir']
+        outfile = os.path.join(outdir, self.config['outfile'])
+
+        # TODO: Fix in the future!
+        print('WARNING: NgmixFitDiagnostics cannot create ' +\
+              'a matched catalog as (ra,dec) are not currently ' +\
+              'in the ngmix catalog. Fix this to continue.')
+        return
+
+        # self._setup_matched_cat(outfile)
+
+        # self.compare_to_truth(run_options, logprint)
+
+        # return
+
+    def compare_to_truth(self, run_options, logprint):
+        '''
+        Plot meas vs. true for a variety of quantities
+        '''
+
+        self.plot_pars_compare(run_options, logprint)
+
+        # use matched catalog
+        # self.matched_cat ...
+
+        return
+
+    def plot_pars_compare(self, run_options, logprint):
+        logprint('Comparing meas vs. true ngmix pars')
+
+        # gal_model = ngmix_config[]
+        # true_pars = self.truth['']
 
         return
 
@@ -137,10 +264,12 @@ def get_diagnostics_types():
 
 # NOTE: This is where you must register a new diagnostics type
 DIAGNOSTICS_TYPES = {
+    'pipeline': Diagnostics,
     'galsim': GalSimDiagnostics,
     'medsmaker': MedsmakerDiagnostics,
-    'Metacal': MetacalDiagnostics,
-    'ShearProfile': ShearProfileDiagnostics,
+    'metacal': MetacalDiagnostics,
+    'ngmix-fit': NgmixFitDiagnostics,
+    'shear-profile': ShearProfileDiagnostics,
 }
 
 def build_diagnostics(name, config):
@@ -151,6 +280,8 @@ def build_diagnostics(name, config):
         diagnostics = DIAGNOSTICS_TYPES[name](name, config)
     else:
         # Attempt generic input construction
+        print(f'Warning: {name} is not a defined diagnostics type. ' +\
+              'Using the default.')
         diagnostics = Diagnostics(name, config)
 
     return diagnostics
