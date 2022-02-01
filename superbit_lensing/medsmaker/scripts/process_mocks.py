@@ -45,8 +45,10 @@ def main():
     clobber = args.clobber
     source_selection = args.source_select
     select_stars = args.select_stars
-
     vb = args.verbose
+    
+    if args.outdir is None:
+      outdir = mock_dir
 
     logfile = 'medsmaker.log'
     logdir = outdir
@@ -61,8 +63,6 @@ def main():
     science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub].fits')
     logprint(f'Science frames: {science}')
 
-    if args.outdir is None:
-      outdir = mock_dir
  
     outfile = os.path.join(outdir, outfile)
 
