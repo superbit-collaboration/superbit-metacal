@@ -301,9 +301,10 @@ class BITMeasurement():
         weight_file = os.path.join(self.work_path, weightout_name) # This is coadd weight
         config_arg = '-c ' + os.path.join(self.base_dir, 'superbit/astro_config/swarp.config')
         #weight_arg = '-WEIGHT_IMAGE '+self.mask_file
+        resamp_arg = '-RESAMPLE_DIR ' + self.work_path
         outfile_arg = '-IMAGEOUT_NAME '+ detection_file + ' -WEIGHTOUT_NAME ' + weight_file
         #cmd = ' '.join(['swarp ',image_args,weight_arg,outfile_arg,config_arg])
-        cmd = ' '.join(['swarp ',image_args,outfile_arg,config_arg])
+        cmd = ' '.join(['swarp ',image_args,resamp_arg, outfile_arg,config_arg])
         self.logprint('swarp cmd is ' + cmd)
         # rc = utils.run_command(cmd, logprint=self.logprint)
         os.system(cmd)
@@ -321,12 +322,10 @@ class BITMeasurement():
 
     def _select_sources_from_catalog(self, fullcat, catname='catalog.ldac', min_size =2, max_size=24.0, size_key='KRON_RADIUS'):
         # Choose sources based on quality cuts on this catalog.
-        keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
-        self.catalog = self.catalog[keep.nonzero()[0]]
-
-
+        #keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
+        #self.catalog = self.catalog[keep.nonzero()[0]]
         self.logprint("Selecting analysis objects on CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
-        keep2 = self.catalog['CLASS_STAR']<=0.9
+        keep2 = self.catalog['CLASS_STAR']<0.92
         self.catalog = self.catalog[keep2.nonzero()[0]]
 
         # Write trimmed catalog to file
@@ -414,8 +413,10 @@ class BITMeasurement():
             weightfile = self.mask_file.replace('mask', 'weight')
             psfex_model_file = self._make_psf_model(imagefile, weightfile=weightfile, select_stars=select_stars)
             # move checkimages to psfex_output
-            cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', self.psf_path])
-            os.system(cmd)
+            cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', self.psf_path])
+            cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', self.psf_path])
+            os.system(cleanup_cmd)
+            os.system(cleanup_cmd2)
             # utils.run_command(cmd, logprint=self.logprint)
 
             self.psfEx_models.append(psfex.PSFEx(psfex_model_file))
@@ -466,15 +467,16 @@ class BITMeasurement():
         # Will need to make that tmp/psfex_output generalizable
         outcat_name = imagefile.replace('.fits','.psfex.star')
         cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
-                            outcat_name, '-PSFVAR_DEGREES','2','-PSF_DIR', self.psf_path])
+                            outcat_name])
         self.logprint("psfex cmd is " + cmd)
         os.system(cmd)
         # utils.run_command(cmd, logprint=self.logprint)
-
+        """
         psfex_name_tmp1=(imcat_ldac_name.replace('.ldac','.psf'))
         psfex_name_tmp2= psfex_name_tmp1.split('/')[-1]
         psfex_model_file='/'.join([self.psf_path,psfex_name_tmp2])
-
+        """
+        psfex_model_file=imcat_ldac_name.replace('.ldac','.psf')
         # Just return name, the make_psf_models method reads it in as a PSFEx object
         return psfex_model_file
 
@@ -601,12 +603,16 @@ class BITMeasurement():
         ### Need to figure out a way to add redshifts here...
         ###
 
-        obj_str = meds.util.get_meds_input_struct(catalog.size,extra_fields = [('KRON_RADIUS',np.float),('number',np.int)])
+        obj_str = meds.util.get_meds_input_struct(catalog.size,\
+                                                  extra_fields = [('KRON_RADIUS',np.float),('number',np.int),\
+                                                                  ('X_IMAGE',np.float),('Y_IMAGE',np.float)])
         obj_str['id'] = catalog['NUMBER']
         obj_str['number'] = np.arange(catalog.size)+1
         obj_str['box_size'] = self._calculate_box_size(catalog['KRON_RADIUS'])
         obj_str['ra'] = catalog['ALPHAWIN_J2000']
         obj_str['dec'] = catalog['DELTAWIN_J2000']
+        obj_str['X_IMAGE'] = catalog['X_IMAGE']
+        obj_str['Y_IMAGE'] = catalog['Y_IMAGE']
         obj_str['KRON_RADIUS'] = catalog['KRON_RADIUS']
 
         return obj_str

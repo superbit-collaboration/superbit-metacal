@@ -1,0 +1,36 @@
+galsim:
+  clobber: true
+  config_dir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/superbit_lensing/galsim/config_files
+  config_file: superbit_parameters_forecast.yaml
+  outdir: /Users/jemcclea/Research/SuperBIT/superbit-metacal/superbit_lensing/tests/pipe_test2
+  
+medsmaker:
+  # These are config parameters for: superbit-metacal/superbit_lensing/scripts/process_mocks.py
+  # :mock_dir: directory from which to access mock images
+  # :fname_base: what is the base filename for mock images;
+  #      --> do NOT append "fits", wildcards, etc. to end. Code does that for you.
+  # :outdir: directory for all output files (MEDS, catalogs, images, etc.)
+  # :outfile: name of output MEDS file
+  mock_dir: /users/jmcclear/data/superbit/superbit-metacal/GalSim/forecasting/cluster5/round*/
+  fname_base: superbit_gaussJitter
+  outdir: /users/jmcclear/data/superbit/forecasting-analysis/meds_xy_test
+  outfile: avgcoadd_tpv.meds
+  
+metacal:
+  # :plot: Boolean condition to create diagnostics plots, saved in '{outdir}/plots/metacalibration/'
+  #        ["True"/"False", default="True"]
+  medsfile: /users/jmcclear/data/superbit/forecasting-analysis/meds_xy_test/avgcoadd_tpv.meds
+  outdir: /users/jmcclear/data/superbit/forecasting-analysis/meds_xy_test/metacal
+  outfile: avgcoadd_tpv_mcalfitting.fits
+  plot: False 
+
+  
+run_options:
+  ncores: 18
+  order:
+  #- galsim
+  #- medsmaker
+  - metacal
+  run_diagnostics: false
+  run_name: psfex_cutout_test
+  vb: false
