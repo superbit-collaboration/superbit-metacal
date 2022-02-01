@@ -688,6 +688,7 @@ def main():
 
     args = parser.parse_args()
     config_file = args.config_file
+    run_name = args.run_name
     mpi = args.mpi
     ncores = args.ncores
     clobber = args.clobber
@@ -708,6 +709,10 @@ def main():
 
     # Define some parameters we'll use below.
     sbparams = SuperBITParameters(config_file, logprint, args=args)
+
+    # if galsim config run_name does not agree with passed arg,
+    # it should be overridden (to match pipeline run_name)
+    assert run_name == sbparams.run_name
 
     # Set up the NFWHalo:
     nfw = galsim.NFWHalo(mass=sbparams.mass, conc=sbparams.nfw_conc, redshift=sbparams.nfw_z_halo,
@@ -767,13 +772,13 @@ def main():
 
         timescale=str(sbparams.exp_time)
         outnum = str(i).zfill(3)
-        outname = f'{sbparams.run_name}_{outnum}.fits'
+        outname = f'{run_name}_{outnum}.fits'
         file_name = os.path.join(sbparams.outdir, outname)
 
         # Set up a truth catalog during first image generation
         if i == 1:
             truth_file_name = os.path.join(sbparams.outdir,
-                                           f'{sbparams.run_name}_truth.fits')
+                                           f'{run_name}_truth.fits')
             names = [ 'gal_num', 'x_image', 'y_image',
                         'ra', 'dec', 'nfw_g1', 'nfw_g2', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom',
                         'n','hlr','scale_h_over_r']

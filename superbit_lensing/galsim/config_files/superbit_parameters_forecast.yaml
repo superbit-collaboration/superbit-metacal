@@ -28,7 +28,7 @@ nobj:               34300       # Number of galaxies (COSMOS 25.2 depth)    []
 nstars:             1000        # Number of stars in the field              []
 nexp:               8           # Number of exposures per PSF model         []
 nclustergal:        35          # Number of cluster galaxies (arbitrary)    []
-im_rootname:   'stars_only'     # Root for exposure name creation           [] 
+run_name:   'test'              # Root for exposure name creation           [] 
 
 # Simulated cluster parameters
 # ----------------------------

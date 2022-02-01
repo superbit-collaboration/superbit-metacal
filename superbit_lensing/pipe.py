@@ -644,8 +644,8 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                         ]
                 },
                 'galsim': {
-                    # 'config_file': 'pipe_test.yaml',
-                    'config_file': 'superbit_parameters_forecast.yaml',
+                    'config_file': 'pipe_test.yaml',
+                    # 'config_file': 'superbit_parameters_forecast.yaml',
                     'config_dir': os.path.join(utils.MODULE_DIR,
                                                'galsim',
                                                'config_files'),
