@@ -145,9 +145,9 @@ class Annular():
         max_T = 10 # orig inf
         covcut=3E-3 # orig 1 for ensemble
         """
-        min_Tpsf = 1. # orig 1.15
+        min_Tpsf = 1.2 # orig 1.15
         max_sn = 1000
-        min_sn = 5 # orig 8 for ensemble
+        min_sn =10 # orig 8 for ensemble
         min_T = 0.04 # orig 0.05
         max_T = 10 # orig inf
         covcut=7e-3 # orig 1 for ensemble

@@ -21,7 +21,7 @@ parser.add_argument('mock_dir', type=str,
                     help='Directory containing mock data')
 parser.add_argument('outfile', type=str,
                     help='Name of output MEDS file')
-parser.add_argument('--outdir',type=str,
+parser.add_argument('--outdir', type=str, default=None,
                     help='Output directory for MEDS file')
 parser.add_argument('--fname_base', action='store', type=str, default=None,
                     help='Basename of mock image files')
@@ -45,10 +45,10 @@ def main():
     clobber = args.clobber
     source_selection = args.source_select
     select_stars = args.select_stars
-    data_dir = '/users/jmcclear/data/superbit/forecasting-analysis/'
-    #data_dir = args.mock_dir
-
     vb = args.verbose
+    
+    if args.outdir is None:
+      outdir = mock_dir
 
     logfile = 'medsmaker.log'
     logdir = outdir
@@ -63,10 +63,11 @@ def main():
     science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub].fits')
     logprint(f'Science frames: {science}')
 
+ 
     outfile = os.path.join(outdir, outfile)
 
     logprint('Setting up configuration...')
-    bm = medsmaker.BITMeasurement(image_files=science, data_dir=data_dir, log=log, vb=vb)
+    bm = medsmaker.BITMeasurement(image_files=science, data_dir=mock_dir, log=log, vb=vb)
 
     bm.set_working_dir(path=outdir)
     bm.set_path_to_psf(path=os.path.join(outdir, 'psfex_output'))
