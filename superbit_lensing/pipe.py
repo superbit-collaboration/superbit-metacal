@@ -291,7 +291,8 @@ class SuperBITPipeline(SuperBITModule):
 
 class GalSimModule(SuperBITModule):
     _req_fields = ['config_file', 'outdir']
-    _opt_fields = ['config_dir', 'vb', 'use_mpi', 'run_name', 'clobber']
+    _opt_fields = ['config_dir', 'vb', 'use_mpi', 'use_srun', 'run_name',
+                   'clobber']
 
     def __init__(self, name, config):
         super(GalSimModule, self).__init__(name, config)
@@ -346,11 +347,12 @@ class GalSimModule(SuperBITModule):
 
         ncores = run_options['ncores']
         if ncores > 1:
-            cmd = f'srun --mpi=pmix ' + cmd
-
             if hasattr(self._config, 'use_mpi'):
                 if self._config['use_mpi'] is True:
                     cmd = f'mpiexec -n {ncores} ' + cmd
+            if hasattr(self._config, 'use_srun'):
+                if self._config['use_srun'] is True:
+                    cmd = f'srun --mpi=pmix ' + cmd
             else:
                 cmd = cmd + f' --ncores={ncores}'
 
