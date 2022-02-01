@@ -21,7 +21,7 @@ parser.add_argument('mock_dir', type=str,
                     help='Directory containing mock data')
 parser.add_argument('outfile', type=str,
                     help='Name of output MEDS file')
-parser.add_argument('--outdir',type=str,
+parser.add_argument('--outdir',type=str,default=None,
                     help='Output directory for MEDS file')
 parser.add_argument('--fname_base', action='store', type=str, default=None,
                     help='Basename of mock image files')
@@ -61,6 +61,9 @@ def main():
     science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub].fits')
     logprint(f'Science frames: {science}')
 
+    if args.outdir is None:
+      outdir = mock_dir
+ 
     outfile = os.path.join(outdir, outfile)
 
     logprint('Setting up configuration...')
