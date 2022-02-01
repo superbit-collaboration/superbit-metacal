@@ -5,11 +5,6 @@ import glob
 import sys, os
 from astropy.io import fits
 from esutil import htm
-from argparse import ArgumentParser
-
-parser = ArgumentParser()
-
-parser.add_argument('')
 
 class McalCats():
 
@@ -141,10 +136,10 @@ class McalCats():
         covcut=1E-2 # orig 1 for ensemble
         """
 
-        min_Tpsf = 1. # orig 1.15
+        min_Tpsf = 1.2 # orig 1.15
         max_sn = 1000
-        min_sn = 5 # orig 8 for ensemble
-        min_T = 0.04 # orig 0.05
+        min_sn = 10 # orig 8 for ensemble
+        min_T = 0.03 # orig 0.05
         max_T = 10 # orig inf
         covcut=7e-3 # orig 1 for ensemble
 
@@ -302,8 +297,6 @@ class McalCats():
 
 def main(args):
 
-    x = args.x
-    #...
 
     if (len(args)<4):
         print("arguments missing; call is:\n")
@@ -334,8 +327,7 @@ if __name__ == '__main__':
 
     import pdb, traceback, sys
     try:
-        args = parser.parse_args()
-        main(args)
+        main(sys.argv)
     except:
         thingtype, value, tb = sys.exc_info()
         traceback.print_exc()
