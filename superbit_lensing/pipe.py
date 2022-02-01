@@ -346,16 +346,13 @@ class GalSimModule(SuperBITModule):
 
         ncores = run_options['ncores']
         if ncores > 1:
-<<<<<<< HEAD
             cmd = f'srun --mpi=pmix ' + cmd
-            #pass
-=======
+
             if hasattr(self._config, 'use_mpi'):
                 if self._config['use_mpi'] is True:
                     cmd = f'mpiexec -n {ncores} ' + cmd
             else:
                 cmd = cmd + f' --ncores={ncores}'
->>>>>>> master
 
         return cmd
 
@@ -425,11 +422,7 @@ class MetacalModule(SuperBITModule):
 
     def _setup_run_command(self, run_options):
 
-<<<<<<< HEAD
         run_name = run_options['run_name']
-        
-=======
->>>>>>> master
         outdir = self._config['outdir']
         medsfile = self._config['medsfile']
         outfile = self._config['outfile']
