@@ -1,20 +1,13 @@
 from abc import ABC, abstractmethod
 import os
-import shutil
 import yaml
 import logging
 import subprocess
-from argparse import ArgumentParser
-import superbit_lensing as sb
-import superbit_lensing.utils as utils
 
-from superbit_lensing.diagnostics import build_diagnostics
+import utils
+from diagnostics import build_diagnostics
+
 import pudb
-
-parser = ArgumentParser()
-
-parser.add_argument('--fresh', action='store_true', default=False,
-                    help='Clean test directory of old outputs')
 
 class SuperBITModule(dict):
     '''
@@ -229,9 +222,9 @@ class SuperBITPipeline(SuperBITModule):
 
         if self._config['run_options']['ncores'] is None:
             # use half available cores by default
-            ncores = os.cpu_count() // 2
+            ncores = os.cpu_count() #// 2
             self._config['run_options']['ncores'] = ncores
-            self.logprint(f'`ncores` was not set; using half available ({ncores})')
+            self.logprint(f'`ncores` was not set; using all available ({ncores})')
 
         col = 'run_diagnostics'
         if col in self._config['run_options']:
@@ -298,7 +291,8 @@ class SuperBITPipeline(SuperBITModule):
 
 class GalSimModule(SuperBITModule):
     _req_fields = ['config_file', 'outdir']
-    _opt_fields = ['config_dir', 'vb', 'use_mpi', 'run_name', 'clobber']
+    _opt_fields = ['config_dir', 'vb', 'use_mpi', 'use_srun', 'run_name',
+                   'clobber']
 
     def __init__(self, name, config):
         super(GalSimModule, self).__init__(name, config)
@@ -356,6 +350,9 @@ class GalSimModule(SuperBITModule):
             if hasattr(self._config, 'use_mpi'):
                 if self._config['use_mpi'] is True:
                     cmd = f'mpiexec -n {ncores} ' + cmd
+            if hasattr(self._config, 'use_srun'):
+                if self._config['use_srun'] is True:
+                    cmd = f'srun --mpi=pmix ' + cmd
             else:
                 cmd = cmd + f' --ncores={ncores}'
 
@@ -363,7 +360,7 @@ class GalSimModule(SuperBITModule):
 
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
-    _opt_fields = ['fname_base', 'meds_coadd', 'clobber', 'source_select',
+    _opt_fields = ['fname_base', 'meds_coadd', 'outdir', 'clobber', 'source_select',
                    'cut_stars', 'vb']
 
     def __init__(self, name, config):
@@ -387,6 +384,7 @@ class MedsmakerModule(SuperBITModule):
 
         mock_dir = self._config['mock_dir']
         outfile = self._config['outfile']
+        outdir = self._config['outdir']
 
         filepath = os.path.join(utils.get_module_dir(),
                                 'medsmaker',
@@ -403,7 +401,7 @@ class MedsmakerModule(SuperBITModule):
 
 class MetacalModule(SuperBITModule):
     _req_fields = ['medsfile', 'outfile']
-    _opt_fields = ['outdir', 'start', 'end', 'plot', 'n', 'vb']
+    _opt_fields = ['outdir','start', 'end', 'plot', 'n', 'vb']
 
     def __init__(self, name, config):
         super(MetacalModule, self).__init__(name, config)
@@ -426,15 +424,12 @@ class MetacalModule(SuperBITModule):
 
     def _setup_run_command(self, run_options):
 
+        run_name = run_options['run_name']
         outdir = self._config['outdir']
-
         medsfile = self._config['medsfile']
         outfile = self._config['outfile']
-        outfile = os.path.join(outdir, outfile)
-
         mcal_dir = os.path.join(utils.get_module_dir(),
-                                'metacalibration',
-                                'mcal-scripts')
+                                'metacalibration')
         filepath = os.path.join(mcal_dir, 'ngmix_fit_superbit3.py')
 
         base = f'python {filepath} {medsfile} {outfile}'
@@ -649,8 +644,8 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                         ]
                 },
                 'galsim': {
-                    # 'config_file': 'pipe_test.yaml',
-                    'config_file': 'superbit_parameters_forecast.yaml',
+                    'config_file': 'pipe_test.yaml',
+                    # 'config_file': 'superbit_parameters_forecast.yaml',
                     'config_dir': os.path.join(utils.MODULE_DIR,
                                                'galsim',
                                                'config_files'),
@@ -659,8 +654,9 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                 },
                 'medsmaker': {
                     'mock_dir': outdir,
-                    'outfile': medsfile,
-                    'fname_base': run_name
+                    'outfile': f'{run_name}_meds.fits',
+                    'fname_base': run_name,
+                    'outdir': outdir
                 },
                 'metacal': {
                     'medsfile': medsfile,
@@ -693,40 +689,3 @@ MODULE_TYPES = {
     'shear-profile': ShearProfileModule,
     }
 
-def main():
-
-    args = parser.parse_args()
-    fresh = args.fresh
-
-    testdir = utils.get_test_dir()
-
-    if fresh is True:
-        outdir = os.path.join(testdir, 'pipe_test')
-        print(f'Deleting old test directory {outdir}...')
-        shutil.rmtree(outdir)
-
-    logfile = 'pipe_test.log'
-    logdir = os.path.join(testdir, 'pipe_test')
-    log = utils.setup_logger(logfile, logdir=logdir)
-
-    config_file = make_test_config(clobber=True, outdir=logdir)
-
-    config = utils.read_yaml(config_file)
-    vb = config['run_options']['vb']
-
-    if vb:
-        print(f'config =\n{config}')
-
-    pipe = SuperBITPipeline(config_file, log=log)
-
-    rc = pipe.run()
-
-    return rc
-
-if __name__ == '__main__':
-    rc = main()
-
-    if rc == 0:
-        print('\nTests have completed without errors')
-    else:
-        print(f'\nTests failed with rc={rc}')

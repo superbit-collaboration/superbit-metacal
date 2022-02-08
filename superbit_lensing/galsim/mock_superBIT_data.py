@@ -324,8 +324,8 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
     
-    # The "magnify" is just for drama; factor of 1.2207 turns us into e-
-    gal *= (sbparams.flux_scaling*1.2207)
+    # The "magnify" is just for drama
+    gal *= sbparams.flux_scaling
     gal.magnify(4)
     logprint.debug(f'rescaled galaxy with scaling factor {sbparams.flux_scaling}')
 
@@ -387,10 +387,12 @@ def make_a_star(ud, wcs, affine, optics, sbparams, logprint):
     uv_pos = affine.toWorld(image_pos)
 
     # Draw star flux at random; based on distribution of star fluxes in real images  
-    #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 799.2114, x_max = 890493.9)
-    flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 533, x_max = 59362)
-    star_flux = flux_dist()*1.2207
-    
+    #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 533, x_max = 59362)
+    flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 333, x_max = 890494)
+    star_flux=flux_dist()
+    if sbparams.bandpass=='crates_adu_b':
+        star_flux*=0.8271672
+
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)  
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
@@ -686,6 +688,7 @@ def main():
 
     args = parser.parse_args()
     config_file = args.config_file
+    run_name = args.run_name
     mpi = args.mpi
     ncores = args.ncores
     clobber = args.clobber
@@ -707,6 +710,10 @@ def main():
     # Define some parameters we'll use below.
     sbparams = SuperBITParameters(config_file, logprint, args=args)
 
+    # if galsim config run_name does not agree with passed arg,
+    # it should be overridden (to match pipeline run_name)
+    assert run_name == sbparams.run_name
+
     # Set up the NFWHalo:
     nfw = galsim.NFWHalo(mass=sbparams.mass, conc=sbparams.nfw_conc, redshift=sbparams.nfw_z_halo,
                      omega_m=sbparams.omega_m, omega_lam=sbparams.omega_lam)
@@ -724,7 +731,7 @@ def main():
 
     try:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name,
-                                           dir=sbparams.datadir)
+                                           dir=sbparams.cosmosdir)
     except:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
     #logprint.debug('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
@@ -763,17 +770,15 @@ def main():
             # get MPI processes in sync at start of each image
             M.barrier()
 
-        #rng = galsim.BaseDeviate(sbparams.noise_seed+i)
-
         timescale=str(sbparams.exp_time)
         outnum = str(i).zfill(3)
-        outname = f'{sbparams.run_name}_{outnum}.fits'
+        outname = f'{run_name}_{outnum}.fits'
         file_name = os.path.join(sbparams.outdir, outname)
 
         # Set up a truth catalog during first image generation
         if i == 1:
             truth_file_name = os.path.join(sbparams.outdir,
-                                           f'{sbparams.run_name}_truth.fits')
+                                           f'{run_name}_truth.fits')
             names = [ 'gal_num', 'x_image', 'y_image',
                         'ra', 'dec', 'nfw_g1', 'nfw_g2', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom',
                         'n','hlr','scale_h_over_r']
@@ -812,7 +817,6 @@ def main():
         ## Loop over galaxy objects:
         #####
         print('Starting galaxy injections')
-
 
         if mpi is False:
             start = time.time()
@@ -1100,4 +1104,9 @@ def main():
         logprint('')
 
 if __name__ == "__main__":
+    import time
+    start_time = time.time()
     main()
+
+    end_time=time.time()
+    print("\n\ngalsim execution time = %fs\n\n" % (end_time - start_time))
