@@ -13,7 +13,7 @@ class CleanCommand(Command):
 
 setup(name='superbit_lensing',
       version='1.0',
-      packages=find_packages(exclude=('tests', 'docs'),
+      packages=find_packages(exclude=('tests', 'docs')),
       cmdclass={
         'clean': CleanCommand,
           }
