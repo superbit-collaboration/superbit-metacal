@@ -74,9 +74,9 @@ class McalCats():
         # To avoid confusion with SEXtractor 'X/Y_IMAGE'(uppercase),
         # remove GalSim truth catalog 'x/y_image' (lowercase!)
         #
-        if ('x_image'or 'y_image') in gals.colnames:
-            #gals.remove_column()
-            pass
+        if ('x_image' or 'y_image') in gals.colnames:
+            gals.remove_column('x_image')
+            gals.remove_column('y_image')
 
         mcCat_bgGals = hstack([match_master,gals])
 
