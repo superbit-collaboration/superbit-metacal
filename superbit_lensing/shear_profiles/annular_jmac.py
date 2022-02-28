@@ -188,7 +188,7 @@ def main(args):
     # Define annular args
     x_arg = 'X_IMAGE'
     y_arg = 'Y_IMAGE'
-    
+
     #x_arg = 'x_image'
     #y_arg = 'y_image'
     #startrad = 180
@@ -203,9 +203,6 @@ def main(args):
 
     annular = Annular(cat_info,annular_info)
     annular.run(write=True)
-
-    #pdb.set_trace()
-    #print("annular successfully completed, enjoy your shear profile <3")
 
 
 if __name__ == '__main__':
