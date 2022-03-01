@@ -196,7 +196,7 @@ class PSFMaker:
     Possible improvements: make more general?
     """
 
-    def __init__(self,psf_file=None,psf_type='epsfex'):
+    def __init__(self,psf_file=None,psf_type='epsfex',noisefree=False):
         """
         psf_obj is the file name of psf,
         or alternatively an instance of it
@@ -210,6 +210,7 @@ class PSFMaker:
 
         self.psf = psf_file
         self.psf_type = psf_type
+        self.noisefree = noisefree
         self.psf_size = 19
         self.stamps = []
         self.resids = []
@@ -277,8 +278,10 @@ class PSFMaker:
 
         this_pexim = self.psf.get_rec(y_pos,x_pos)
         pexim_rs = (this_pexim)/np.sum(this_pexim)*flux
-        noise = np.random.normal(loc=self.sky_level,scale=self.sky_std,size=this_pexim.shape)
-        pexim_rs+=noise
+
+        if self.noisefree==False:
+            noise = np.random.normal(loc=self.sky_level,scale=self.sky_std,size=this_pexim.shape)
+            pexim_rs+=noise
 
         return pexim_rs
 
@@ -307,8 +310,10 @@ class PSFMaker:
                     scale=pix_scale, use_true_center=True).array
 
         gpsf_im_rs = (gpsf_im)/np.sum(gpsf_im)*flux
-        noise = np.random.normal(loc=self.sky_level,scale=self.sky_std,size=gpsf_im_rs.shape)
-        gpsf_im_rs+=noise
+
+        if self.noisefree==False:
+            noise = np.random.normal(loc=self.sky_level,scale=self.sky_std,size=gpsf_im_rs.shape)
+            gpsf_im_rs+=noise
 
         return gpsf_im_rs
 
@@ -334,9 +339,11 @@ class PSFMaker:
         piff_im = piff_psf.draw(x=x_pos,y=y_pos,\
                     stamp_size=self.psf_size).array
 
-        piff_im_rs = piff_im/np.sum(piff_im)*flux #-- may be redundant?
-        noise = np.random.normal(loc=self.sky_level,scale=self.sky_std,size=piff_im_rs.shape)
-        piff_im_rs+=noise
+        piff_im_rs = piff_im/np.sum(piff_im)*flux
+
+        if self.noisefree==False:
+            noise = np.random.normal(loc=self.sky_level,scale=self.sky_std,size=piff_im_rs.shape)
+            piff_im_rs+=noise
 
         return piff_im_rs
 
@@ -486,18 +493,17 @@ class PSFMaker:
         xip = np.abs(rho1.xip)
         sig = np.sqrt(rho1.varxip)
 
-        axes[0].plot(r, xip, color='green',marker='.',ls='-',lw=1,label=r'$\rho_1(\theta)$')
+        lp1 = axes[0].plot(r, xip, color='green',marker='.',ls='-',lw=1,label=r'$\rho_1(\theta)$')
         axes[0].plot(r, -xip, color='green', marker='.',ls=':',lw=1)
         axes[0].errorbar(r[xip>0], xip[xip>0], yerr=sig[xip>0], color='green', lw=0.3, ls='')
         axes[0].errorbar(r[xip<0], -xip[xip<0], yerr=sig[xip<0], color='green', lw=0.3, ls='')
-        lp1 = axes[0].errorbar(-r, xip, yerr=sig, color='green')
+        axes[0].errorbar(-r, xip, yerr=sig, color='green')
 
         axes[0].set_xscale('log')
         axes[0].set_yscale('log', nonpositive='clip')
         axes[0].set_xlabel(r'$\theta$ (arcmin)')
         axes[0].set_ylabel(r'$\xi_+(\theta)$')
 
-        plt.legend()
 
         ##
         ## rho3 correlation: g x dg
@@ -506,11 +512,11 @@ class PSFMaker:
         xip = np.abs(rho3.xip)
         sig = np.sqrt(rho3.varxip)
 
-        axes[0].plot(r, xip, color='rebeccapurple',marker='.',ls='-',lw=1,label=r'$\rho_3(\theta)$')
+        lp3 = axes[0].plot(r, xip, color='rebeccapurple',marker='.',ls='-',lw=1,label=r'$\rho_3(\theta)$')
         axes[0].plot(r, -xip, color='rebeccapurple', marker='.',ls=':',lw=1)
         axes[0].errorbar(r[xip>0], xip[xip>0], yerr=sig[xip>0], color='rebeccapurple', lw=0.3, ls='')
         axes[0].errorbar(r[xip<0], -xip[xip<0], yerr=sig[xip<0], color='rebeccapurple', lw=0.3, ls='')
-        lp3 = axes[0].errorbar(-r, xip, yerr=sig, color='rebeccapurple')
+        axes[0].errorbar(-r, xip, yerr=sig, color='rebeccapurple')
 
         ##
         ## rho4 correlation
@@ -519,14 +525,15 @@ class PSFMaker:
         xip = rho4.xip
         sig = np.sqrt(rho4.varxip)
 
-        axes[0].plot(r, xip, color='cornflowerblue',marker='.',ls='-',lw=1,label=r'$\rho_4(\theta)$')
+        lp4 = axes[0].plot(r, xip, color='cornflowerblue',marker='.',ls='-',lw=1,label=r'$\rho_4(\theta)$')
         axes[0].plot(r, -xip, color='cornflowerblue', marker='.',ls=':',lw=1)
         axes[0].errorbar(r[xip>0], xip[xip>0], yerr=sig[xip>0], color='cornflowerblue', lw=0.3, ls='')
         axes[0].errorbar(r[xip<0], -xip[xip<0], yerr=sig[xip<0], color='cornflowerblue', lw=0.3, ls='')
-        lp4 = axes[0].errorbar(-r, xip, yerr=sig, color='cornflowerblue')
+        axes[0].errorbar(-r, xip, yerr=sig, color='cornflowerblue')
 
-        axes[0].legend()
-        #axes[0].set_xlim([0.2,9])
+        #axes[0].legend([lp1,lp3,lp4])
+        plt.legend()
+        #axes[0].set_ylim([2e-7,5e-3])
 
         ##
         ## rho 2 correlation: g x dg
@@ -535,11 +542,11 @@ class PSFMaker:
         xip = np.abs(rho2.xip)
         sig = np.sqrt(rho2.varxip)
 
-        axes[1].plot(r, xip, color='magenta',marker='.',ls='-',lw=1,label=r'$\rho_2(\theta)$')
+        lp2 = axes[1].plot(r, xip, color='magenta',marker='.',ls='-',lw=1,label=r'$\rho_2(\theta)$')
         axes[1].plot(r, -xip, color='magenta', marker='.',ls=':',lw=1)
         axes[1].errorbar(r[xip>0], xip[xip>0], yerr=sig[xip>0], color='magenta', lw=0.3, ls='')
         axes[1].errorbar(r[xip<0], -xip[xip<0], yerr=sig[xip<0], color='magenta', lw=0.3, ls='')
-        lp = axes[1].errorbar(-r, xip, yerr=sig, color='magenta')
+        axes[1].errorbar(-r, xip, yerr=sig, color='magenta')
 
         axes[1].set_xlabel(r'$\theta$ (arcmin)')
         axes[1].set_ylabel(r'$\xi_(\theta)$')
@@ -553,14 +560,15 @@ class PSFMaker:
         xip = rho5.xip
         sig = np.sqrt(rho5.varxip)
 
-        axes[1].plot(r, xip, color='darkblue',marker='.',ls='-',lw=1.,label=r'$\rho_5(\theta)$')
+        lp5 = axes[1].plot(r, xip, color='darkblue',marker='.',ls='-',lw=1.,label=r'$\rho_5(\theta)$')
         axes[1].plot(r, -xip, color='darkblue', marker='.',ls=':',lw=1.)
         axes[1].errorbar(r[xip>0], xip[xip>0], yerr=sig[xip>0], color='darkblue', lw=0.3, ls='')
         axes[1].errorbar(r[xip<0], -xip[xip<0], yerr=sig[xip<0], color='darkblue', lw=0.3, ls='')
-        lp = axes[1].errorbar(-r, xip, yerr=sig, color='darkblue')
+        axes[1].errorbar(-r, xip, yerr=sig, color='darkblue')
 
-        axes[1].legend()
-        #axes[1].set_xlim([0.2,9])
+        #axes[1].legend([lp2,lp5])
+        #axes[1].set_ylim([2e-7,5e-3])
+        plt.legend()
 
         fig.tight_layout()
         fig.savefig(outname)

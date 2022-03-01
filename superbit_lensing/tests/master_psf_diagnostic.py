@@ -39,6 +39,8 @@ parser.add_argument('--im_name',type=str, default=None,
                     help='FITS image filename used with PSFEx model')
 parser.add_argument('--piff_name',type=str, default=None,
                     help='PIFF psf model filename')
+parser.add_argument('--noisefree',action='store_true',default=False,
+                    help='Disable adding noise to PSF stamps')
 parser.add_argument('--verbose','-v',action='store_true', default=False,
                     help='Verbosity')
 
@@ -48,12 +50,23 @@ def main():
 
     args = parser.parse_args()
     imdir = args.imdir
+    outdir = args.outdir
     star_cat = args.star_cat
+    min_snr = args.min_snr
     run_piff = args.piff
     run_gpsf = args.gpsfex
     run_pex  = args.epsfex
+    noisefree = args.noisefree
     vb = args.verbose
 
+    """
+    if len(args.args)<3:
+        print("Master PSF diagnostic. Sample invocation:")
+        print("python master_psf_diagnostic.py ./rho_stats/cl5_gaussPSF_0.35FWHM/ mock_superbit_obs_001_truthmatch_stars.ldac\
+                --min_snr 10 --piff --piff_name piff_output/test.piff --epsfex --psfex_name mock_superbit_obs_001_cat.psf \
+                --gpsfex --im_name mock_superbit_obs_001.sub.fits -v")
+        sys.exit()
+    """
     if args.outdir is None:
         outdir = './psf_diagnostics'
     if args.min_snr is not None:
@@ -93,20 +106,20 @@ def main():
 
     if run_pex==True:
         pex = psfex.PSFEx(os.path.join(imdir,psf_name))
-        psf_pex = PSFMaker(psf_file=pex,psf_type='epsfex')
-        psf_pex.run_all(stars=sm,vb=vb)
+        psf_pex = PSFMaker(psf_file=pex,psf_type='epsfex',noisefree=noisefree)
+        psf_pex.run_all(stars=sm,vb=vb,outdir=outdir)
         makers.append(psf_pex); prefix.append('pex')
 
     if run_gpsf==True:
         psfex_des = galsim.des.DES_PSFEx(os.path.join(imdir,psf_name),os.path.join(imdir,im_name))
-        psf_des = PSFMaker(psf_file=psfex_des,psf_type='gpsfex')
-        psf_des.run_all(stars=sm,vb=False)
+        psf_des = PSFMaker(psf_file=psfex_des,psf_type='gpsfex',noisefree=noisefree)
+        psf_des.run_all(stars=sm,vb=vb,outdir=outdir)
         makers.append(psf_des); prefix.append('gpsf')
 
     if run_piff==True:
         piff_psf = piff.read(os.path.join(imdir,piff_name))
-        psf_piff = PSFMaker(psf_file=piff_psf,psf_type='piff')
-        psf_piff.run_all(stars=sm,vb=False)
+        psf_piff = PSFMaker(psf_file=piff_psf,psf_type='piff',noisefree=noisefree)
+        psf_piff.run_all(stars=sm,vb=vb,outdir=outdir)
         makers.append(psf_piff); prefix.append('piff')
 
     # Write star & psf HSM fits to file
