@@ -75,9 +75,7 @@ class McalCats():
         except OSError as err:
             print("{0}\nOverwrite set to False".format(err))
 
-
         return mcCat_bgGals
-
 
     def _make_table(self):
         """
@@ -101,13 +99,15 @@ class McalCats():
         # Write to file
         newtab=Table()
         newtab.add_columns([self.mcCat['id'],self.mcCat['ALPHAWIN_J2000'],self.mcCat['ALPHAWIN_J2000']],names=['id','ra','dec'])
-        newtab.add_columns([self.mcCat['X_IMAGE_mcal'],self.mcCat['Y_IMAGE_mcal']],names=['X_IMAGE','Y_IMAGE'])
+        # newtab.add_columns([self.mcCat['X_IMAGE_mcal'],self.mcCat['Y_IMAGE_mcal']],names=['X_IMAGE','Y_IMAGE'])
+        newtab.add_columns([self.mcCat['X_IMAGE'],self.mcCat['Y_IMAGE']],names=['X_IMAGE_mcal','Y_IMAGE_mcal'])
         try:
             newtab.add_columns([self.mcCat['nfw_g1'],self.mcCat['nfw_g2'],self.mcCat['redshift']],names=['nfw_g1','nfw_g2','redshift'])
             newtab.add_columns([self.mcCat['g1_MC'],self.mcCat['g2_MC']],names=['g1_MC','g2_MC'])
         except:
             pass
         newtab.add_columns([self.mcCat['g_noshear'][:,0],self.mcCat['g_noshear'][:,1]],names=['g1_noshear','g2_noshear'])
+        newtab.add_columns([self.mcCat['r11'][:,0],self.mcCat['g_noshear'][:,1]],names=['g1_noshear','g2_noshear'])
         newtab.add_columns([self.mcCat['g1_Rinv'],self.mcCat['g2_Rinv']],names=['g1_Rinv','g2_Rinv'])
         newtab.add_columns([self.mcCat['T_noshear'],self.mcCat['Tpsf_noshear'],self.mcCat['flux_noshear']],\
                                names=['T_noshear','Tpsf_noshear','flux'])
@@ -236,8 +236,8 @@ class McalCats():
                 g1_MC[k]=gMC[0];g2_MC[k]=gMC[1]
 
                 self.mcCat.add_columns([g1_MC,g2_MC], names = ['g1_MC','g2_MC'])
-        except:
-            pass
+        except Exception as e:
+            print(e)
         self.mcCat['g1_Rinv'] = self.mcCat['g_noshear'][:,0]/(r11_gamma + r11_S)
         self.mcCat['g2_Rinv'] = self.mcCat['g_noshear'][:,1]/(r22_gamma + r22_S)
 
