@@ -31,8 +31,8 @@ parser.add_argument('--clobber', action='store_true', default=False,
                     help='Set to overwrite files')
 parser.add_argument('--source_select', action='store_true', default=False,
                     help='Set to select sources during MEDS creation')
-parser.add_argument('--select_stars', action='store_true', default=False,
-                    help='Set to remove stars during source selection')
+parser.add_argument('--select_truth_stars', action='store_true', default=False,
+                    help='Set to match against truth catalog for PSF model fits')
 parser.add_argument('-v', '--verbose', action='store_true', default=False,
                     help='Verbosity')
 
@@ -44,9 +44,9 @@ def main():
     use_coadd = args.meds_coadd
     clobber = args.clobber
     source_selection = args.source_select
-    select_stars = args.select_stars
+    select_truth_stars = args.select_truth_stars
     vb = args.verbose
-    
+
     if args.outdir is None:
       outdir = mock_dir
 
@@ -56,18 +56,19 @@ def main():
     logprint = utils.LogPrint(log, vb=vb)
 
     if args.fname_base is None:
-        fname_base = 'superbit_gaussJitter_'
+        fname_base = 'mock_superbit_obs'
     else:
         fname_base = args.fname_base
 
     science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub].fits')
     logprint(f'Science frames: {science}')
 
- 
+
     outfile = os.path.join(outdir, outfile)
 
     logprint('Setting up configuration...')
     bm = medsmaker.BITMeasurement(image_files=science, data_dir=mock_dir, log=log, vb=vb)
+    bm.base_dir = '/Users/jemcclea/Research/SuperBIT/superbit-metacal/superbit_lensing/medsmaker'
 
     bm.set_working_dir(path=outdir)
     bm.set_path_to_psf(path=os.path.join(outdir, 'psfex_output'))
@@ -82,7 +83,7 @@ def main():
 
     # Build a PSF model for each image.
     logprint('Making PSF models...')
-    bm.make_psf_models(select_stars=select_stars, use_coadd=use_coadd)
+    bm.make_psf_models(select_stars=select_truth_stars, use_coadd=use_coadd)
 
     logprint('Making MEDS...')
 
@@ -100,7 +101,7 @@ def main():
     # Finally, make and write the MEDS file.
 
     medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
-                                    psf_data=bm.psfEx_models, meta_data=meta)
+                                    psf_data=bm.psf_models, meta_data=meta)
 
     logprint(f'Writing to {outfile}')
     medsObj.write(outfile)
