@@ -36,6 +36,7 @@ TO DO:
 '''
 
 
+
 class BITMeasurement():
     def __init__(self, image_files=None, flat_files=None, dark_files=None,
                  bias_files=None, data_dir=None, log=None, vb=False):
@@ -317,7 +318,7 @@ class BITMeasurement():
             cmd = f'mv *.xml *.fits {self.work_path}'
             self.logprint(cmd)
             # rc = utils.run_command(cmd, logprint=self.logprint)
-            os.system(cmd)
+            #os.system(cmd)
             self.logprint('\n')
 
         # pudb.set_trace()
@@ -352,10 +353,40 @@ class BITMeasurement():
         catalog = result.get_data()
         pass
 
-    def make_catalog(self, sextractor_config_path=None, source_selection=False):
+    def _run_sextractor(self,detection_file,weight_file=None,sextractor_config_path=None):
         '''
-        Wrapper for astromatic tools to make catalog from provided images.
-        This returns catalog for (stacked) detection image
+        Utility method to invoke Source Extractor on supplied detection file
+        Returns: file path of catalog
+        '''
+
+        if sextractor_config_path is None:
+            sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
+
+        cat_name=detection_file.replace('.fits','_cat.ldac')
+        name_arg='-CATALOG_NAME ' + cat_name
+        config_arg = sextractor_config_path+'sextractor.mock.config'
+        param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
+        nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
+        filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
+        bkg_name = detection_file.replace('.fits','.sub.fits')
+        bkg_arg = '-CHECKIMAGE_NAME ' + bkg_name
+        cmd = ' '.join(['sex',detection_file,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
+        if weight_file is not None:
+            weight_arg = '-WEIGHT_IMAGE '+ weight_file
+            cmd = ' '.join([cmd, weight_arg])
+
+        self.logprint("sex cmd is " + cmd)
+
+        # utils.run_command(cmd, logprint=self.logprint)
+        os.system(cmd)
+
+        print("cat_name_is {}".format(cat_name))
+        return cat_name
+
+    def make_coadd_catalog(self, sextractor_config_path=None, source_selection=False):
+        '''
+        Wrapper for astromatic tools to make coadd detection image
+        from provided exposures and return a coadd catalog
         '''
 
         if sextractor_config_path is None:
@@ -363,28 +394,15 @@ class BITMeasurement():
 
         #outfile_name='mock_empirical_psf_coadd.fits'; weightout_name='mock_empirical_psf_coadd.weight.fits'
         outfile_name='mock_coadd.fits'; weightout_name='mock_coadd.weight.fits'
-        detection_file, weight_file= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
-        self.coadd_file = detection_file
+        detection_filepath, weight_filepath= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
+        self.coadd_file = detection_filepath
 
-        cat_name=detection_file.replace('.fits','_cat.ldac')
-        name_arg='-CATALOG_NAME ' + cat_name
-        #weight_arg = '-WEIGHT_IMAGE '+weight_file
-        config_arg = sextractor_config_path+'sextractor.mock.config'
-        param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
-        nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
-        filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
-        bkgname=os.path.join(self.work_path,outfile_name.replace('.fits','.sub.fits'))
-        bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
-        #cmd = ' '.join(['sex',detection_file,weight_arg,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
-        cmd = ' '.join(['sex',detection_file,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
-        self.logprint("sex cmd is " + cmd)
-
-        # utils.run_command(cmd, logprint=self.logprint)
-        os.system(cmd)
+        # Run SExtractor on coadd
+        cat_name = self._run_sextractor(detection_filepath,sextractor_config_path=sextractor_config_path)
 
         try:
             le_cat = fits.open(cat_name)
-            self.catalog = le_cat[2].data
+            self.catalog = le_cat[1].data
             if source_selection is True:
                 self.logprint("selecting sources")
                 self._select_sources_from_catalog(fullcat=le_cat,catname=cat_name)
@@ -392,7 +410,17 @@ class BITMeasurement():
             self.logprint("coadd catalog could not be loaded; check name?")
             raise(e)
 
-    def make_psf_models(self, select_stars=False, use_coadd=False, mode='piff'):
+    def make_exposure_catalogs(self,weight_file=None, sextractor_config_path=None):
+
+        sexcat_names = []
+
+        for imagefile in self.image_files:
+            sexcat = self._run_sextractor(imagefile,weight_file=weight_file,sextractor_config_path=sextractor_config_path)
+            sexcat_names.append(sexcat)
+
+        return sexcat_names
+
+    def make_psf_models(self, select_truth_stars=False, im_cats=None, use_coadd=False, mode='piff'):
 
         star_keys = {'size_key':'FLUX_RAD','mag_key':'MAG_AUTO'}
         star_params = {'CLASS_STAR':0.92,
@@ -403,10 +431,11 @@ class BITMeasurement():
                         'MIN_SNR': 20
                         }
 
-        # I guess this is now PSF models, not ~psfE_models~
         self.psf_models = []
 
         Nim = len(self.image_files)
+
+        assert(len(im_cats)==Nim)
 
         # Will be placed first
         if use_coadd is True:
@@ -429,11 +458,11 @@ class BITMeasurement():
             # Those PSF models get made in MEDS file...
 
             if mode == 'piff':
-                piff_model_file = self._make_piff_model(imagefile,select_truth_stars=select_stars,starparams=star_params)
-                self.psf_models.append(piff.read(piff_model_file))
+                piff_model = self._make_piff_model(imagefile, select_truth_stars=select_truth_stars,starparams=star_params)
+                self.psf_models.append(piff_model)
 
             elif mode == 'psfex':
-                psfex_model_file = self._make_psfex_model(imagefile, weightfile=weightfile,select_stars=select_stars)
+                psfex_model_file = self._make_psfex_model(im_cats[i], weightfile=weightfile,select_truth_stars=select_truth_stars)
                 # move checkimages to psfex_output
                 cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', self.psf_path])
                 cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', self.psf_path])
@@ -442,35 +471,17 @@ class BITMeasurement():
                 self.psf_models.append(psfex.PSFEx(psfex_model_file))
 
 
-    def _make_psfex_model(self, imagefile, weightfile='weight.fits', sextractor_config_path=None,
+    def _make_psfex_model(self, im_cat, weightfile='weight.fits', sextractor_config_path=None,
                         psfex_out_dir='./tmp/', select_truth_stars=False):
         '''
         Gets called by make_psf_models for every image in self.image_files
-        Wrapper for PSFEx. Requires a FITS-LDAC format catalog with vignettes
+        Wrapper for PSFEx. Requires a FITS format catalog with vignettes
         '''
-        # First, run SExtractor.
-        # Hopefully imagefile is an absolute path!
 
         if sextractor_config_path is None:
             sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
 
-        sextractor_config_file = sextractor_config_path+'sextractor.mock.config'
-        sextractor_param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
-        sextractor_nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
-        sextractor_filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
-        imcat_ldac_name=imagefile.replace('.fits','_cat.ldac')
-
-        bkgname=imagefile.replace('.fits','.sub.fits')
-        bkg_arg = '-CHECKIMAGE_NAME ' + bkgname
-
-        cmd = ' '.join(['sex',imagefile,'-WEIGHT_IMAGE',weightfile,'-c',sextractor_config_file,'-CATALOG_NAME ',
-                            imcat_ldac_name, bkg_arg, sextractor_param_arg,sextractor_nnw_arg,
-                            sextractor_filter_arg])
-        self.logprint("sex4psf cmd is " + cmd)
-        os.system(cmd)
-        # utils.run_command(cmd, logprint=self.logprint)
-
-        # Get a "clean" star catalog for PSFEx input
+        # If flagged, get a "clean" star catalog for PSFEx input
         if select_truth_stars==True:
             # This will break for any truth file nomenclature that isn't pipeline default
             import glob
@@ -478,10 +489,10 @@ class BITMeasurement():
             truthcat = glob.glob(''.join([truthdir,'*truth.fits']))[0]
             truthfilen=os.path.join(truthdir,truthcat)
             self.logprint("using truth catalog %s" % truthfilen)
-            psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,truthfile=truthfilen)
+            psfcat_name = self._select_stars_for_psf(sscat=im_cat,truthfile=truthfilen)
 
         else:
-            psfcat_name = imcat_ldac_name
+            psfcat_name = im_cat
 
         # Now run PSFEx on that image and accompanying catalog
         psfex_config_arg = '-c '+sextractor_config_path+'psfex.mock.config'
@@ -509,31 +520,18 @@ class BITMeasurement():
               with some common-sense selections
             - If option is given, match star cat against truth
             - Run PIFF
-            - Return... PIFF model file location for now
+            -
 
         First, let's get it to run on one, then we can focus on running list!
         '''
 
-        if sextractor_config_path is None:
-            sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
 
-        sextractor_config_file = sextractor_config_path+'sextractor.mock.config'
-        sextractor_param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
-        sextractor_nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
-        sextractor_filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
+        if sextractor_config_path is None:
+                sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
+
         imcat_ldac_name=imagefile.replace('.fits','_cat.ldac')
 
-        checkim_name = imagefile.replace('.fits','.sub.fits')
-        checkim_arg = '-CHECKIMAGE_NAME ' + checkim_name
-
-        cmd = ' '.join(['sex',imagefile,'-WEIGHT_IMAGE',weightfile,'-c',sextractor_config_file,'-CATALOG_NAME ',
-                            imcat_ldac_name, checkim_arg, sextractor_param_arg,sextractor_nnw_arg,
-                            sextractor_filter_arg])
-        self.logprint("sex4piff cmd is " + cmd)
-        os.system(cmd)
-
         if select_truth_stars==True:
-
             # This will break for any truth file nomenclature
             # that isn't pipeline default
             import glob
@@ -548,22 +546,54 @@ class BITMeasurement():
             psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,\
                     truthfile=None,starparams=starparams)
 
-        # Now run PSFEx on that image and accompanying catalog
-        # This is going to need editing when run on top level...
+        # Now run PIFF on that image and accompanying catalog
         piff_config_arg = ''.join([sextractor_config_path,'piff.config'])
         im_name = imagefile.replace('.fits','.sub.fits')
         image_arg = ''.join(['input.image_file_name=',im_name])
         psfcat_arg = ''.join(['input.cat_file_name=',psfcat_name])
         output_name = imagefile.split('/')[-1].replace('.fits','.piff')
         full_output_name=os.path.join(self.data_dir,'piff-output',output_name)
-        output_arg = ''.join(['output.file_name=',full_output_name])
+        output_arg = ''.join(['output.file_name=',output_name])
         cmd = ' '.join(['piffify', piff_config_arg,image_arg,psfcat_arg, output_arg])
         self.logprint("piff cmd is " + cmd)
         os.system(cmd)
 
+        piff_extended = self.piff_extender(full_output_name)
 
-        return full_output_name
+        return piff_extended
 
+    def piff_extender(self,piff_file):
+        """
+        Utility function to add the get_rec function expected
+        by the MEDS package
+
+        """
+        import pdb
+        psf = piff.read(piff_file)
+
+        type_name = type(psf)
+
+        class PiffExtender(type_name):
+            '''
+            A helper class that adds functions expected by MEDS
+            '''
+
+            def __init__(self, psf=None, single_psf=None):
+
+                self.psf = psf
+                self.single_psf = type_name
+
+                return
+
+            def get_rec(self,row,col):
+
+                print('Working!!!')
+                self.draw(x=col,y=row,stamp_size=21).array
+
+
+        psf_extended = PiffExtender(type_name)
+
+        return psf_extended
 
     def _select_stars_for_psf(self,sscat,truthfile=None,starkeys=None,starparams=None):
         '''
@@ -597,10 +627,8 @@ class BITMeasurement():
             stars=truthcat[truthcat['redshift']==0]
             outname = sscat.replace('.ldac','truthstars.ldac')
 
-
-            self.logprint("selecting on truth catalog, %d stars found"%len(stars))
             # match sscat against truth star catalog
-
+            self.logprint("selecting on truth catalog, %d stars found"%len(stars))
             star_matcher = eu.htm.Matcher(16,ra=stars['ra'],dec=stars['dec'])
             matches,starmatches,dist = star_matcher.match(ra=ss['ALPHAWIN_J2000'],
                                                     dec=ss['DELTAWIN_J2000'],radius=1.5E-4,maxmatch=1)
@@ -734,8 +762,8 @@ class BITMeasurement():
         return obj_str
 
 
-    def run(self,outfile='mock_superbit.meds', clobber=True, source_selection=False,
-            select_stars=False):
+    def run(self,outfile='mock_superbit.meds', clobber=False, source_selection=False,
+            select_truth_stars=False,psf_mode='piff'):
         # Make a MEDS, clobbering if needed
 
         #### ONLY FOR DEBUG
@@ -752,12 +780,15 @@ class BITMeasurement():
         # Make a mask.
         # NB: can also read in a pre-existing mask by setting self.mask_file
         #self.make_mask(mask_name='mask.fits',overwrite=clobber)
+
         # Combine images, make a catalog.
         config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
-        self.make_catalog(sextractor_config_path=config_path,
+        self.make_coadd_catalog(sextractor_config_path=config_path,
                           source_selection=source_selection)
+        # Make catalogs for individual exposures
+        self.make_exposure_catalogs(sextractor_config_path=config_path)
         # Build a PSF model for each image.
-        self.make_psf_models(select_stars=select_stars)
+        self.make_psf_models(select_truth_stars=select_truth_stars, im_cats=im_cats, use_coadd=False, mode=psf_mode)
         # Make the image_info struct.
         image_info = self.make_image_info_struct()
         # Make the object_info struct.
@@ -768,5 +799,5 @@ class BITMeasurement():
         meta = self._meds_metadata(magzp=30.0)
         # Finally, make and write the MEDS file.
         medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
-                                       psf_data=self.psfEx_models,meta_data=meta)
+                                       psf_data=self.psf_models,meta_data=meta)
         medsObj.write(outfile)

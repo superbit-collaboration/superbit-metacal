@@ -78,12 +78,16 @@ def main():
     bm.make_mask(overwrite=clobber, mask_name='forecast_mask.fits')
 
     # Combine images, make a catalog.
-    logprint('Making catalog...')
-    bm.make_catalog(source_selection=source_selection)
+    logprint('Making coadd & its catalog...')
+    bm.make_coadd_catalog(source_selection=source_selection)
+
+    # Make single-exposure catalogs
+    logprint('Making single-exposure catalogs...')
+    im_cats = bm.make_exposure_catalogs()
 
     # Build a PSF model for each image.
     logprint('Making PSF models...')
-    bm.make_psf_models(select_stars=select_truth_stars, use_coadd=use_coadd)
+    bm.make_psf_models(select_truth_stars=select_truth_stars, im_cats=im_cats, use_coadd=use_coadd)
 
     logprint('Making MEDS...')
 
