@@ -318,7 +318,7 @@ class BITMeasurement():
             cmd = f'mv *.xml *.fits {self.work_path}'
             self.logprint(cmd)
             # rc = utils.run_command(cmd, logprint=self.logprint)
-            #os.system(cmd)
+            os.system(cmd)
             self.logprint('\n')
 
         # pudb.set_trace()
@@ -420,16 +420,17 @@ class BITMeasurement():
 
         return sexcat_names
 
-    def make_psf_models(self, select_truth_stars=False, im_cats=None, use_coadd=False, mode='piff'):
+    def make_psf_models(self, select_truth_stars=False, im_cats=None, use_coadd=False, mode='piff',star_params=None):
 
-        star_keys = {'size_key':'FLUX_RAD','mag_key':'MAG_AUTO'}
-        star_params = {'CLASS_STAR':0.92,
-                        'MIN_MAG':22,
-                        'MAX_MAG':17,
-                        'MIN_SIZE':1.1,
-                        'MAX_SIZE':3.0,
-                        'MIN_SNR': 20
-                        }
+        if star_params is None:
+            star_keys = {'size_key':'FLUX_RAD','mag_key':'MAG_AUTO'}
+            star_params = {'CLASS_STAR':0.92,
+                            'MIN_MAG':22,
+                            'MAX_MAG':17,
+                            'MIN_SIZE':1.1,
+                            'MAX_SIZE':3.0,
+                            'MIN_SNR': 20
+                            }
 
         self.psf_models = []
 
@@ -458,11 +459,12 @@ class BITMeasurement():
             # Those PSF models get made in MEDS file...
 
             if mode == 'piff':
-                piff_model = self._make_piff_model(imagefile, select_truth_stars=select_truth_stars,starparams=star_params)
+                piff_model = self._make_piff_model(imagefile, select_truth_stars=select_truth_stars,
+                star_params=star_params)
                 self.psf_models.append(piff_model)
 
             elif mode == 'psfex':
-                psfex_model_file = self._make_psfex_model(im_cats[i], weightfile=weightfile,select_truth_stars=select_truth_stars)
+                psfex_model_file = self._make_psfex_model(im_cats[i], weightfile=weightfile,select_truth_stars=select_truth_stars,star_params=star_params)
                 # move checkimages to psfex_output
                 cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', self.psf_path])
                 cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', self.psf_path])
@@ -472,10 +474,13 @@ class BITMeasurement():
 
 
     def _make_psfex_model(self, im_cat, weightfile='weight.fits', sextractor_config_path=None,
-                        psfex_out_dir='./tmp/', select_truth_stars=False):
+                        psfex_out_dir='./tmp/', select_truth_stars=False,star_params=None):
         '''
         Gets called by make_psf_models for every image in self.image_files
         Wrapper for PSFEx. Requires a FITS format catalog with vignettes
+
+        For stellar locus filtering, these values are not currently accessible hard-coded in
+
         '''
 
         if sextractor_config_path is None:
@@ -509,7 +514,7 @@ class BITMeasurement():
         return psfex_model_file
 
     def _make_piff_model(self, imagefile, weightfile='weight.fits', sextractor_config_path=None,
-            psfex_out_dir='./tmp/', select_truth_stars=False,starparams=None):
+            psfex_out_dir='./tmp/', select_truth_stars=False,star_params=None):
         '''
         Method to invoke PIFF for PSF modeling
         Also creates individual exposure catalogs
@@ -540,11 +545,11 @@ class BITMeasurement():
             truthfilen=os.path.join(truthdir,truthcat)
             self.logprint("using truth catalog %s" % truthfilen)
             psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,\
-                    truthfile=truthfilen,starparams=starparams)
+                    truthfile=truthfilen,star_params=star_params)
 
         else:
             psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,\
-                    truthfile=None,starparams=starparams)
+                    truthfile=None,star_params=star_params)
 
         # Now run PIFF on that image and accompanying catalog
         piff_config_arg = ''.join([sextractor_config_path,'piff.config'])
@@ -562,13 +567,12 @@ class BITMeasurement():
 
         return piff_extended
 
-    def piff_extender(self,piff_file):
+    def piff_extender(self,piff_file,stamp_size=21):
         """
         Utility function to add the get_rec function expected
         by the MEDS package
 
         """
-        import pdb
         psf = piff.read(piff_file)
 
         type_name = type(psf)
@@ -578,47 +582,45 @@ class BITMeasurement():
             A helper class that adds functions expected by MEDS
             '''
 
-            def __init__(self, psf=None, single_psf=None):
+            def __init__(self, type_name=None):
 
-                self.psf = psf
+                self.psf = None
                 self.single_psf = type_name
 
                 return
 
             def get_rec(self,row,col):
 
-                print('Working!!!')
-                self.draw(x=col,y=row,stamp_size=21).array
+                #print('Working!!!')
+                fake_pex = self.psf.draw(x=col, y=row, stamp_size=stamp_size).array
 
+                return fake_pex
+
+            def get_center(self,row,col):
+
+                psf_shape = self.psf.draw(x=col,y=row,stamp_size=stamp_size).array.shape
+                cenpix_row = (psf_shape[0]-1)/2
+                cenpix_col = (psf_shape[1]-1)/2
+                cen = np.array([cenpix_row,cenpix_col])
+
+                return cen
 
         psf_extended = PiffExtender(type_name)
+        psf_extended.psf = psf
 
         return psf_extended
 
-    def _select_stars_for_psf(self,sscat,truthfile=None,starkeys=None,starparams=None):
+    def _select_stars_for_psf(self,sscat,truthfile=None,starkeys=None,star_params=None):
         '''
         Method to obtain stars from SExtractor catalog using the truth catalog from GalSim
             sscat : input ldac-format catalog from which to select stars
             truthcat : the simulation truth catalog written out by GalSim
-
-        For stellar locus filtering, these values are currently hard-coded in
         '''
 
         try:
             ss = Table.read(sscat,hdu=2)
         except:
             ss = Table.read(sscat,hdu=1)
-
-        if starparams is None:
-            starkeys = {'size_key':'FLUX_RAD','mag_key':'MAG_AUTO'}
-            starparams = {'CLASS_STAR':0.92,\
-                            'MIN_MAG':22,\
-                            'MAX_MAG':17,\
-                            'MIN_SIZE':1.1,\
-                            'MAX_SIZE':3.0,\
-                            'MIN_SNR': 20\
-                            }
-
 
         if truthfile is not None:
 
@@ -644,7 +646,8 @@ class BITMeasurement():
             # Would be great to have stellar_locus_params be more customizable...
             outname = sscat.replace('.ldac','stars.ldac')
             self.logprint("Selecting analysis objects on CLASS_STAR...")
-            wg_stars = (ss['CLASS_STAR']>starparams['CLASS_STAR']) & (ss['SNR_WIN']>starparams['MIN_SNR'])
+            wg_stars = (ss['CLASS_STAR']>star_params['CLASS_STAR']) & \
+            (ss['SNR_WIN']>star_params['MIN_SNR'])
             ss[wg_stars].write(outname,format='fits',overwrite=True)
 
         return outname
