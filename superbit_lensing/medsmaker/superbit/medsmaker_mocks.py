@@ -557,9 +557,11 @@ class BITMeasurement():
         image_arg = ''.join(['input.image_file_name=',im_name])
         psfcat_arg = ''.join(['input.cat_file_name=',psfcat_name])
         output_name = imagefile.split('/')[-1].replace('.fits','.piff')
-        full_output_name=os.path.join(self.data_dir,'piff-output',output_name)
-        output_arg = ''.join(['output.file_name=',output_name])
+        output_dir = os.path.join(self.data_dir,'piff-output')
+        full_output_name=os.path.join(output_dir,output_name)
+        output_arg = ''.join(['output.file_name=',output_name,'output.dir=',output_dir])
         cmd = ' '.join(['piffify', piff_config_arg,image_arg,psfcat_arg, output_arg])
+
         self.logprint("piff cmd is " + cmd)
         os.system(cmd)
 
