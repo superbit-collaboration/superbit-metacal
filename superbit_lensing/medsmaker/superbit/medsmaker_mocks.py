@@ -514,7 +514,7 @@ class BITMeasurement():
         return psfex_model_file
 
     def _make_piff_model(self, imagefile, weightfile='weight.fits', sextractor_config_path=None,
-            psfex_out_dir='./tmp/', select_truth_stars=False,star_params=None):
+            psfex_out_dir='./tmp/', select_truth_stars=select_truth_stars,star_params=None):
         '''
         Method to invoke PIFF for PSF modeling
         Also creates individual exposure catalogs
@@ -612,7 +612,7 @@ class BITMeasurement():
 
         return psf_extended
 
-    def _select_stars_for_psf(self,sscat,truthfile=None,starkeys=None,star_params=None):
+    def _select_stars_for_psf(self,sscat,truthfile=truthfile,starkeys=None,star_params=None):
         '''
         Method to obtain stars from SExtractor catalog using the truth catalog from GalSim
             sscat : input ldac-format catalog from which to select stars
