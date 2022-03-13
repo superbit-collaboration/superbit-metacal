@@ -459,6 +459,7 @@ class BITMeasurement():
             # Those PSF models get made in MEDS file...
 
             if mode == 'piff':
+                pdb.set_trace()
                 piff_model = self._make_piff_model(imagefile, select_truth_stars=select_truth_stars,
                 star_params=star_params)
                 self.psf_models.append(piff_model)
@@ -514,7 +515,7 @@ class BITMeasurement():
         return psfex_model_file
 
     def _make_piff_model(self, imagefile, weightfile='weight.fits', sextractor_config_path=None,
-            psfex_out_dir='./tmp/', select_truth_stars=select_truth_stars,star_params=None):
+            psfex_out_dir='./tmp/', select_truth_stars=False,star_params=None):
         '''
         Method to invoke PIFF for PSF modeling
         Also creates individual exposure catalogs
@@ -530,7 +531,6 @@ class BITMeasurement():
         First, let's get it to run on one, then we can focus on running list!
         '''
 
-
         if sextractor_config_path is None:
                 sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
 
@@ -541,7 +541,7 @@ class BITMeasurement():
             # that isn't pipeline default
             import glob
             truthdir=self.data_dir
-            truthcat = glob.glob(''.join([truthdir,'truth*.dat']))[0]
+            truthcat = glob.glob(os.path.join([truthdir,'truth*.dat']))[0]
             truthfilen=os.path.join(truthdir,truthcat)
             self.logprint("using truth catalog %s" % truthfilen)
             psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,\
@@ -612,20 +612,21 @@ class BITMeasurement():
 
         return psf_extended
 
-    def _select_stars_for_psf(self,sscat,truthfile=truthfile,starkeys=None,star_params=None):
+    def _select_stars_for_psf(self,sscat,truthfile=None,starkeys=None,star_params=None):
         '''
         Method to obtain stars from SExtractor catalog using the truth catalog from GalSim
             sscat : input ldac-format catalog from which to select stars
             truthcat : the simulation truth catalog written out by GalSim
         '''
 
+        pdb.set_trace()
         try:
             ss = Table.read(sscat,hdu=2)
         except:
             ss = Table.read(sscat,hdu=1)
 
         if truthfile is not None:
-
+            pdb.set_trace()
             # Read in truthfile, obtain stars with redshift cut
             truthcat = Table.read(truthfile,format='ascii')
             stars=truthcat[truthcat['redshift']==0]
