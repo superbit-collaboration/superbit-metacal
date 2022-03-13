@@ -68,7 +68,6 @@ def main():
 
     logprint('Setting up configuration...')
     bm = medsmaker.BITMeasurement(image_files=science, data_dir=mock_dir, log=log, vb=vb)
-    bm.base_dir = '/Users/jemcclea/Research/SuperBIT/superbit-metacal/superbit_lensing/medsmaker'
 
     bm.set_working_dir(path=outdir)
     bm.set_path_to_psf(path=os.path.join(outdir, 'psfex_output'))
