@@ -4,8 +4,8 @@ from glob import glob
 from astropy.table import Table
 import matplotlib.pyplot as plt
 
-from match import MatchedTruthCatalog
-import utils
+from superbit_lensing.match import MatchedTruthCatalog
+from superbit_lensing import utils
 
 import pudb
 

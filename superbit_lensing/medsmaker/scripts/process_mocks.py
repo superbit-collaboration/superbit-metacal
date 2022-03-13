@@ -86,7 +86,7 @@ def main():
 
     # Build a PSF model for each image.
     logprint('Making PSF models...')
-    bm.make_psf_models(select_truth_stars=select_truth_stars, im_cats=im_cats, use_coadd=use_coadd)
+    bm.make_psf_models(select_truth_stars=select_truth_stars,im_cats=im_cats, use_coadd=use_coadd)
 
     logprint('Making MEDS...')
 
