@@ -31,7 +31,7 @@ parser.add_argument('--clobber', action='store_true', default=False,
                     help='Set to overwrite files')
 parser.add_argument('--source_select', action='store_true', default=False,
                     help='Set to select sources during MEDS creation')
-parser.add_argument('--select_truth_stars', action='store_true', default=False,
+parser.add_argument('--select_truth_stars', action='store', default=False,
                     help='Set to match against truth catalog for PSF model fits')
 parser.add_argument('-v', '--verbose', action='store_true', default=False,
                     help='Verbosity')
@@ -75,7 +75,7 @@ def main():
 
     # Make a mask.
     logprint('Making mask...')
-    bm.make_mask(overwrite=clobber, mask_name='forecast_mask.fits')
+    bm.make_mask(mask_name='forecast_mask.fits')
 
     # Combine images, make a catalog.
     logprint('Making coadd & its catalog...')
