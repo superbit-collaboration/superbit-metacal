@@ -40,17 +40,17 @@ parser = ArgumentParser()
 
 parser.add_argument('config_file', action='store', type=str,
                     help='Configuration file for mock sims')
-parser.add_argument('--run_name', action='store', type=str, default='',
+parser.add_argument('-run_name', action='store', type=str, default='',
                     help='Name of mock simulation run')
-parser.add_argument('--outdir', action='store', type=str,
+parser.add_argument('-outdir', action='store', type=str,
                     help='Output directory of simulated files')
-parser.add_argument('--ncores', action='store', type=int, default=1,
+parser.add_argument('-ncores', action='store', type=int, default=1,
                     help='Number of cores to use for multiproessing')
 parser.add_argument('--mpi', action='store_true', default=False,
                     help='Use to turn on mpi')
 parser.add_argument('--clobber', action='store_true', default=False,
                     help='Turn on to overwrite existing files')
-parser.add_argument('-v', '--verbose', action='store_true', default=False,
+parser.add_argument('--vb', action='store_true', default=False,
                     help='Turn on for verbose prints')
 
 class truth():
@@ -171,9 +171,14 @@ def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
         this_flux = np.sum(stamp.array)
 
         if exp_num == 1:
-            row = [i, truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2,
-                   truth.mu,truth.z, this_flux, truth.fwhm, truth.mom_size,
-                   truth.n, truth.hlr, truth.scale_h_over_r]
+            row = [i, truth.x, truth.y,
+                   truth.ra, truth.dec,
+                   truth.g1, truth.g2,
+                   truth.mu,truth.z,
+                   this_flux, truth.fwhm, truth.mom_size,
+                   truth.n, truth.hlr, truth.scale_h_over_r,
+                   truth.obj_class
+                   ]
             truth_catalog.addRow(row)
 
     return full_image, truth_catalog
@@ -264,6 +269,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
     galaxy_truth.n = n; galaxy_truth.hlr = half_light_radius
     #galaxy_truth.inclination = inclination.deg # storing in degrees for human readability
     galaxy_truth.scale_h_over_r = q
+    galaxy_truth.obj_class = 'gal'
 
     logprint.debug('created truth values')
 
@@ -352,8 +358,9 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     cluster_galaxy_truth.g1=g1; cluster_galaxy_truth.g2=g2
     cluster_galaxy_truth.mu = mu; cluster_galaxy_truth.z = gal_z
     cluster_galaxy_truth.flux = cluster_stamp.added_flux
+    cluster_galaxy_truth.obj_class = 'cluster_gal'
     logprint.debug('created truth values')
-    
+
     try:
         cluster_galaxy_truth.fwhm=final.calculateFWHM()
     except galsim.errors.GalSimError:
@@ -365,7 +372,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     except:
         logprint.debug('sigma calculation failed')
         cluster_galaxy_truth.mom_size=-9999.
-    
+
     return cluster_stamp, cluster_galaxy_truth
 
 
@@ -394,16 +401,17 @@ def make_a_star(ud, wcs, affine, optics, sbparams, logprint):
         star_flux*=0.8271672
 
     # Generate PSF at location of star, convolve with optical model to make a star
-    deltastar = galsim.DeltaFunction(flux=star_flux)  
+    deltastar = galsim.DeltaFunction(flux=star_flux)
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
     star=galsim.Convolve([jitter_psf,deltastar,optics])
 
     star_stamp = star.drawImage(wcs=wcs.local(image_pos)) # before it was scale = 0.206, and that was bad!
     star_stamp.setCenter(image_pos.x,image_pos.y)
-    
+
     star_truth=truth()
     star_truth.ra = ra.deg; star_truth.dec = dec.deg
     star_truth.x = image_pos.x; star_truth.y =image_pos.y
+    star_truth.obj_class = 'star'
 
     try:
         star_truth.fwhm=star.calculateFWHM()
@@ -483,7 +491,7 @@ class SuperBITParameters:
         """
         Load parameters from a dictionary.
         """
-        ignore = ['config_file', 'verbose']
+        ignore = ['config_file', 'vb']
         for (option, value) in d.items():
             if option in ignore:
                 # config file already processed above
@@ -692,7 +700,7 @@ def main():
     mpi = args.mpi
     ncores = args.ncores
     clobber = args.clobber
-    vb = args.verbose
+    vb = args.vb
 
     # If outdir is None, will need to move it later after it is set
     if args.outdir is None:
@@ -779,12 +787,14 @@ def main():
         if i == 1:
             truth_file_name = os.path.join(sbparams.outdir,
                                            f'{run_name}_truth.fits')
-            names = [ 'gal_num', 'x_image', 'y_image',
-                        'ra', 'dec', 'nfw_g1', 'nfw_g2', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom',
-                        'n','hlr','scale_h_over_r']
-            types = [ int, float, float, float,float,float,
-                        float, float, float, float, float, float,
-                        float, float, float]
+            names = ['gal_num', 'x_image', 'y_image',
+                     'ra', 'dec', 'nfw_g1', 'nfw_g2',
+                     'nfw_mu', 'redshift', 'flux',
+                     'truth_fwhm','truth_mom', 'n',
+                     'hlr', 'scale_h_over_r', 'obj_class']
+            types = [int, float, float, float, float, float,
+                     float, float, float, float, float, float,
+                     float, float, float, str]
             truth_catalog = galsim.OutputCatalog(names, types)
 
         # Set up the image:
@@ -859,7 +869,7 @@ def main():
 
                 try:
                     # make single galaxy object
-                    stamp,truth = make_a_galaxy(ud=ud,
+                    stamp, truth = make_a_galaxy(ud=ud,
                                                 wcs=wcs,
                                                 affine=affine,
                                                 cosmos_cat=cosmos_cat,
@@ -880,9 +890,10 @@ def main():
                     this_flux=np.sum(stamp.array)
 
                     if i == 1:
-                        row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
-                                    this_flux,truth.fwhm, truth.mom_size,
-                                    truth.n, truth.hlr, truth.scale_h_over_r]
+                        row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1,
+                                truth.g2, truth.mu,truth.z,
+                                this_flux, truth.fwhm, truth.mom_size,
+                                truth.n, truth.hlr, truth.scale_h_over_r, truth.obj_class]
                         truth_catalog.addRow(row)
                 except galsim.errors.GalSimError:
                     logprint(f'Galaxy {k} has failed, skipping...')
@@ -954,9 +965,10 @@ def main():
                     this_flux=np.sum(cluster_stamp.array)
 
                     if i == 1:
-                        row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,truth.z,
-                                    this_flux,truth.fwhm,truth.mom_size,
-                                    truth.n, truth.hlr,truth.scale_h_over_r]
+                        row = [ k,truth.x, truth.y, truth.ra, truth.dec,
+                                truth.g1, truth.g2, truth.mu, truth.z,
+                                this_flux, truth.fwhm, truth.mom_size,
+                                truth.n, truth.hlr, truth.scale_h_over_r, truth.obj_class]
                         truth_catalog.addRow(row)
                 except galsim.errors.GalSimError:
                     logprint(f'Cluster galaxy {k} has failed, skipping...')
@@ -1020,9 +1032,10 @@ def main():
                     this_flux=np.sum(star_stamp.array)
 
                     if i == 1:
-                        row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1, truth.g2, truth.mu,
-                                    truth.z, this_flux,truth.fwhm,truth.mom_size,
-                                    truth.n, truth.hlr,truth.scale_h_over_r]
+                        row = [ k,truth.x, truth.y, truth.ra, truth.dec,
+                                truth.g1, truth.g2, truth.mu,
+                                truth.z, this_flux, truth.fwhm,truth.mom_size,
+                                truth.n, truth.hlr, truth.scale_h_over_r, truth.obj_class]
                         truth_catalog.addRow(row)
 
                 except galsim.errors.GalSimError:
