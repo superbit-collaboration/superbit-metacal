@@ -35,6 +35,48 @@ TO DO:
     - Run medsmaker
 '''
 
+def piff_extender(piff_file,stamp_size=20):
+    """
+    Utility function to add the get_rec function expected
+    by the MEDS package
+
+    """
+    psf = piff.read(piff_file)
+
+    type_name = type(psf)
+
+    class PiffExtender(type_name):
+        '''
+        A helper class that adds functions expected by MEDS
+        '''
+
+        def __init__(self, type_name=None):
+
+            self.psf = None
+            self.single_psf = type_name
+
+            return
+
+        def get_rec(self,row,col):
+
+            #print('Working!!!')
+            fake_pex = self.psf.draw(x=col, y=row, stamp_size=stamp_size).array
+
+            return fake_pex
+
+        def get_center(self,row,col):
+
+            psf_shape = self.psf.draw(x=col,y=row,stamp_size=stamp_size).array.shape
+            cenpix_row = (psf_shape[0]-1)/2
+            cenpix_col = (psf_shape[1]-1)/2
+            cen = np.array([cenpix_row,cenpix_col])
+
+            return cen
+
+    psf_extended = PiffExtender(type_name)
+    psf_extended.psf = psf
+
+    return psf_extended
 
 
 class BITMeasurement():
@@ -57,13 +99,14 @@ class BITMeasurement():
         self.catalog = None
         self.psf_path = None
         self.work_path = None
+        self.weight_file = None
+        self.mask_file = None
+        self.mask_path = None
 
         if data_dir is None:
             self.data_dir = os.getcwd()
-            self.mask_path = './mask_files'
         else:
             self.data_dir = data_dir
-            self.mask_path = os.path.join(data_dir, 'mask_files')
 
 
         if log is None:
@@ -96,6 +139,18 @@ class BITMeasurement():
             self.psf_path = './tmp/psfex_output'
             if not os.path.exists(self.psf_path):
                 os.mkdir(self.psf_path)
+
+    def set_mask(self,mask_name='mask.fits',mask_dir=None):
+        if mask_dir is None:
+            self.mask_path = './mask_files'
+        else:
+            self.mask_path = mask_dir
+        self.mask_file = os.path.join(self.mask_path, mask_name)
+
+    def set_weight(self,weight_name='weight.fits',weight_dir=None):
+        if weight_dir is None:
+            weight_dir = './weight_files'
+        self.weight_file = os.path.join(weight_dir, weight_name)
 
     def set_path_to_calib_data(self,path=None):
         if path is None:
@@ -340,7 +395,7 @@ class BITMeasurement():
         # utils.run_command(cmd, logprint=self.logprint)
 
         # "fullcat" is now actually the filtered-out analysis catalog
-        fullcat[2].data = self.catalog
+        fullcat = self.catalog
         #fullcat[2].data = gals
 
         fullcat.writeto(catname,overwrite=True)
@@ -420,7 +475,7 @@ class BITMeasurement():
 
         return sexcat_names
 
-    def make_psf_models(self, select_truth_stars=False, im_cats=None, use_coadd=False, mode='piff',star_params=None):
+    def make_psf_models(self, select_truth_stars=False, im_cats=None, use_coadd=False, psf_mode='piff',star_params=None):
 
         if star_params is None:
             star_keys = {'size_key':'FLUX_RAD','mag_key':'MAG_AUTO'}
@@ -459,7 +514,7 @@ class BITMeasurement():
             # Those PSF models get made in MEDS file...
 
             if mode == 'piff':
-                
+
                 piff_model = self._make_piff_model(imagefile, select_truth_stars=select_truth_stars,
                 star_params=star_params)
                 self.psf_models.append(piff_model)
@@ -568,52 +623,10 @@ class BITMeasurement():
         self.logprint("piff cmd is " + cmd)
         os.system(cmd)
 
-        piff_extended = self.piff_extender(full_output_name)
+        piff_extended = piff_extender(full_output_name)
 
         return piff_extended
 
-    def piff_extender(self,piff_file,stamp_size=21):
-        """
-        Utility function to add the get_rec function expected
-        by the MEDS package
-
-        """
-        psf = piff.read(piff_file)
-
-        type_name = type(psf)
-
-        class PiffExtender(type_name):
-            '''
-            A helper class that adds functions expected by MEDS
-            '''
-
-            def __init__(self, type_name=None):
-
-                self.psf = None
-                self.single_psf = type_name
-
-                return
-
-            def get_rec(self,row,col):
-
-                #print('Working!!!')
-                fake_pex = self.psf.draw(x=col, y=row, stamp_size=stamp_size).array
-
-                return fake_pex
-
-            def get_center(self,row,col):
-
-                psf_shape = self.psf.draw(x=col,y=row,stamp_size=stamp_size).array.shape
-                cenpix_row = (psf_shape[0]-1)/2
-                cenpix_col = (psf_shape[1]-1)/2
-                cen = np.array([cenpix_row,cenpix_col])
-
-                return cen
-
-        psf_extended = PiffExtender(type_name)
-        psf_extended.psf = psf
-
-        return psf_extended
 
     def _select_stars_for_psf(self,sscat,truthfile=None,starkeys=None,star_params=None):
         '''
@@ -622,16 +635,19 @@ class BITMeasurement():
             truthcat : the simulation truth catalog written out by GalSim
         '''
 
-        
+
         try:
             ss = Table.read(sscat,hdu=2)
         except:
             ss = Table.read(sscat,hdu=1)
 
         if truthfile is not None:
-            
+
             # Read in truthfile, obtain stars with redshift cut
-            truthcat = Table.read(truthfile,format='ascii')
+            try:
+                truthcat = Table.read(truthfile,format='fits')
+            except:
+                truthcat = Table.read(truthfile,format='ascii')
             stars=truthcat[truthcat['redshift']==0]
             outname = sscat.replace('.ldac','truthstars.ldac')
 
@@ -643,8 +659,8 @@ class BITMeasurement():
 
             # Save result to file, return filename
             ss=ss[matches]
-            wg = (ss['SNR_WIN']>star_params['MIN_SNR']) & (ss['CLASS_STAR']>star_params['CLASS_STAR'])
-            ss[ss['SNR_WIN']>star_params['MIN_SNR']].write(outname,format='fits',overwrite=True)
+            wg_stars = (ss['SNR_WIN']>star_params['MIN_SNR']) & (ss['CLASS_STAR']>star_params['CLASS_STAR'])
+            ss[wg_stars].write(outname,format='fits',overwrite=True)
 
 
         else:
@@ -685,9 +701,7 @@ class BITMeasurement():
 
             image_info[i]['image_path'] = bkgsub_name
             image_info[i]['image_ext'] = 0
-            #image_info[i]['weight_path'] = self.weight_file
-            # FOR NOW:
-            image_info[i]['weight_path'] = self.mask_file.replace('mask', 'weight')
+            image_info[i]['weight_path'] = self.weight_file
             image_info[i]['weight_ext'] = 0
             image_info[i]['bmask_path'] = self.mask_file
             image_info[i]['bmask_ext'] = 0
@@ -722,7 +736,7 @@ class BITMeasurement():
         meta['magzp_ref'] = magzp
         return meta
 
-    def _calculate_box_size(self,angular_size,size_multiplier = 2.5, min_size = 16, max_size= 64, pixel_scale = 0.206):
+    def _calculate_box_size(self,angular_size,size_multiplier = 2.5, min_size = 16, max_size= 64, pixel_scale = 0.144):
         '''
         Calculate the cutout size for this survey.
 
@@ -798,7 +812,7 @@ class BITMeasurement():
         # Make catalogs for individual exposures
         self.make_exposure_catalogs(sextractor_config_path=config_path)
         # Build a PSF model for each image.
-        self.make_psf_models(select_truth_stars=select_truth_stars, im_cats=im_cats, use_coadd=False, mode=psf_mode)
+        self.make_psf_models(select_truth_stars=select_truth_stars, im_cats=im_cats, use_coadd=False, psf_mode=psf_mode)
         # Make the image_info struct.
         image_info = self.make_image_info_struct()
         # Make the object_info struct.

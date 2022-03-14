@@ -25,11 +25,13 @@ parser.add_argument('--outdir', type=str, default=None,
                     help='Output directory for MEDS file')
 parser.add_argument('--fname_base', action='store', type=str, default=None,
                     help='Basename of mock image files')
+parser.add_argument('-psf_mode', action='choices', choices=['piff', 'psfex'],default='piff'
+                    help='model exposure PSF using either piff or psfex')
 parser.add_argument('--meds_coadd', action='store_true', default=False,
                     help='Set to keep coadd cutout in MEDS file')
 parser.add_argument('--clobber', action='store_true', default=False,
                     help='Set to overwrite files')
-parser.add_argument('--source_select', action='store', default=False, choices=['true', 'True','false','False'],
+parser.add_argument('--source_select', action='store', default=False,
                     help='Set to select sources during MEDS creation')
 parser.add_argument('--select_truth_stars', action='store', default=False,
                     help='Set to match against truth catalog for PSF model fits')
@@ -40,7 +42,8 @@ def main():
     args = parser.parse_args()
     mock_dir = args.mock_dir
     outfile = args.outfile
-    outdir=args.outdir
+    outdir = args.outdir
+    psf_mode = args.psf_mode
     use_coadd = args.meds_coadd
     clobber = args.clobber
     source_selection = args.source_select
@@ -48,7 +51,7 @@ def main():
     vb = args.verbose
 
     if args.outdir is None:
-      outdir = mock_dir
+        outdir = mock_dir
 
     logfile = 'medsmaker.log'
     logdir = outdir
@@ -60,14 +63,15 @@ def main():
     else:
         fname_base = args.fname_base
 
+
     if (select_truth_stars=='true') or (select_truth_stars=='True'):
         select_truth_stars = True
     else:
         select_truth_stars = False
 
+
     science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub].fits')
     logprint(f'Science frames: {science}')
-
 
     outfile = os.path.join(outdir, outfile)
 
@@ -76,10 +80,8 @@ def main():
 
     bm.set_working_dir(path=outdir)
     bm.set_path_to_psf(path=os.path.join(outdir, 'psfex_output'))
-
-    # Make a mask.
-    logprint('Making mask...')
-    bm.make_mask(mask_name='forecast_mask.fits')
+    bm.set_mask(mask_name='forecast_mask.fits',mask_dir=os.path.join(data_dir,'mask_files'))
+    bm.set_weight(mask_name='forecast_weight.fits',weight_dir=os.path.join(data_dir,'weight_files'))
 
     # Combine images, make a catalog.
     logprint('Making coadd & its catalog...')
@@ -91,7 +93,7 @@ def main():
 
     # Build a PSF model for each image.
     logprint('Making PSF models...')
-    bm.make_psf_models(select_truth_stars=select_truth_stars,im_cats=im_cats, use_coadd=use_coadd)
+    bm.make_psf_models(select_truth_stars=select_truth_stars,im_cats=im_cats, use_coadd=use_coadd,psf_mode=psf_mode)
 
     logprint('Making MEDS...')
 
@@ -114,7 +116,7 @@ def main():
     logprint(f'Writing to {outfile}')
     medsObj.write(outfile)
     """
-    bm.run(clobber=clobber,source_selection = source_selection, select_stars = select_stars, outfile = outfile)
+    bm.run(clobber=clobber,source_selection = source_selection, select_stars = select_stars, outfile = outfile,psf_mode=psf_mode)
     """
 
     logprint('Done!')

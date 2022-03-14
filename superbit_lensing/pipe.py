@@ -361,7 +361,7 @@ class GalSimModule(SuperBITModule):
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
     _opt_fields = ['fname_base', 'meds_coadd', 'outdir', 'clobber', 'source_select',
-                   'select_truth_stars','vb']
+                   'select_truth_stars','psf_type','vb']
 
     def __init__(self, name, config):
         super(MedsmakerModule, self).__init__(name, config)
@@ -394,6 +394,7 @@ class MedsmakerModule(SuperBITModule):
         base = f'python {filepath} {mock_dir} {outfile}'
 
         options = self._setup_options(run_options)
+        #if
 
         cmd = base + options
 
