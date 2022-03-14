@@ -21,11 +21,13 @@ parser.add_argument('mock_dir', type=str,
                     help='Directory containing mock data')
 parser.add_argument('outfile', type=str,
                     help='Name of output MEDS file')
-parser.add_argument('--outdir', type=str, default=None,
+parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory for MEDS file')
-parser.add_argument('--fname_base', action='store', type=str, default=None,
+parser.add_argument('-fname_base', action='store', type=str, default=None,
                     help='Basename of mock image files')
-parser.add_argument('--meds_coadd', action='store_true', default=False,
+parser.add_argument('-run_name', action='store', type=str, default=None,
+                    help='Name of mock simulation run')
+parser.add_argument('-meds_coadd', action='store_true', default=False,
                     help='Set to keep coadd cutout in MEDS file')
 parser.add_argument('--clobber', action='store_true', default=False,
                     help='Set to overwrite files')
@@ -33,20 +35,21 @@ parser.add_argument('--source_select', action='store_true', default=False,
                     help='Set to select sources during MEDS creation')
 parser.add_argument('--select_stars', action='store_true', default=False,
                     help='Set to remove stars during source selection')
-parser.add_argument('-v', '--verbose', action='store_true', default=False,
+parser.add_argument('--vb', action='store_true', default=False,
                     help='Verbosity')
 
 def main():
     args = parser.parse_args()
     mock_dir = args.mock_dir
     outfile = args.outfile
-    outdir=args.outdir
+    outdir = args.outdir
+    run_name = args.run_name
     use_coadd = args.meds_coadd
     clobber = args.clobber
     source_selection = args.source_select
     select_stars = args.select_stars
-    vb = args.verbose
-    
+    vb = args.vb
+
     if args.outdir is None:
       outdir = mock_dir
 
@@ -63,11 +66,12 @@ def main():
     science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub].fits')
     logprint(f'Science frames: {science}')
 
- 
     outfile = os.path.join(outdir, outfile)
 
     logprint('Setting up configuration...')
-    bm = medsmaker.BITMeasurement(image_files=science, data_dir=mock_dir, log=log, vb=vb)
+    bm = medsmaker.BITMeasurement(
+        image_files=science, data_dir=mock_dir, run_name=run_name, log=log, vb=vb
+        )
 
     bm.set_working_dir(path=outdir)
     bm.set_path_to_psf(path=os.path.join(outdir, 'psfex_output'))
