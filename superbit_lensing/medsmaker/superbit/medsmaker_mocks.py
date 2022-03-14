@@ -513,13 +513,13 @@ class BITMeasurement():
             #self.psf_models.append(psfex.PSFEx(psfex_model_file))
             # Those PSF models get made in MEDS file...
 
-            if mode == 'piff':
+            if psf_mode == 'piff':
 
                 piff_model = self._make_piff_model(imagefile, select_truth_stars=select_truth_stars,
                 star_params=star_params)
                 self.psf_models.append(piff_model)
 
-            elif mode == 'psfex':
+            elif psf_mode == 'psfex':
                 psfex_model_file = self._make_psfex_model(im_cats[i], weightfile=weightfile,select_truth_stars=select_truth_stars,star_params=star_params)
                 # move checkimages to psfex_output
                 cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', self.psf_path])

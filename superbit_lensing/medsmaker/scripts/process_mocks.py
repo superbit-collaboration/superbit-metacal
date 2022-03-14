@@ -25,7 +25,7 @@ parser.add_argument('--outdir', type=str, default=None,
                     help='Output directory for MEDS file')
 parser.add_argument('--fname_base', action='store', type=str, default=None,
                     help='Basename of mock image files')
-parser.add_argument('-psf_mode', action='choices', choices=['piff', 'psfex'],default='piff'
+parser.add_argument('-psf_mode', action='store', choices=['piff', 'psfex'],default='piff',
                     help='model exposure PSF using either piff or psfex')
 parser.add_argument('--meds_coadd', action='store_true', default=False,
                     help='Set to keep coadd cutout in MEDS file')
@@ -80,8 +80,8 @@ def main():
 
     bm.set_working_dir(path=outdir)
     bm.set_path_to_psf(path=os.path.join(outdir, 'psfex_output'))
-    bm.set_mask(mask_name='forecast_mask.fits',mask_dir=os.path.join(data_dir,'mask_files'))
-    bm.set_weight(mask_name='forecast_weight.fits',weight_dir=os.path.join(data_dir,'weight_files'))
+    bm.set_mask(mask_name='forecast_mask.fits',mask_dir=os.path.join(mock_dir,'mask_files'))
+    bm.set_weight(weight_name='forecast_weight.fits',weight_dir=os.path.join(mock_dir,'weight_files'))
 
     # Combine images, make a catalog.
     logprint('Making coadd & its catalog...')
