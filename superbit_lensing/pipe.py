@@ -21,6 +21,7 @@ class SuperBITModule(dict):
 
     _req_fields = []
     _opt_fields = []
+    _flag_fields = []
 
     def __init__(self, name, config, set_defaults=False):
 
@@ -48,7 +49,9 @@ class SuperBITModule(dict):
 
         # Make sure there are no surprises
         for field in self._config.keys():
-            if (field not in self._req_fields) and (field not in self._opt_fields):
+            if (field not in self._req_fields) and \
+               (field not in self._opt_fields) and \
+               (field not in self._flag_fields):
                 raise KeyError(f'{field} is not a valid field for the {self.name} module!')
 
         # Make sure all fields are at least initialized to None
@@ -73,9 +76,13 @@ class SuperBITModule(dict):
         options = ''
         for opt in self._opt_fields:
             if opt in self._config:
-                options += f' --{opt}={self._config[opt]}'
+                options += f' -{opt}={self._config[opt]}'
 
-        vb = ' -v' if run_options['vb'] is True else ''
+        for flag in self._flag_fields:
+            if flag in self._config:
+                options += f' --{flag}={self._config[flag]}'
+
+        vb = ' --vb' if run_options['vb'] is True else ''
         options += vb
 
         return options
@@ -291,8 +298,8 @@ class SuperBITPipeline(SuperBITModule):
 
 class GalSimModule(SuperBITModule):
     _req_fields = ['config_file', 'outdir']
-    _opt_fields = ['config_dir', 'vb', 'use_mpi', 'use_srun', 'run_name',
-                   'clobber']
+    _opt_fields = ['config_dir']
+    _flag_fields = ['use_mpi', 'use_srun', 'clobber', 'vb']
 
     def __init__(self, name, config):
         super(GalSimModule, self).__init__(name, config)
@@ -328,20 +335,21 @@ class GalSimModule(SuperBITModule):
         galsim_filepath = os.path.join(galsim_dir, 'mock_superBIT_data.py')
 
         outdir = self._config['outdir']
-        base = f'python {galsim_filepath} {self.gs_config_path} --outdir={outdir}'
+        base = f'python {galsim_filepath} {self.gs_config_path} -outdir={outdir}'
 
+        # multiple mpi flags breaks this func...
         # options = self._setup_options(run_options)
         options = ''
 
         if 'run_name' not in self._config:
             run_name = run_options['run_name']
-            options += f' --run_name={run_name}'
+            options += f' -run_name={run_name}'
 
         if 'clobber' in self._config:
             options += ' --clobber'
 
         if run_options['vb'] is True:
-            options += ' -v'
+            options += ' --vb'
 
         cmd = base + options
 
@@ -352,16 +360,16 @@ class GalSimModule(SuperBITModule):
                     cmd = f'mpiexec -n {ncores} ' + cmd
             if hasattr(self._config, 'use_srun'):
                 if self._config['use_srun'] is True:
-                    cmd = f'srun --mpi=pmix ' + cmd
+                    cmd = f'srun -mpi=pmix ' + cmd
             else:
-                cmd = cmd + f' --ncores={ncores}'
+                cmd = cmd + f' -ncores={ncores}'
 
         return cmd
 
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
-    _opt_fields = ['fname_base', 'meds_coadd', 'outdir', 'clobber', 'source_select',
-                   'cut_stars', 'vb']
+    _opt_fields = ['fname_base', 'run_name', 'meds_coadd', 'outdir']
+    _flag_fields = ['clobber', 'source_select', 'cut_stars', 'vb']
 
     def __init__(self, name, config):
         super(MedsmakerModule, self).__init__(name, config)
@@ -443,7 +451,7 @@ class MetacalModule(SuperBITModule):
         if col not in self._config:
             self._config['plot'] = run_options['run_diagnostics']
 
-        # options = f' --outdir={outdir} --plot={plot} --n={ncores}' + \
+        # options = f' -outdir={outdir} -plot={plot} -n={ncores}' + \
         #     self._setup_options(run_options)
         options = self._setup_options(run_options)
 
@@ -491,7 +499,7 @@ class NgmixFitModule(SuperBITModule):
 
         # While these are considered required for the pipeline, they are
         # technically optional args in ngmix_fit.py due to testing option
-        base += f'--medsfile={medsfile} --outfile={outfile} --config={config}'
+        base += f'-medsfile={medsfile} -outfile={outfile} -config={config}'
 
         # Setup some options that rquire the run config
         col = 'n'
@@ -505,13 +513,12 @@ class NgmixFitModule(SuperBITModule):
         return cmd
 
 class ShearProfileModule(SuperBITModule):
-    _req_fields = []
-    _opt_fields = []
+    _req_fields = ['se_file', 'mcal_file', 'outfile']
+    _opt_fields = ['outdir', 'run_name']
+    _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
         super(ShearProfileModule, self).__init__(name, config)
-
-        raise Exception('Not yet implemented!')
 
         col = 'outdir'
         if col not in self._config:
@@ -532,26 +539,23 @@ class ShearProfileModule(SuperBITModule):
     def _setup_run_command(self, run_options):
 
         outdir = self._config['outdir']
-
-        medsfile = self._config['medsfile']
+        se_file = self._config['se_file']
+        mcal_file = self._config['mcal_file']
         outfile = self._config['outfile']
-        outfile = os.path.join(outdir, outfile)
-        config = self._config['config']
 
-        ngmix_dir = os.path.join(utils.get_module_dir(),
-                                'ngmix_fit')
-        filepath = os.path.join(ngmix_dir, 'ngmix_fit.py')
+        if 'outdir' in self._config:
+            outdir = self._config['outdir']
+        else:
+            outdir = ''
+        outfile = os.path.join(outdir, outfile)
+
+        shear_dir = os.path.join(utils.get_module_dir(),
+                                 'shear_profiles')
+        filepath = os.path.join(shear_dir, 'make_annular_catalog.py')
 
         base = f'python {filepath} '
 
-        # While these are considered required for the pipeline, they are
-        # technically optional args in ngmix_fit.py due to testing option
-        base += f'--medsfile={medsfile} --outfile={outfile} --config={config}'
-
-        # Setup some options that rquire the run config
-        col = 'n'
-        if col not in self._config:
-            self._config['n'] = run_options['ncores']
+        base += f'{se_file} {mcal_file} {outfle} '
 
         options = self._setup_options(run_options)
 
@@ -624,6 +628,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
         run_name = 'pipe_test'
         outdir = os.path.join(utils.TEST_DIR, run_name)
         medsfile = os.path.join(outdir, f'{run_name}_meds.fits')
+        mcal_file = f'{run_name}_mcal.fits'
         ngmix_test_config = make_test_ngmix_config('ngmix_test.yaml',
                                                    outdir=outdir,
                                                    run_name=run_name)
@@ -640,7 +645,8 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                         'galsim',
                         'medsmaker',
                         'metacal',
-                        'ngmix-fit'
+                        'shear_profile',
+                        'ngmix_fit'
                         ]
                 },
                 'galsim': {
@@ -650,26 +656,35 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                                                'galsim',
                                                'config_files'),
                     'outdir': outdir,
-                    'clobber': True
+                    'clobber': clobber
                 },
                 'medsmaker': {
                     'mock_dir': outdir,
-                    'outfile': f'{run_name}_meds.fits',
+                    'outfile': medsfile,
                     'fname_base': run_name,
+                    'run_name': run_name,
                     'outdir': outdir
                 },
                 'metacal': {
                     'medsfile': medsfile,
-                    'outfile': f'{run_name}_mcal.fits',
+                    'outfile': mcal_file,
                     'outdir': outdir,
-                    'end': 100
+                    'end': 500
                 },
-                'ngmix-fit': {
+                'ngmix_fit': {
                     'medsfile': medsfile,
                     'outfile': f'{run_name}_ngmix.fits',
                     'config': ngmix_test_config,
                     'outdir': outdir,
                     'end': 100
+                },
+                'shear_profile': {
+                    'se_file': f'{run_name}_mock_coadd_cat.ldac',
+                    'mcal_file': mcal_file,
+                    'outfile': f'{run_name}_annular.fits',
+                    'outdir': outdir,
+                    'run_name': run_name,
+                    'overwrite': clobber,
                 }
             }
 
@@ -685,7 +700,7 @@ MODULE_TYPES = {
     'galsim': GalSimModule,
     'medsmaker': MedsmakerModule,
     'metacal': MetacalModule,
-    'ngmix-fit': NgmixFitModule,
-    'shear-profile': ShearProfileModule,
+    'ngmix_fit': NgmixFitModule,
+    'shear_profile': ShearProfileModule,
     }
 
