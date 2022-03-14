@@ -459,7 +459,7 @@ class BITMeasurement():
             # Those PSF models get made in MEDS file...
 
             if mode == 'piff':
-                pdb.set_trace()
+                
                 piff_model = self._make_piff_model(imagefile, select_truth_stars=select_truth_stars,
                 star_params=star_params)
                 self.psf_models.append(piff_model)
@@ -541,7 +541,10 @@ class BITMeasurement():
             # that isn't pipeline default
             import glob
             truthdir=self.data_dir
-            truthcat = glob.glob(os.path.join([truthdir,'truth*.dat']))[0]
+            try:
+                truthcat = glob.glob(os.path.join(truthdir,'truth*.dat'))[0]
+            except:
+                truthcat = glob.glob(os.path.join(truthdir,'truth*.fits'))[0]
             truthfilen=os.path.join(truthdir,truthcat)
             self.logprint("using truth catalog %s" % truthfilen)
             psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,\
@@ -559,7 +562,7 @@ class BITMeasurement():
         output_name = imagefile.split('/')[-1].replace('.fits','.piff')
         output_dir = os.path.join(self.data_dir,'piff-output')
         full_output_name=os.path.join(output_dir,output_name)
-        output_arg = ''.join(['output.file_name=',output_name,'output.dir=',output_dir])
+        output_arg = ''.join(['output.file_name=',output_name,' output.dir=',output_dir])
         cmd = ' '.join(['piffify', piff_config_arg,image_arg,psfcat_arg, output_arg])
 
         self.logprint("piff cmd is " + cmd)
@@ -619,14 +622,14 @@ class BITMeasurement():
             truthcat : the simulation truth catalog written out by GalSim
         '''
 
-        pdb.set_trace()
+        
         try:
             ss = Table.read(sscat,hdu=2)
         except:
             ss = Table.read(sscat,hdu=1)
 
         if truthfile is not None:
-            pdb.set_trace()
+            
             # Read in truthfile, obtain stars with redshift cut
             truthcat = Table.read(truthfile,format='ascii')
             stars=truthcat[truthcat['redshift']==0]
@@ -640,7 +643,8 @@ class BITMeasurement():
 
             # Save result to file, return filename
             ss=ss[matches]
-            ss[ss['SNR_WIN']>starparams['MIN_SNR']].write(outname,format='fits',overwrite=True)
+            wg = (ss['SNR_WIN']>star_params['MIN_SNR']) & (ss['CLASS_STAR']>star_params['CLASS_STAR'])
+            ss[ss['SNR_WIN']>star_params['MIN_SNR']].write(outname,format='fits',overwrite=True)
 
 
         else:
