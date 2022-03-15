@@ -509,10 +509,13 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
                     ntry=ntry, metacal_pars=metacal_pars)
     mcal_res = mcb.get_metacal_result() # this is a dict
 
-    mca_res = add_mcal_responsivities(mcal_res, mcal_shear)
+    mcal_res = add_mcal_responsivities(mcal_res, mcal_shear)
+
+    r11 = mcal_res['MC']['r11']
+    r22 = mcal_res['MC']['r22']
 
     if logprint.vb is True:
-        logprint(f'R11: {r11:.3} \nR22:{r22:.3} ')
+        logprint(f'R11: {r11:.3} \nR22: {r22:.3} ')
 
     # To generate a model image, these calls do need to be here
     mcb.fit_psfs(psf_model, 1.)
