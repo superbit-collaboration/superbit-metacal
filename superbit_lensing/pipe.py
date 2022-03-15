@@ -80,7 +80,7 @@ class SuperBITModule(dict):
 
         for flag in self._flag_fields:
             if flag in self._config:
-                options += f' --{flag}={self._config[flag]}'
+                options += f' --{flag}'
 
         vb = ' --vb' if run_options['vb'] is True else ''
         options += vb
@@ -408,7 +408,7 @@ class MedsmakerModule(SuperBITModule):
         return cmd
 
 class MetacalModule(SuperBITModule):
-    _req_fields = ['medsfile', 'outfile']
+    _req_fields = ['meds_file', 'outfile']
     _opt_fields = ['outdir','start', 'end', 'plot', 'n', 'vb']
 
     def __init__(self, name, config):
@@ -434,13 +434,13 @@ class MetacalModule(SuperBITModule):
 
         run_name = run_options['run_name']
         outdir = self._config['outdir']
-        medsfile = self._config['medsfile']
+        meds_file = self._config['meds_file']
         outfile = self._config['outfile']
         mcal_dir = os.path.join(utils.get_module_dir(),
                                 'metacalibration')
         filepath = os.path.join(mcal_dir, 'ngmix_fit_superbit3.py')
 
-        base = f'python {filepath} {medsfile} {outfile}'
+        base = f'python {filepath} {meds_file} {outfile}'
 
         # Set up some default values that require the run config
         col = 'n'
@@ -460,7 +460,7 @@ class MetacalModule(SuperBITModule):
         return cmd
 
 class NgmixFitModule(SuperBITModule):
-    _req_fields = ['medsfile', 'outfile', 'config']
+    _req_fields = ['meds_file', 'outfile', 'config']
     _opt_fields = ['outdir', 'start', 'end', 'n', 'clobber', 'vb']
 
     def __init__(self, name, config):
@@ -486,7 +486,7 @@ class NgmixFitModule(SuperBITModule):
 
         outdir = self._config['outdir']
 
-        medsfile = self._config['medsfile']
+        meds_file = self._config['meds_file']
         outfile = self._config['outfile']
         outfile = os.path.join(outdir, outfile)
         config = self._config['config']
@@ -495,11 +495,7 @@ class NgmixFitModule(SuperBITModule):
                                 'ngmix_fit')
         filepath = os.path.join(ngmix_dir, 'ngmix_fit.py')
 
-        base = f'python {filepath} '
-
-        # While these are considered required for the pipeline, they are
-        # technically optional args in ngmix_fit.py due to testing option
-        base += f'-medsfile={medsfile} -outfile={outfile} -config={config}'
+        base = f' python {filepath} {meds_file} {outfile} {config}'
 
         # Setup some options that rquire the run config
         col = 'n'
@@ -555,7 +551,7 @@ class ShearProfileModule(SuperBITModule):
 
         base = f'python {filepath} '
 
-        base += f'{se_file} {mcal_file} {outfle} '
+        base += f'{se_file} {mcal_file} {outfile} '
 
         options = self._setup_options(run_options)
 
@@ -627,8 +623,9 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
     if (clobber is True) or (not os.path.exists(filename)):
         run_name = 'pipe_test'
         outdir = os.path.join(utils.TEST_DIR, run_name)
-        medsfile = os.path.join(outdir, f'{run_name}_meds.fits')
-        mcal_file = f'{run_name}_mcal.fits'
+        se_file = os.path.join(outdir, f'{run_name}_mock_coadd_cat.ldac')
+        meds_file = os.path.join(outdir, f'{run_name}_meds.fits')
+        mcal_file = os.path.join(outdir, f'{run_name}_mcal.fits')
         ngmix_test_config = make_test_ngmix_config('ngmix_test.yaml',
                                                    outdir=outdir,
                                                    run_name=run_name)
@@ -660,26 +657,26 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                 },
                 'medsmaker': {
                     'mock_dir': outdir,
-                    'outfile': medsfile,
+                    'outfile': meds_file,
                     'fname_base': run_name,
                     'run_name': run_name,
                     'outdir': outdir
                 },
                 'metacal': {
-                    'medsfile': medsfile,
+                    'meds_file': meds_file,
                     'outfile': mcal_file,
                     'outdir': outdir,
                     'end': 500
                 },
                 'ngmix_fit': {
-                    'medsfile': medsfile,
+                    'meds_file': meds_file,
                     'outfile': f'{run_name}_ngmix.fits',
                     'config': ngmix_test_config,
                     'outdir': outdir,
                     'end': 100
                 },
                 'shear_profile': {
-                    'se_file': f'{run_name}_mock_coadd_cat.ldac',
+                    'se_file': se_file,
                     'mcal_file': mcal_file,
                     'outfile': f'{run_name}_annular.fits',
                     'outdir': outdir,
