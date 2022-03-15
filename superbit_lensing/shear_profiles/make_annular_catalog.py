@@ -7,8 +7,6 @@ from astropy.io import fits
 from esutil import htm
 from argparse import ArgumentParser
 
-from superbit_lensing.metacalibration.ngmix_fit_superbit3 import add_mcal_responsivities
-
 parser = ArgumentParser()
 
 parser.add_argument('se_file', type=str,
@@ -48,7 +46,7 @@ class AnnularCatalog():
         self.run_name = cat_info['run_name']
 
         if self.outdir is not None:
-            self.outfile = os.path.join(self.outdir, sellf.outfile)
+            self.outfile = os.path.join(self.outdir, self.outfile)
         else:
             self.outdir = ''
 
@@ -304,7 +302,7 @@ def main(args):
     vb = args.vb
 
     cat_info={
-        'se_file':se_file,
+        'se_file': se_file,
         'mcal_file': mcal_file,
         'run_name': run_name,
         'outfile': outfile,
