@@ -4,7 +4,7 @@ File with classes & functions useful for matching catalogs
 
 import numpy as np
 import esutil.htm as htm
-from astropy.table import Table
+from astropy.table import Table, hstack
 
 class MatchedCatalog(object):
 
