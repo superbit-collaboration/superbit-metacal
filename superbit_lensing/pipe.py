@@ -394,7 +394,6 @@ class MedsmakerModule(SuperBITModule):
         base = f'python {filepath} {mock_dir} {outfile}'
 
         options = self._setup_options(run_options)
-        #if
 
         cmd = base + options
 
