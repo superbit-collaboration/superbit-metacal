@@ -102,7 +102,7 @@ class BITMeasurement():
         self.weight_file = None
         self.mask_file = None
         self.mask_path = None
-        self.pix_scale = 1.0
+        self.pix_scale = None
 
         if data_dir is None:
             self.data_dir = os.getcwd()
@@ -193,33 +193,6 @@ class BITMeasurement():
             wcs_sip_header=None
 
         return wcs_sip_header
-
-    def get_pixel_scale(self,image_filename=None):
-        '''
-        use astropy.wcs to obtain the pixel scale (a/k/a plate scale)
-        for the input image. Returns pixel scale in arcsec/pixels.
-
-        Input:
-        :image_filename: image for which pixel scale is desired. Default is self.coadd_file
-
-        Return:
-        :pix_scale: image pixel scale in arcsec/pixels
-
-        '''
-        if image_filename is None:
-            image_filename = self.coadd_file
-
-        # Get coadd image header
-        hdr = fits.getheader(image_filename)
-
-        # Instantiate astropy.wcs.WCS header
-        w=wcs.WCS(hdr)
-
-        # Obtain pixel scale in degrees/pix & convert to arcsec/pix
-        cd1_1 = wcs.utils.proj_plane_pixel_scales(w)[0]
-        pix_scale = cd1_1 * 3600
-
-        return pix_scale
 
     def _make_new_fits(self,image_filename):
         '''
@@ -480,8 +453,7 @@ class BITMeasurement():
         self.coadd_file = detection_filepath
 
         # Set pixel scale
-        pix_scale = self.get_pixel_scale()
-        self.pix_scale = pix_scale
+        self.pix_scale = utils.get_pixel_scale(image_filename = self.coadd_file)
 
         # Run SExtractor on coadd
         cat_name = self._run_sextractor(detection_filepath,sextractor_config_path=sextractor_config_path)
