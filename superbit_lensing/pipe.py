@@ -4,8 +4,8 @@ import yaml
 import logging
 import subprocess
 
-import utils
-from diagnostics import build_diagnostics
+from superbit_lensing import utils
+from superbit_lensing.diagnostics import build_diagnostics
 
 import pudb
 
@@ -361,7 +361,7 @@ class GalSimModule(SuperBITModule):
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
     _opt_fields = ['fname_base', 'meds_coadd', 'outdir', 'clobber', 'source_select',
-                   'cut_stars', 'vb']
+                   'select_truth_stars','psf_type','vb']
 
     def __init__(self, name, config):
         super(MedsmakerModule, self).__init__(name, config)
@@ -688,4 +688,3 @@ MODULE_TYPES = {
     'ngmix-fit': NgmixFitModule,
     'shear-profile': ShearProfileModule,
     }
-

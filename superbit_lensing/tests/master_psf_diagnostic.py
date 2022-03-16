@@ -11,7 +11,7 @@ import pdb
 from argparse import ArgumentParser
 
 from starmaker import StarMaker, StampBackground
-from psfmaker import PSFMaker,make_output_table
+from psfmaker import PSFMaker,make_output_table,make_rho_rhatios
 
 
 parser = ArgumentParser()
@@ -68,7 +68,7 @@ def main():
         sys.exit()
     """
     if args.outdir is None:
-        outdir = './psf_diagnostics'
+        outdir = './master_psf_diagnostics'
     if args.min_snr is not None:
         min_snr = args.min_snr
     if args.im_name is not None:
@@ -125,7 +125,8 @@ def main():
     # Write star & psf HSM fits to file
     outfile=os.path.join(outdir,'star+psf_HSM_fits.ldac')
     make_output_table(makers,prefix,outfile=outfile)
-
+    
+    make_rho_rhatios(file_path=outdir)
 
 if __name__ == "__main__":
     import pdb, traceback, sys
