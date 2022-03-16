@@ -31,9 +31,9 @@ parser.add_argument('--meds_coadd', action='store_true', default=False,
                     help='Set to keep coadd cutout in MEDS file')
 parser.add_argument('--clobber', action='store_true', default=False,
                     help='Set to overwrite files')
-parser.add_argument('--source_select', action='store', default=False,
+parser.add_argument('--source_select', action='store_true', default=False,
                     help='Set to select sources during MEDS creation')
-parser.add_argument('--select_truth_stars', action='store', default=False,
+parser.add_argument('--select_truth_stars', action='store_true', default=False,
                     help='Set to match against truth catalog for PSF model fits')
 parser.add_argument('-v', '--verbose', action='store_true', default=False,
                     help='Verbosity')
@@ -62,12 +62,6 @@ def main():
         fname_base = 'mock_superbit_obs'
     else:
         fname_base = args.fname_base
-
-
-    if (select_truth_stars=='true') or (select_truth_stars=='True'):
-        select_truth_stars = True
-    else:
-        select_truth_stars = False
 
 
     science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub].fits')
