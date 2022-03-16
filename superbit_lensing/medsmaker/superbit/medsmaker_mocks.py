@@ -1,4 +1,3 @@
-import ngmix
 import numpy as np
 import meds
 import os
@@ -16,6 +15,7 @@ import astropy.units as u
 import astropy.coordinates
 from astroquery.gaia import Gaia
 import superbit_lensing.utils as utils
+import glob
 
 '''
 Goals:
@@ -102,6 +102,7 @@ class BITMeasurement():
         self.weight_file = None
         self.mask_file = None
         self.mask_path = None
+        self.pix_scale = 1.0
 
         if data_dir is None:
             self.data_dir = os.getcwd()
@@ -192,6 +193,33 @@ class BITMeasurement():
             wcs_sip_header=None
 
         return wcs_sip_header
+
+    def get_pixel_scale(self,image_filename=None):
+        '''
+        use astropy.wcs to obtain the pixel scale (a/k/a plate scale)
+        for the input image. Returns pixel scale in arcsec/pixels.
+
+        Input:
+        :image_filename: image for which pixel scale is desired. Default is self.coadd_file
+
+        Return:
+        :pix_scale: image pixel scale in arcsec/pixels
+
+        '''
+        if image_filename is None:
+            image_filename = self.coadd_file
+
+        # Get coadd image header
+        hdr = fits.getheader(image_filename)
+
+        # Instantiate astropy.wcs.WCS header
+        w=wcs.WCS(hdr)
+
+        # Obtain pixel scale in degrees/pix & convert to arcsec/pix
+        cd1_1 = wcs.utils.proj_plane_pixel_scales(w)[0]
+        pix_scale = cd1_1 * 3600
+
+        return pix_scale
 
     def _make_new_fits(self,image_filename):
         '''
@@ -447,10 +475,13 @@ class BITMeasurement():
         if sextractor_config_path is None:
             sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
 
-        #outfile_name='mock_empirical_psf_coadd.fits'; weightout_name='mock_empirical_psf_coadd.weight.fits'
         outfile_name='mock_coadd.fits'; weightout_name='mock_coadd.weight.fits'
         detection_filepath, weight_filepath= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
         self.coadd_file = detection_filepath
+
+        # Set pixel scale
+        pix_scale = self.get_pixel_scale()
+        self.pix_scale = pix_scale
 
         # Run SExtractor on coadd
         cat_name = self._run_sextractor(detection_filepath,sextractor_config_path=sextractor_config_path)
@@ -514,9 +545,6 @@ class BITMeasurement():
             # TODO: update as necessary
             weightfile = self.mask_file.replace('mask', 'weight')
 
-            #self.psf_models.append(psfex.PSFEx(psfex_model_file))
-            # Those PSF models get made in MEDS file...
-
             if psf_mode == 'piff':
 
                 piff_model = self._make_piff_model(imagefile, select_truth_stars=select_truth_stars,
@@ -524,7 +552,9 @@ class BITMeasurement():
                 self.psf_models.append(piff_model)
 
             elif psf_mode == 'psfex':
+
                 psfex_model_file = self._make_psfex_model(im_cats[i], weightfile=weightfile,select_truth_stars=select_truth_stars,star_params=star_params)
+
                 # move checkimages to psfex_output
                 cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', self.psf_path])
                 cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', self.psf_path])
@@ -548,8 +578,8 @@ class BITMeasurement():
 
         # If flagged, get a "clean" star catalog for PSFEx input
         if select_truth_stars==True:
+
             # This will break for any truth file nomenclature that isn't pipeline default
-            import glob
             truthdir=self.data_dir
             truthcat = glob.glob(''.join([truthdir,'*truth.fits']))[0]
             truthfilen=os.path.join(truthdir,truthcat)
@@ -577,17 +607,10 @@ class BITMeasurement():
             psfex_out_dir='./tmp/', select_truth_stars=False,star_params=None):
         '''
         Method to invoke PIFF for PSF modeling
-        Also creates individual exposure catalogs
-        Unclear what it should return yet...
-        Steps:
-            - Create sextractor catalog for input image
-            - Filter sexcat to create star catalog on the fly
-              with some common-sense selections
-            - If option is given, match star cat against truth
-            - Run PIFF
-            -
+        Returns a "PiffExtender" object with the get_rec() and get_cen()
+        functions expected by meds.maker
 
-        First, let's get it to run on one, then we can focus on running list!
+        First, let's get it to run on one, then we can focus on running list
         '''
 
         if sextractor_config_path is None:
@@ -596,14 +619,13 @@ class BITMeasurement():
         imcat_ldac_name=imagefile.replace('.fits','_cat.ldac')
 
         if select_truth_stars==True:
-            # This will break for any truth file nomenclature
-            # that isn't pipeline default
-            import glob
+
+            # This will break for any truth file nomenclature that isn't pipeline default
             truthdir=self.data_dir
             try:
-                truthcat = glob.glob(os.path.join(truthdir,'truth*.dat'))[0]
-            except:
                 truthcat = glob.glob(os.path.join(truthdir,'truth*.fits'))[0]
+            except:
+                truthcat = glob.glob(os.path.join(truthdir,'truth*.dat'))[0]
             truthfilen=os.path.join(truthdir,truthcat)
             self.logprint("using truth catalog %s" % truthfilen)
             psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,\
@@ -740,7 +762,7 @@ class BITMeasurement():
         meta['magzp_ref'] = magzp
         return meta
 
-    def _calculate_box_size(self,angular_size,size_multiplier = 2.5, min_size = 16, max_size= 64, pixel_scale = 0.144):
+    def _calculate_box_size(self,angular_size,size_multiplier = 2.5, min_size = 16, max_size= 64):
         '''
         Calculate the cutout size for this survey.
 
@@ -751,6 +773,9 @@ class BITMeasurement():
         :max_size:
 
         '''
+
+        pixel_scale = self.pix_scale
+
         box_size_float = np.ceil( angular_size/pixel_scale)
 
         # Available box sizes to choose from -> 16 to 256 in increments of 2
