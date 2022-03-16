@@ -4,8 +4,8 @@ import yaml
 import logging
 import subprocess
 
-import utils
-from diagnostics import build_diagnostics
+from superbit_lensing import utils
+from superbit_lensing.diagnostics import build_diagnostics
 
 import pudb
 
@@ -368,8 +368,8 @@ class GalSimModule(SuperBITModule):
 
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
-    _opt_fields = ['fname_base', 'run_name', 'meds_coadd', 'outdir']
-    _flag_fields = ['clobber', 'source_select', 'cut_stars', 'vb']
+    _opt_fields = ['fname_base', 'run_name', 'meds_coadd', 'outdir', 'psf_type']
+    _flag_fields = ['clobber', 'source_select', 'select_truth_stars', 'vb']
 
     def __init__(self, name, config):
         super(MedsmakerModule, self).__init__(name, config)
@@ -629,6 +629,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
         ngmix_test_config = make_test_ngmix_config('ngmix_test.yaml',
                                                    outdir=outdir,
                                                    run_name=run_name)
+        overwrite = True
         with open(filename, 'w') as f:
             # Create dummy config file
             CONFIG = {
@@ -653,7 +654,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                                                'galsim',
                                                'config_files'),
                     'outdir': outdir,
-                    'clobber': clobber
+                    'clobber': overwrite
                 },
                 'medsmaker': {
                     'mock_dir': outdir,
@@ -666,7 +667,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'meds_file': meds_file,
                     'outfile': mcal_file,
                     'outdir': outdir,
-                    'end': 500
+                    'end': 2500
                 },
                 'ngmix_fit': {
                     'meds_file': meds_file,
@@ -681,7 +682,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'outfile': f'{run_name}_annular.fits',
                     'outdir': outdir,
                     'run_name': run_name,
-                    'overwrite': clobber,
+                    'overwrite': overwrite,
                 }
             }
 
@@ -700,4 +701,3 @@ MODULE_TYPES = {
     'ngmix_fit': NgmixFitModule,
     'shear_profile': ShearProfileModule,
     }
-

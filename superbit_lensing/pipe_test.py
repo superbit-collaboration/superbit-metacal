@@ -10,14 +10,11 @@ parser = ArgumentParser()
 
 parser.add_argument('--fresh', action='store_true', default=False,
                     help='Clean test directory of old outputs')
-parser.add_argument('--clobber', action='store_true', default=False,
-                    help='Set to overwrite files')
 
 def main():
 
     args = parser.parse_args()
     fresh = args.fresh
-    clobber = args.clobber
 
     testdir = utils.get_test_dir()
 
@@ -30,7 +27,7 @@ def main():
     logdir = os.path.join(testdir, 'pipe_test')
     log = utils.setup_logger(logfile, logdir=logdir)
 
-    config_file = make_test_config(clobber=clobber, outdir=logdir)
+    config_file = make_test_config(clobber=True, outdir=logdir)
 
     config = utils.read_yaml(config_file)
     vb = config['run_options']['vb']

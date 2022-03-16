@@ -7,6 +7,8 @@ import superbit_lensing as sb
 import numpy as np
 import subprocess
 import pdb, pudb
+import fits
+
 
 class ForkedPdb(pdb.Pdb):
     """A Pdb subclass that may be used
@@ -273,6 +275,33 @@ def setup_batches(nobjs, ncores):
         start += batch_len[i]
 
     return batch_indices
+
+def get_pixel_scale(image_filename):
+    '''
+    use astropy.wcs to obtain the pixel scale (a/k/a plate scale)
+    for the input image. Returns pixel scale in arcsec/pixels.
+
+    Input:
+
+    :image_filename: FITS image for which pixel scale is desired
+
+    Return:
+
+    :pix_scale: image pixel scale in arcsec/pixels
+
+    '''
+
+    # Get coadd image header
+    hdr = fits.getheader(image_filename)
+
+    # Instantiate astropy.wcs.WCS header
+    w=wcs.WCS(hdr)
+
+    # Obtain pixel scale in degrees/pix & convert to arcsec/pix
+    cd1_1 = wcs.utils.proj_plane_pixel_scales(w)[0]
+    pix_scale = cd1_1 * 3600
+
+    return pix_scale
 
 def make_dir(d):
     '''

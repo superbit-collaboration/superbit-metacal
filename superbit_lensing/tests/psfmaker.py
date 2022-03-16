@@ -406,7 +406,7 @@ class PSFMaker:
     def _run_rho_stats(self,stars=None,rparams=None,outdir=None,vb=False):
 
         if rparams==None:
-            rparams = {'min_sep':100,'max_sep':3000,'nbins':60}
+            rparams = {'min_sep':150,'max_sep':4000,'nbins':15}
         min_sep = rparams['min_sep']
         max_sep = rparams['max_sep']
         nbins = rparams['nbins']
@@ -425,61 +425,62 @@ class PSFMaker:
         Tpsf = (2*(stars.hsm_sig[wg]))**2
         dT = T-Tpsf; dTT = dT/T
 
-        # Stars, don't think it actually gets used...
-        cat = treecorr.Catalog(x=self.x[wg],y=self.y[wg],g1=star_g1,g2=star_g2,k=dTT)
+        # Stars & size-residual-scaled stars
+        starcat = treecorr.Catalog(x=self.x[wg],y=self.y[wg],g1=star_g1,g2=star_g2)
+        rs_starcat = treecorr.Catalog(x=self.x[wg],y=self.y[wg],g1=star_g1*dTT,g2=star_g2*dTT)
 
-        # PSFs & size-scaled PSFs (I think)
-        psfcat = treecorr.Catalog(x=self.x[wg],y=self.y[wg],g1=psf_g1,g2=psf_g2,k=dTT)
-        rs_psfcat = treecorr.Catalog(x=self.x[wg],y=self.y[wg],g1=psf_g1*dTT,g2=psf_g2*dTT,k=dTT)
+        # PSFs & size-residual-scaled PSFs
+        psfcat = treecorr.Catalog(x=self.x[wg],y=self.y[wg],g1=psf_g1,g2=psf_g2)
+        rs_psfcat = treecorr.Catalog(x=self.x[wg],y=self.y[wg],g1=psf_g1*dTT,g2=psf_g2*dTT)
 
-        # PSF Resids (I think)
-        psf_resid_cat = treecorr.Catalog(x=self.x[wg],y=self.y[wg],g1=dg1,g2=dg2,k=dTT)
+        # PSF Resids
+        psf_resid_cat = treecorr.Catalog(x=self.x[wg],y=self.y[wg],g1=dg1,g2=dg2)
 
 
         # rho-1: psf_ellip residual autocorrelation
         rho1 = treecorr.GGCorrelation(min_sep=min_sep, max_sep=max_sep, nbins=nbins)
-        rho1.process(psf_resid_cat,psf_resid_cat)
+        rho1.process(psf_resid_cat)
         rho1.write(os.path.join(outdir,'_'.join([str(self.psf_type),'rho_1.txt'])))
         if vb==True:
             print('bin_size = %.6f'%rho1.bin_size)
-            print('mean abs(rho1) = %.4e median = %.4e std = %.4e' % \
-                (np.mean(abs(rho1.xip)),np.median(abs(rho1.xip)),\
-                np.std(abs(rho1.xip))))
+            print('mean rho1 = %.4e median = %.4e std = %.4e' % \
+                (np.mean(rho1.xip),np.median(rho1.xip),\
+                np.std(rho1.xip)))
 
         # rho-2: psf_ellip x psf_ellip residual correlation
         rho2 = treecorr.GGCorrelation(min_sep=min_sep, max_sep=max_sep, nbins=nbins)
-        rho2.process(psfcat,psf_resid_cat)
+        rho2.process(starcat,psf_resid_cat)
         rho2.write(os.path.join(outdir,'_'.join([str(self.psf_type),'rho_2.txt'])))
         if vb==True:
-            print('mean abs(rho2) = %.4e median = %.4e std = %.4e' % \
-                (np.mean(abs(rho2.xip)),np.median(abs(rho2.xip)),\
-                np.std(abs(rho2.xip))))
+            print('mean rho2 = %.4e median = %.4e std = %.4e' % \
+                (np.mean(rho2.xip),np.median(rho2.xip),\
+                np.std(rho2.xip)))
 
         # My *guess* at rho-3: psf_ellip x psf_size residual correlation
         rho3 = treecorr.GGCorrelation(min_sep=min_sep, max_sep=max_sep, nbins=nbins)
-        rho3.process(rs_psfcat,rs_psfcat)
+        rho3.process(rs_starcat)
         rho3.write(os.path.join(outdir,'_'.join([str(self.psf_type),'rho_3.txt'])))
         if vb==True:
-            print('mean abs(rho3) = %.4e median = %.4e std = %.4e' % \
-                (np.mean(abs(rho3.xip)),np.median(abs(rho3.xip)),
-                np.std(abs(rho3.xip))))
+            print('mean rho3 = %.4e median = %.4e std = %.4e' % \
+                (np.mean(rho3.xip),np.median(rho3.xip),
+                np.std(rho3.xip)))
 
         # My *guess* at rho-4: psf ellip resid x (psf ellip *size resid)
         rho4 = treecorr.GGCorrelation(min_sep=min_sep, max_sep=max_sep, nbins=nbins)
-        rho4.process(psf_resid_cat,rs_psfcat)
+        rho4.process(psf_resid_cat,rs_starcat)
         rho4.write(os.path.join(outdir,'_'.join([str(self.psf_type),'rho_4.txt'])))
         if vb==True:
-            print('mean abs(rho4) = %.4e median = %.4e std = %.4e' % \
-            (np.mean(abs(rho4.xip)),np.median(abs(rho4.xip)), np.std(rho4.xip)))
+            print('mean rho4 = %.4e median = %.4e std = %.4e' % \
+            (np.mean(rho4.xip),np.median(rho4.xip), np.std(rho4.xip)))
 
         # My *guess* at rho-4: psf ellip  x (psf ellip *size resid)
         rho5 = treecorr.GGCorrelation(min_sep=min_sep, max_sep=max_sep, nbins=nbins)
-        rho5.process(psfcat,rs_psfcat)
+        rho5.process(starcat,rs_starcat)
         rho5.write(os.path.join(outdir,'_'.join([str(self.psf_type),'rho_5.txt'])))
 
         if vb==True:
-            print('mean abs(rho5) = %.4e median = %.4e std = %.4e' % \
-            (np.mean(abs(rho5.xip)),np.median(abs(rho5.xip)), np.std(rho5.xip)))
+            print('mean rho5 = %.4e median = %.4e std = %.4e' % \
+            (np.mean(rho5.xip),np.median(rho5.xip), np.std(rho5.xip)))
 
         return rho1,rho2,rho3,rho4,rho5
 
@@ -625,10 +626,103 @@ class PSFMaker:
         make_resid_plot(psf=self,stars=stars,outname=outname,vb=vb)
 
         # Compute & make output rho-statistics figures
-        rparams={'min_sep':300,'max_sep':5500,'nbins':60}
+        rparams={'min_sep':200,'max_sep':5000,'nbins':50}
         self.run_rho_stats(stars=stars,rparams=rparams,vb=vb,outdir=outdir)
 
         #self._write_to_file(outdir=outdir,vb=vb)
 
         print("finished running PSFMaker()")
         return
+
+def make_rho_rhatios(file_path='./',rho_files=None):
+    """
+    Make rho ratio plots for different PSF types.
+    Note thatthe master_psf_diagnostics.py file nomenclature
+    is assumed: `[psf_type]_rho_[1-5].txt`
+    psf_type=['epsfex','gpsfex','piff'],
+    """
+
+    import glob
+
+    for i in range(1,6):
+        """
+        if rho_files is not None:
+            rho_files = list(rho_files)
+        else:
+
+            "lmao there has to be a better way to do this"
+            file_root = ''.join(['*_rho_',str(i),'.txt'])
+            rho_files = glob.glob(file_root)
+
+        for rho in rho_files:
+        This should be some sort of os.path.exists thing
+        """
+        try:
+            pexn=os.path.join(file_path,''.join(['epsfex_rho_',str(i),'.txt']))
+            pex=Table.read(pexn,format='ascii',header_start=1)
+        except:
+            pex=None
+        try:
+            gpsfn = os.path.join(file_path,''.join(['gpsfex_rho_',str(i),'.txt']))
+            gpsf=Table.read(gpsfn,format='ascii',header_start=1)
+        except:
+            gpsf=None
+        try:
+            piffn = os.path.join(file_path,''.join(['piff_rho_',str(i),'.txt']))
+            piff=Table.read(piffn,format='ascii',header_start=1)
+        except:
+            piff=None
+
+        savename = os.path.join(file_path,'rho_{}_comparisons.png'.format(i))
+
+        fig,ax=plt.subplots(nrows=1,ncols=1,figsize=[12,6])
+        ax.set_xscale('log')
+        ax.set_yscale('log', nonpositive='clip')
+        ax.set_ylabel(r'$\rho_{}(\theta)$'.format(i))
+        plt.xlabel(r'$\theta$ (arcsec)')
+
+        if pex is not None:
+
+            r = pex['meanr'] * .144 / 60 # from pixels --> arcminutes
+            pex_xip = np.abs(pex['xip'])
+            pex_sig = pex['sigma_xip']
+
+            plt.plot(r, pex_xip, color='blue',marker='.',ls='-',label=r'pex')
+            plt.plot(r, -pex_xip, color='blue',  marker='.',ls=':',lw=1)
+            plt.errorbar(r[pex_xip>0], pex_xip[pex_xip>0], yerr=pex_sig[pex_xip>0], color='blue', lw=0.3, ls='')
+            plt.errorbar(r[pex_xip<0], -pex_xip[pex_xip<0], yerr=pex_sig[pex_xip<0], color='blue', lw=0.3, ls='')
+            lp = plt.errorbar(-r, pex_xip, yerr=pex_sig, color='blue')
+
+        if gpsf is not None:
+
+            ### GPSF, rho3
+            r = gpsf['meanr'] * .144 / 60 # from pixels --> arcminutes
+            gpsf_xip = np.abs(gpsf['xip'])
+            gpsf_sig = gpsf['sigma_xip']
+
+            plt.plot(r, gpsf_xip, color='rebeccapurple',marker='.',ls='-',label=r'gpsf')
+            plt.plot(r, -gpsf_xip, color='rebeccapurple',  marker='.',ls=':',lw=1)
+            plt.errorbar(r[gpsf_xip>0], gpsf_xip[gpsf_xip>0], yerr=gpsf_sig[gpsf_xip>0], color='rebeccapurple', lw=0.3, ls='')
+            plt.errorbar(r[gpsf_xip<0], -gpsf_xip[gpsf_xip<0], yerr=gpsf_sig[gpsf_xip<0], color='rebeccapurple', lw=0.3, ls='')
+            lp2 = plt.errorbar(-r, gpsf_xip, yerr=gpsf_sig, color='rebeccapurple')
+
+        if piff is not None:
+            ### PIFF
+
+            r = piff['meanr'] * .144 / 60 # from pixels --> arcminutes
+            piff_xip = np.abs(piff['xip'])
+            piff_sig = piff['sigma_xip']
+
+            plt.plot(r, piff_xip, color='salmon',marker='.',ls='-',label=r'piff')
+            plt.plot(r, -piff_xip, color='salmon',  marker='.',ls=':',lw=1)
+            plt.errorbar(r[piff_xip>0], piff_xip[piff_xip>0], yerr=piff_sig[piff_xip>0], color='salmon', lw=0.3, ls='')
+            plt.errorbar(r[piff_xip<0], -piff_xip[piff_xip<0], yerr=piff_sig[piff_xip<0], color='salmon', lw=0.3, ls='')
+            lp3 = plt.errorbar(-r, piff_xip, yerr=piff_sig, color='salmon')
+
+        plt.legend()
+        plt.savefig(savename)
+        plt.close(fig)
+
+    print("plots done")
+
+    return
