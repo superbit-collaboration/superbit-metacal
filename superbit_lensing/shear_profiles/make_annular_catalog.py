@@ -7,6 +7,8 @@ from astropy.io import fits
 from esutil import htm
 from argparse import ArgumentParser
 
+from annular_jmac import Annular
+
 parser = ArgumentParser()
 
 parser.add_argument('se_file', type=str,
@@ -19,6 +21,12 @@ parser.add_argument('-run_name', type=str, default=None,
                     help='Name of simulation run')
 parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
+parser.add_argument('-rmin', type=float, default=100,
+                    help='Starting radius value (in pixels)')
+parser.add_argument('-rmax', type=float, default=5200,
+                    help='Ending radius value (in pixels)')
+parser.add_argument('-nbins', type=int, default=18,
+                    help='Number of radial bins')
 parser.add_argument('--overwrite', action='store_true', default=False,
                     help='Set to overwrite output files')
 parser.add_argument('--vb', action='store_true', default=False,
@@ -32,11 +40,13 @@ class AnnularCatalog():
     SExtractor catalog (set in option in main)
     """
 
-    def __init__(self, cat_info):
+    def __init__(self, cat_info, annular_bins):
         """
         cat_info: dict
             A dictionary that must contain the paths for the SExtractor
             catalog, the mcal catalog, and the output catalog filename
+        annular_bins: dict
+            A dictionary holding the definitions of teh annular bins
         """
 
         self.se_file = cat_info['se_file']
@@ -44,6 +54,10 @@ class AnnularCatalog():
         self.outfile = cat_info['outfile']
         self.outdir = cat_info['outdir']
         self.run_name = cat_info['run_name']
+
+        self.rmin = annular_bins['rmin']
+        self.rmax = annular_bins['rmax']
+        self.nbins = annular_bins['nbins']
 
         if self.outdir is not None:
             self.outfile = os.path.join(self.outdir, self.outfile)
@@ -126,7 +140,7 @@ class AnnularCatalog():
         # self.selected.meta={qualcuts}
 
         #self.selected.write('selected_metacal_bgCat.fits',overwrite=True)
-        self.selected.write(self.outcat, format='fits', overwrite=overwrite)
+        self.selected.write(self.outfile, format='fits', overwrite=overwrite)
 
         return
 
@@ -281,13 +295,46 @@ class AnnularCatalog():
 
         return qualcuts
 
-    def run(self, overwrite=False):
+    def compute_tan_shear_profile(self, outfile, plotfile, overwrite=False, vb=False,
+                                  xy_cols=['X_IMAGE', 'Y_IMAGE'],
+                                  g_cols=['g1_Rinv', 'g2_Rinv'],
+                                  nfw_center=[5031, 3353]):
+
+        cat_info = {
+            'infile': self.outfile,
+            'xy_args': xy_cols,
+            'shear_args': g_cols
+        }
+        annular_info = {
+            'rad_args': [self.rmin, self.rmax],
+            'nfw_center': nfw_center,
+            'nbins': self.nbins
+        }
+
+        # Runs the Annular class in annular_jmac.py
+        # runner = AnnularRunner(cat_info, annular_info)
+        annular = Annular(cat_info, annular_info, run_name=self.run_name, vb=vb)
+
+        annular.run(outfile, plotfile, overwrite=overwrite)
+
+        return
+
+    def run(self, overwrite=False, vb=False):
 
         # match master metacal catalog to source extractor cat
         self.join(overwrite=overwrite)
 
         # source selection; saves table to self.outfile
         self.make_table(overwrite=overwrite)
+
+        # compute tangential shear profile and save outputs
+        if self.run_name is not None:
+            p = f'{self.run_name}_'
+        else:
+            p = ''
+        outfile = os.path.join(self.outdir, f'{p}_annular_shear_tab.fits')
+        plotfile = os.path.join(self.outdir, f'{p}_tan_shear.pdf')
+        self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return
 
@@ -298,6 +345,9 @@ def main(args):
     run_name = args.run_name
     outfile = args.outfile
     outdir = args.outdir
+    rmin = args.rmin
+    rmax = args.rmax
+    nbins = args.nbins
     overwrite = args.overwrite
     vb = args.vb
 
@@ -309,10 +359,16 @@ def main(args):
         'outdir': outdir
         }
 
-    annular = AnnularCatalog(cat_info)
+    annular_bins = {
+        'rmin': rmin,
+        'rmax': rmax,
+        'nbins': nbins
+    }
+
+    annular = AnnularCatalog(cat_info, annular_bins)
 
     # run everything
-    annular.run(overwrite=overwrite)
+    annular.run(overwrite=overwrite, vb=vb)
 
     return 0
 
