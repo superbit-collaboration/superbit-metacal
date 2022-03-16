@@ -453,7 +453,7 @@ class BITMeasurement():
         self.coadd_file = detection_filepath
 
         # Set pixel scale
-        self.pix_scale = utils.get_pixel_scale(image_filename = self.coadd_file)
+        self.pix_scale = utils.get_pixel_scale(self.coadd_file)
 
         # Run SExtractor on coadd
         cat_name = self._run_sextractor(detection_filepath,sextractor_config_path=sextractor_config_path)
