@@ -11,25 +11,25 @@ import pudb
 
 parser = ArgumentParser()
 
-parser.add_argument('--medsfile', type=str, default=None,
+parser.add_argument('medsfile', type=str,
                     help='MEDS filename to run ngmix on')
-parser.add_argument('--outfile', type=str, default=None,
+parser.add_argument('outfile', type=str,
                     help='Name of output file')
-parser.add_argument('--config', type=str,
+parser.add_argument('config', type=str,
                     help='ngmix config filename')
-parser.add_argument('--outdir', type=str, default=None,
+parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
-parser.add_argument('--start', type=int, default=None,
+parser.add_argument('-start', type=int, default=None,
                     help='Starting index for MEDS processing')
-parser.add_argument('--end', type=int, default=None,
+parser.add_argument('-end', type=int, default=None,
                     help='Ending index for MEDS processing')
-parser.add_argument('--n', type=int, default=1,
+parser.add_argument('-n', type=int, default=1,
                     help='Number of CPU cores to use')
 parser.add_argument('--clobber', action='store_true', default=False,
                     help='Set to overwrite existing outfile')
 parser.add_argument('--test', action='store_true', default=False,
                     help='Use to do a test run w/ provided config')
-parser.add_argument('-v', action='store_true', default=False,
+parser.add_argument('--vb', action='store_true', default=False,
                     help='Verbose')
 
 class SuperBITngmixRunner(object):
@@ -341,7 +341,7 @@ def main():
     ncores = args.n
     clobber = args.clobber
     test = args.test
-    vb = args.v
+    vb = args.vb
 
     if test is True:
         config = _make_test_ngmix_config()

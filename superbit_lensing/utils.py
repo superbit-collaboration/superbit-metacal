@@ -7,8 +7,8 @@ import superbit_lensing as sb
 import numpy as np
 import subprocess
 import pdb, pudb
-import fits
-
+from astropy.io import fits
+import astropy.wcs as wcs
 
 class ForkedPdb(pdb.Pdb):
     """A Pdb subclass that may be used

@@ -81,7 +81,7 @@ def piff_extender(piff_file,stamp_size=20):
 
 class BITMeasurement():
     def __init__(self, image_files=None, flat_files=None, dark_files=None,
-                 bias_files=None, data_dir=None, log=None, vb=False):
+                 bias_files=None, data_dir=None, run_name=None, log=None, vb=False):
         '''
         :image_files: Python List of image filenames; must be complete relative or absolute path.
         :flat_files: Python List of image filenames; must be complete relative or absolute path.
@@ -94,6 +94,7 @@ class BITMeasurement():
         self.flat_files = flat_files
         self.dark_files = dark_files
         self.bias_files = bias_files
+        self.run_name = run_name
         self.vb = vb
         self.coadd_file = None
         self.catalog = None
@@ -409,7 +410,8 @@ class BITMeasurement():
         catalog = result.get_data()
         pass
 
-    def _run_sextractor(self,detection_file,weight_file=None,sextractor_config_path=None):
+    def _run_sextractor(self, detection_file, weight_file=None,
+                        sextractor_config_path=None):
         '''
         Utility method to invoke Source Extractor on supplied detection file
         Returns: file path of catalog
@@ -424,9 +426,13 @@ class BITMeasurement():
         param_arg = '-PARAMETERS_NAME '+sextractor_config_path+'sextractor.param'
         nnw_arg = '-STARNNW_NAME '+sextractor_config_path+'default.nnw'
         filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
+
         bkg_name = detection_file.replace('.fits','.sub.fits')
         bkg_arg = '-CHECKIMAGE_NAME ' + bkg_name
-        cmd = ' '.join(['sex',detection_file,name_arg, bkg_arg, param_arg,nnw_arg,filter_arg,'-c',config_arg])
+        cmd = ' '.join([
+            'sex', detection_file, name_arg,  bkg_arg,  param_arg, nnw_arg,
+            filter_arg, '-c', config_arg
+            ])
         if weight_file is not None:
             weight_arg = '-WEIGHT_IMAGE '+ weight_file
             cmd = ' '.join([cmd, weight_arg])
@@ -448,7 +454,13 @@ class BITMeasurement():
         if sextractor_config_path is None:
             sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
 
-        outfile_name='mock_coadd.fits'; weightout_name='mock_coadd.weight.fits'
+        if self.run_name is not None:
+            p = f'{self.run_name}_'
+        else:
+            p = ''
+        outfile_name = f'{p}mock_coadd.fits'
+        weightout_name = outfile_name.replace('.fits', '.weight.fits')
+
         detection_filepath, weight_filepath= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
         self.coadd_file = detection_filepath
 

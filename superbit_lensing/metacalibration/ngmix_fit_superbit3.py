@@ -13,19 +13,12 @@ from argparse import ArgumentParser
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-#from numba.core.errors import NumbaExperimentalFeatureWarning, NumbaDeprecationWarning
-#import warnings
 import time
-#warnings.simplefilter('ignore', category=NumbaExperimentalFeatureWarning)
-#warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 from multiprocessing import Pool
 import multiprocessing
 
 import superbit_lensing.utils as utils
-
-#sing.log_to_stderr()
-# mpl.setLevel(logging.INFO)
 
 parser = ArgumentParser()
 
@@ -33,17 +26,17 @@ parser.add_argument('medsfile', type=str,
                     help='MEDS file to process')
 parser.add_argument('outfile', type=str,
                     help='Output filename')
-parser.add_argument('--outdir', type=str, default=None,
+parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
-parser.add_argument('--start', type=int, default=None,
+parser.add_argument('-start', type=int, default=None,
                     help='Starting index for MEDS processing')
-parser.add_argument('--end', type=int, default=None,
+parser.add_argument('-end', type=int, default=None,
                     help='Ending index for MEDS processing')
-parser.add_argument('--plot', type=str, default=True,
+parser.add_argument('-plot', type=str, default=True,
                     help='Make diagnstic plots')
-parser.add_argument('--n', type=int, default=1,
+parser.add_argument('-n', type=int, default=1,
                     help='Number of cores to use')
-parser.add_argument('-v', '--verbose', action='store_true',
+parser.add_argument('--vb', action='store_true',
                     help='Make verbose')
 
 class SuperBITNgmixFitter():
@@ -498,8 +491,12 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
     if pars is None:
         mcal_shear = 0.01
         lm_pars = {'maxfev':2000, 'xtol':5.0e-5, 'ftol':5.0e-5}
-        max_pars = {'method':'lm','lm_pars':lm_pars,'find_center':True}
+        max_pars = {'method':'lm', 'lm_pars':lm_pars, 'find_center':True}
         metacal_pars={'step':mcal_shear}
+    else:
+        mcal_shear = metacal_pars['step']
+        max_pars = pars['max_pars']
+        metacal_pars = pars['metacal_pars']
 
     Tguess = 4*jaclist[0].get_scale()**2
     ntry = 4
@@ -512,23 +509,13 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
                     ntry=ntry, metacal_pars=metacal_pars)
     mcal_res = mcb.get_metacal_result() # this is a dict
 
-    # Define full responsivity matrix, take inner product with shear moments
-    r11 = (mcal_res['1p']['g'][0] - mcal_res['1m']['g'][0])/(2*mcal_shear)
-    r12 = (mcal_res['2p']['g'][0] - mcal_res['2m']['g'][0])/(2*mcal_shear)
-    r21 = (mcal_res['1p']['g'][1] - mcal_res['1m']['g'][1])/(2*mcal_shear)
-    r22 = (mcal_res['2p']['g'][1] - mcal_res['2m']['g'][1])/(2*mcal_shear)
+    mcal_res = add_mcal_responsivities(mcal_res, mcal_shear)
 
-    R = [ [r11, r12], [r21, r22] ]
-    Rinv = np.linalg.inv(R)
-    gMC = np.dot(Rinv,mcal_res['noshear']['g'])
-
-    MC = {'r11':r11,'r12':r12,'r21':r21,'r22':r22,'g1_MC':gMC[0],'g2_MC':gMC[1]}
-    mcal_res['MC'] = MC
-    #mcal_res['g1_MC'] = gMC[0]
-    #mcal_res['g2_MC'] = gMC[1]
+    r11 = mcal_res['MC']['r11']
+    r22 = mcal_res['MC']['r22']
 
     if logprint.vb is True:
-        logprint(f'R11: {r11:.3} \nR22:{r22:.3} ')
+        logprint(f'R11: {r11:.3} \nR22: {r22:.3} ')
 
     # To generate a model image, these calls do need to be here
     mcb.fit_psfs(psf_model, 1.)
@@ -537,6 +524,34 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
     mcal_fit = mcb.get_max_fitter()
 
     return mcal_res, mcal_fit
+
+def add_mcal_responsivities(mcal_res, mcal_shear=0.01):
+    '''
+    Compute and add the mcal responsivity values to the output
+    result dict from get_metacal_result()
+    '''
+
+    # Define full responsivity matrix, take inner product with shear moments
+    r11 = (mcal_res['1p']['g'][0] - mcal_res['1m']['g'][0]) / (2*mcal_shear)
+    r12 = (mcal_res['2p']['g'][0] - mcal_res['2m']['g'][0]) / (2*mcal_shear)
+    r21 = (mcal_res['1p']['g'][1] - mcal_res['1m']['g'][1]) / (2*mcal_shear)
+    r22 = (mcal_res['2p']['g'][1] - mcal_res['2m']['g'][1]) / (2*mcal_shear)
+
+    R = [ [r11, r12], [r21, r22] ]
+    Rinv = np.linalg.inv(R)
+    gMC = np.dot(Rinv,
+                 mcal_res['noshear']['g']
+                 )
+
+    MC = {
+        'r11':r11, 'r12':r12,
+        'r21':r21, 'r22':r22,
+        'g1_MC':gMC[0], 'g2_MC':gMC[1]
+        }
+
+    mcal_res['MC'] = MC
+
+    return mcal_res
 
 def setup_obj(i, meds_obj):
     '''
@@ -628,7 +643,7 @@ def main():
 
     args = parser.parse_args()
 
-    vb = args.verbose # if True, prints out values of R11/R22 for every galaxy
+    vb = args.vb # if True, prints out values of R11/R22 for every galaxy
     medsfile = args.medsfile
     outfilename = args.outfile
     outdir = args.outdir
@@ -638,7 +653,6 @@ def main():
     nproc = args.n
     identifying = {'meds_index':[], 'id':[], 'ra':[], 'dec':[]}
     mcal = {'noshear':[], '1p':[], '1m':[], '2p':[], '2m':[]}
-
 
     # Test for existence of the "outdir" argument. If the "outdir" argument is
     # not given, set it to a default value (current working directory).
