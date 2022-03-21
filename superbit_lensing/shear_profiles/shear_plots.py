@@ -108,7 +108,7 @@ class ShearProfilePlotter(object):
         rcParams['ytick.minor.width'] = 1
         rcParams['ytick.direction'] = 'out'
 
-        fig, axs = plt.subplots(2, 1, figsize=sizesharex=True)#,sharey=True)
+        fig, axs = plt.subplots(2, 1, figsize=size,sharex=True)#,sharey=True)
         fig.subplots_adjust(hspace=0.1)
 
         axs[0].errorbar(radius, etan, yerr=shear1err, xerr=rad_err, fmt='-o',
