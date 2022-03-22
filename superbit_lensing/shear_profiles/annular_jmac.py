@@ -102,7 +102,7 @@ class Annular(object):
 
         Failed shape measurements with g1/g2 = -999999 get filtered out
 
-        confusingly, outfile 
+        confusingly, outfile
         """
 
         xc = self.annular_info['nfw_center'][0]

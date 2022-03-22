@@ -177,8 +177,8 @@ class AnnularCatalog():
                                         & (self.mcal['T_noshear']>=min_T)\
                                         & (self.mcal['s2n_r_noshear']>min_sn)\
                                         & (self.mcal['s2n_r_noshear']<max_sn)\
-                                        & (np.array(self.mcal['pars_cov0_noshear'].tolist())[:,0,0]<covcut)\
-                                        & (np.array(self.mcal['pars_cov0_noshear'].tolist())[:,1,1]<covcut)
+                                        & (np.array(self.mcal['g_cov_noshear'].tolist())[:,0,0]<covcut)\
+                                        & (np.array(self.mcal['g_cov_noshear'].tolist())[:,1,1]<covcut)
                                        ]
 
         selection_1p = self.mcal[(self.mcal['T_1p']>=min_Tpsf*self.mcal['Tpsf_1p'])\
@@ -186,8 +186,8 @@ class AnnularCatalog():
                                       & (self.mcal['T_1p']>=min_T)\
                                       & (self.mcal['s2n_r_1p']>min_sn)\
                                       & (self.mcal['s2n_r_1p']<max_sn)\
-                                      & (np.array(self.mcal['pars_cov0_1p'].tolist())[:,0,0]<covcut)\
-                                      & (np.array(self.mcal['pars_cov0_1p'].tolist())[:,1,1]<covcut)
+                                      & (np.array(self.mcal['g_cov_1p'].tolist())[:,0,0]<covcut)\
+                                      & (np.array(self.mcal['g_cov_1p'].tolist())[:,1,1]<covcut)
                                   ]
 
         selection_1m = self.mcal[(self.mcal['T_1m']>=min_Tpsf*self.mcal['Tpsf_1m'])\
@@ -195,8 +195,8 @@ class AnnularCatalog():
                                       & (self.mcal['T_1m']>=min_T)\
                                       & (self.mcal['s2n_r_1m']>min_sn)\
                                       & (self.mcal['s2n_r_1m']<max_sn)\
-                                      & (np.array(self.mcal['pars_cov0_1m'].tolist())[:,0,0]<covcut)\
-                                      & (np.array(self.mcal['pars_cov0_1m'].tolist())[:,1,1]<covcut)
+                                      & (np.array(self.mcal['g_cov_1m'].tolist())[:,0,0]<covcut)\
+                                      & (np.array(self.mcal['g_cov_1m'].tolist())[:,1,1]<covcut)
                                   ]
 
         selection_2p = self.mcal[(self.mcal['T_2p']>=min_Tpsf*self.mcal['Tpsf_2p'])\
@@ -204,8 +204,8 @@ class AnnularCatalog():
                                       & (self.mcal['T_2p']>=min_T)\
                                       & (self.mcal['s2n_r_2p']>min_sn)\
                                       & (self.mcal['s2n_r_2p']<max_sn)\
-                                      & (np.array(self.mcal['pars_cov0_2p'].tolist())[:,0,0]<covcut)\
-                                      & (np.array(self.mcal['pars_cov0_2p'].tolist())[:,1,1]<covcut)
+                                      & (np.array(self.mcal['g_cov_2p'].tolist())[:,0,0]<covcut)\
+                                      & (np.array(self.mcal['g_cov_2p'].tolist())[:,1,1]<covcut)
                                   ]
 
         selection_2m = self.mcal[(self.mcal['T_2m']>=min_Tpsf*self.mcal['Tpsf_2m'])\
@@ -213,8 +213,8 @@ class AnnularCatalog():
                                       & (self.mcal['T_2m']>=min_T)\
                                       & (self.mcal['s2n_r_2m']>min_sn)\
                                       & (self.mcal['s2n_2m']<max_sn)\
-                                      & (np.array(self.mcal['pars_cov0_2m'].tolist())[:,0,0]<covcut)\
-                                      & (np.array(self.mcal['pars_cov0_2m'].tolist())[:,1,1]<covcut)
+                                      & (np.array(self.mcal['g_cov_2m'].tolist())[:,0,0]<covcut)\
+                                      & (np.array(self.mcal['g_cov_2m'].tolist())[:,1,1]<covcut)
                                   ]
 
         # assuming delta_shear in ngmix_fit_superbit is 0.01
@@ -241,10 +241,11 @@ class AnnularCatalog():
         # compute noise; not entirely sure whether there needs to be a factor of 0.5 on tot_covar...
         # seems like not if I'm applying it just to tangential ellip, yes if it's being applied to each
         #shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
+        pdb.set_trace()
         shape_noise = 0.1
         tot_covar = shape_noise +\
-                    np.array(self.selected['pars_cov_noshear'].tolist())[:,0,0] +\
-                    np.array(self.selected['pars_cov_noshear'].tolist())[:,1,1]
+                    np.array(self.selected['g_cov_noshear'].tolist())[:,0,0] +\
+                    np.array(self.selected['g_cov_noshear'].tolist())[:,1,1]
         weight = 1. / tot_covar
 
         try:
