@@ -177,8 +177,8 @@ class AnnularCatalog():
                                         & (self.mcal['T_noshear']>=min_T)\
                                         & (self.mcal['s2n_r_noshear']>min_sn)\
                                         & (self.mcal['s2n_r_noshear']<max_sn)\
-                                        & (np.array(self.mcal['g_cov_noshear'].tolist())[:,0,0]<covcut)\
-                                        & (np.array(self.mcal['g_cov_noshear'].tolist())[:,1,1]<covcut)
+                                        & (self.mcal['g_cov_noshear'][:,0,0]<covcut)\
+                                        & (self.mcal['g_cov_noshear'][:,1,1]<covcut)
                                        ]
 
         selection_1p = self.mcal[(self.mcal['T_1p']>=min_Tpsf*self.mcal['Tpsf_1p'])\
