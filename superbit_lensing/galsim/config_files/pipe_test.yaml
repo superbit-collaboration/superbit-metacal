@@ -33,7 +33,7 @@ nclustergal:        100           # Number of cluster galaxies (arbitrary)    []
 # Simulated cluster parameters
 # ----------------------------
 lam:                625         # Fiducial wavelength for abberations       [nm]
-mass:               7.0e15      # Cluster mass                              [Msol / h]
+mass:               7.0e14      # Cluster mass                              [Msol / h]
 nfw_z_halo:         0.3        # redshift of the halo                      []
 nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
 omega_m:            0.3         # Omega matter for the background cosmology.
