@@ -11,7 +11,8 @@ from scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.table import Table
-import pudb
+import pudb, pdb
+from esutil import htm
 
 # from superbit_lensing.shear_profiles.shear_plots import ShearProfilePlotter
 
@@ -37,6 +38,8 @@ parser.add_argument('-run_name', type=str, default=None,
                     help='Name of simulation run')
 parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
+parser.add_argument('-truthfile', type=str, default=None,
+                    help='Output directory')
 parser.add_argument('--overwrite', action='store_true', default=False,
                     help='Set to overwrite output files')
 parser.add_argument('--vb', action='store_true', default=False,
@@ -48,13 +51,14 @@ class Annular(object):
 
         """
         :infile:   table that will be read in
-        :outcat:  name of output shear profile catalog
-        :g1/2:    reduced-shear components
-        :gcross:  cross-shear (B-mode)
-        :gtan:    tangential shear (E-mode)
-        :x/y:     x and y positions
-        :r:       distance of galaxy to NFW center
-        :nbins:   number of radial bins for averaging (default = 5)
+        :outcat:   name of output shear profile catalog
+        :truthfile: name of truth file with redshift info
+        :g1/2:     reduced-shear components
+        :gcross:   cross-shear (B-mode)
+        :gtan:     tangential shear (E-mode)
+        :x/y:      x and y positions
+        :r:        distance of galaxy to NFW center
+        :nbins:    number of radial bins for averaging (default = 5)
         :start/endrad: region to consider
         """
 
@@ -66,10 +70,11 @@ class Annular(object):
         self.g2 = None
         self.gcross = None
         self.gtan = None
+        self.ra = None
+        self.dec = None
         self.x = None
         self.y = None
         self.r = None
-        self.mu = None
 
         return
 
@@ -82,15 +87,18 @@ class Annular(object):
             tab = Table.read(annular_file, format='fits')
         except:
             tab = Table.read(annular_file, format='ascii')
-
         try:
             self.x = tab[cat_info['xy_args'][0]]
             self.y = tab[cat_info['xy_args'][1]]
             self.g1 = tab[cat_info['shear_args'][0]]
             self.g2 = tab[cat_info['shear_args'][1]]
-            #self.mu = tab['nfw_mu']
+            self.ra = tab['ra']
+            self.dec = tab['dec']
+
+
         except Exception as e:
-            print('Could not load xy/g1g2 columns; check supplied column names?')
+            print('Could not load xy/g1g2/radec columns; check supplied column names?')
+            print(f'cat_info = {cat_info}')
             raise e
 
         return
@@ -102,7 +110,6 @@ class Annular(object):
 
         Failed shape measurements with g1/g2 = -999999 get filtered out
 
-        confusingly, outfile
         """
 
         xc = self.annular_info['nfw_center'][0]
@@ -141,10 +148,62 @@ class Annular(object):
 
         return
 
+    def redshift_select(self):
+        """
+        Select background galaxies from larger transformed shear catalog:
+            - Load in truth file
+            - Select background galaxies behind galaxy cluster
+            - Match in RA/Dec to transformed shear catalog
+            - Filter self.r, self.gtan, self.gcross to be background-only
+
+        """
+
+        # It might make more sense to open this file at the same time as the annular catalog,
+        # but at least here it's obvious why the file is being opened.
+
+        truthfile = self.cat_info['truthfile']
+
+        try:
+            truth = Table.read(truthfile)
+            if self.vb is True:
+                print(f'Read in truth file {truthfile}')
+
+        except FileNotFoundError as fnf_err:
+            print(f'truth catalog {truthfile} not found, check name/type?')
+            raise fnf_err
+
+        cluster_gals = truth[truth['obj_class']=='cluster_gal']
+        cluster_redshift = np.mean(cluster_gals['redshift'])
+
+        truth_bg_gals = truth[truth['redshift'] > cluster_redshift]
+
+        truth_bg_matcher = htm.Matcher(16,
+                                        ra = truth_bg_gals['ra'],
+                                        dec = truth_bg_gals['dec']
+                                        )
+
+        ann_file_ind, truth_bg_ind, dist = truth_bg_matcher.match(
+                                            ra = self.ra,
+                                            dec = self.dec,
+                                            maxmatch = 1,
+                                            radius = 1E-3
+                                            )
+
+        print(f'# {len(dist)} of {len(self.ra)} objects matched to truth background galaxies')
+
+        self.gtan = self.gtan[ann_file_ind]
+        self.gcross = self.gcross[ann_file_ind]
+        self.r = self.r[ann_file_ind]
+
+        return
+
+
     def compute_profile(self, outfile, overwrite=False):
 
         """
-        workhorse; this will contain the actual azimuthal binning
+        Computes mean tangential and cross shear of background (redshift-filtered)
+        galaxies in azimuthal bins
+
         """
 
         minrad = self.annular_info['rad_args'][0]
@@ -194,9 +253,9 @@ class Annular(object):
 
         return
 
-    def plot_profile(self, cat_file, truth_file, plot_file):
+    def plot_profile(self, cat_file, truthfile, plot_file):
 
-        # plotter = ShearProfilePlotter(cat_file, truth_file)
+        # plotter = ShearProfilePlotter(cat_file, truthfile)
         # plotter.plot(plot_file)
 
         return
@@ -207,6 +266,7 @@ class Annular(object):
 
         self.open_table(self.cat_info)
         self.transform_shears(outdir, overwrite=overwrite)
+        self.redshift_select()
         self.compute_profile(outfile, overwrite=overwrite)
 
         # plotting function stil needs to be refactored...
@@ -262,16 +322,19 @@ def main(args):
     if outdir is not None:
         outfile = os.path.join(self.outdir, outfile)
 
-    # Define annular args
+    """
+    # If obtaining "true" g_tan using the truth file:
+    x_arg = 'x_image'
+    y_arg = 'y_image'
+    startrad = 100
+    endrad = 5000
+    nfw_center = [4784,3190]
+    """
+
+    # Otherwise, define annular args
     x_arg = 'X_IMAGE'
     y_arg = 'Y_IMAGE'
-
-    #x_arg = 'x_image'
-    #y_arg = 'y_image'
-    #startrad = 180
-    #endrad = 4000
     nfw_center = [5031, 3353]
-    #nfw_center = [4784,3190]
 
     print_header(args)
 
