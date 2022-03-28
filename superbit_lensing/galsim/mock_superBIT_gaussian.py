@@ -253,7 +253,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
         mu = 1.0
 
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    final=galsim.Convolve([jitter_psf,gal,optics])
+    final=galsim.Convolve([jitter_psf,gal])
 
     logprint.debug('Convolved star and PSF at galaxy position')
 
@@ -336,7 +336,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     logprint.debug(f'rescaled galaxy with scaling factor {sbparams.flux_scaling}')
 
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    final=galsim.Convolve([jitter_psf,gal,optics])
+    final=galsim.Convolve([jitter_psf,gal])
 
     logprint.debug('Convolved star and PSF at galaxy position')
 
@@ -402,7 +402,7 @@ def make_a_star(ud, wcs, affine, optics, sbparams, logprint):
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    star=galsim.Convolve([jitter_psf,deltastar,optics])
+    star=galsim.Convolve([jitter_psf,deltastar])
 
     star_stamp = star.drawImage(wcs=wcs.local(image_pos)) # before it was scale = 0.206, and that was bad!
     star_stamp.setCenter(image_pos.x,image_pos.y)
