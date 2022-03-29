@@ -144,14 +144,14 @@ class BITMeasurement():
 
     def set_mask(self,mask_name='mask.fits',mask_dir=None):
         if mask_dir is None:
-            self.mask_path = os.path.join(self.work_dir,'mask_files')
+            self.mask_path = os.path.join(self.work_path,'mask_files')
         else:
             self.mask_path = mask_dir
         self.mask_file = os.path.join(self.mask_path, mask_name)
 
     def set_weight(self,weight_name='weight.fits',weight_dir=None):
         if weight_dir is None:
-            weight_dir = os.path.join(self.work_dir,'weight_files')
+            weight_dir = os.path.join(self.work_path,'weight_files')
         self.weight_file = os.path.join(weight_dir, weight_name)
 
     def set_path_to_calib_data(self,path=None):
@@ -565,7 +565,7 @@ class BITMeasurement():
 
             # This will break for any truth file nomenclature that isn't pipeline default
             truthdir=self.data_dir
-            truthcat = glob.glob(''.join([truthdir,'*truth.fits']))[0]
+            truthcat = glob.glob(''.join([truthdir,'*truth*.fits']))[0]
             truthfilen=os.path.join(truthdir,truthcat)
             self.logprint("using truth catalog %s" % truthfilen)
             psfcat_name = self._select_stars_for_psf(sscat=im_cat,truthfile=truthfilen)
@@ -605,11 +605,11 @@ class BITMeasurement():
         if select_truth_stars==True:
 
             # This will break for any truth file nomenclature that isn't pipeline default
-            truthdir=self.data_dir
+            truthdir=self.work_path
             try:
-                truthcat = glob.glob(os.path.join(truthdir,'truth*.fits'))[0]
+                truthcat = glob.glob(os.path.join(truthdir,'*truth*.fits'))[0]
             except:
-                truthcat = glob.glob(os.path.join(truthdir,'truth*.dat'))[0]
+                truthcat = glob.glob(os.path.join(truthdir,'*truth*.dat'))[0]
             truthfilen=os.path.join(truthdir,truthcat)
             self.logprint("using truth catalog %s" % truthfilen)
             psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,\
