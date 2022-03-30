@@ -511,7 +511,7 @@ class NgmixFitModule(SuperBITModule):
 
 class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
-    _opt_fields = ['outdir', 'run_name','truthfile']
+    _opt_fields = ['outdir', 'run_name','truthfile','nfwfile']
     _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):

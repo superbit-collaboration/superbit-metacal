@@ -196,6 +196,50 @@ class Annular(object):
         self.gtan = self.gtan[ann_file_ind]
         self.gcross = self.gcross[ann_file_ind]
         self.r = self.r[ann_file_ind]
+        gal_redshifts = truth_bg_gals[truth_bg_ind]
+
+        return gal_redshifts
+
+    def redshift_resample(self, gal_redshifts):
+        '''
+        Subsample theoretical galaxy redshift distribution to match redshift
+        distribution of detected galaxy catalog using a sort of MC rejection
+        sampling algorithm
+        '''
+        rng = np.random.default_rng()
+
+        nfwfile = self.cat_info['nfwfile']
+        if nfwfile is None:
+            nfwfile='nfwonly_truth_cat.fits'
+
+        nfw = Table.read(nfwfile,format='fits')
+
+        # 34,300 galaxies injected into the simulations
+        pseudo_nfw = rng.choice(nfw, size=34300, replace=False)
+
+        n_selec,bin_edges=np.histogram(gal_redshifts,bins=100,range=[gal_redshifts.min(),gal_redshifts.max()])
+        n_nfw,bin_edges_nfw=np.histogram(pseudo_nfw['redshift'],bins=100,range=[gal_redshifts.min(),gal_redshifts.max()])
+
+        pseudo_prob = n_selec/n_nfw
+        domain = np.arange(gal_redshifts.min(),gal_redshifts.max(),0.0001)
+
+        subsampled_redshifts = []; t = []
+
+        while(len(subsampled_redshifts) < len(gal_redshifts)):
+            #this_z = rng.choice(nfwstars['redshift'])
+            i = rng.choice(len(nfw))
+            this_z = nfws[i]['redshift']
+            this_bin = np.digitize(this_z,bin_edges_nfw)
+
+            odds = rng.random()
+            if (this_bin<len(n_selec)) and (odds <= pseudo_prob[this_bin-1]):
+                subsampled_redshifts.append(this_z)
+                t.append(nfwstars[i].as_void())
+            else:
+                pass
+
+        tt = Table(np.array(t),names = nfw.colnames)
+        tt.write('subsampled_nfw_cat.fits',format='fits')
 
         return
 
@@ -266,9 +310,19 @@ class Annular(object):
 
         outdir = os.path.dirname(outfile)
 
+        # Read in annular catalog
         self.open_table(self.cat_info)
+
+        # Compute gtan/gx
         self.transform_shears(outdir, overwrite=overwrite)
-        self.redshift_select()
+
+        # Select background galaxies using reshifts
+        gal_redshifts = self.redshift_select()
+
+        # Resample reference NFW file to match redshift distribution of galaxies
+        self.redshift_resample(gal_redshifts)
+
+        # Compute azimuthally averaged shear profiles
         self.compute_profile(outfile, overwrite=overwrite)
 
         # plotting function stil needs to be refactored...
