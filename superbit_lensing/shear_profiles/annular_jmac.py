@@ -188,7 +188,7 @@ class Annular(object):
                                             ra = self.ra,
                                             dec = self.dec,
                                             maxmatch = 1,
-                                            radius = 1E-3
+                                            radius = 5E-4
                                             )
 
         print(f'# {len(dist)} of {len(self.ra)} objects matched to truth background galaxies')
