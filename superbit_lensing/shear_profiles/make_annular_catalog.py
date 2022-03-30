@@ -23,6 +23,8 @@ parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
 parser.add_argument('-truthfile', type=str, default=None,
                     help='Truth file containing redshifts')
+parser.add_argument('-nfwfile', type=str, default=None,
+                    help='Theory NFW shear catalog')
 parser.add_argument('-rmin', type=float, default=100,
                     help='Starting radius value (in pixels)')
 parser.add_argument('-rmax', type=float, default=5200,

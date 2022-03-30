@@ -39,7 +39,9 @@ parser.add_argument('-run_name', type=str, default=None,
 parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
 parser.add_argument('-truthfile', type=str, default=None,
-                    help='Output directory')
+                    help='Truth file containing redshift information')
+parser.add_argument('-nfwfile', type=str, default=None,
+                    help='Theory NFW shear catalog')
 parser.add_argument('--overwrite', action='store_true', default=False,
                     help='Set to overwrite output files')
 parser.add_argument('--vb', action='store_true', default=False,
