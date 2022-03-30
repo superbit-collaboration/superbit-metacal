@@ -136,7 +136,8 @@ class Annular(object):
             names=['x', 'y', 'r', 'gcross', 'gtan']
             )
 
-        outfile = os.path.join(outdir, 'transformed_shear_tab.fits')
+        run_name = self.run_name
+        outfile = os.path.join(outdir, f'{run_name}_transformed_shear_tab.fits')
         newtab.write(outfile, format='fits', overwrite=overwrite)
 
         return
@@ -190,6 +191,8 @@ class Annular(object):
                 ],
             )
 
+
+        print(f'Writing out shear profile catalog to {outfile}')
         table.write(outfile, format='fits', overwrite=overwrite)
 
         return
