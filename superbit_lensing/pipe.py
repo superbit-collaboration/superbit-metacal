@@ -333,7 +333,7 @@ class GalSimModule(SuperBITModule):
 
         galsim_dir = os.path.join(utils.MODULE_DIR, 'galsim')
         #galsim_filepath = os.path.join(galsim_dir, 'mock_superBIT_data.py')
-        galsim_filepath = os.path.join(galsim_dir, 'mock_superBIT_gaussian.py')  
+        galsim_filepath = os.path.join(galsim_dir, 'mock_superBIT_gaussian.py')
 
         outdir = self._config['outdir']
         base = f'python {galsim_filepath} {self.gs_config_path} -outdir={outdir}'
