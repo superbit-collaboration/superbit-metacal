@@ -62,7 +62,7 @@ def main():
     logprint = utils.LogPrint(log, vb=vb)
 
     if args.fname_base is None:
-        fname_base = 'mock_superbit_obs'
+        fname_base = run_name
     else:
         fname_base = args.fname_base
 
