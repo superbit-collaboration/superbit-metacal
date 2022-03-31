@@ -176,6 +176,8 @@ class Annular(object):
         and self.gtan/gcross with tangential and cross ellipticities
 
         Failed shape measurements with g1/g2 = -999999 get filtered out
+
+        DEPRECATED
         '''
 
         xc = self.annular_info['nfw_center'][0]
