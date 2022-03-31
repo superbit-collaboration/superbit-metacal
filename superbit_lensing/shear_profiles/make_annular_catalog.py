@@ -316,10 +316,6 @@ class AnnularCatalog():
         else:
             truthfile = self.truthfile
 
-        # This is a placeholder!!!
-        if self.nfwfile is None:
-            self.nfwfile = 'nfwonly_truthcat.fits'
-
         cat_info = {
             'infile': self.outfile,
             'truthfile': truthfile,
@@ -333,10 +329,21 @@ class AnnularCatalog():
             'nbins': self.nbins
         }
 
+        if self.nfwfile is not None:
+
+            nfw_info = {
+                'nfwfile': self.nfwfile,
+                'xy_args': ['x_image','y_image'],
+                'shear_args': ['nfw_g1','nfw_g2'],
+                'nfw_center': [4784, 3190],
+            }
+
+        else: nfw_info = None
+
         # Runs the Annular class in annular_jmac.py
         # Compute cross/tan shear, select background galaxies, obtain shear profile
         # runner = AnnularRunner(cat_info, annular_info)
-        annular = Annular(cat_info, annular_info, run_name=self.run_name, vb=vb)
+        annular = Annular(cat_info, annular_info, nfw_info, run_name=self.run_name, vb=vb)
 
         annular.run(outfile, plotfile, overwrite=overwrite)
 

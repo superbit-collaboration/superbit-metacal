@@ -47,9 +47,73 @@ parser.add_argument('--overwrite', action='store_true', default=False,
 parser.add_argument('--vb', action='store_true', default=False,
                     help='Turn on for verbose prints')
 
+
+class ShearCalc():
+
+    def __init__(self, inputs=None):
+        '''
+        :inputs:    dictionary with x, y, g1, g2 columns
+        :g1/2:     reduced-shear components
+        :gcross:   cross-shear (B-mode)
+        :gtan:     tangential shear (E-mode)
+        :x/y:      x and y positions
+        :r:        distance of galaxy to NFW center
+
+        Ideally we would find a way to have these attributes inherited by Annular
+        '''
+        self.x = None
+        self.y = None
+        self.g1 = None
+        self.g2 = None
+        self.gcross = None
+        self.gtan = None
+        self.r = None
+
+        if inputs is not None:
+
+            self.x = inputs['x']
+            self.y = inputs['y']
+            self.g1 = inputs['g1']
+            self.g2 = inputs['g2']
+
+        return
+
+    def get_r_gtan(self,xc,yc):
+        '''
+        Calculate distance from reference point located at (xc, yc) and rotate
+        g1, g2 of galaxies into gtan, gcross
+
+        :xc:   x coordinate of reference point for shear calc
+        :yc:   y coordinate of reference point for shear calc
+        '''
+
+        g = np.sqrt(self.g1**2 + self.g2**2)
+        std_g = np.std(g)
+        wg = (g >= 0.)
+
+        nbad = len(wg[wg < 0])
+        print(f'## {nbad} of {len(g)} galaxies removed due to |g| < 0')
+
+        self.g1 = self.g1[wg] #*np.sqrt(2)
+        self.g2 = self.g2[wg] #*np.sqrt(2)
+        self.x = self.x[wg]
+        self.y = self.y[wg]
+
+        self.r = np.sqrt(((self.x-xc)**2.) + ((self.y-yc)**2.))
+        phi = np.arctan2((self.y-yc), (self.x-xc))
+
+        print(f'## Mean g: {np.mean(g):.3f} sigma_g: {np.std(g):.3f}')
+
+        self.gtan= -1.*(g1*np.cos(2.*phi) + g2*np.sin(2.*phi))
+        # note that annular.c has opposite sign convention
+        self.gcross = g1*np.sin(2.*phi) - g2*np.cos(2.*phi)
+
+        return
+
+
 class Annular(object):
 
-    def __init__(self, cat_info, annular_info, run_name=None, vb=False):
+    def __init__(self, cat_info, annular_info, nfw_info=None, run_name=None, vb=False):
 
         """
         :infile:   table that will be read in
@@ -66,6 +130,7 @@ class Annular(object):
 
         self.cat_info = cat_info
         self.annular_info = annular_info
+        self.nfw_info = nfw_info
         self.run_name = run_name
         self.vb = vb
         self.g1 = None
@@ -105,20 +170,21 @@ class Annular(object):
 
         return
 
-    def transform_shears(self, outdir, overwrite=False):
-        """
+    def transform_shears_orig(self, outdir, overwrite=False):
+        '''
         Populates self.r with radial distance of galaxies from (xc,yc)
         and self.gtan/gcross with tangential and cross ellipticities
 
         Failed shape measurements with g1/g2 = -999999 get filtered out
-
-        """
+        '''
 
         xc = self.annular_info['nfw_center'][0]
         yc = self.annular_info['nfw_center'][1]
+        g1 = self.g1; g2 = self.g2
+        x = self.x; y = self.y
 
         #wg=(self.mu>1)
-        g = np.sqrt(self.g1**2 + self.g2**2)
+        g = np.sqrt(g1**2 + g2**2)
         std_g = np.std(g)
         wg = (g >= 0.)
 
@@ -150,18 +216,50 @@ class Annular(object):
 
         return
 
+    def transform_shears(self, outdir, overwrite=False):
+        '''
+        Create instance of ShearCalc class
+        Compute radius from NFW center, gtan, and gcross
+        '''
+
+        shear_inputs = {
+            'x': self.x,
+            'y': self.y,
+            'g1': self.g1,
+            'g2': self.g2
+            }
+
+        xc = self.annular_info['nfw_center'][0]
+        yc = self.annular_info['nfw_center'][1]
+
+        shears = ShearCalc(shear_inputs)
+        shears.get_r_gtan()
+
+        # Now populate Annular object attributes with these columns
+        x = shears.x ; y = shears.y
+        self.r = shears.r
+        self.gtan = shears.gtan
+        self.gcross = shears.gcross
+
+        newtab = Table()
+        newtab.add_columns(
+            [x, y, self.r, self.gtan, self.gcross],
+            names=['x', 'y', 'r', 'gcross', 'gtan']
+            )
+
+        outfile = os.path.join(outdir, 'transformed_shear_tab.fits')
+        newtab.write(outfile, format='fits', overwrite=overwrite)
+
+        return
+
     def redshift_select(self):
-        """
+        '''
         Select background galaxies from larger transformed shear catalog:
             - Load in truth file
             - Select background galaxies behind galaxy cluster
             - Match in RA/Dec to transformed shear catalog
             - Filter self.r, self.gtan, self.gcross to be background-only
-
-        """
-
-        # It might make more sense to open this file at the same time as the annular catalog,
-        # but at least here it's obvious why the file is being opened.
+        '''
 
         truthfile = self.cat_info['truthfile']
 
@@ -200,25 +298,46 @@ class Annular(object):
 
         return gal_redshifts
 
-    def redshift_resample(self, gal_redshifts):
+    def process_nfw(self, gal_redshifts):
+        '''
+        Subsample theoretical galaxy redshift distribution to match redshift
+        distribution of detected galaxy catalog using a sort of MC rejection
+        sampling algorithm
+
+        Also compute g_tan, g_cross
+        '''
+        pass
+        if self.nfw_info is not None:
+
+            self._nfw_resample(gal_redshifts)
+
+            tt.write('subsampled_nfw_cat.fits',format='fits')
+
+        else:
+            # No NFW file passed, return None
+            tt = None
+
+        return tt
+
+    def _nfw_resample(self, gal_redshifts):
         '''
         Subsample theoretical galaxy redshift distribution to match redshift
         distribution of detected galaxy catalog using a sort of MC rejection
         sampling algorithm
         '''
+
         rng = np.random.default_rng()
 
-        nfwfile = self.cat_info['nfwfile']
-        if nfwfile is None:
-            nfwfile='nfwonly_truth_cat.fits'
-
+        nfwfile = self.nfw_info['nfwfile']
         nfw = Table.read(nfwfile,format='fits')
 
         # 34,300 galaxies injected into the simulations
         pseudo_nfw = rng.choice(nfw, size=34300, replace=False)
 
-        n_selec,bin_edges=np.histogram(gal_redshifts,bins=100,range=[gal_redshifts.min(),gal_redshifts.max()])
-        n_nfw,bin_edges_nfw=np.histogram(pseudo_nfw['redshift'],bins=100,range=[gal_redshifts.min(),gal_redshifts.max()])
+        n_selec,bin_edges=np.histogram(gal_redshifts,bins=100,\
+            range=[gal_redshifts.min(),gal_redshifts.max()])
+        n_nfw,bin_edges_nfw=np.histogram(pseudo_nfw['redshift'],bins=100,\
+            range=[gal_redshifts.min(),gal_redshi  fts.max()])
 
         pseudo_prob = n_selec/n_nfw
         domain = np.arange(gal_redshifts.min(),gal_redshifts.max(),0.0001)
@@ -239,18 +358,28 @@ class Annular(object):
                 pass
 
         tt = Table(np.array(t),names = nfw.colnames)
-        tt.write('subsampled_nfw_cat.fits',format='fits')
 
-        return
+        return tt
+
+    def _nfw_transform(self, tt):
+        '''
+        Repeat shear transform above but with NFW info
+        '''
+
+        pass
+        xc = self.nfw_info['nfw_center'][0]
+        yc = self.nfw_info['nfw_center'][1]
+        x = nfw_table[self.nfw_info['xy_args'][0]]
+        y = nfw_table[self.nfw_info['xy_args'][1]]
+        g1 = nfw_table[self.nfw_info['shear_args'][0]]
+        g2 = nfw_table[self.nfw_info['shear_args'][1]]
 
 
     def compute_profile(self, outfile, overwrite=False):
-
-        """
+        '''
         Computes mean tangential and cross shear of background (redshift-filtered)
         galaxies in azimuthal bins
-
-        """
+        '''
 
         minrad = self.annular_info['rad_args'][0]
         maxrad = self.annular_info['rad_args'][1]
@@ -320,10 +449,10 @@ class Annular(object):
         gal_redshifts = self.redshift_select()
 
         # Resample reference NFW file to match redshift distribution of galaxies
-        self.redshift_resample(gal_redshifts)
+        nfw_shear_resamp = self._nfw_resample(gal_redshifts)
 
         # Compute azimuthally averaged shear profiles
-        self.compute_profile(outfile, overwrite=overwrite)
+        self.compute_profile(outfile, nfw_shear_resamp, overwrite=overwrite)
 
         # plotting function stil needs to be refactored...
         # self.plot_profile(plotfile)
@@ -407,7 +536,7 @@ def main(args):
         }
 
     annular = Annular(
-        cat_info, annular_info, run_name=run_name, vb=vb
+        cat_info, annular_info, nfw_info, run_name=run_name, vb=vb
         )
 
     annular.run(outfile, overwrite=overwrite, outdir=outdir)
