@@ -30,19 +30,17 @@ def compute_alpha(nfw, radius, gtan, variance):
 
 class ShearProfilePlotter(object):
 
-    def __init__(self, cat_file, truth_file, pix_scale=0.144):
+    def __init__(self, cat_file, pix_scale=0.144):
         '''
         cat_file: str
-            Filename for binned shear profile data. Usually in
-            the form of `{run_name}_transformed_shear_tab.fits`
-        truth_file: str
-            Filename for nfw truth shear profile
+            Filename for binned shear profile data.
+            Can optionally include truth information as well
+            in this table for plot comparison
         pix_scale: float
             Pixel scale (arcsec / pix)
         '''
 
         self.cat_file = cat_file
-        self.truth_file = truth_file
         self.pix_scale = pix_scale
 
         self._load_cats()
@@ -51,7 +49,6 @@ class ShearProfilePlotter(object):
 
     def _load_cats(self):
         self.cat = Table.read(self.cat_file)
-        self.truth = Table.read(self.truth_file)
 
         return
 
