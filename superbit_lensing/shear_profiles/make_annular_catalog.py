@@ -50,7 +50,7 @@ class AnnularCatalog():
             A dictionary that must contain the paths for the SExtractor
             catalog, the mcal catalog, and the output catalog filename
         annular_bins: dict
-            A dictionary holding the definitions of teh annular bins
+            A dictionary holding the definitions of the annular bins
         """
 
         self.se_file = cat_info['se_file']
@@ -59,6 +59,7 @@ class AnnularCatalog():
         self.outdir = cat_info['outdir']
         self.run_name = cat_info['run_name']
         self.truthfile = cat_info['truthfile']
+        self.nfwfile = cat_info['nfwfile']
 
         self.rmin = annular_bins['rmin']
         self.rmax = annular_bins['rmax']
@@ -68,10 +69,6 @@ class AnnularCatalog():
             self.outfile = os.path.join(self.outdir, self.outfile)
         else:
             self.outdir = ''
-
-        #if self.truthfile = None:
-
-
 
         self.se_cat = Table.read(self.se_file, hdu=2)
         self.mcal = Table.read(self.mcal_file)
@@ -168,12 +165,12 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 1. # orig 1.15
+        min_Tpsf = 1.2 # orig 1.15
         max_sn = 1000
         min_sn = 10 # orig 8 for ensemble
         min_T = 0.03 # orig 0.05
         max_T = 10 # orig inf
-        covcut = 1 # orig 1 for ensemble
+        covcut = 7e-3 # orig 1 for ensemble
 
         qualcuts = {'min_Tpsf':min_Tpsf, 'max_sn':max_sn, 'min_sn':min_sn,
                     'min_T':min_T, 'max_T':max_T, 'covcut':covcut}
@@ -319,9 +316,14 @@ class AnnularCatalog():
         else:
             truthfile = self.truthfile
 
+        # This is a placeholder!!!
+        if self.nfwfile is None:
+            self.nfwfile = 'nfwonly_truthcat.fits'
+
         cat_info = {
             'infile': self.outfile,
             'truthfile': truthfile,
+            'nfwfile': self.nfwfile,
             'xy_args': xy_cols,
             'shear_args': g_cols
         }
@@ -355,8 +357,9 @@ class AnnularCatalog():
             p = ''
         outfile = os.path.join(self.outdir, f'{p}_annular_shear_tab.fits')
         plotfile = os.path.join(self.outdir, f'{p}_tan_shear.pdf')
-        
-        # Note selection for background galaxies happens here
+
+        # Aiiight, still need to do redshift filtering... where would it make
+        # sense to do this?
         self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return
@@ -369,6 +372,7 @@ def main(args):
     outfile = args.outfile
     outdir = args.outdir
     truthfile = args.truthfile
+    nfwfile = args.nfwfile
     rmin = args.rmin
     rmax = args.rmax
     nbins = args.nbins
@@ -381,7 +385,8 @@ def main(args):
         'run_name': run_name,
         'outfile': outfile,
         'outdir': outdir,
-        'truthfile': truthfile
+        'truthfile': truthfile,
+        'nfwfile': nfwfile
         }
 
     annular_bins = {
