@@ -24,7 +24,7 @@ def compute_alpha(nfw, radius, gtan, variance):
     denom = T.T.dot(np.linalg.inv(C)).dot(T)
 
     Ahat = numer / denom
-    sigma_A = 1./np.sqrt((T.T.dot(np.linalg.inv(C)).dot(T)))
+    sigma_A = 1. / np.sqrt((T.T.dot(np.linalg.inv(C)).dot(T)))
 
     return Ahat, sigma_A
 
@@ -59,23 +59,30 @@ class ShearProfilePlotter(object):
         angular_radius = pix_radius * self.pix_scale
 
         if arcmin is True:
-            return angular_radius * 60.
+            return angular_radius / 60.
         else:
             # in arcsec
             return angular_radius
 
     def plot_tan_profile(self, title=None, size=(10,7), label='annular',
-                         rbounds=(5, 750), show=False, outfile=None):
+                         rbounds=(5, 750), show=False, outfile=None,
+                         nfw_label=None, smoothing=False, plot_truth=True,
+                         xlim=None, ylim=None):
         '''
-        rbounds: tuple
-            A tuple of the form (rmin, rmax) in arcsec
+        xlim/ylim: list of tuples
+            A list of len 2 containing the xlim/ylim boundaries for both plots;
+            e.g. ylim=[(-1,5), (-2,2)]
         '''
 
         rc('font', **{'family':'serif'})
-        rc('text', usetex=True)
-        plt.ion()
+
+        # used in old plots, won't work unless tex is installed
+        # rc('text', usetex=True)
+        # plt.ion()
 
         cat = self.cat
+
+        # in arcsec
         minrad = rbounds[0]
         maxrad = rbounds[1]
 
@@ -88,21 +95,36 @@ class ShearProfilePlotter(object):
         gtan_err = cat['gtan_err']
         gcross_err = cat['gcross_err']
 
+        if plot_truth is True:
+            try:
+                # see if truth info is present
+                true_gtan = cat['nfw_gtan_mean']
+                true_gcross = cat['nfw_gcross_mean']
+                true_gtan_err = cat['nfw_gtan_err']
+                true_gcross_err = cat['nfw_gcross_err']
+                nfw_radius = radius
+            except KeyError:
+                print('WARNING: Truth info not present in shear profile table!')
+                plot_truth = False
+
+        # NOTE: I don't think we should be doing this for our shear
+        # profile plots...it's not an error. Most science plots like
+        # this are implicitly over bins
         # Compute errors
-        upper_err = np.zeros_like(radius)
-        for e in range(len(radius)-1):
-            this_err = (radius[e+1]-radius[e])*0.5
-            upper_err[e] = this_err
-        upper_err[-1] = (maxrad-radius[-1])*0.5
+        # upper_err = np.zeros_like(radius)
+        # for e in range(len(radius)-1):
+        #     this_err = (radius[e+1]-radius[e])*0.5
+        #     upper_err[e] = this_err
+        # upper_err[-1] = (maxrad-radius[-1])*0.5
 
-        lower_err = np.zeros_like(radius)
-        for e in (np.arange(len(radius)-1)+1):
-            this_err = (radius[e]-radius[e-1])*0.5
-            lower_err[e] = this_err
+        # lower_err = np.zeros_like(radius)
+        # for e in (np.arange(len(radius)-1)+1):
+        #     this_err = (radius[e]-radius[e-1])*0.5
+        #     lower_err[e] = this_err
 
-        lower_err[0] = (radius[0]-minrad)*0.5
+        # lower_err[0] = (radius[0]-minrad)*0.5
 
-        rad_err = np.vstack([lower_err,upper_err])
+        # rad_err = np.vstack([lower_err,upper_err])
 
         rcParams['axes.linewidth'] = 1.3
         rcParams['xtick.labelsize'] = 16
@@ -117,23 +139,56 @@ class ShearProfilePlotter(object):
         fig, axs = plt.subplots(2, 1, figsize=size, sharex=True)
         fig.subplots_adjust(hspace=0.1)
 
-        axs[0].errorbar(radius, gtan, xerr=rad_err, yerr=gtan_err, fmt='-o',
+        axs[0].errorbar(radius, gtan, yerr=gtan_err, fmt='-o',
                         capsize=5, color='cornflowerblue', label=label)
+
+        # If truth info is present, plot it
+        if plot_truth is True:
+            if smoothing is True:
+                nfw_gtan = np.convolve(nfw_gtan, np.ones(5)/5, mode='valid')
+                nfw_radius = np.convolve(nfw_radius, np.ones(5)/5, mode='valid')
+            nfw_array = [nfw_radius, nfw_gtan]
+
+            axs[0].plot(nfw_radius, nfw_gtan,'-r', label=nfw_label)
+
+            # Compute alpha statistics
+            alpha,sigma_alpha = compute_alpha(
+                nfw=nfw_array, radius=radius, gtan=gtan, variance=gtan_err
+                )
+
+            txt = str(r'$\hat{\alpha}=%.4f~\sigma_{\hat{\alpha}}=%.4f$' % (alpha, sigma_alpha))
+            ann = axs[0].annotate(
+                txt, xy=[0.1,0.9], xycoords='axes fraction', fontsize=12,
+                bbox=dict(facecolor='white', edgecolor='cornflowerblue',
+                          alpha=0.8,boxstyle='round,pad=0.3')
+                )
+
+        # reference line
         axs[0].axhline(y=0, c="black", alpha=0.4, linestyle='--')
+
         axs[0].set_ylabel(r'$g_{+}(\theta)$', fontsize=16)
         axs[0].tick_params(which='major', width=1.3, length=8)
         axs[0].tick_params(which='minor', width=0.8, length=4)
-        axs[0].set_ylim(-0.05, 0.60)
+        # axs[0].set_ylim(-0.05, 0.60)
+        axs[0].legend()
 
-        axs[1].errorbar(radius, gcross, xerr=rad_err, yerr=gcross_err, fmt='d',
-                        capsize=5, color='cornflowerblue', alpha=0.5, label=label)
+        axs[1].errorbar(radius, gcross, yerr=gcross_err, fmt='d',
+                        capsize=5, color='cornflowerblue', label=label)
         axs[1].axhline(y=0, c="black", alpha=0.4, linestyle='--')
         axs[1].set_xlabel(r'$\theta$ (arcmin)', fontsize=16)
         axs[1].set_ylabel(r'$g_{\times}(\theta)$', fontsize=16)
         axs[1].tick_params(which='major', width=1.3, length=8)
         axs[1].tick_params(which='minor', width=0.8, length=4)
-        axs[1].set_ylim(-0.1, 0.1)
         axs[1].legend()
+
+        if xlim is not None:
+            for i in range(2):
+                xl = xlim[i]
+                axes[i].set_xlim(xl[0], xl[1])
+        if ylim is not None:
+            for i in range(2):
+                yl = ylim[i]
+                axes[i].set_ylim(yl[0], yl[1])
 
         if title is None:
             axs[0].set_title(title, fontsize=14)
