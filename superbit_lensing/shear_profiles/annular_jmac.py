@@ -358,6 +358,19 @@ class Annular(object):
                 pass
 
         tt = Table(np.array(t),names = nfw.colnames)
+        tt.write(os.path.join(outdir,'subsampled_nfw_cat.fits'),format='fits', overwrite=overwrite)
+
+        # This should be a diagnostic, but do it here for now
+        fig,ax=plt.subplots(1,1,figsize=(8,6))
+
+        ax.hist(tt['redshift'],bins=100,range=[gal_redshifts.min(),\
+            gal_redshifts.max()],histtype='step',label='nfw resamp')
+        ax.hist(gal_redshifts,bins=100,range=[gal_redshifts.min(),\
+            gal_redshifts.max()],histtype='step',label='selected galaxies')
+        ax.set_xlabel('Galaxy redshift')
+        ax.set_ylabel('Number')
+        ax.legend()
+        fig.savefig(os.path.join(outdir,'redshift_histograms.png'))
 
         return tt
 
