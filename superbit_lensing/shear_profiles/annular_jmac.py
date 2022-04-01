@@ -38,10 +38,10 @@ parser.add_argument('-run_name', type=str, default=None,
                     help='Name of simulation run')
 parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
-parser.add_argument('-truthfile', type=str, default=None,
+parser.add_argument('-truth_file', type=str, default=None,
                     help='Truth file containing redshift information')
-parser.add_argument('-nfwfile', type=str, default=None,
-                    help='Theory NFW shear catalog')
+parser.add_argument('-nfw_file', type=str, default=None,
+                    help='Reference NFW shear catalog')
 parser.add_argument('--overwrite', action='store_true', default=False,
                     help='Set to overwrite output files')
 parser.add_argument('--vb', action='store_true', default=False,
@@ -54,7 +54,7 @@ class Annular(object):
         """
         :infile:   table that will be read in
         :outcat:   name of output shear profile catalog
-        :truthfile: name of truth file with redshift info
+        :truth_file: name of truth file with redshift info
         :g1/2:     reduced-shear components
         :gcross:   cross-shear (B-mode)
         :gtan:     tangential shear (E-mode)
@@ -163,15 +163,15 @@ class Annular(object):
         # It might make more sense to open this file at the same time as the annular catalog,
         # but at least here it's obvious why the file is being opened.
 
-        truthfile = self.cat_info['truthfile']
+        truth_file = self.cat_info['truth_file']
 
         try:
-            truth = Table.read(truthfile)
+            truth = Table.read(truth_file)
             if self.vb is True:
-                print(f'Read in truth file {truthfile}')
+                print(f'Read in truth file {truth_file}')
 
         except FileNotFoundError as fnf_err:
-            print(f'truth catalog {truthfile} not found, check name/type?')
+            print(f'truth catalog {truth_file} not found, check name/type?')
             raise fnf_err
 
         cluster_gals = truth[truth['obj_class']=='cluster_gal']
@@ -188,7 +188,7 @@ class Annular(object):
                                             ra = self.ra,
                                             dec = self.dec,
                                             maxmatch = 1,
-                                            radius = 5E-4
+                                            radius = 1./3600.
                                             )
 
         print(f'# {len(dist)} of {len(self.ra)} objects matched to truth background galaxies')
@@ -255,9 +255,9 @@ class Annular(object):
 
         return
 
-    def plot_profile(self, cat_file, truthfile, plot_file):
+    def plot_profile(self, cat_file, truth_file, plot_file):
 
-        # plotter = ShearProfilePlotter(cat_file, truthfile)
+        # plotter = ShearProfilePlotter(cat_file, truth_file)
         # plotter.plot(plot_file)
 
         return

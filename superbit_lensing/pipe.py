@@ -332,8 +332,7 @@ class GalSimModule(SuperBITModule):
     def _setup_run_command(self, run_options):
 
         galsim_dir = os.path.join(utils.MODULE_DIR, 'galsim')
-        #galsim_filepath = os.path.join(galsim_dir, 'mock_superBIT_data.py')
-        galsim_filepath = os.path.join(galsim_dir, 'mock_superBIT_gaussian.py')
+        galsim_filepath = os.path.join(galsim_dir, 'mock_superBIT_data.py')
 
         outdir = self._config['outdir']
         base = f'python {galsim_filepath} {self.gs_config_path} -outdir={outdir}'
@@ -515,7 +514,7 @@ class NgmixFitModule(SuperBITModule):
 
 class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
-    _opt_fields = ['outdir', 'run_name','truthfile']
+    _opt_fields = ['outdir', 'run_name', 'truthfile']
     _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
@@ -559,13 +558,13 @@ class ShearProfileModule(SuperBITModule):
         base += f'{se_file} {mcal_file} {outfile} '
 
         options = self._setup_options(run_options)
-        
+
         if 'run_name' not in self._config:
             run_name = run_options['run_name']
             options += f' -run_name={run_name}'
 
         cmd = base + options
-        
+
         return cmd
 
 def build_module(name, config, logprint):

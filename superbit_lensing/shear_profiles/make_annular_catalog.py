@@ -21,9 +21,9 @@ parser.add_argument('-run_name', type=str, default=None,
                     help='Name of simulation run')
 parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
-parser.add_argument('-truthfile', type=str, default=None,
+parser.add_argument('-truth_file', type=str, default=None,
                     help='Truth file containing redshifts')
-parser.add_argument('-nfwfile', type=str, default=None,
+parser.add_argument('-nfw_file', type=str, default=None,
                     help='Theory NFW shear catalog')
 parser.add_argument('-rmin', type=float, default=100,
                     help='Starting radius value (in pixels)')
@@ -58,8 +58,8 @@ class AnnularCatalog():
         self.outfile = cat_info['outfile']
         self.outdir = cat_info['outdir']
         self.run_name = cat_info['run_name']
-        self.truthfile = cat_info['truthfile']
-        self.nfwfile = cat_info['nfwfile']
+        self.truth_file = cat_info['truth_file']
+        self.nfw_file = cat_info['nfw_file']
 
         self.rmin = annular_bins['rmin']
         self.rmax = annular_bins['rmax']
@@ -308,22 +308,18 @@ class AnnularCatalog():
                                   g_cols=['g1_Rinv', 'g2_Rinv'],
                                   nfw_center=[5031, 3353]):
 
-        if self.truthfile is None:
+        if self.truth_file is None:
             truth_name = ''.join([self.run_name,'_truth.fits'])
             truth_dir = self.outdir
-            truthfile = os.path.join(truth_dir,truth_name)
+            truth_file = os.path.join(truth_dir,truth_name)
 
         else:
-            truthfile = self.truthfile
-
-        # This is a placeholder!!!
-        if self.nfwfile is None:
-            self.nfwfile = 'nfwonly_truthcat.fits'
+            truth_file = self.truth_file
 
         cat_info = {
             'infile': self.outfile,
-            'truthfile': truthfile,
-            'nfwfile': self.nfwfile,
+            'truth_file': truth_file,
+            'nfw_file': self.nfw_file,
             'xy_args': xy_cols,
             'shear_args': g_cols
         }
@@ -358,8 +354,6 @@ class AnnularCatalog():
         outfile = os.path.join(self.outdir, f'{p}_annular_shear_tab.fits')
         plotfile = os.path.join(self.outdir, f'{p}_tan_shear.pdf')
 
-        # Aiiight, still need to do redshift filtering... where would it make
-        # sense to do this?
         self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return
@@ -371,8 +365,8 @@ def main(args):
     run_name = args.run_name
     outfile = args.outfile
     outdir = args.outdir
-    truthfile = args.truthfile
-    nfwfile = args.nfwfile
+    truth_file = args.truth_file
+    nfw_file = args.nfw_file
     rmin = args.rmin
     rmax = args.rmax
     nbins = args.nbins
@@ -385,8 +379,8 @@ def main(args):
         'run_name': run_name,
         'outfile': outfile,
         'outdir': outdir,
-        'truthfile': truthfile,
-        'nfwfile': nfwfile
+        'truth_file': truth_file,
+        'nfw_file': nfw_file
         }
 
     annular_bins = {
