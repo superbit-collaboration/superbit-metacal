@@ -5,7 +5,7 @@ This repo has recently been significantly refactored into the new `superbit_lens
 
   - `galsim`: Contains scripts that generate the simulated SuperBIT observations used for validation and forecasting analyses.
   - `medsmaker`: Contains small modifications to the original superbit-ngmix scripts that make coadd images, runs SExtractor & PSFEx, and creates MEDS files.
-  - `metacalibration`: Contains scripts used to run the ngmix/metacalibration algorithms on the MEDS files produced by Medsmaker. 
+  - `metacalibration`: Contains scripts used to run the ngmix/metacalibration algorithms on the MEDS files produced by Medsmaker.
   - `shear-profiles`: Contains scripts to compute the tangential/cross shear profiles and output to a file, as well as plots of the shear profiles.
 
 More detailed descriptions for each stage are contained in their respective directories.
@@ -30,7 +30,11 @@ rc = pipe.run()
 
 assert(rc == 0)
 ```
-An example of a pipeline run along with a test configuration is given in `pipe.main()`, which can be run with `python pipe.py`. A more general configuration file is shown in `configs/pipe_test_real_sims.yaml` An example wrapper script you can use to run the `SuperBITPipeline` is shown in `superbit-lensing/process_all.py`.
+An example of a pipeline run along with a test configuration is given in `pipe.main()`, which can be run with
+
+`python pipe_test.py`.
+
+The example configuration file is shown in `configs/pipe_test.yaml`. An example wrapper script you can use to run the `SuperBITPipeline` is shown in `superbit-lensing/process_all.py`.
 
 The available config options for each submodule are defined in the various module classes in `superbit_lensing.pipe.py`, such as `GalSimModule`. The required & optional fields are given in `_req_fields` and `_opt_fields` respectively. The pipeline runner tells you if you fail to pass a required field or if you pass something that it doesn't understand.
 

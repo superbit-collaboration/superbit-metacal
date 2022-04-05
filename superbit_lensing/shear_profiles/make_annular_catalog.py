@@ -21,6 +21,10 @@ parser.add_argument('-run_name', type=str, default=None,
                     help='Name of simulation run')
 parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
+parser.add_argument('-truth_file', type=str, default=None,
+                    help='Truth file containing redshifts')
+parser.add_argument('-nfw_file', type=str, default=None,
+                    help='Theory NFW shear catalog')
 parser.add_argument('-rmin', type=float, default=100,
                     help='Starting radius value (in pixels)')
 parser.add_argument('-rmax', type=float, default=5200,
@@ -46,7 +50,7 @@ class AnnularCatalog():
             A dictionary that must contain the paths for the SExtractor
             catalog, the mcal catalog, and the output catalog filename
         annular_bins: dict
-            A dictionary holding the definitions of teh annular bins
+            A dictionary holding the definitions of the annular bins
         """
 
         self.se_file = cat_info['se_file']
@@ -54,6 +58,8 @@ class AnnularCatalog():
         self.outfile = cat_info['outfile']
         self.outdir = cat_info['outdir']
         self.run_name = cat_info['run_name']
+        self.truth_file = cat_info['truth_file']
+        self.nfw_file = cat_info['nfw_file']
 
         self.rmin = annular_bins['rmin']
         self.rmax = annular_bins['rmax']
@@ -177,8 +183,8 @@ class AnnularCatalog():
                                         & (self.mcal['T_noshear']>=min_T)\
                                         & (self.mcal['s2n_r_noshear']>min_sn)\
                                         & (self.mcal['s2n_r_noshear']<max_sn)\
-                                        & (np.array(self.mcal['pars_cov0_noshear'].tolist())[:,0,0]<covcut)\
-                                        & (np.array(self.mcal['pars_cov0_noshear'].tolist())[:,1,1]<covcut)
+                                        & (self.mcal['g_cov_noshear'][:,0,0]<covcut)\
+                                        & (self.mcal['g_cov_noshear'][:,1,1]<covcut)
                                        ]
 
         selection_1p = self.mcal[(self.mcal['T_1p']>=min_Tpsf*self.mcal['Tpsf_1p'])\
@@ -186,8 +192,8 @@ class AnnularCatalog():
                                       & (self.mcal['T_1p']>=min_T)\
                                       & (self.mcal['s2n_r_1p']>min_sn)\
                                       & (self.mcal['s2n_r_1p']<max_sn)\
-                                      & (np.array(self.mcal['pars_cov0_1p'].tolist())[:,0,0]<covcut)\
-                                      & (np.array(self.mcal['pars_cov0_1p'].tolist())[:,1,1]<covcut)
+                                      & (self.mcal['g_cov_1p'][:,0,0]<covcut)\
+                                      & (self.mcal['g_cov_1p'][:,1,1]<covcut)
                                   ]
 
         selection_1m = self.mcal[(self.mcal['T_1m']>=min_Tpsf*self.mcal['Tpsf_1m'])\
@@ -195,8 +201,8 @@ class AnnularCatalog():
                                       & (self.mcal['T_1m']>=min_T)\
                                       & (self.mcal['s2n_r_1m']>min_sn)\
                                       & (self.mcal['s2n_r_1m']<max_sn)\
-                                      & (np.array(self.mcal['pars_cov0_1m'].tolist())[:,0,0]<covcut)\
-                                      & (np.array(self.mcal['pars_cov0_1m'].tolist())[:,1,1]<covcut)
+                                      & (self.mcal['g_cov_1m'][:,0,0]<covcut)\
+                                      & (self.mcal['g_cov_1m'][:,1,1]<covcut)
                                   ]
 
         selection_2p = self.mcal[(self.mcal['T_2p']>=min_Tpsf*self.mcal['Tpsf_2p'])\
@@ -204,8 +210,8 @@ class AnnularCatalog():
                                       & (self.mcal['T_2p']>=min_T)\
                                       & (self.mcal['s2n_r_2p']>min_sn)\
                                       & (self.mcal['s2n_r_2p']<max_sn)\
-                                      & (np.array(self.mcal['pars_cov0_2p'].tolist())[:,0,0]<covcut)\
-                                      & (np.array(self.mcal['pars_cov0_2p'].tolist())[:,1,1]<covcut)
+                                      & (self.mcal['g_cov_2p'][:,0,0]<covcut)\
+                                      & (self.mcal['g_cov_2p'][:,1,1]<covcut)
                                   ]
 
         selection_2m = self.mcal[(self.mcal['T_2m']>=min_Tpsf*self.mcal['Tpsf_2m'])\
@@ -213,8 +219,8 @@ class AnnularCatalog():
                                       & (self.mcal['T_2m']>=min_T)\
                                       & (self.mcal['s2n_r_2m']>min_sn)\
                                       & (self.mcal['s2n_2m']<max_sn)\
-                                      & (np.array(self.mcal['pars_cov0_2m'].tolist())[:,0,0]<covcut)\
-                                      & (np.array(self.mcal['pars_cov0_2m'].tolist())[:,1,1]<covcut)
+                                      & (self.mcal['g_cov_2m'][:,0,0]<covcut)\
+                                      & (self.mcal['g_cov_2m'][:,1,1]<covcut)
                                   ]
 
         # assuming delta_shear in ngmix_fit_superbit is 0.01
@@ -240,11 +246,13 @@ class AnnularCatalog():
 
         # compute noise; not entirely sure whether there needs to be a factor of 0.5 on tot_covar...
         # seems like not if I'm applying it just to tangential ellip, yes if it's being applied to each
-        #shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
-        shape_noise = 0.1
+        shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
+        print(f'shape noise is {shape_noise}')
+
+        #shape_noise = 0.3
         tot_covar = shape_noise +\
-                    np.array(self.selected['pars_cov_noshear'].tolist())[:,0,0] +\
-                    np.array(self.selected['pars_cov_noshear'].tolist())[:,1,1]
+                self.selected['g_cov_noshear'][:,0,0] +\
+                self.selected['g_cov_noshear'][:,1,1]
         weight = 1. / tot_covar
 
         try:
@@ -300,8 +308,18 @@ class AnnularCatalog():
                                   g_cols=['g1_Rinv', 'g2_Rinv'],
                                   nfw_center=[5031, 3353]):
 
+        if self.truth_file is None:
+            truth_name = ''.join([self.run_name,'_truth.fits'])
+            truth_dir = self.outdir
+            truth_file = os.path.join(truth_dir,truth_name)
+
+        else:
+            truth_file = self.truth_file
+
         cat_info = {
             'infile': self.outfile,
+            'truth_file': truth_file,
+            'nfw_file': self.nfw_file,
             'xy_args': xy_cols,
             'shear_args': g_cols
         }
@@ -312,6 +330,7 @@ class AnnularCatalog():
         }
 
         # Runs the Annular class in annular_jmac.py
+        # Compute cross/tan shear, select background galaxies, obtain shear profile
         # runner = AnnularRunner(cat_info, annular_info)
         annular = Annular(cat_info, annular_info, run_name=self.run_name, vb=vb)
 
@@ -332,8 +351,9 @@ class AnnularCatalog():
             p = f'{self.run_name}_'
         else:
             p = ''
-        outfile = os.path.join(self.outdir, f'{p}shear_profile.fits')
-        plotfile = os.path.join(self.outdir, f'{p}tan_shear.pdf')
+
+        outfile = os.path.join(self.outdir, f'{p}shear_profile_cat.fits')
+        plotfile = os.path.join(self.outdir, f'shear_profile.pdf')
         self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return
@@ -345,6 +365,8 @@ def main(args):
     run_name = args.run_name
     outfile = args.outfile
     outdir = args.outdir
+    truth_file = args.truth_file
+    nfw_file = args.nfw_file
     rmin = args.rmin
     rmax = args.rmax
     nbins = args.nbins
@@ -356,7 +378,9 @@ def main(args):
         'mcal_file': mcal_file,
         'run_name': run_name,
         'outfile': outfile,
-        'outdir': outdir
+        'outdir': outdir,
+        'truth_file': truth_file,
+        'nfw_file': nfw_file
         }
 
     annular_bins = {
