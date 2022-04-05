@@ -50,7 +50,7 @@ outdir:             './forecasting/pipe_test' # directory where output images an
 
 # Misc parameters
 # ---------------
-noise_seed:         95967076    # Random number seed for image noise
-galobj_seed:        76736018    # Random number seed for galaxy objects
-cluster_seed:       44271963    # Random number seed fro cluster galaxies
-stars_seed:         26342806    # Random number seed for stars
+noise_seed:             # Random number seed for image noise
+galobj_seed:            # Random number seed for galaxy objects
+cluster_seed:           # Random number seed fro cluster galaxies
+stars_seed:             # Random number seed for stars

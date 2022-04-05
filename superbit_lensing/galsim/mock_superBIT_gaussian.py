@@ -558,14 +558,6 @@ class SuperBITParameters:
                 self.bp_file = str(value)
             elif option == "outdir":
                 self.outdir = str(value)
-            elif option == "noise_seed":
-                self.noise_seed = int(value)
-            elif option == "galobj_seed":
-                self.galobj_seed = int(value)
-            elif option == "cluster_seed":
-                self.cluster_seed = int(value)
-            elif option == "stars_seed":
-                self.stars_seed = int(value)
             elif option == "nstruts":
                 self.nstruts = int(value)
             elif option == "nstruts":
@@ -588,6 +580,26 @@ class SuperBITParameters:
                 self.mpi = bool(value)
             elif option == "ncores":
                 self.ncores = int(value)
+            elif option == "noise_seed":
+                try:
+                    self.noise_seed = int(value)
+                except:
+                    self.noise_seed = None
+            elif option == "galobj_seed":
+                try:
+                    self.galobj_seed = int(value)
+                except:
+                    self.galobj_seed = None
+            elif option == "cluster_seed":
+                try:
+                    self.cluster_seed = int(value)
+                except:
+                    self.cluster_seed = None
+            elif option == "stars_seed":
+                try:
+                    self.stars_seed = int(value)
+                except:
+                    self.stars_seed = None
             else:
                 raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
@@ -814,6 +826,31 @@ def main():
         wcs = galsim.TanWCS(affine, sky_center, units=galsim.arcsec)
         full_image.wcs = wcs
 
+        ##
+        ## Check for the existence of star, galaxy and cluster galaxy seeds
+        ## If they don't exist, create new ones
+
+        if sbparams.stars_seed is None:
+            star_seed = np.random.randint(11111111,99999999)
+            sbparams.stars_seed = star_seed
+            print(f'\nNo stars seed found, using {sbparams.stars_seed}\n')
+            logprint(f'\nNo stars seed found, using {sbparams.stars_seed}\n')
+
+
+        if sbparams.galobj_seed is None:
+            galobj_seed = np.random.randint(11111111,99999999)
+            sbparams.galobj_seed = galobj_seed
+            print(f'\nNo galaxy seed found, using {sbparams.galobj_seed}\n')
+            logprint(f'\nNo galaxy seed found, using {sbparams.galobj_seed}\n')
+
+        if sbparams.cluster_seed is None:
+            cluster_seed = np.random.randint(11111111,99999999)
+            sbparams.cluster_seed = cluster_seed
+            print(f'\nNo cluster galaxy seed found, using {sbparams.cluster_seed}\n')
+            logprint(f'\nNo cluster galaxy seed found, using {sbparams.cluster_seed}\n')
+
+
+        ##
         ## Now let's read in the PSFEx PSF model, if using.
         ## We read the image directly into an InterpolatedImage GSObject,
         ## so we can manipulate it as needed
