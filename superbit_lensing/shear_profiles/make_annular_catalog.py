@@ -351,9 +351,9 @@ class AnnularCatalog():
             p = f'{self.run_name}_'
         else:
             p = ''
-        outfile = os.path.join(self.outdir, f'{p}_annular_shear_tab.fits')
-        plotfile = os.path.join(self.outdir, f'{p}_tan_shear.pdf')
 
+        outfile = os.path.join(self.outdir, f'{p}shear_profile_cat.fits')
+        plotfile = os.path.join(self.outdir, f'shear_profile.pdf')
         self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return

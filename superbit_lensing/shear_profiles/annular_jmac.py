@@ -14,7 +14,7 @@ from astropy.table import Table
 import pudb, pdb
 from esutil import htm
 
-# from superbit_lensing.shear_profiles.shear_plots import ShearProfilePlotter
+from shear_plots import ShearProfilePlotter
 
 parser = ArgumentParser()
 
@@ -145,7 +145,8 @@ class Annular(object):
             names=['x', 'y', 'r', 'gcross', 'gtan']
             )
 
-        outfile = os.path.join(outdir, 'transformed_shear_tab.fits')
+        run_name = self.run_name
+        outfile = os.path.join(outdir, f'{run_name}_transformed_shear_tab.fits')
         newtab.write(outfile, format='fits', overwrite=overwrite)
 
         return
@@ -251,14 +252,18 @@ class Annular(object):
                 ],
             )
 
+
+        print(f'Writing out shear profile catalog to {outfile}')
         table.write(outfile, format='fits', overwrite=overwrite)
 
         return
 
-    def plot_profile(self, cat_file, truth_file, plot_file):
+    def plot_profile(self, cat_file, plot_file):
 
-        # plotter = ShearProfilePlotter(cat_file, truth_file)
-        # plotter.plot(plot_file)
+        plotter = ShearProfilePlotter(cat_file)
+
+        print(f'Plotting shear profile to {plot_file}')
+        plotter.plot_tan_profile(outfile=plot_file, plot_truth=True)
 
         return
 
@@ -270,9 +275,7 @@ class Annular(object):
         self.transform_shears(outdir, overwrite=overwrite)
         self.redshift_select()
         self.compute_profile(outfile, overwrite=overwrite)
-
-        # plotting function stil needs to be refactored...
-        # self.plot_profile(plotfile)
+        self.plot_profile(outfile, plotfile)
 
         return
 
