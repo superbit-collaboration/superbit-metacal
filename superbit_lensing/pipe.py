@@ -4,8 +4,8 @@ import yaml
 import logging
 import subprocess
 
-from superbit_lensing import utils
-from superbit_lensing.diagnostics import build_diagnostics
+import utils
+from diagnostics import build_diagnostics
 
 import pudb
 
