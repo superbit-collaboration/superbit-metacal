@@ -32,11 +32,11 @@ parser.add_argument('-start', type=int, default=None,
                     help='Starting index for MEDS processing')
 parser.add_argument('-end', type=int, default=None,
                     help='Ending index for MEDS processing')
-parser.add_argument('-plot', type=str, default=True,
-                    help='Make diagnstic plots')
 parser.add_argument('-n', type=int, default=1,
                     help='Number of cores to use')
-parser.add_argument('--vb', action='store_true',
+parser.add_argument('--plot', action='store_true', default=False,
+                    help='Set to make diagnstic plots')
+parser.add_argument('--vb', action='store_true', default=False,
                     help='Make verbose')
 
 class SuperBITNgmixFitter():
@@ -649,7 +649,7 @@ def main():
     outdir = args.outdir
     index_start  = args.start
     index_end = args.end
-    make_plots_arg = args.plot
+    make_plots = args.plot
     nproc = args.n
     identifying = {'meds_index':[], 'id':[], 'ra':[], 'dec':[]}
     mcal = {'noshear':[], '1p':[], '1m':[], '2p':[], '2m':[]}
@@ -666,18 +666,10 @@ def main():
        	  cmd = 'mkdir -p %s' % outdir
           os.system(cmd)
 
-    # old make_plots arg was a string; evaluating it
-    # as a boolean
-
-    if ((make_plots_arg == "True") or (make_plots_arg == "true")):
+    if make_plots is True:
         print('diagnostic plotting enabled')
-        make_plots = True
-    elif ((make_plots_arg == "False") or (make_plots_arg == "false")):
-        print('no diagnostic plots will be generated')
-        make_plots = False
     else:
-        print('make_plots argument not in recognized format, setting value to False')
-        make_plots = False
+        print('--plots=False; no diagnostic plots will be generated')
 
     # Set up for saving plots
     im_savedir = os.path.join(outdir, 'metacal-plots/')
