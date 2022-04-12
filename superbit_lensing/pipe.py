@@ -558,13 +558,13 @@ class ShearProfileModule(SuperBITModule):
         base += f'{se_file} {mcal_file} {outfile} '
 
         options = self._setup_options(run_options)
-        
+
         if 'run_name' not in self._config:
             run_name = run_options['run_name']
             options += f' -run_name={run_name}'
 
         cmd = base + options
-        
+
         return cmd
 
 def build_module(name, config, logprint):
