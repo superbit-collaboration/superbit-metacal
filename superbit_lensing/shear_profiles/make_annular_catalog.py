@@ -365,8 +365,6 @@ class AnnularCatalog():
         outfile = os.path.join(self.outdir, f'{p}_annular_shear_tab.fits')
         plotfile = os.path.join(self.outdir, f'{p}_tan_shear.pdf')
 
-        # Aiiight, still need to do redshift filtering... where would it make
-        # sense to do this?
         self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return

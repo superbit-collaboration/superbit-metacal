@@ -180,6 +180,7 @@ class Annular(object):
         self.annular_info = annular_info
         self.nfw_info = nfw_info
         self.run_name = run_name
+        self.n_truth_gals = 0
         self.vb = vb
         self.g1 = None
         self.g2 = None
@@ -262,6 +263,7 @@ class Annular(object):
             - Select background galaxies behind galaxy cluster
             - Match in RA/Dec to transformed shear catalog
             - Filter self.r, self.gtan, self.gcross to be background-only
+            - Also store the number of galaxies injected into simulation
         '''
 
         truth_file = self.cat_info['truth_file']
@@ -275,8 +277,11 @@ class Annular(object):
             print(f'truth catalog {truth_file} not found, check name/type?')
             raise fnf_err
 
-        cluster_gals = truth[truth['obj_class']=='cluster_gal']
+        cluster_gals = truth[truth['obj_class'] == 'cluster_gal']
         cluster_redshift = np.mean(cluster_gals['redshift'])
+
+        truth_gals = truth[truth['obj_class'] == 'gal']
+        self.n_truth_gals = len(truth_gals)
 
         truth_bg_gals = truth[truth['redshift'] > cluster_redshift]
 
@@ -341,9 +346,9 @@ class Annular(object):
         nfw_file = self.nfw_info['nfw_file']
         nfw = Table.read(nfw_file,format='fits')
 
-        # 34,300 galaxies injected into the simulations
-        pseudo_nfw = rng.choice(nfw, size=34300, replace=False)
-
+        # sample according to number of galaxies injected into the simulations
+        pseudo_nfw = rng.choice(nfw, size=self.n_truth_gals, replace=False)
+        
         n_selec,bin_edges=np.histogram(gal_redshifts,bins=100,\
             range=[gal_redshifts.min(),gal_redshifts.max()])
         n_nfw,bin_edges_nfw=np.histogram(pseudo_nfw['redshift'],bins=100,\

@@ -47,10 +47,10 @@ class ShearProfilePlotter(object):
 
 
         radius = get_angular_radius(self.cat['r'], arcmin=True)
-        gtan = self.cat['gtan']
-        gcross = self.cat['gcross']
-        gtan_err = self.cat['gtan_err']
-        gcross_err = self.cat['gcross_err']
+        gtan = self.cat['mean_gtan']
+        gcross = self.cat['mean_gcross']
+        gtan_err = self.cat['err_gtan']
+        gcross_err = self.cat['err_gcross']
 
         try:
             data.sort('col1') # get in descending order
@@ -66,8 +66,8 @@ class ShearProfilePlotter(object):
             radius=radius*pixscale/60.
 
         try:
-            etan=data['gtan']
-            ecross=data['gcross']
+            etan=data['mean_gtan']
+            ecross=data['mean_gcross']
             shear1err=data['err_gtan']
             shear2err=data['err_gcross']
 
