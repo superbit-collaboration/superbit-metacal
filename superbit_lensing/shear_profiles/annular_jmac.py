@@ -348,7 +348,7 @@ class Annular(object):
 
         # sample according to number of galaxies injected into the simulations
         pseudo_nfw = rng.choice(nfw, size=self.n_truth_gals, replace=False)
-        
+
         n_selec,bin_edges=np.histogram(gal_redshifts,bins=100,\
             range=[gal_redshifts.min(),gal_redshifts.max()])
         n_nfw,bin_edges_nfw=np.histogram(pseudo_nfw['redshift'],bins=100,\
@@ -429,7 +429,6 @@ class Annular(object):
         Computes mean tangential and cross shear of background (redshift-filtered)
         galaxies in azimuthal bins
         '''
-
         minrad = self.annular_info['rad_args'][0]
         maxrad = self.annular_info['rad_args'][1]
         num_bins = self.annular_info['nbins']
@@ -549,8 +548,7 @@ class Annular(object):
         #    self.compute_shear_bias(profile_tab)
 
         # plotting function stil needs to be refactored...
-        # self.plot_profile(plotfile)
-
+        #
         return
 
 def print_header(args):

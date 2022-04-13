@@ -413,7 +413,8 @@ class MedsmakerModule(SuperBITModule):
 
 class MetacalModule(SuperBITModule):
     _req_fields = ['meds_file', 'outfile']
-    _opt_fields = ['outdir','start', 'end', 'plot', 'n', 'vb']
+    _opt_fields = ['outdir','start', 'end', 'n']
+    _flag_fields = ['plot', 'vb']
 
     def __init__(self, name, config):
         super(MetacalModule, self).__init__(name, config)
@@ -558,13 +559,13 @@ class ShearProfileModule(SuperBITModule):
         base += f'{se_file} {mcal_file} {outfile} '
 
         options = self._setup_options(run_options)
-        
+
         if 'run_name' not in self._config:
             run_name = run_options['run_name']
             options += f' -run_name={run_name}'
 
         cmd = base + options
-        
+
         return cmd
 
 def build_module(name, config, logprint):
