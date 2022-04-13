@@ -638,6 +638,10 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
         ngmix_test_config = make_test_ngmix_config('ngmix_test.yaml',
                                                    outdir=outdir,
                                                    run_name=run_name)
+
+        # dummy truth
+        nfw_file = os.path.join(utils.BASE_DIR, 'runs/truth/cl3_nfwonly_truth_cat.fits')
+
         overwrite = True
         with open(filename, 'w') as f:
             # Create dummy config file
@@ -689,6 +693,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'se_file': se_file,
                     'mcal_file': mcal_file,
                     'outfile': f'{run_name}_annular.fits',
+                    'nfw_file': nfw_file,
                     'outdir': outdir,
                     'run_name': run_name,
                     'overwrite': overwrite,
