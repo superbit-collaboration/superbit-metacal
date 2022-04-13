@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import rc,rcParams
 import matplotlib.pyplot as plt
 from astropy.table import Table
-import pudb
+import pudb,pdb
 
 def compute_alpha(nfw, radius, gtan, variance):
     '''
@@ -48,7 +48,12 @@ class ShearProfilePlotter(object):
         return
 
     def _load_cats(self):
-        self.cat = Table.read(self.cat_file)
+        pdb.set_trace()
+
+        if isinstance(self.cat_file,str):
+            self.cat = Table.read(self.cat_file)
+        else:
+            self.cat = self.cat_file
 
         return
 
@@ -77,6 +82,7 @@ class ShearProfilePlotter(object):
         # rc('text', usetex=True)
         # plt.ion()
 
+        pdb.set_trace()
         cat = self.cat
 
         # in arcsec
@@ -100,6 +106,7 @@ class ShearProfilePlotter(object):
                 true_gtan_err = cat['err_nfw_gtan']
                 true_gcross_err = cat['err_nfw_gcross']
                 nfw_radius = radius
+                
             except KeyError:
                 print('WARNING: Truth info not present in shear profile table!')
                 plot_truth = False

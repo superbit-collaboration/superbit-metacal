@@ -14,7 +14,7 @@ from astropy.table import Table
 import pudb, pdb
 from esutil import htm
 
-# from superbit_lensing.shear_profiles.shear_plots import ShearProfilePlotter
+from shear_plots import ShearProfilePlotter
 
 parser = ArgumentParser()
 
@@ -41,7 +41,7 @@ parser.add_argument('-outdir', type=str, default=None,
 parser.add_argument('-truth_file', type=str, default=None,
                     help='Truth file containing redshift information')
 parser.add_argument('-nfw_file', type=str, default=None,
-                    help='Theory NFW shear catalog')
+                    help='Reference NFW shear catalog')
 parser.add_argument('--overwrite', action='store_true', default=False,
                     help='Set to overwrite output files')
 parser.add_argument('--vb', action='store_true', default=False,
@@ -251,7 +251,8 @@ class Annular(object):
             names=['x', 'y', 'r', 'gcross', 'gtan']
             )
 
-        outfile = os.path.join(outdir, 'transformed_shear_tab.fits')
+        run_name = self.run_name
+        outfile = os.path.join(outdir, f'{run_name}_transformed_shear_tab.fits')
         newtab.write(outfile, format='fits', overwrite=overwrite)
 
         return
@@ -267,6 +268,51 @@ class Annular(object):
         '''
 
         truth_file = self.cat_info['truth_file']
+
+ 
+        truth_file = self.cat_info['truth_file']
+
+        try:
+            truth = Table.read(truth_file)
+            if self.vb is True:
+                print(f'Read in truth file {truth_file}')
+
+        except FileNotFoundError as fnf_err:
+            print(f'truth catalog {truth_file} not found, check name/type?')
+            raise fnf_err
+
+        cluster_gals = truth[truth['obj_class']=='cluster_gal']
+        cluster_redshift = np.mean(cluster_gals['redshift'])
+
+        truth_bg_gals = truth[truth['redshift'] > cluster_redshift]
+
+        truth_bg_matcher = htm.Matcher(16,
+                                        ra = truth_bg_gals['ra'],
+                                        dec = truth_bg_gals['dec']
+                                        )
+
+        ann_file_ind, truth_bg_ind, dist = truth_bg_matcher.match(
+                                            ra = self.ra,
+                                            dec = self.dec,
+                                            maxmatch = 1,
+                                            radius = 1./3600.
+                                            )
+
+        print(f'# {len(dist)} of {len(self.ra)} objects matched to truth background galaxies')
+
+        self.gtan = self.gtan[ann_file_ind]
+        self.gcross = self.gcross[ann_file_ind]
+        self.r = self.r[ann_file_ind]
+
+        return
+
+
+    def compute_profile(self, outfile, overwrite=False):
+        '''
+        Computes mean tangential and cross shear of background (redshift-filtered)
+        galaxies in azimuthal bins
+
+        '''
 
         try:
             truth = Table.read(truth_file)
@@ -501,6 +547,7 @@ class Annular(object):
             # Compute shear bias relative to reference NFW
             compute_shear_bias(profile_tab=table)
 
+        print(f'Writing out shear profile catalog to {outfile}')
         table.write(outfile, format='fits', overwrite=overwrite)
 
         # Print to stdio for quickcheck -- open to better formatting if it exists
@@ -512,16 +559,23 @@ class Annular(object):
             print(f'{e.as_void()}')
 
 
+        return table
+
+    def plot_profile(self, profile_tab, plotfile, nfw_tab=None):
+
+        if nfw_tab is not None:
+            plot_truth = True
+        else:
+            plot_truth = False
+
+        plotter = ShearProfilePlotter(profile_tab)
+
+
+        print(f'Plotting shear profile to {plotfile}')
+        plotter.plot_tan_profile(outfile=plotfile, plot_truth=plot_truth)
+
         return
-
-
-
-    def plot_profile(self, cat_file, truth_file, plot_file):
-
-        # plotter = ShearProfilePlotter(cat_file, truth_file)
-        # plotter.plot(plot_file)
-
-        return
+    
 
     def run(self, outfile, plotfile, overwrite=False):
 
@@ -533,22 +587,20 @@ class Annular(object):
         # Compute gtan/gx
         self.transform_shears(outdir, overwrite=overwrite)
 
-        # Select background galaxies using reshifts
+        # Select background galaxies by redshifts
         gal_redshifts = self.redshift_select()
 
-        # Resample reference NFW file to match redshift distribution of galaxies
-        # nfw_tab is just None if no NFW file was supplied
+    
+        # Resample NFW file (if supplied) to match galaxy redshift distribution; otherwise return None
         nfw_tab = self.process_nfw(gal_redshifts, outdir=outdir, overwrite=overwrite)
 
         # Compute azimuthally averaged shear profiles
         profile_tab = self.compute_profile(outfile, nfw_tab, overwrite=overwrite)
 
-        # If an NFW object is given, compute shear bias and add to meta
-        #if self.nfw_file is not None:
-        #    self.compute_shear_bias(profile_tab)
+        # Plot results
+        self.plot_profile(profile_tab, plotfile, nfw_tab=nfw_tab)
 
-        # plotting function stil needs to be refactored...
-        #
+        
         return
 
 def print_header(args):
