@@ -2,31 +2,7 @@ import numpy as np
 from matplotlib import rc,rcParams
 import matplotlib.pyplot as plt
 from astropy.table import Table
-import pudb,pdb
-
-def compute_alpha(nfw, radius, gtan, variance):
-    '''
-    '''
-
-    nfwr = nfw[0]
-    nfw_shear = nfw[1]
-    C = np.diag(variance**2)
-    D = gtan
-
-    # build theory array to match data points with a kludge
-    # radius defines the length of our dataset
-    T = []
-    for rstep in radius:
-        T.append(np.interp(rstep, nfwr, nfw_shear))
-    T = np.array(T)
-
-    numer = T.T.dot(np.linalg.inv(C)).dot(D)
-    denom = T.T.dot(np.linalg.inv(C)).dot(T)
-
-    Ahat = numer / denom
-    sigma_A = 1. / np.sqrt((T.T.dot(np.linalg.inv(C)).dot(T)))
-
-    return Ahat, sigma_A
+import pudb
 
 class ShearProfilePlotter(object):
 
@@ -48,7 +24,6 @@ class ShearProfilePlotter(object):
         return
 
     def _load_cats(self):
-        pdb.set_trace()
 
         if isinstance(self.cat_file,str):
             self.cat = Table.read(self.cat_file)
@@ -82,7 +57,6 @@ class ShearProfilePlotter(object):
         # rc('text', usetex=True)
         # plt.ion()
 
-        pdb.set_trace()
         cat = self.cat
 
         # in arcsec
@@ -105,8 +79,8 @@ class ShearProfilePlotter(object):
                 true_gcross = cat['mean_nfw_gcross']
                 true_gtan_err = cat['err_nfw_gtan']
                 true_gcross_err = cat['err_nfw_gcross']
-                nfw_radius = radius
-                
+                true_radius = radius
+
             except KeyError:
                 print('WARNING: Truth info not present in shear profile table!')
                 plot_truth = False
@@ -149,18 +123,18 @@ class ShearProfilePlotter(object):
         # If truth info is present, plot it
         if plot_truth is True:
             if smoothing is True:
-                nfw_gtan = np.convolve(nfw_gtan, np.ones(5)/5, mode='valid')
-                nfw_radius = np.convolve(nfw_radius, np.ones(5)/5, mode='valid')
-            nfw_array = [nfw_radius, nfw_gtan]
+                true_gtan = np.convolve(true_gtan, np.ones(5)/5, mode='valid')
+                true_radius = np.convolve(true_radius, np.ones(5)/5, mode='valid')
 
-            axs[0].plot(nfw_radius, nfw_gtan,'-r', label=nfw_label)
+            true_label = 'Reference NFW (resample)'
+            axs[0].plot(true_radius, true_gtan, '-r', label=true_label)
 
-            # Compute alpha statistics
-            alpha,sigma_alpha = compute_alpha(
-                nfw=nfw_array, radius=radius, gtan=gtan, variance=gtan_err
-                )
+            # grab alpha statistics
+            alpha = cat.meta['alpha']
+            sig_alpha = cat.meta['sig_alpha']
+            print(f'alpha = {alpha:.4f} +/- {sig_alpha:.4f}')
 
-            txt = str(r'$\hat{\alpha}=%.4f~\sigma_{\hat{\alpha}}=%.4f$' % (alpha, sigma_alpha))
+            txt = str(r'$\hat{\alpha}=%.4f~\sigma_{\hat{\alpha}}=%.4f$' % (alpha, sig_alpha))
             ann = axs[0].annotate(
                 txt, xy=[0.1,0.9], xycoords='axes fraction', fontsize=12,
                 bbox=dict(facecolor='white', edgecolor='cornflowerblue',
