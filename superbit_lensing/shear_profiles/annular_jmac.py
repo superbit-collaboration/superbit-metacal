@@ -11,7 +11,7 @@ from scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.table import Table
-import pudb, pdb
+import pudb
 from esutil import htm
 
 from shear_plots import ShearProfilePlotter
@@ -46,7 +46,6 @@ parser.add_argument('--overwrite', action='store_true', default=False,
                     help='Set to overwrite output files')
 parser.add_argument('--vb', action='store_true', default=False,
                     help='Turn on for verbose prints')
-
 
 def compute_shear_bias(profile_tab):
     '''
@@ -83,7 +82,7 @@ def compute_shear_bias(profile_tab):
     alpha = numer/denom
 
     # sigalpha: Cramer-Rao bound uncertainty on Ahat
-    sig_alpha = 1./np.sqrt((T.T.dot(np.linalg.inv(C)).dot(T)))
+    sig_alpha = 1. / np.sqrt((T.T.dot(np.linalg.inv(C)).dot(T)))
 
     print('# ')
     print(f'# shear bias is {alpha:.4f} +/- {sig_alpha:.3f}')
@@ -92,9 +91,7 @@ def compute_shear_bias(profile_tab):
     # add this information to profile_tab metadata
     profile_tab.meta.update({'alpha': alpha, 'sig_alpha': sig_alpha})
 
-
     return
-
 
 class ShearCalc():
 
@@ -158,7 +155,6 @@ class ShearCalc():
 
         return
 
-
 class Annular(object):
 
     def __init__(self, cat_info, annular_info, nfw_info=None, run_name=None, vb=False):
@@ -219,7 +215,6 @@ class Annular(object):
 
         return
 
-
     def transform_shears(self, outdir, overwrite=False):
         '''
         Create instance of ShearCalc class
@@ -269,9 +264,6 @@ class Annular(object):
 
         truth_file = self.cat_info['truth_file']
 
- 
-        truth_file = self.cat_info['truth_file']
-
         try:
             truth = Table.read(truth_file)
             if self.vb is True:
@@ -304,56 +296,11 @@ class Annular(object):
         self.gcross = self.gcross[ann_file_ind]
         self.r = self.r[ann_file_ind]
 
-        return
-
-
-    def compute_profile(self, outfile, overwrite=False):
-        '''
-        Computes mean tangential and cross shear of background (redshift-filtered)
-        galaxies in azimuthal bins
-
-        '''
-
-        try:
-            truth = Table.read(truth_file)
-            if self.vb is True:
-                print(f'Read in truth file {truth_file}')
-
-        except FileNotFoundError as fnf_err:
-            print(f'truth catalog {truth_file} not found, check name/type?')
-            raise fnf_err
-
-        cluster_gals = truth[truth['obj_class'] == 'cluster_gal']
-        cluster_redshift = np.mean(cluster_gals['redshift'])
-
-        truth_gals = truth[truth['obj_class'] == 'gal']
-        self.n_truth_gals = len(truth_gals)
-
-        truth_bg_gals = truth[truth['redshift'] > cluster_redshift]
-
-        truth_bg_matcher = htm.Matcher(16,
-                                        ra = truth_bg_gals['ra'],
-                                        dec = truth_bg_gals['dec']
-                                        )
-
-        ann_file_ind, truth_bg_ind, dist = truth_bg_matcher.match(
-                                            ra = self.ra,
-                                            dec = self.dec,
-                                            maxmatch = 1,
-                                            radius = 1./3600
-                                            )
-
-        print(f'# {len(dist)} of {len(self.ra)} objects matched to truth background galaxies')
-
-        self.gtan = self.gtan[ann_file_ind]
-        self.gcross = self.gcross[ann_file_ind]
-        self.r = self.r[ann_file_ind]
         gal_redshifts = truth_bg_gals[truth_bg_ind]['redshift']
 
         return gal_redshifts
 
-
-    def process_nfw(self, gal_redshifts,outdir='.',overwrite=False):
+    def process_nfw(self, gal_redshifts, outdir='.', overwrite=False):
         '''
         Subsample theoretical galaxy redshift distribution to match redshift
         distribution of detected galaxy catalog using a sort of MC rejection
@@ -378,9 +325,7 @@ class Annular(object):
 
         return nfw_tab
 
-
-
-    def _nfw_resample_redshift(self, gal_redshifts,outdir='.',overwrite=False):
+    def _nfw_resample_redshift(self, gal_redshifts, outdir='.', overwrite=False):
         '''
         Subsample theoretical galaxy redshift distribution to match redshift
         distribution of detected galaxy catalog using a sort of MC rejection
@@ -395,13 +340,15 @@ class Annular(object):
         # sample according to number of galaxies injected into the simulations
         pseudo_nfw = rng.choice(nfw, size=self.n_truth_gals, replace=False)
 
-        n_selec,bin_edges=np.histogram(gal_redshifts,bins=100,\
-            range=[gal_redshifts.min(),gal_redshifts.max()])
-        n_nfw,bin_edges_nfw=np.histogram(pseudo_nfw['redshift'],bins=100,\
-            range=[gal_redshifts.min(),gal_redshifts.max()])
+        n_selec, bin_edges = np.histogram(
+            gal_redshifts, bins=100, range=[gal_redshifts.min(),gal_redshifts.max()]
+            )
+        n_nfw, bin_edges_nfw = np.histogram(
+            pseudo_nfw['redshift'], bins=100, range=[gal_redshifts.min(),gal_redshifts.max()]
+            )
 
-        pseudo_prob = n_selec/n_nfw
-        domain = np.arange(gal_redshifts.min(),gal_redshifts.max(),0.0001)
+        pseudo_prob = n_selec / n_nfw
+        domain = np.arange(gal_redshifts.min(), gal_redshifts.max(), 0.0001)
 
         subsampled_redshifts = []; t = []
 
@@ -421,7 +368,6 @@ class Annular(object):
         # nfw_tab is a redshift-resampled subset of the full NFW table
         nfw_tab = Table(np.array(t),names = nfw.colnames)
 
-
         # This should be in diagnostics, but do it here for now
         fig,ax=plt.subplots(1,1,figsize=(8,6))
 
@@ -435,7 +381,6 @@ class Annular(object):
         fig.savefig(os.path.join(outdir,'redshift_histograms.png'))
 
         return nfw_tab
-
 
     def _nfw_transform_shear(self, nfw_tab):
         '''
@@ -483,14 +428,12 @@ class Annular(object):
 
         counts, bins = np.histogram(self.r, bins=bins)
 
-
         N = len(bins) - 1
         midpoint_r = np.zeros(N)
         gtan_mean = np.zeros(N)
         gtan_err = np.zeros(N)
         gcross_mean = np.zeros(N)
         gcross_err = np.zeros(N)
-
 
         i = 0
         for b1, b2 in zip(bins[:-1], bins[1:]):
@@ -513,7 +456,6 @@ class Annular(object):
                 ],
             )
 
-
         # Repeat calculation if an nfw table is supplied, and also compute shear bias
         # Separating out the NFW loop significantly slows the code...
         if nfw_tab is not None:
@@ -525,7 +467,6 @@ class Annular(object):
 
             i = 0
             for b1, b2 in zip(bins[:-1], bins[1:]):
-
                 annulus = (nfw_tab['r'] >= b1) & (nfw_tab['r'] < b2)
                 n = counts[i]
                 nfw_mid_r[i] = np.mean([b1, b2])
@@ -558,7 +499,6 @@ class Annular(object):
         for i,e in enumerate(table):
             print(f'{e.as_void()}')
 
-
         return table
 
     def plot_profile(self, profile_tab, plotfile, nfw_tab=None):
@@ -570,12 +510,10 @@ class Annular(object):
 
         plotter = ShearProfilePlotter(profile_tab)
 
-
         print(f'Plotting shear profile to {plotfile}')
         plotter.plot_tan_profile(outfile=plotfile, plot_truth=plot_truth)
 
         return
-    
 
     def run(self, outfile, plotfile, overwrite=False):
 
@@ -590,7 +528,6 @@ class Annular(object):
         # Select background galaxies by redshifts
         gal_redshifts = self.redshift_select()
 
-    
         # Resample NFW file (if supplied) to match galaxy redshift distribution; otherwise return None
         nfw_tab = self.process_nfw(gal_redshifts, outdir=outdir, overwrite=overwrite)
 
@@ -600,7 +537,6 @@ class Annular(object):
         # Plot results
         self.plot_profile(profile_tab, plotfile, nfw_tab=nfw_tab)
 
-        
         return
 
 def print_header(args):
