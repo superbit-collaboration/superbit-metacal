@@ -656,7 +656,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                         'shear_profile',
                         'ngmix_fit'
                         ]
-                },
+                    },
                 'galsim': {
                     'config_file': 'pipe_test.yaml',
                     # 'config_file': 'superbit_parameters_forecast.yaml',

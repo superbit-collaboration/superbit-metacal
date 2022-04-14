@@ -320,7 +320,9 @@ class Annular(object):
             # Calculate tangential and cross shears for nfw
             self._nfw_transform_shear(nfw_tab)
 
-            nfw_tab.write(os.path.join(outdir,'subsampled_nfw_cat.fits'),format='fits', overwrite=overwrite)
+            nfw_tab.write(
+                os.path.join(outdir,'subsampled_nfw_cat.fits'),format='fits', overwrite=overwrite
+                )
 
         else:
             # No NFW file passed, return None
@@ -328,20 +330,31 @@ class Annular(object):
 
         return nfw_tab
 
-    def _nfw_resample_redshift(self, gal_redshifts, outdir='.', overwrite=False):
+    def _nfw_resample_redshift(self, gal_redshifts, outdir='.', nfactor=100,
+                               overwrite=False):
         '''
         Subsample theoretical galaxy redshift distribution to match redshift
         distribution of detected galaxy catalog using a sort of MC rejection
         sampling algorithm
+
+        nfactor: integer multiple of measured catalog size for truth resampling
+                 NOTE: In the future, this will be refactored into the number
+                       of bootstrap realizations where we keep track of bootstrap
+                       index
         '''
 
         rng = np.random.default_rng()
 
         nfw_file = self.nfw_info['nfw_file']
-        nfw = Table.read(nfw_file,format='fits')
+        nfw = Table.read(nfw_file, format='fits')
 
+        # NOTE: Let's come back to this in the future. By creating Nfactor truth
+        #       subsamples w/ len=Ninjections, we can track the variance of the
+        #       truth curve as a function of radial bin on top of the mean curve.
+        #       However, right now our focus is just the mean truth comparison
         # sample according to number of galaxies injected into the simulations
-        pseudo_nfw = rng.choice(nfw, size=self.n_truth_gals, replace=False)
+        # pseudo_nfw = rng.choice(nfw, size=nfactor*self.n_truth_gals, replace=False)
+        pseudo_nfw = nfw
 
         n_selec, bin_edges = np.histogram(
             gal_redshifts, bins=100, range=[gal_redshifts.min(),gal_redshifts.max()]
@@ -355,11 +368,11 @@ class Annular(object):
 
         subsampled_redshifts = []; t = []
 
-        while(len(subsampled_redshifts) < len(gal_redshifts)):
+        while(len(subsampled_redshifts) < nfactor*len(gal_redshifts)):
             #this_z = rng.choice(nfwstars['redshift'])
             i = rng.choice(len(nfw))
             this_z = nfw[i]['redshift']
-            this_bin = np.digitize(this_z,bin_edges_nfw)
+            this_bin = np.digitize(this_z, bin_edges_nfw)
 
             odds = rng.random()
             if (this_bin<len(n_selec)) and (odds <= pseudo_prob[this_bin-1]):
@@ -372,7 +385,7 @@ class Annular(object):
         nfw_tab = Table(np.array(t),names = nfw.colnames)
 
         # This should be in diagnostics, but do it here for now
-        fig,ax=plt.subplots(1,1,figsize=(8,6))
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 
         ax.hist(nfw_tab['redshift'],bins=100,range=[gal_redshifts.min(),\
             gal_redshifts.max()],histtype='step',label='nfw resamp')
