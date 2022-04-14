@@ -376,7 +376,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     return cluster_stamp, cluster_galaxy_truth
 
 
-def make_a_star(ud, wcs, affine, optics, sbparams, logprint):
+def make_a_star(ud, seed, wcs, affine, optics, sbparams, logprint):
     """
     makes a star-like object for injection into larger image.
     """
@@ -394,8 +394,12 @@ def make_a_star(ud, wcs, affine, optics, sbparams, logprint):
     uv_pos = affine.toWorld(image_pos)
 
     # Draw star flux at random; based on distribution of star fluxes in real images
-    flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 6, x_max = 47586)
-    star_flux=flux_dist()
+    #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 6, x_max = 47586)
+    pud = np.random.default_rng()
+    p = pud.power(0.6)
+    flux_p = (1/p*120) - 120.
+    star_flux = flux_p
+
     if sbparams.bandpass=='crates_adu_b':
         star_flux*=0.8271672
 
@@ -1025,6 +1029,7 @@ def main():
                           batch_indices[k],
                           'star',
                           galsim.UniformDeviate(sbparams.stars_seed+k+1),
+                          sbparams.stars_seed+k+1,
                           wcs,
                           affine,
                           optics,
@@ -1047,7 +1052,7 @@ def main():
                 time1 = time.time()
                 ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
 
-                star_stamp,truth = make_a_star(ud=ud,
+                star_stamp,truth = make_a_star(ud=ud,seed=sbparams.stars_seed+k+1,
                                             wcs=wcs,
                                             affine=affine,
                                             optics=optics,
