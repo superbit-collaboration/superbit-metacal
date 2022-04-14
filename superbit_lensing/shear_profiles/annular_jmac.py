@@ -273,6 +273,9 @@ class Annular(object):
             print(f'truth catalog {truth_file} not found, check name/type?')
             raise fnf_err
 
+        truth_gals = truth[truth['obj_class'] == 'gal']
+        self.n_truth_gals = len(truth_gals)
+
         cluster_gals = truth[truth['obj_class']=='cluster_gal']
         cluster_redshift = np.mean(cluster_gals['redshift'])
 
