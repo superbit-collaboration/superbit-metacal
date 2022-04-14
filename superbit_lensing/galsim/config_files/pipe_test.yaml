@@ -42,15 +42,15 @@ omega_lam:          0.7         # Omega lambda for the background cosmology.
 # Run parameters
 # --------------
 # Define some paths and filenames
-cosmosdir:          '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_25.2_training_sample/' # Path to COSMOS data directory
-datadir:          '/Users/sweveret/repos/superbit-metacal/superbit_lensing/galsim/data' # Path to repo/galsim data directory
-cat_file_name:      'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
-cluster_cat_name:   '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
-outdir:             './forecasting/pipe_test' # directory where output images and truth catalogs are saved
+cosmosdir:         '/Users/jemcclea/Research/SuperBIT/GalSim/data/' # Path to COSMOS data directory
+datadir:           '/Users/jemcclea/Research/SuperBIT/GalSim/data/' # Path to repo/galsim data directory
+cat_file_name:     'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
+cluster_cat_name:  'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
+outdir:            './forecasting/pipe_test' # directory where output images and truth catalogs are saved
 
 # Misc parameters
 # ---------------
-noise_seed:         95967076    # Random number seed for image noise
-galobj_seed:        76736018    # Random number seed for galaxy objects
-cluster_seed:       44271963    # Random number seed fro cluster galaxies
-stars_seed:         26342806    # Random number seed for stars
+noise_seed:    25401414         # Random number seed for image noise
+galobj_seed:   16433921         # Random number seed for galaxy objects
+cluster_seed:  52785525         # Random number seed fro cluster galaxies
+stars_seed:    23024648         # Random number seed for stars

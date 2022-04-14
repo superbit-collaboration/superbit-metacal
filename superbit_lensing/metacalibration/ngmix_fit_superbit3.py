@@ -667,9 +667,9 @@ def main():
           os.system(cmd)
 
     if make_plots is True:
-        print('diagnostic plotting enabled')
+        print('per-object diagnostic plotting enabled')
     else:
-        print('--plots=False; no diagnostic plots will be generated')
+        print('--plots=False; no per-object diagnostic plots will be generated')
 
     # Set up for saving plots
     im_savedir = os.path.join(outdir, 'metacal-plots/')
