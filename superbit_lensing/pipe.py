@@ -80,7 +80,10 @@ class SuperBITModule(dict):
 
         for flag in self._flag_fields:
             if flag in self._config:
-                options += f' --{flag}'
+                # since passed in a config, it could possibly
+                # be set to False
+                if self._config[flag] is True:
+                    options += f' --{flag}'
 
         vb = ' --vb' if run_options['vb'] is True else ''
         options += vb
