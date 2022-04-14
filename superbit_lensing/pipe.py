@@ -452,12 +452,6 @@ class MetacalModule(SuperBITModule):
         if col not in self._config:
             self._config['n'] = run_options['ncores']
 
-        col = 'plot'
-        if col not in self._config:
-            self._config['plot'] = run_options['run_diagnostics']
-
-        # options = f' -outdir={outdir} -plot={plot} -n={ncores}' + \
-        #     self._setup_options(run_options)
         options = self._setup_options(run_options)
 
         cmd = base + options
