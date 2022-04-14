@@ -132,7 +132,6 @@ class ShearProfilePlotter(object):
             # grab alpha statistics
             alpha = cat.meta['alpha']
             sig_alpha = cat.meta['sig_alpha']
-            print(f'alpha = {alpha:.4f} +/- {sig_alpha:.4f}')
 
             txt = str(r'$\hat{\alpha}=%.4f~\sigma_{\hat{\alpha}}=%.4f$' % (alpha, sig_alpha))
             ann = axs[0].annotate(
