@@ -176,7 +176,7 @@ class Annular(object):
         self.annular_info = annular_info
         self.nfw_info = nfw_info
         self.run_name = run_name
-        self.n_truth_gals = 0
+        self.n_truth_gals = None
         self.vb = vb
         self.g1 = None
         self.g2 = None
