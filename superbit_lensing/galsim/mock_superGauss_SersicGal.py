@@ -209,32 +209,25 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
     index = int(np.floor(ud()*len(cosmos_cat))) # This is a kludge to obain a repeatable index
     gal_z = cosmos_cat[index]['ZPDF']
     gal_flux = cosmos_cat[index][sbparams.bandpass]*sbparams.exp_time
-    inclination = cosmos_cat[index]['phi_cosmos10']*galsim.radians
+    phi = cosmos_cat[index]['phi_cosmos10']*galsim.radians
     q = cosmos_cat[index]['q_cosmos10']
-    # Cosmos HLR is in units of HST pix, convert to arcsec.
+    # Cosmos HLR is in units of HST pix (0.03"/pix) so convert to arcsec.
     half_light_radius=cosmos_cat[index]['hlr_cosmos10']*0.03*np.sqrt(q)
     n = cosmos_cat[index]['n_sersic_cosmos10']
+
     logprint.debug(f'galaxy z={gal_z} flux={gal_flux} hlr={half_light_radius} ' + \
                    f'sersic_index={n}')
 
-    ## InclinedSersic requires 0.3 < n < 6;
+    ## Sersic requires n > 0.3 
     ## set galaxy's n to another value if it falls outside this range
     if n<0.3:
         n=0.3
-    elif n>6:
-        n=4
 
-    ## Very large HLRs will also make GalSim fail
-    ## Set to a default, ~large but physical value.
-    if half_light_radius > 2:
-            half_light_radius = 2
+    gal = galsim.Sersic(n = n, 
+                        flux = gal_flux,
+                        half_light_radius = half_light_radius)
 
-    gal = galsim.InclinedSersic(n=n,
-                                flux=gal_flux,
-                                half_light_radius=half_light_radius,
-                                inclination=inclination,
-                                scale_h_over_r=q
-                                )
+    gal = gal.shear(q = q, beta = phi)
 
     logprint.debug('created galaxy')
 
@@ -247,6 +240,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
         nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
         g1=nfw_shear.g1; g2=nfw_shear.g2
         gal = gal.lens(g1, g2, mu)
+
     except galsim.errors.GalSimError:
         logprint(f'could not lens galaxy at z = {gal_z}, setting default values...')
         g1 = 0.0; g2 = 0.0
@@ -267,7 +261,6 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
     galaxy_truth.mu = mu; galaxy_truth.z = gal_z
     galaxy_truth.flux = stamp.added_flux
     galaxy_truth.n = n; galaxy_truth.hlr = half_light_radius
-    #galaxy_truth.inclination = inclination.deg # storing in degrees for human readability
     galaxy_truth.scale_h_over_r = q
     galaxy_truth.obj_class = 'gal'
 
@@ -751,6 +744,10 @@ def main():
     cosmos_cat = Table.read(os.path.join(sbparams.datadir,
                                          sbparams.cat_file_name))
     logprint(f'Read in {len(cosmos_cat)} galaxies from catalog and associated fit info')
+
+    # Filter the catalog for FLUX_RADIUS greater than 0 
+    size_wg = (cosmos_cat['FLUX_RADIUS'] >= 0) & (cosmos_cat['hlr_cosmos10'] < 50)
+    cosmos_cat = cosmos_cat[size_wg]
 
     try:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name,
