@@ -209,32 +209,25 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
     index = int(np.floor(ud()*len(cosmos_cat))) # This is a kludge to obain a repeatable index
     gal_z = cosmos_cat[index]['ZPDF']
     gal_flux = cosmos_cat[index][sbparams.bandpass]*sbparams.exp_time
-    inclination = cosmos_cat[index]['phi_cosmos10']*galsim.radians
+    phi = cosmos_cat[index]['phi_cosmos10']*galsim.radians
     q = cosmos_cat[index]['q_cosmos10']
-    # Cosmos HLR is in units of HST pix, convert to arcsec.
+    # Cosmos HLR is in units of HST pix (0.03"/pix) so convert to arcsec.
     half_light_radius=cosmos_cat[index]['hlr_cosmos10']*0.03*np.sqrt(q)
     n = cosmos_cat[index]['n_sersic_cosmos10']
+
     logprint.debug(f'galaxy z={gal_z} flux={gal_flux} hlr={half_light_radius} ' + \
                    f'sersic_index={n}')
 
-    ## InclinedSersic requires 0.3 < n < 6;
+    ## Sersic requires n > 0.3 
     ## set galaxy's n to another value if it falls outside this range
     if n<0.3:
         n=0.3
-    elif n>6:
-        n=4
 
-    ## Very large HLRs will also make GalSim fail
-    ## Set to a default, ~large but physical value.
-    if half_light_radius > 2:
-            half_light_radius = 2
+    gal = galsim.Sersic(n = n, 
+                        flux = gal_flux,
+                        half_light_radius = half_light_radius)
 
-    gal = galsim.InclinedSersic(n=n,
-                                flux=gal_flux,
-                                half_light_radius=half_light_radius,
-                                inclination=inclination,
-                                scale_h_over_r=q
-                                )
+    gal = gal.shear(q = q, beta = phi)
 
     logprint.debug('created galaxy')
 
@@ -247,13 +240,14 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
         nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
         g1=nfw_shear.g1; g2=nfw_shear.g2
         gal = gal.lens(g1, g2, mu)
+
     except galsim.errors.GalSimError:
         logprint(f'could not lens galaxy at z = {gal_z}, setting default values...')
         g1 = 0.0; g2 = 0.0
         mu = 1.0
 
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    final=galsim.Convolve([jitter_psf,gal,optics])
+    final=galsim.Convolve([jitter_psf,gal])
 
     logprint.debug('Convolved star and PSF at galaxy position')
 
@@ -267,7 +261,6 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
     galaxy_truth.mu = mu; galaxy_truth.z = gal_z
     galaxy_truth.flux = stamp.added_flux
     galaxy_truth.n = n; galaxy_truth.hlr = half_light_radius
-    #galaxy_truth.inclination = inclination.deg # storing in degrees for human readability
     galaxy_truth.scale_h_over_r = q
     galaxy_truth.obj_class = 'gal'
 
@@ -336,7 +329,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     logprint.debug(f'rescaled galaxy with scaling factor {sbparams.flux_scaling}')
 
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    final=galsim.Convolve([jitter_psf,gal,optics])
+    final=galsim.Convolve([jitter_psf,gal])
 
     logprint.debug('Convolved star and PSF at galaxy position')
 
@@ -376,7 +369,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     return cluster_stamp, cluster_galaxy_truth
 
 
-def make_a_star(ud, wcs, affine, optics, sbparams, logprint):
+def make_a_star(ud, seed, wcs, affine, optics, sbparams, logprint):
     """
     makes a star-like object for injection into larger image.
     """
@@ -394,15 +387,19 @@ def make_a_star(ud, wcs, affine, optics, sbparams, logprint):
     uv_pos = affine.toWorld(image_pos)
 
     # Draw star flux at random; based on distribution of star fluxes in real images
-    flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 6, x_max = 47586)
-    star_flux=flux_dist()
+    #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 6, x_max = 47586)
+    pud = np.random.default_rng(seed)
+    p = pud.power(0.6)
+    flux_p = (1/p*120) - 120.
+    star_flux = flux_p
+
     if sbparams.bandpass=='crates_adu_b':
         star_flux*=0.8271672
 
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    star=galsim.Convolve([jitter_psf,deltastar,optics])
+    star=galsim.Convolve([jitter_psf,deltastar])
 
     star_stamp = star.drawImage(wcs=wcs.local(image_pos)) # before it was scale = 0.206, and that was bad!
     star_stamp.setCenter(image_pos.x,image_pos.y)
@@ -558,14 +555,6 @@ class SuperBITParameters:
                 self.bp_file = str(value)
             elif option == "outdir":
                 self.outdir = str(value)
-            elif option == "noise_seed":
-                self.noise_seed = int(value)
-            elif option == "galobj_seed":
-                self.galobj_seed = int(value)
-            elif option == "cluster_seed":
-                self.cluster_seed = int(value)
-            elif option == "stars_seed":
-                self.stars_seed = int(value)
             elif option == "nstruts":
                 self.nstruts = int(value)
             elif option == "nstruts":
@@ -588,6 +577,26 @@ class SuperBITParameters:
                 self.mpi = bool(value)
             elif option == "ncores":
                 self.ncores = int(value)
+            elif option == "noise_seed":
+                try:
+                    self.noise_seed = int(value)
+                except:
+                    self.noise_seed = None
+            elif option == "galobj_seed":
+                try:
+                    self.galobj_seed = int(value)
+                except:
+                    self.galobj_seed = None
+            elif option == "cluster_seed":
+                try:
+                    self.cluster_seed = int(value)
+                except:
+                    self.cluster_seed = None
+            elif option == "stars_seed":
+                try:
+                    self.stars_seed = int(value)
+                except:
+                    self.stars_seed = None
             else:
                 raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
@@ -736,6 +745,10 @@ def main():
                                          sbparams.cat_file_name))
     logprint(f'Read in {len(cosmos_cat)} galaxies from catalog and associated fit info')
 
+    # Filter the catalog for FLUX_RADIUS greater than 0 
+    size_wg = (cosmos_cat['FLUX_RADIUS'] >= 0) & (cosmos_cat['hlr_cosmos10'] < 50)
+    cosmos_cat = cosmos_cat[size_wg]
+
     try:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name,
                                            dir=sbparams.cosmosdir)
@@ -814,6 +827,31 @@ def main():
         wcs = galsim.TanWCS(affine, sky_center, units=galsim.arcsec)
         full_image.wcs = wcs
 
+        ##
+        ## Check for the existence of star, galaxy and cluster galaxy seeds
+        ## If they don't exist, create new ones
+
+        if sbparams.stars_seed is None:
+            star_seed = np.random.randint(11111111,99999999)
+            sbparams.stars_seed = star_seed
+            print(f'\nNo stars seed found, using {sbparams.stars_seed}\n')
+            logprint(f'\nNo stars seed found, using {sbparams.stars_seed}\n')
+
+
+        if sbparams.galobj_seed is None:
+            galobj_seed = np.random.randint(11111111,99999999)
+            sbparams.galobj_seed = galobj_seed
+            print(f'\nNo galaxy seed found, using {sbparams.galobj_seed}\n')
+            logprint(f'\nNo galaxy seed found, using {sbparams.galobj_seed}\n')
+
+        if sbparams.cluster_seed is None:
+            cluster_seed = np.random.randint(11111111,99999999)
+            sbparams.cluster_seed = cluster_seed
+            print(f'\nNo cluster galaxy seed found, using {sbparams.cluster_seed}\n')
+            logprint(f'\nNo cluster galaxy seed found, using {sbparams.cluster_seed}\n')
+
+
+        ##
         ## Now let's read in the PSFEx PSF model, if using.
         ## We read the image directly into an InterpolatedImage GSObject,
         ## so we can manipulate it as needed
@@ -988,6 +1026,7 @@ def main():
                           batch_indices[k],
                           'star',
                           galsim.UniformDeviate(sbparams.stars_seed+k+1),
+                          sbparams.stars_seed+k+1,
                           wcs,
                           affine,
                           optics,
@@ -1010,7 +1049,7 @@ def main():
                 time1 = time.time()
                 ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
 
-                star_stamp,truth = make_a_star(ud=ud,
+                star_stamp,truth = make_a_star(ud=ud,seed=sbparams.stars_seed+k+1,
                                             wcs=wcs,
                                             affine=affine,
                                             optics=optics,
