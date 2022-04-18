@@ -661,11 +661,11 @@ class BITMeasurement():
             stars=truthcat[truthcat['redshift']==0]
             outname = sscat.replace('.ldac','truthstars.ldac')
 
-            # match sscat against truth star catalog
+            # match sscat against truth star catalog -- 0.72" = 5 SuperBIT pixels
             self.logprint("selecting on truth catalog, %d stars found"%len(stars))
             star_matcher = eu.htm.Matcher(16,ra=stars['ra'],dec=stars['dec'])
             matches,starmatches,dist = star_matcher.match(ra=ss['ALPHAWIN_J2000'],
-                                                    dec=ss['DELTAWIN_J2000'],radius=1.5E-4,maxmatch=1)
+                                                    dec=ss['DELTAWIN_J2000'],radius=0.72/3600.,maxmatch=1)
 
             # Save result to file, return filename
             ss=ss[matches]

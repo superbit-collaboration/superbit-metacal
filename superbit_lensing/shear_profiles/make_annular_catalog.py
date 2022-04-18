@@ -165,18 +165,18 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 1.2 # orig 1.15
+        min_Tpsf = 1. # orig 1.15
         max_sn = 1000
         min_sn = 10 # orig 8 for ensemble
         min_T = 0.03 # orig 0.05
         max_T = 10 # orig inf
-        covcut = 7e-3 # orig 1 for ensemble
+        covcut = 1E-2 # orig 1 for ensemble
 
         qualcuts = {'min_Tpsf':min_Tpsf, 'max_sn':max_sn, 'min_sn':min_sn,
                     'min_T':min_T, 'max_T':max_T, 'covcut':covcut}
 
         print(f'#\n# cuts applied: Tpsf_ratio>{min_Tpsf:.2f}' +\
-              f'SN>{min_sn:.1f} T>{min_T:.2f} covcut={covcut:.1e}\n#\n')
+              f' SN>{min_sn:.1f} T>{min_T:.2f} covcut={covcut:.1e}\n#\n')
 
         noshear_selection = self.mcal[(self.mcal['T_noshear']>=min_Tpsf*self.mcal['Tpsf_noshear'])\
                                         & (self.mcal['T_noshear']<max_T)\
@@ -329,10 +329,21 @@ class AnnularCatalog():
             'nbins': self.nbins
         }
 
+        if self.nfw_file is not None:
+
+            nfw_info = {
+                'nfw_file': self.nfw_file,
+                'xy_args': ['x_image','y_image'],
+                'shear_args': ['nfw_g1','nfw_g2'],
+                'nfw_center': [4784, 3190],
+            }
+
+        else: nfw_info = None
+
         # Runs the Annular class in annular_jmac.py
         # Compute cross/tan shear, select background galaxies, obtain shear profile
         # runner = AnnularRunner(cat_info, annular_info)
-        annular = Annular(cat_info, annular_info, run_name=self.run_name, vb=vb)
+        annular = Annular(cat_info, annular_info, nfw_info, run_name=self.run_name, vb=vb)
 
         annular.run(outfile, plotfile, overwrite=overwrite)
 
@@ -353,7 +364,8 @@ class AnnularCatalog():
             p = ''
 
         outfile = os.path.join(self.outdir, f'{p}shear_profile_cat.fits')
-        plotfile = os.path.join(self.outdir, f'shear_profile.pdf')
+        plotfile = os.path.join(self.outdir, f'{p}shear_profile.pdf')
+
         self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return

@@ -4,30 +4,6 @@ import matplotlib.pyplot as plt
 from astropy.table import Table
 import pudb
 
-def compute_alpha(nfw, radius, gtan, variance):
-    '''
-    '''
-
-    nfwr = nfw[0]
-    nfw_shear = nfw[1]
-    C = np.diag(variance**2)
-    D = gtan
-
-    # build theory array to match data points with a kludge
-    # radius defines the length of our dataset
-    T = []
-    for rstep in radius:
-        T.append(np.interp(rstep, nfwr, nfw_shear))
-    T = np.array(T)
-
-    numer = T.T.dot(np.linalg.inv(C)).dot(D)
-    denom = T.T.dot(np.linalg.inv(C)).dot(T)
-
-    Ahat = numer / denom
-    sigma_A = 1. / np.sqrt((T.T.dot(np.linalg.inv(C)).dot(T)))
-
-    return Ahat, sigma_A
-
 class ShearProfilePlotter(object):
 
     def __init__(self, cat_file, pix_scale=0.144):
@@ -48,7 +24,11 @@ class ShearProfilePlotter(object):
         return
 
     def _load_cats(self):
-        self.cat = Table.read(self.cat_file)
+
+        if isinstance(self.cat_file,str):
+            self.cat = Table.read(self.cat_file)
+        else:
+            self.cat = self.cat_file
 
         return
 
@@ -87,19 +67,20 @@ class ShearProfilePlotter(object):
 
         radius = self.get_angular_radius(cat['midpoint_r'], arcmin=True)
 
-        gtan = cat['gtan_mean']
-        gcross = cat['gcross_mean']
-        gtan_err = cat['gtan_err']
-        gcross_err = cat['gcross_err']
+        gtan = cat['mean_gtan']
+        gcross = cat['mean_gcross']
+        gtan_err = cat['err_gtan']
+        gcross_err = cat['err_gcross']
 
         if plot_truth is True:
             try:
                 # see if truth info is present
-                true_gtan = cat['nfw_gtan_mean']
-                true_gcross = cat['nfw_gcross_mean']
-                true_gtan_err = cat['nfw_gtan_err']
-                true_gcross_err = cat['nfw_gcross_err']
-                nfw_radius = radius
+                true_gtan = cat['mean_nfw_gtan']
+                true_gcross = cat['mean_nfw_gcross']
+                true_gtan_err = cat['err_nfw_gtan']
+                true_gcross_err = cat['err_nfw_gcross']
+                true_radius = radius
+
             except KeyError:
                 print('WARNING: Truth info not present in shear profile table!')
                 plot_truth = False
@@ -142,18 +123,17 @@ class ShearProfilePlotter(object):
         # If truth info is present, plot it
         if plot_truth is True:
             if smoothing is True:
-                nfw_gtan = np.convolve(nfw_gtan, np.ones(5)/5, mode='valid')
-                nfw_radius = np.convolve(nfw_radius, np.ones(5)/5, mode='valid')
-            nfw_array = [nfw_radius, nfw_gtan]
+                true_gtan = np.convolve(true_gtan, np.ones(5)/5, mode='valid')
+                true_radius = np.convolve(true_radius, np.ones(5)/5, mode='valid')
 
-            axs[0].plot(nfw_radius, nfw_gtan,'-r', label=nfw_label)
+            true_label = 'Reference NFW (resample)'
+            axs[0].plot(true_radius, true_gtan, '-r', label=true_label)
 
-            # Compute alpha statistics
-            alpha,sigma_alpha = compute_alpha(
-                nfw=nfw_array, radius=radius, gtan=gtan, variance=gtan_err
-                )
+            # grab alpha statistics
+            alpha = cat.meta['alpha']
+            sig_alpha = cat.meta['sig_alpha']
 
-            txt = str(r'$\hat{\alpha}=%.4f~\sigma_{\hat{\alpha}}=%.4f$' % (alpha, sigma_alpha))
+            txt = str(r'$\hat{\alpha}=%.4f~\sigma_{\hat{\alpha}}=%.4f$' % (alpha, sig_alpha))
             ann = axs[0].annotate(
                 txt, xy=[0.1,0.9], xycoords='axes fraction', fontsize=12,
                 bbox=dict(facecolor='white', edgecolor='cornflowerblue',

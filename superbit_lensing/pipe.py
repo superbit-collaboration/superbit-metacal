@@ -80,7 +80,10 @@ class SuperBITModule(dict):
 
         for flag in self._flag_fields:
             if flag in self._config:
-                options += f' --{flag}'
+                # since passed in a config, it could possibly
+                # be set to False
+                if self._config[flag] is True:
+                    options += f' --{flag}'
 
         vb = ' --vb' if run_options['vb'] is True else ''
         options += vb
@@ -413,7 +416,8 @@ class MedsmakerModule(SuperBITModule):
 
 class MetacalModule(SuperBITModule):
     _req_fields = ['meds_file', 'outfile']
-    _opt_fields = ['outdir','start', 'end', 'plot', 'n', 'vb']
+    _opt_fields = ['outdir','start', 'end', 'n']
+    _flag_fields = ['plot', 'vb']
 
     def __init__(self, name, config):
         super(MetacalModule, self).__init__(name, config)
@@ -451,12 +455,6 @@ class MetacalModule(SuperBITModule):
         if col not in self._config:
             self._config['n'] = run_options['ncores']
 
-        col = 'plot'
-        if col not in self._config:
-            self._config['plot'] = run_options['run_diagnostics']
-
-        # options = f' -outdir={outdir} -plot={plot} -n={ncores}' + \
-        #     self._setup_options(run_options)
         options = self._setup_options(run_options)
 
         cmd = base + options
@@ -514,7 +512,7 @@ class NgmixFitModule(SuperBITModule):
 
 class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
-    _opt_fields = ['outdir', 'run_name', 'truthfile']
+    _opt_fields = ['outdir', 'run_name','truth_file','nfw_file']
     _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
@@ -637,6 +635,10 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
         ngmix_test_config = make_test_ngmix_config('ngmix_test.yaml',
                                                    outdir=outdir,
                                                    run_name=run_name)
+
+        # dummy truth
+        nfw_file = os.path.join(utils.BASE_DIR, 'runs/truth/cl3_nfwonly_truth_cat.fits')
+
         overwrite = True
         with open(filename, 'w') as f:
             # Create dummy config file
@@ -654,7 +656,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                         'shear_profile',
                         'ngmix_fit'
                         ]
-                },
+                    },
                 'galsim': {
                     'config_file': 'pipe_test.yaml',
                     # 'config_file': 'superbit_parameters_forecast.yaml',
@@ -688,6 +690,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'se_file': se_file,
                     'mcal_file': mcal_file,
                     'outfile': f'{run_name}_annular.fits',
+                    'nfw_file': nfw_file,
                     'outdir': outdir,
                     'run_name': run_name,
                     'overwrite': overwrite,
