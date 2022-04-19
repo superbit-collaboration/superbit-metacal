@@ -22,7 +22,7 @@ parser.add_argument('truth_file', type=str,
                     help='Truth catalog filename')
 parser.add_argument('-run_name', type=str, default=None,
                     help='Name of simulation run')
-parser.add_argument('-outdir', type=str, default='',
+parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory for plots')
 parser.add_argument('--show', action='store_true', default=False,
                     help='Turn on to display plots')
@@ -34,21 +34,49 @@ def get_image_shape():
 
     return (9568, 6380)
 
-def cut_cat_by_radius(cat, radius, xtag='x_image', ytag='y_image'):
+def cut_cat_by_radius(cat, radius, xtag='X_IMAGE', ytag='Y_IMAGE'):
     assert radius > 0
     Nx, Ny = get_image_shape()
     xcen, ycen = Nx // 2, Ny // 2
     assert xcen > 0
     assert ycen > 0
 
-    obj_radius = np.sqrt((cat[xtag]-xcen)**2 + (cat[ytag]-ycen)**2)
+    try:
+        obj_radius = np.sqrt((cat[xtag]-xcen)**2 + (cat[ytag]-ycen)**2)
+    except KeyError:
+        xtag = xtag.lower()
+        ytag = ytag.lower()
+        obj_radius = np.sqrt((cat[xtag]-xcen)**2 + (cat[ytag]-ycen)**2)
 
     return cat[obj_radius < radius]
 
+def cut_cats_by_radius(cat1, cat2, radius, xtag1='x_image', ytag1='y_image',
+                       xtag2='X_IMAGE', ytag2='Y_IMAGE'):
+    '''
+    Same as above, but for large samples the radial cut can cause differences
+    in cat length due to astrometric errors
+    '''
+
+    assert radius > 0
+    Nx, Ny = get_image_shape()
+    xcen, ycen = Nx // 2, Ny // 2
+    assert xcen > 0
+    assert ycen > 0
+
+    obj_radius_1 = np.sqrt((cat1[xtag1]-xcen)**2 + (cat1[ytag1]-ycen)**2)
+    obj_radius_2 = np.sqrt((cat2[xtag2]-xcen)**2 + (cat2[ytag2]-ycen)**2)
+
+    good = np.where((obj_radius_1 < radius) & (obj_radius_2 < radius))
+    return (cat1[good], cat2[good])
+
 def plot_true_shear_dist(match, size=(8,8), outfile=None, show=None,
-                         run_name=None, radial_cut=None, fontsize=14):
+                         run_name=None, selection=None, radial_cut=None,
+                         fontsize=14):
 
     true = match.true
+
+    if selection is not None:
+        true = true[selection]
 
     if radial_cut is not None:
         true = cut_cat_by_radius(true, radial_cut)
@@ -93,6 +121,7 @@ def plot_responses_by_class(match, size=(8,8), outfile=None, show=False,
     if radial_cut is not None:
         shear = cut_cat_by_radius(shear, radial_cut)
 
+    print('shear columns: ',shear.columns)
     is_star = np.where(shear['redshift'] == 0)
 
     objs = {
@@ -147,13 +176,16 @@ def plot_responses_by_class(match, size=(8,8), outfile=None, show=False,
 
 def plot_shear_responses(match, size=(8,8), outfile=None, show=False,
                          run_name=None, radial_cut=None, fontsize=14,
-                         label=None, close=True):
+                         selection=None, label=None, close=True):
     '''
     Plot the distribution of shear responses for both stars
     and galaxies
     '''
 
     shear = match.meas
+
+    if selection is not None:
+        shear = shear[selection]
 
     if radial_cut is not None:
         shear = cut_cat_by_radius(shear, radial_cut)
@@ -201,6 +233,16 @@ def density_scatter(x, y, ax=None, fig=None, sort=True, bins=20, s=2,
     Scatter plot colored by 2d histogram
     '''
 
+    # sometimes x or y can be a masked column
+    try:
+        x = x.filled()
+    except:
+        pass
+    try:
+        y = y.filled()
+    except:
+        pass
+
     if ax is None:
         fig , ax = plt.subplots()
     else:
@@ -230,7 +272,8 @@ def density_scatter(x, y, ax=None, fig=None, sort=True, bins=20, s=2,
 
 def plot_shear_calibration(match, size=(16,6), outfile=None, show=False,
                            run_name=None, gridsize=50, fontsize=14,
-                           radial_cut=None, limits=None, **kwargs):
+                           radial_cut=None, limits=None, selection=None,
+                           prefix=None, **kwargs):
     '''
     Plot the shear calibration (multiplicative & additive)
     for both stars and galxies
@@ -239,9 +282,19 @@ def plot_shear_calibration(match, size=(16,6), outfile=None, show=False,
     truth = match.true
     shear = match.meas
 
+    if selection is not None:
+        truth = truth[selection]
+        shear = shear[selection]
+
     if radial_cut is not None:
-        truth = cut_cat_by_radius(truth, radial_cut)
-        shear = cut_cat_by_radius(shear, radial_cut)
+        # truth = cut_cat_by_radius(truth, radial_cut)
+        # shear = cut_cat_by_radius(shear, radial_cut)
+
+        truth, shear = cut_cats_by_radius(truth, shear, radial_cut)
+
+        if len(truth) != len(shear):
+            raise Exception(f'len(truth) = {len(truth)} but ' +\
+                            f'len(shear) = {len(shear)}')
 
     gtrue = {}
     gtrue['g1'] = truth['nfw_g1']
@@ -308,6 +361,10 @@ def plot_shear_calibration(match, size=(16,6), outfile=None, show=False,
         p = ''
     else:
         p = f'{run_name} '
+
+    if prefix is not None:
+        p += (prefix + ' ')
+
     plt.suptitle(f'{p}Shear Bias')
 
     if outfile is not None:
@@ -320,7 +377,7 @@ def plot_shear_calibration(match, size=(16,6), outfile=None, show=False,
 
     return
 
-def compute_shear_bias(sample, component):
+def compute_shear_bias(true, meas, component):
     '''
     Compute multiplicative & added shear bias for sample
     and component 'g1' or 'g2'
@@ -331,10 +388,13 @@ def compute_shear_bias(sample, component):
     assert (component == 'g1') or (component == 'g2')
     g = component
 
-    true = sample[f'nfw_{g}']
-    meas = sample[f'{g}_Rinv']
+    x = true[f'nfw_{g}']
+    y = meas[f'{g}_Rinv']
 
-    c, m = Polynomial.fit(true, meas, 1)
+    intercept, slope = Polynomial.fit(x, y, 1)
+
+    m = slope - 1. # bias defined as y=(1+m)*x
+    c = intercept
 
     # TODO: actually compute errors
     m_err, c_err = 0., 0.
@@ -342,7 +402,7 @@ def compute_shear_bias(sample, component):
     return (m, m_err, c, c_err)
 
 def plot_bias_by_col(match, col, bins, outfile=None, show=False, run_name=None,
-                     size=(10,14)):
+                     selection=None, prefix=None, size=(9,12), title=None):
 
     shear = match.meas
 
@@ -358,15 +418,33 @@ def plot_bias_by_col(match, col, bins, outfile=None, show=False, run_name=None,
 
     k = 0
     for b1, b2 in zip(bins, bins[1:]):
-        sample = shear[(shear[col] >= b1) & (shear[col] < b2)]
+        sample = (shear[col] >= b1) & (shear[col] < b2)
 
-        g1_bias = compute_shear_bias(sample, 'g1')
-        g1_m[k], g1_m_err[k] = g1_bias[0]-1., g1_bias[1]
-        g1_c[k], g1_c_err[k] = g1_bias[2], g1_bias[3]
+        # apply additional selection if desired
+        if selection is not None:
+            sample = selection & sample
 
-        g2_bias = compute_shear_bias(sample, 'g2')
-        g2_m[k], g2_m_err[k] = g2_bias[0]-1., g2_bias[1]
-        g2_c[k], g2_c_err[k] = g2_bias[2], g2_bias[3]
+
+        sample_true = match.true[sample]
+        sample_meas = match.meas[sample]
+
+        assert len(sample_true) == len(sample_meas)
+        N = len(sample_true)
+
+        if N > 0:
+            g1_bias = compute_shear_bias(sample_true, sample_meas, 'g1')
+            g1_m[k], g1_m_err[k] = g1_bias[0], g1_bias[1]
+            g1_c[k], g1_c_err[k] = g1_bias[2], g1_bias[3]
+
+            g2_bias = compute_shear_bias(sample_true, sample_meas, 'g2')
+            g2_m[k], g2_m_err[k] = g2_bias[0], g2_bias[1]
+            g2_c[k], g2_c_err[k] = g2_bias[2], g2_bias[3]
+        else:
+            g1_m[k], g1_m_err[k] = np.NaN, np.NaN
+            g1_c[k], g1_c_err[k] = np.NaN, np.NaN
+            g2_m[k], g2_m_err[k] = np.NaN, np.NaN
+            g2_c[k], g2_c_err[k] = np.NaN, np.NaN
+
         k += 1
 
     xx = np.mean([bins[0:-1], bins[1:]], axis=0)
@@ -393,7 +471,14 @@ def plot_bias_by_col(match, col, bins, outfile=None, show=False, run_name=None,
         p = ''
     else:
         p = f'{run_name} '
-    plt.suptitle(f'{p}Shear Bias', y=0.9)
+
+    if prefix is not None:
+        p += (prefix + ' ')
+
+    if title is None:
+        plt.suptitle(f'{p}Shear Bias', y=0.9)
+    else:
+        plt.suptitle(f'{p}{title}')
 
     if outfile is not None:
         plt.savefig(outfile, bbox_inches='tight', dpi=300)
@@ -424,11 +509,10 @@ def main(args):
 
     if outdir is not None:
         utils.make_dir(outdir)
+    else:
+        outdir = ''
 
-    match = match_cats(
-        truth_file, shear_file
-        , meas_ratag='ra_mcal', meas_dectag='dec_mcal'
-        )
+    match = match_cats(truth_file, shear_file, match_radius=1./3600.)
     print(f'Match cat has {match.Nobjs} objs')
 
     outfile = os.path.join(outdir, f'{p}true-g-dist.png')
@@ -453,6 +537,38 @@ def main(args):
         )
 
     #-----------------------------------------------------------------
+    # Now repeat w/ |g| cut
+
+    gmax = 0.2
+    selection = (np.abs(match.meas['g1_Rinv']) < gmax) &\
+                (np.abs(match.meas['g2_Rinv']) < gmax)
+
+    outfile = os.path.join(outdir, f'{p}true-g-dist-gcut.png')
+    plot_true_shear_dist(
+        match, outfile=outfile, show=show, run_name=run_name,
+        selection=selection
+                         )
+
+    outfile = os.path.join(outdir, f'{p}shear-responses-gcut.png')
+    plot_shear_responses(
+        match, outfile=outfile, show=show, run_name=run_name,
+        selection=selection
+                         )
+
+    outfile = os.path.join(outdir, f'{p}shear-calibration-gcut.png')
+    plot_shear_calibration(
+        match, outfile=outfile, show=show, run_name=run_name,
+        selection=selection, prefix='gcut'
+        )
+
+    outfile = os.path.join(outdir, f'{p}shear-calibration-zoom-gcut.png')
+    plot_shear_calibration(
+        match, outfile=outfile, show=show, run_name=run_name,
+        limits=[[-.1, .1], [-.5, .5]], s=3,
+        selection=selection, prefix='gcut'
+        )
+
+    #-----------------------------------------------------------------
     # Now repeat w/ radial cut to force square in image
     # single images have dimensions (9568, 6380)
     radial_cut = 6380 // 2 # pixels
@@ -471,30 +587,57 @@ def main(args):
     outfile = os.path.join(outdir, f'{p}shear-calibration-rcut.png')
     plot_shear_calibration(
         match, outfile=outfile, show=show, run_name=run_name,
-        radial_cut=radial_cut
+        radial_cut=radial_cut, prefix='rcut'
         )
 
     outfile = os.path.join(outdir, f'{p}shear-calibration-zoom-rcut.png')
     plot_shear_calibration(
         match, outfile=outfile, show=show, run_name=run_name,
         limits=[[-.1, .1], [-.5, .5]], s=3,
-        radial_cut=radial_cut
+        radial_cut=radial_cut, prefix='rcut'
         )
 
     #-----------------------------------------------------------------
     # Now replicate some of the plots in mcal2
 
-    outfile = os.path.join(outdir, f'{p}obj-responses.png')
-    plot_responses_by_class(
-        match, outfile=outfile, show=show, run_name=run_name,
-        )
+    # outfile = os.path.join(outdir, f'{p}obj-responses.png')
+    # plot_responses_by_class(
+    #     match, outfile=outfile, show=show, run_name=run_name,
+    #     )
 
     outfile = os.path.join(outdir, f'{p}bias-by-s2n.png')
     bins = np.linspace(10, 20, 11)
-    print(bins)
     plot_bias_by_col(
         match, 's2n_r_noshear', bins, outfile=outfile, show=show, run_name=run_name,
         )
+
+    outfile = os.path.join(outdir, f'{p}bias-by-s2n-gcut.png')
+    bins = np.linspace(10, 20, 11)
+    gmax = 0.2
+    selection = (np.abs(match.meas['g1_Rinv']) < gmax) &\
+                (np.abs(match.meas['g2_Rinv']) < gmax)
+    title = f'|g_i|<{gmax}'
+    plot_bias_by_col(
+        match, 's2n_r_noshear', bins, outfile=outfile, show=show, run_name=run_name,
+        selection=selection, title=title
+        )
+
+    outfile = os.path.join(outdir, f'{p}bias-by-T.png')
+    bins = np.linspace(0, 10, 11)
+    plot_bias_by_col(
+        match, 'T_noshear', bins, outfile=outfile, show=show, run_name=run_name,
+        )
+
+    # outfile = os.path.join(outdir, f'{p}bias-by-s2n-Tcut.png')
+    # bins = np.linspace(10, 20, 11)
+    # Tmax = 0.2
+    # selection = (np.abs(match.meas['g1_Rinv']) < gmax) &\
+    #             (np.abs(match.meas['g2_Rinv']) < gmax)
+    # title = f'|T_noshear|<{Tmax}'
+    # plot_bias_by_col(
+    #     match, 's2n_r_noshear', bins, outfile=outfile, show=show, run_name=run_name,
+    #     selection=selection, title=title
+    #     )
 
     return 0
 
