@@ -71,6 +71,8 @@ class TruthDiagnostics(Diagnostics):
         self.true = None
         self.matched_cat = None
 
+        self.truth_file = None
+
         # Used for matching measured catalog to truth
         self.ratag, self.dectag = 'ra', 'dec'
 
@@ -116,7 +118,9 @@ class TruthDiagnostics(Diagnostics):
         if N != 1:
             raise Exception(f'There should only be 1 truth table, not {N}!')
 
-        return truth_files[0]
+        self.truth_file = truth_files[0]
+
+        return self.truth_file
 
 class GalSimDiagnostics(TruthDiagnostics):
 
@@ -256,8 +260,36 @@ class NgmixFitDiagnostics(TruthDiagnostics):
 
         return
 
-class ShearProfileDiagnostics(Diagnostics):
-    pass
+class ShearProfileDiagnostics(TruthDiagnostics):
+    def run(self, run_options, logprint):
+
+        super(ShearProfileDiagnostics, self).run(run_options, logprint)
+
+        annular_file = os.path.join(self.outdir, self.config['outfile'])
+        self._setup_matched_cat(annular_file)
+
+        self._run_shear_calibration(run_options, logprint)
+
+        return
+
+    def _run_shear_calibration(self, run_options, logprint):
+
+        run_name = run_options['run_name']
+        outdir = self.outdir
+
+        test_dir = os.path.join(utils.MODULE_DIR, 'tests')
+        shear_script = os.path.join(test_dir, 'shear_calibration.py')
+
+        annular_file = os.path.join(self.outdir, self.config['outfile'])
+        truth_file = self.truth_file
+
+        cmd = f'python {shear_script} {annular_file} {truth_file} -outdir={outdir}'
+
+        logprint('Running shear calibration diagnostics\n')
+        logprint(f'cmd = {cmd}')
+        os.system(cmd)
+
+        return
 
 def get_diagnostics_types():
     return DIAGNOSTICS_TYPES
@@ -268,8 +300,8 @@ DIAGNOSTICS_TYPES = {
     'galsim': GalSimDiagnostics,
     'medsmaker': MedsmakerDiagnostics,
     'metacal': MetacalDiagnostics,
-    'ngmix-fit': NgmixFitDiagnostics,
-    'shear-profile': ShearProfileDiagnostics,
+    'ngmix_fit': NgmixFitDiagnostics,
+    'shear_profile': ShearProfileDiagnostics,
 }
 
 def build_diagnostics(name, config):

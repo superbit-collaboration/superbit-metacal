@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.polynomial import Polynomial
+from scipy.optimize import curve_fit
 import fitsio
 from astropy.table import Table
 import os
@@ -319,7 +320,7 @@ def plot_shear_calibration(match, size=(16,6), outfile=None, show=False,
 
         # Get linear fit to scatter points
         # m, b = np.polyfit(x, y, 1)
-        b, m = Polynomial.fit(x, y, 1)
+        # b, m = Polynomial.fit(x, y, 1)
 
         # Compute m, b directly
         mean_gtrue = np.mean(gtrue[f'g{k}'])
@@ -377,7 +378,103 @@ def plot_shear_calibration(match, size=(16,6), outfile=None, show=False,
 
     return
 
-def compute_shear_bias(true, meas, component):
+def compute_binned_bias():
+    pass
+
+def plot_binned_shear_calibration(match, bins=None, size=(16,6), outfile=None,
+                           run_name=None, gridsize=50, fontsize=14,
+                           radial_cut=None, limits=None, selection=None,
+                           prefix=None, show=False, **kwargs):
+    '''
+    Plot the shear calibration binned in true shear
+    '''
+
+    truth = match.true
+    shear = match.meas
+
+    if selection is not None:
+        truth = truth[selection]
+        shear = shear[selection]
+
+    if radial_cut is not None:
+
+        truth, shear = cut_cats_by_radius(truth, shear, radial_cut)
+
+        if len(truth) != len(shear):
+            raise Exception(f'len(truth) = {len(truth)} but ' +\
+                            f'len(shear) = {len(shear)}')
+
+    gtrue = {}
+    gtrue['g1'] = truth['nfw_g1']
+    gtrue['g2'] = truth['nfw_g2']
+
+    gmeas= {}
+    gmeas['g1'] = shear['g1_Rinv']
+    gmeas['g2'] = shear['g2_Rinv']
+
+    # bin data to prep for fitting
+    if bins is None:
+        gmin, gmax = -0.1, 0.1
+        Nbins = 11
+        bins = np.linspace(gmin, gmax, Nbins)
+
+    bindx = {}
+    bindx['g1'] = np.digitize(gtrue['g1'], bins)
+    bindx['g2'] = np.digitize(gtrue['g2'], bins)
+
+    plt.rcParams.update({'font.size': fontsize})
+    fig, axes = plt.subplots(nrows=1, ncols=2)
+
+    for k, g in enumerate(['g1', 'g2']):
+        ax = axes[k]
+
+        gmean = []
+        gstd  = []
+        for i in range(1, len(bins)):
+            x = gtrue[g][bindx[g]==i]
+            y = gmeas[g][bindx[g]==i]
+
+            gmean.append(np.mean(y))
+            gstd.append(np.std(y))
+
+        # Now compute shear bias from binned results
+        bin_mean = np.mean([bins[0:-1], bins[1:]], axis=0)
+        m, m_err, c, c_err = compute_shear_bias(bin_mean, gmean, gstd, g)
+        f = lambda g: (1.+m)*g + c
+        bias_label = f'(1+{m:.5f}){g} + {c:.5f}'
+
+        ax.errorbar(bin_mean, gmean, yerr=gstd, label='Binned g_meas')
+        ax.plot(bin_mean, f(bin_mean), lw=2, ls='--', c='r', label=bias_label)
+        ax.axhline(0, lw=2, ls='--', c='k')
+        ax.plot(bin_mean, bin_mean, ls='-', lw=2, c='k', label='unity')
+        ax.set_xlabel(f'True {g}')
+        ax.set_ylabel(f'Meas {g}')
+        ax.legend()
+
+    fig.set_size_inches(size)
+
+    if run_name is None:
+        p = ''
+    else:
+        p = f'{run_name} '
+
+    if prefix is not None:
+        p += (prefix + ' ')
+
+    plt.suptitle(f'{p}Shear Calibration')
+
+    if outfile is not None:
+        goutfile = outfile.replace('.png', '_{g}.png')
+        plt.savefig(goutfile, bbox_inches='tight', dpi=300)
+
+    if show is True:
+        plt.show()
+    else:
+        plt.close()
+
+    return
+
+def compute_shear_bias(true_g, meas_g, meas_g_err, component):
     '''
     Compute multiplicative & added shear bias for sample
     and component 'g1' or 'g2'
@@ -388,16 +485,23 @@ def compute_shear_bias(true, meas, component):
     assert (component == 'g1') or (component == 'g2')
     g = component
 
-    x = true[f'nfw_{g}']
-    y = meas[f'{g}_Rinv']
+    # x = true[f'nfw_{g}']
+    # y = meas[f'{g}_Rinv']
+    x = true_g
+    y = meas_g
 
-    intercept, slope = Polynomial.fit(x, y, 1)
+    # intercept, slope = Polynomial.fit(x, y, 1)
 
-    m = slope - 1. # bias defined as y=(1+m)*x
+    def f(x, a, b):
+        return a*x + b
+    res, cov = curve_fit(f, x, y)
+    slope, intercept = res[0], res[1]
+
+    m = slope - 1. # bias defined as y=(1+m)*x+c
     c = intercept
 
     # TODO: actually compute errors
-    m_err, c_err = 0., 0.
+    m_err, c_err = cov[0,0], cov[1,1]
 
     return (m, m_err, c, c_err)
 
@@ -515,6 +619,16 @@ def main(args):
     match = match_cats(truth_file, shear_file, match_radius=1./3600.)
     print(f'Match cat has {match.Nobjs} objs')
 
+    #-----------------------------------------------------------------
+    # Top-level shear calibration
+    outfile = os.path.join(outdir, f'{p}binned-bias.png')
+    bins = np.linspace(-0.05, 0.05, 21)
+    plot_binned_shear_calibration(
+        match, bins=bins, outfile=outfile, show=show, run_name=run_name
+        )
+
+    #-----------------------------------------------------------------
+    # Extra plots
     outfile = os.path.join(outdir, f'{p}true-g-dist.png')
     plot_true_shear_dist(
         match, outfile=outfile, show=show, run_name=run_name
