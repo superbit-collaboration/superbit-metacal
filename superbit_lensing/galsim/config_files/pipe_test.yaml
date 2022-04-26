@@ -1,6 +1,6 @@
 # SuperBIT parameters
 # -------------------
-pixel_scale:        0.144       # Pixel scale                               [arcsec/px]
+pixel_scale:        0.141       # Pixel scale                               [arcsec/px]
 gain:               1.2207      # Camera gain                               [e- / ADU]
 read_noise:         1.8         # Read noise                                [e-]
 dark_current:       0.0046      # mean dark current                         [ADU / px / s]
