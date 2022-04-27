@@ -302,6 +302,7 @@ def main(args):
     fresh = args.fresh
 
     manager = JobsManager(config, fresh=fresh)
+    manager.run()
 
     return 0
 
