@@ -110,6 +110,12 @@ def read_yaml(yaml_file):
     with open(yaml_file, 'r') as stream:
         return yaml.safe_load(stream)
 
+def write_yaml(yaml_dict, yaml_outfile):
+    with open(yaml_outfile, 'w') as yaml_file:
+        yaml.dump(yaml_dict, yaml_file, default_flow_style=False)
+
+    return
+
 # def check_req_params(params, values, defaults, config):
 def check_req_params(config, params, defaults):
     '''

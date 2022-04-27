@@ -9,18 +9,18 @@ parser = ArgumentParser()
 
 parser.add_argument('run_name', type=str,
                help='Name for given pipe run')
-parser.add_argument('outfile', type=str,
-               help='Output filepath for config file')
-parser.add_argument('truth_file', type=str,
-               help='Filepath for cluster truth file')
+parser.add_argument('basedir', type=str,
+               help='Base directory for all run outputs')
+parser.add_argument('nfw_dir', type=str,
+               help='Base directory for NFW cluster truth files')
 parser.add_argument('gs_config', type=str,
-               help='Filepath for galsim mock config file')
-parser.add_argument('-outdir', type=str, default=None,
-               help='Output directory for outfile')
+               help='Filepath for base galsim mock config file')
 parser.add_argument('--config_overwrite', action='store_true',
-               help='Set to overwrite config file')
+               help='Set to overwrite config files')
 parser.add_argument('--run_overwrite', action='store_true',
                help='Set to overwrite run files')
+# parser.add_argument('outfile', type=str,
+#                help='Output filepath for config file')
 
 def make_run_config(run_name, outfile, truth_file, gs_config,
                     outdir=None, config_overwrite=False, run_overwrite=False):
@@ -143,6 +143,22 @@ def make_run_config_from_dict(config_dict):
     kwargs = config_dict
 
     return make_run_config(*args, **kwargs)
+
+def make_cluster_configs(m, z, run_name):
+    '''
+    Make a set of run and galsim configs for a given cluster of
+    mass m and redshift z
+
+    m: float
+        Mass of cluster in log10 solar masses
+    z: float
+        Redshift of cluster
+    run_name: str
+        The name of the given simulation run
+    '''
+
+
+    return
 
 def main(args):
     run_name = args.run_name
