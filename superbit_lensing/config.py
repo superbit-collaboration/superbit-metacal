@@ -22,7 +22,7 @@ parser.add_argument('--run_overwrite', action='store_true',
 # parser.add_argument('outfile', type=str,
 #                help='Output filepath for config file')
 
-def make_run_config(run_name, outfile, truth_file, gs_config,
+def make_run_config(run_name, outfile, nfw_file, gs_config,
                     outdir=None, config_overwrite=False, run_overwrite=False):
     '''
     Makes a standard pipe run config given a few inputs.
@@ -32,8 +32,8 @@ def make_run_config(run_name, outfile, truth_file, gs_config,
         Name for given pipe run
     outfile: str
         Output filepath for config file
-    truth_file: str
-        Filepath for cluster truth file
+    nfw_file: str
+        Filepath for cluster nfw file
     gs_config: str
         Filepath for galsim mock config file
     outdir: str
@@ -62,60 +62,59 @@ def make_run_config(run_name, outfile, truth_file, gs_config,
         'ngmix_test_config.yaml', outdir=outdir, run_name=run_name
         )
 
-    with open(outfile, 'w') as f:
-        config = {
-            'run_options': {
-                'run_name': run_name,
-                'outdir': outdir,
-                'vb': True,
-                'ncores': 8,
-                'run_diagnostics': True,
-                'order': [
-                    'galsim',
-                    'medsmaker',
-                    'metacal',
-                    'shear_profile',
-                    'ngmix_fit'
-                    ]
-                },
-            'galsim': {
-                'config_file': gs_config,
-                'config_dir': os.path.join(utils.MODULE_DIR,
-                                            'galsim',
-                                            'config_files'),
-                'outdir': outdir,
-                'clobber': run_overwrite
+    config = {
+        'run_options': {
+            'run_name': run_name,
+            'outdir': outdir,
+            'vb': True,
+            'ncores': 8,
+            'run_diagnostics': True,
+            'order': [
+                'galsim',
+                'medsmaker',
+                'metacal',
+                'shear_profile',
+                'ngmix_fit'
+                ]
             },
-            'medsmaker': {
-                'mock_dir': outdir,
-                'outfile': meds_file,
-                'fname_base': run_name,
-                'run_name': run_name,
-                'outdir': outdir
-            },
-            'metacal': {
-                'meds_file': meds_file,
-                'outfile': mcal_file,
-                'outdir': outdir,
-            },
-            'ngmix_fit': {
-                'meds_file': meds_file,
-                'outfile': f'{run_name}_ngmix.fits',
-                'config': ngmix_test_config,
-                'outdir': outdir,
-            },
-            'shear_profile': {
-                'se_file': se_file,
-                'mcal_file': mcal_file,
-                'outfile': f'{run_name}_annular.fits',
-                'nfw_file': truth_file,
-                'outdir': outdir,
-                'run_name': run_name,
-                'overwrite': run_overwrite,
-            }
+        'galsim': {
+            'config_file': gs_config,
+            'config_dir': os.path.join(utils.MODULE_DIR,
+                                        'galsim',
+                                        'config_files'),
+            'outdir': outdir,
+            'clobber': run_overwrite
+        },
+        'medsmaker': {
+            'mock_dir': outdir,
+            'outfile': meds_file,
+            'fname_base': run_name,
+            'run_name': run_name,
+            'outdir': outdir
+        },
+        'metacal': {
+            'meds_file': meds_file,
+            'outfile': mcal_file,
+            'outdir': outdir,
+        },
+        'ngmix_fit': {
+            'meds_file': meds_file,
+            'outfile': f'{run_name}_ngmix.fits',
+            'config': ngmix_test_config,
+            'outdir': outdir,
+        },
+        'shear_profile': {
+            'se_file': se_file,
+            'mcal_file': mcal_file,
+            'outfile': f'{run_name}_annular.fits',
+            'nfw_file': nfw_file,
+            'outdir': outdir,
+            'run_name': run_name,
+            'overwrite': run_overwrite,
         }
+    }
 
-        yaml.dump(config, f, default_flow_style=False)
+    utils.write_yaml(config, outfile)
 
     return outfile
 
@@ -127,43 +126,25 @@ def make_run_config_from_dict(config_dict):
     See make_run_config() for details
     '''
 
-    args = {
-        'run_name': None,
-        'outfile': None,
-        'truth_file': None,
-        'gs_config': None
-    }
+    arg_names = ['run_name', 'outfile', 'nfw_file', 'gs_config']
+    args = [None, None, None, None]
 
-    for key in args.keys():
+    # import pdb; pdb.set_trace()
+
+    for i, key in enumerate(arg_names):
         if key not in config_dict:
             raise KeyError(f'config_dict must include {key}!')
-        args[key] = config_dict.pop(key)
+        args[i] = config_dict.pop(key)
 
     # remaining fields should be optional args
     kwargs = config_dict
 
     return make_run_config(*args, **kwargs)
 
-def make_cluster_configs(m, z, run_name):
-    '''
-    Make a set of run and galsim configs for a given cluster of
-    mass m and redshift z
-
-    m: float
-        Mass of cluster in log10 solar masses
-    z: float
-        Redshift of cluster
-    run_name: str
-        The name of the given simulation run
-    '''
-
-
-    return
-
 def main(args):
     run_name = args.run_name
     outfile = args.outfile
-    truth_file = args.truth_file
+    nfw_file = args.nfw_file
     gs_config = args.gs_config
 
     kwargs = {
@@ -172,7 +153,7 @@ def main(args):
         'run_overwrite': args.run_overwrite
     }
 
-    args = [run_name, outfile, truth_file, gs_config]
+    args = [run_name, outfile, nfw_file, gs_config]
 
     make_run_config(*args, **kwargs)
 
