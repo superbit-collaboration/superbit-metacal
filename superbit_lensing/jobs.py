@@ -1,19 +1,26 @@
+import numpy as np
 import os
+import time
 import shutil
 from numpy.random import SeedSequence, default_rng
-from argparse import ArgumentParser
 
 import utils
-from config import make_cluster_configs
-
-parser = ArgumentParser()
-
-parser.add_argument('jobs_config', type=str,
-                    help='Filepath to yaml configuration file for all jobs')
-parser.add_argument('--fresh', action='store_true', default=False,
-                    help='Clean test directory of old outputs')
+from config import make_run_config_from_dict
 
 class JobsManager(object):
+    '''
+    A class that sets up a series of cluster jobs
+    '''
+
+    _req = ['run_name', 'base_dir', 'nfw_dir', 'gs_base_config',
+           'mass_bins', 'z_bins']
+
+    # values are defaults if not present
+    _opt = {
+        'realizations': 1,
+        'ncores_per_job': 8,
+        'memory_per_job': 64, # GB
+    }
 
     def __init__(self, config_file, fresh=False):
         '''
@@ -31,6 +38,8 @@ class JobsManager(object):
         self.fresh = fresh
         self.jobs = None
 
+        self.parse_config()
+
         return
 
     def run(self):
@@ -43,40 +52,36 @@ class JobsManager(object):
         self.set_job_seeds()
         self.make_job_configs()
 
-        return
+        print('Done!')
 
+        return
 
     def parse_config(self):
         '''
         Make sure the config satisfies requirements
         '''
 
-        req = ['run_name', 'base_dir', 'nfw_dir', 'gs_base_config',
-               'mass_bins', 'z_bins']
-
-        # values are defaults if not present
-        opt = {
-            'realizations': 1,
-            'ncores_per_job': 8,
-            'memory_per_job': 64, # GB
-        }
-
-        for key in req:
-            if key not in config.keys():
+        for key in self._req:
+            if key not in self.config.keys():
                 raise ValueError(f'{key} must be in the run prep config!')
 
         for key, default in self._opt.items():
-            if key not in config.keys():
-                config[key] = default
+            if key not in self.config.keys():
+                self.config[key] = default
 
-        masses = config['mass_bins']
-        redshifts = config['z_bins']
+        masses = self.config['mass_bins']
+        redshifts = self.config['z_bins']
+        realizations = self.config['realizations']
 
         for vals, name in zip([masses, redshifts], ['mass_bins', 'z_bins']):
             if isinstance(vals, list):
+                # i = 0
                 for v in vals:
                     if not isinstance(v, float):
+                        # try:
+
                         raise TypeError(f'`{name}` entries must be a float!')
+                    # i += 1
             elif isinstance(v, float):
                 pass
             else:
@@ -86,12 +91,12 @@ class JobsManager(object):
             for i in realizations:
                 if not isinstance(i, int):
                     raise TypeError('Each element of `realizations` must be an int!')
+        else:
+            if isinstance(realizations, int):
+                # assume this gives the # of realizations
+                self.config['realizations'] = [i for i in range(realizations)]
             else:
-                if isinstance(realizations, int):
-                    # assume this gives the # of realizations
-                    realizations = [i for i in range(realizations)]
-                else:
-                    raise TypeError('`realizations` must be an int or list!')
+                raise TypeError('`realizations` must be an int or list!')
 
         return
 
@@ -106,8 +111,9 @@ class JobsManager(object):
         config = self.config
         fresh = self.fresh
 
-        base_dir = config['basedir']
+        base_dir = config['base_dir']
         run_name = config['run_name']
+        nfw_dir = config['nfw_dir']
 
         if os.path.exists(base_dir):
             if fresh is False:
@@ -137,23 +143,30 @@ class JobsManager(object):
 
                 # We need to have a clean mapping of masses into
                 # subdir names
-                mantissa, exp = fexp(m)
+                mantissa, exp = self.fexp(m)
                 cl_name = f'cl_m{mantissa}e{exp}_z{z}'
 
                 cluster_dir = os.path.join(base_dir, cl_name)
                 utils.make_dir(cluster_dir)
+
+                # Set truth nfw filename
+                nfw_fname = f'nfw_{cl_name}.fits' # TODO: Update w/ actual names when known!
+                nfw_file = os.path.join(nfw_dir, cl_name, nfw_fname)
+
                 for r in realizations:
                     # make subdirectory
                     real_dir = os.path.join(cluster_dir, f'r{r}')
                     utils.make_dir(real_dir)
 
                     job_dict = {
-                        'base_dir': real_dir,
                         'run_name': run_name,
+                        'base_dir': real_dir,
+                        'nfw_file': nfw_file,
+                        'cl_name': cl_name,
                         'mass': m,
-                        'z': z
+                        'z': z,
                         'realization': r,
-                        'job_index': jindx
+                        'job_index': jindx,
                         'mass_mantissa': mantissa,
                         'mass_exp': exp,
                         'ncores': ncores,
@@ -215,11 +228,10 @@ class JobsManager(object):
             # Make gs job config from base config
             self.jobs[i].make_gs_config(gs_base_config)
 
-            # Make pipe config
-            # TODO!!
-            # ...
+            # Make pipeline run config
+            self.jobs[i].make_run_config()
 
-    return
+        return
 
 class ClusterJob(object):
     '''
@@ -229,13 +241,13 @@ class ClusterJob(object):
     complexity later
     '''
 
-    _req_params = ['base_dir', 'run_name', 'mass', 'redshift', 'job_index',
-                   'ncores', 'memory', 'realization']
+    _req_params = ['base_dir', 'run_name', 'mass', 'z', 'job_index',
+                   'nfw_file', 'ncores', 'memory', 'realization']
 
-    _opt_params = ['gs_master_seed']
+    _opt_params = ['gs_master_seed', 'gs_config']
 
     def __init__(self, job_config):
-        self.parse_job_config(job_config)
+        self._parse_job_config(job_config)
         self._config = job_config
 
         return
@@ -252,11 +264,11 @@ class ClusterJob(object):
         Make a job-specific GalSim config file given a base config
         '''
 
-        gs_base = utils.read_yaml(gs_base_config)
-        gs_config = gs_base.copy()
+        gs_config = gs_base_config.copy()
 
         base_dir = self._config['base_dir']
         run_dir = self._config['run_name']
+        run_name = self._config['run_name']
 
         gs_name = f'{run_name}_gs_config.yaml'
         gs_filepath = os.path.join(base_dir, gs_name)
@@ -273,6 +285,34 @@ class ClusterJob(object):
             gs_config[key] = val
 
         utils.write_yaml(gs_config, gs_filepath)
+
+        return
+
+    def make_run_config(self):
+        '''
+        Make pipeline run config for given job
+        '''
+
+        config_dict = {}
+
+        run_name = self._config['run_name']
+        base_dir = self._config['base_dir']
+        cl_name = self._config['cl_name']
+        filename = f'{run_name}_{cl_name}.yaml'
+
+        # Some key names are the same as those used by
+        # config.make_run_config()
+        same_keys = ['run_name', 'gs_config', 'nfw_file']
+        for key in same_keys:
+            config_dict[key] = self._config[key]
+
+        # Now for the rest
+        # NOTE: config_overwrite and run_overwrite not needed
+        # as already handled by run manager w/ --fresh
+        config_dict['outfile'] = filename
+        config_dict['outdir'] = self._config['base_dir']
+
+        make_run_config_from_dict(config_dict)
 
         return
 
@@ -296,21 +336,3 @@ class ClusterJob(object):
 
     def __iter__(self):
         return iter(self._config)
-
-def main(args):
-    config = args.jobs_config
-    fresh = args.fresh
-
-    manager = JobsManager(config, fresh=fresh)
-    manager.run()
-
-    return 0
-
-if __name__ == '__main__':
-    args = parser.parse_args()
-    rc = main(args)
-
-    if rc == 0:
-        print('\nScript completed without errors')
-    else:
-        print(f'\nScript failed with rc={rc}')
