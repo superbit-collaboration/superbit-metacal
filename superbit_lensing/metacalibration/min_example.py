@@ -1,5 +1,5 @@
 import ngmix
-import ngmix.medsreaders as medsreaders
+from ngmix.medsreaders import NGMixMEDS
 import numpy as np
 import os
 import time
@@ -28,8 +28,7 @@ class MetacalFitter(object):
         self.medsfile = medsfile
 
         # for some reason this is bugged if you
-        # import NGMixMEDS directly...
-        self.meds = medsreaders.NGMixMEDS(medsfile)
+        self.meds = NGMixMEDS(medsfile)
         self.cat = self.meds.get_cat()
         self.Nobjs = len(self.cat)
 
@@ -247,7 +246,7 @@ class MetacalFitter(object):
         if vb is True:
             r11 = mcal_res['MC']['r11']
             r22 = mcal_res['MC']['r22']
-            print(f'R11: {r11:.3} \nR22: {r22:.3} ')
+            print(f'i={iobj}: R11: {r11:.3}; R22: {r22:.3} ')
 
         mcal_tab = self.mcal_dict2tab(mcal_res, obj_info)
 
