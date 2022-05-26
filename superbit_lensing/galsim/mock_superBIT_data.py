@@ -65,6 +65,7 @@ class truth():
         :z: galaxy redshift
         '''
 
+        self.cosmos_index = -1
         self.x = None
         self.y = None
         self.ra = None
@@ -171,7 +172,7 @@ def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
         this_flux = np.sum(stamp.array)
 
         if exp_num == 1:
-            row = [i, truth.x, truth.y,
+            row = [i, truth.cosmos_index, truth.x, truth.y,
                    truth.ra, truth.dec,
                    truth.g1, truth.g2,
                    truth.mu,truth.z,
@@ -261,6 +262,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
     stamp.setCenter(image_pos.x,image_pos.y)
     logprint.debug('drew & centered galaxy!')
     galaxy_truth=truth()
+    galaxy_truth.cosmos_index = index
     galaxy_truth.ra=ra.deg; galaxy_truth.dec=dec.deg
     galaxy_truth.x=image_pos.x; galaxy_truth.y=image_pos.y
     galaxy_truth.g1=g1; galaxy_truth.g2=g2
@@ -376,7 +378,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     return cluster_stamp, cluster_galaxy_truth
 
 
-def make_a_star(ud, seed, wcs, affine, optics, sbparams, logprint):
+def make_a_star(ud, pud, star_cat, wcs, affine, optics, sbparams, logprint):
     """
     makes a star-like object for injection into larger image.
     """
@@ -393,15 +395,31 @@ def make_a_star(ud, seed, wcs, affine, optics, sbparams, logprint):
     # This is still an x/y corrdinate
     uv_pos = affine.toWorld(image_pos)
 
-    # Draw star flux at random; based on distribution of star fluxes in real images
+    # Draw star flux at random; based on either a semi-analytic distribution or GAIA stars
+    
     #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 6, x_max = 47586)
-    pud = np.random.default_rng(seed)
-    p = pud.power(0.6)
-    flux_p = (1/p*120) - 120.
+    '''
+    pud = np.random.default_rng()
+    p = pud.power(0.4)
+    flux_p = (10/p) - 10.
     star_flux = flux_p
-
+    
     if sbparams.bandpass=='crates_adu_b':
         star_flux*=0.8271672
+    '''
+    
+    index = int(np.floor(ud()*len(star_cat)))
+
+    if sbparams.bandpass=='crates_adu_shape': 
+        star_flux = star_cat['bit_flux_shape'][index]
+
+    elif sbparams.bandpass=='crates_adu_b':
+        star_flux = star_cat['bit_flux_b'][index]
+
+    else:
+       star_flux = star_cat['bit_flux_b'][index]
+    
+    star_flux*=sbparams.exp_time
 
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)
@@ -558,6 +576,8 @@ class SuperBITParameters:
                 self.fit_file_name = str(value)
             elif option == "cluster_cat_name":
                 self.cluster_cat_name = str(value)
+            elif option == "star_cat_name":
+                self.star_cat_name = str(value)
             elif option == "bp_file":
                 self.bp_file = str(value)
             elif option == "outdir":
@@ -757,7 +777,10 @@ def main():
                                            dir=sbparams.cosmosdir)
     except:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
-    #logprint.debug('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
+    
+    star_cat = Table.read(os.path.join(sbparams.datadir, 
+                                       sbparams.star_cat_name))
+
 
     ### Now create PSF. First, define Zernicke polynomial component
     ### note: aberrations were definined for lam = 550, and close to the
@@ -801,12 +824,12 @@ def main():
         if i == 1:
             truth_file_name = os.path.join(sbparams.outdir,
                                            f'{run_name}_truth.fits')
-            names = ['gal_num', 'x_image', 'y_image',
+            names = ['gal_num', 'cosmos_index','x_image', 'y_image',
                      'ra', 'dec', 'nfw_g1', 'nfw_g2',
                      'nfw_mu', 'redshift', 'flux',
                      'truth_fwhm','truth_mom', 'n',
                      'hlr', 'scale_h_over_r', 'obj_class']
-            types = [int, float, float, float, float, float,
+            types = [int, int, float, float, float, float, float,
                      float, float, float, float, float, float,
                      float, float, float, str]
             truth_catalog = galsim.OutputCatalog(names, types)
@@ -929,7 +952,7 @@ def main():
                     this_flux=np.sum(stamp.array)
 
                     if i == 1:
-                        row = [ k,truth.x, truth.y, truth.ra, truth.dec, truth.g1,
+                        row = [ k, truth.cosmos_index, truth.x, truth.y, truth.ra, truth.dec, truth.g1,
                                 truth.g2, truth.mu,truth.z,
                                 this_flux, truth.fwhm, truth.mom_size,
                                 truth.n, truth.hlr, truth.scale_h_over_r, truth.obj_class]
@@ -1004,7 +1027,7 @@ def main():
                     this_flux=np.sum(cluster_stamp.array)
 
                     if i == 1:
-                        row = [ k,truth.x, truth.y, truth.ra, truth.dec,
+                        row = [ k, truth.cosmos_index, truth.x, truth.y, truth.ra, truth.dec,
                                 truth.g1, truth.g2, truth.mu, truth.z,
                                 this_flux, truth.fwhm, truth.mom_size,
                                 truth.n, truth.hlr, truth.scale_h_over_r, truth.obj_class]
@@ -1019,6 +1042,8 @@ def main():
 
         if mpi is False:
             start = time.time()
+            pud = np.random.default_rng(sbparams.stars_seed)
+
             with Pool(ncores) as pool:
                 batch_indices = utils.setup_batches(sbparams.nstars, ncores)
 
@@ -1029,7 +1054,8 @@ def main():
                           batch_indices[k],
                           'star',
                           galsim.UniformDeviate(sbparams.stars_seed+k+1),
-                          sbparams.stars_seed+k+1,
+                          pud,
+                          star_cat,
                           wcs,
                           affine,
                           optics,
@@ -1051,8 +1077,9 @@ def main():
             for k in range(local_start, local_end):
                 time1 = time.time()
                 ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
-
-                star_stamp,truth = make_a_star(ud=ud,seed=sbparams.stars_seed+k+1,
+                pud = np.random.default_rng(sbparams.stars_seed)
+                star_stamp,truth = make_a_star(ud=ud,pud=pud,
+                                            star_cat=star_cat,
                                             wcs=wcs,
                                             affine=affine,
                                             optics=optics,
@@ -1072,7 +1099,7 @@ def main():
                     this_flux=np.sum(star_stamp.array)
 
                     if i == 1:
-                        row = [ k,truth.x, truth.y, truth.ra, truth.dec,
+                        row = [ k, truth.cosmos_index, truth.x, truth.y, truth.ra, truth.dec,
                                 truth.g1, truth.g2, truth.mu,
                                 truth.z, this_flux, truth.fwhm,truth.mom_size,
                                 truth.n, truth.hlr, truth.scale_h_over_r, truth.obj_class]
