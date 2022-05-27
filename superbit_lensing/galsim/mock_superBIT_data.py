@@ -378,7 +378,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     return cluster_stamp, cluster_galaxy_truth
 
 
-def make_a_star(ud, pud, star_cat, wcs, affine, optics, sbparams, logprint):
+def make_a_star(ud, pud, star_cat, k, wcs, affine, optics, sbparams, logprint):
     """
     makes a star-like object for injection into larger image.
     """
@@ -396,30 +396,28 @@ def make_a_star(ud, pud, star_cat, wcs, affine, optics, sbparams, logprint):
     uv_pos = affine.toWorld(image_pos)
 
     # Draw star flux at random; based on either a semi-analytic distribution or GAIA stars
-    
-    #flux_dist = galsim.DistDeviate(ud, function = lambda x:x**-1.5, x_min = 6, x_max = 47586)
-    '''
-    pud = np.random.default_rng()
-    p = pud.power(0.4)
-    flux_p = (10/p) - 10.
-    star_flux = flux_p
-    
-    if sbparams.bandpass=='crates_adu_b':
-        star_flux*=0.8271672
-    '''
-    
-    index = int(np.floor(ud()*len(star_cat)))
 
-    if sbparams.bandpass=='crates_adu_shape': 
-        star_flux = star_cat['bit_flux_shape'][index]
+    if star_cat is not None:
+        if sbparams.bandpass=='crates_adu_shape':
+            star_flux = star_cat['bit_flux_shape'][index]
 
-    elif sbparams.bandpass=='crates_adu_b':
-        star_flux = star_cat['bit_flux_b'][index]
+        elif sbparams.bandpass=='crates_adu_b':
+            star_flux = star_cat['bit_flux_b'][index]
+
+        else:
+              star_flux = star_cat['bit_flux_b'][index]
+
+        star_flux*=sbparams.exp_time
+
 
     else:
-       star_flux = star_cat['bit_flux_b'][index]
-    
-    star_flux*=sbparams.exp_time
+        pud = np.random.default_rng()
+        p = pud.power(0.4)
+        flux_p = (10/p) - 10.
+        star_flux = flux_p
+
+        if sbparams.bandpass=='crates_adu_b':
+            star_flux*=0.8271672
 
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)
@@ -777,10 +775,21 @@ def main():
                                            dir=sbparams.cosmosdir)
     except:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
-    
-    star_cat = Table.read(os.path.join(sbparams.datadir, 
-                                       sbparams.star_cat_name))
 
+    ###
+    ### Bit hacky.
+    ###
+    if (sbparams.star_cat_name is not None) and (sbparams.nstars is None):
+        star_cat = Table.read(os.path.join(sbparams.datadir,
+                                        sbparams.star_cat_name))
+        sbparams.nstars = np.len(star_cat)
+
+    elif (sbparams.star_cat_name is not None) and (sbparams.nstars is not None):
+        star_cat = Table.read(os.path.join(sbparams.datadir,
+                    sbparams.star_cat_name))
+
+    else:
+        star_cat = None
 
     ### Now create PSF. First, define Zernicke polynomial component
     ### note: aberrations were definined for lam = 550, and close to the
@@ -1056,6 +1065,7 @@ def main():
                           galsim.UniformDeviate(sbparams.stars_seed+k+1),
                           pud,
                           star_cat,
+                          k,
                           wcs,
                           affine,
                           optics,
@@ -1075,11 +1085,13 @@ def main():
             # get local range to iterate over in this process
             local_start, local_end = M.mpi_local_range(sbparams.nstars)
             for k in range(local_start, local_end):
+                print(f'doing star {k}')
                 time1 = time.time()
                 ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
                 pud = np.random.default_rng(sbparams.stars_seed)
                 star_stamp,truth = make_a_star(ud=ud,pud=pud,
                                             star_cat=star_cat,
+                                            k = k,
                                             wcs=wcs,
                                             affine=affine,
                                             optics=optics,
