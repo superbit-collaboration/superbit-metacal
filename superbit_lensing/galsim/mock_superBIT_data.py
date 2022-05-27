@@ -139,9 +139,11 @@ def make_obj(i, obj_type, *args, **kwargs):
 
     func = func_map[obj_type]
 
+
     try:
+        obj_index = int(i)
         logprint(f'Starting {obj_type} {i}')
-        stamp, truth = func(*args, **kwargs)
+        stamp, truth = func(*args, **kwargs,obj_index=i)
         logprint(f'{obj_type} {i} completed succesfully')
     except galsim.errors.GalSimError:
         logprint(f'{obj_type} {i} has failed, skipping...')
@@ -184,7 +186,7 @@ def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
 
     return full_image, truth_catalog
 
-def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
+def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, obj_index=None):
     """
     Method to make a single galaxy object and return stamp for
     injecting into larger GalSim image
@@ -290,7 +292,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
     logprint.debug('stamp made, moving to next galaxy')
     return stamp, galaxy_truth
 
-def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams, logprint):
+def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams, logprint, obj_index=None):
     """
     Method to make a single galaxy object and return stamp for
     injecting into larger GalSim image
@@ -378,7 +380,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     return cluster_stamp, cluster_galaxy_truth
 
 
-def make_a_star(ud, pud, star_cat, k, wcs, affine, optics, sbparams, logprint):
+def make_a_star(ud, pud, star_cat, k, wcs, affine, optics, sbparams, logprint, obj_index=None):
     """
     makes a star-like object for injection into larger image.
     """
@@ -396,6 +398,10 @@ def make_a_star(ud, pud, star_cat, k, wcs, affine, optics, sbparams, logprint):
     uv_pos = affine.toWorld(image_pos)
 
     # Draw star flux at random; based on either a semi-analytic distribution or GAIA stars
+    # Default to blue stars, which are plenty bright
+
+    #index = obj_index - 1
+    print(f'index = {index} for star # {obj_index}')
 
     if star_cat is not None:
         if sbparams.bandpass=='crates_adu_shape':
@@ -405,7 +411,7 @@ def make_a_star(ud, pud, star_cat, k, wcs, affine, optics, sbparams, logprint):
             star_flux = star_cat['bit_flux_b'][index]
 
         else:
-              star_flux = star_cat['bit_flux_b'][index]
+            star_flux = star_cat['bit_flux_b'][index]
 
         star_flux*=sbparams.exp_time
 
@@ -549,7 +555,7 @@ class SuperBITParameters:
             elif option == "nclustergal":
                 self.nclustergal = int(value)
             elif option == "nstars":
-                self.nstars = int(value)
+                self.nstars = value
             elif option == "tel_diam":
                 self.tel_diam = float(value)
             elif option == "lam":
@@ -782,14 +788,16 @@ def main():
     if (sbparams.star_cat_name is not None) and (sbparams.nstars is None):
         star_cat = Table.read(os.path.join(sbparams.datadir,
                                         sbparams.star_cat_name))
-        sbparams.nstars = np.len(star_cat)
+        sbparams.nstars = len(star_cat)
 
     elif (sbparams.star_cat_name is not None) and (sbparams.nstars is not None):
         star_cat = Table.read(os.path.join(sbparams.datadir,
                     sbparams.star_cat_name))
+        sbparams.nstars = np.int(sbparams.nstars)
 
     else:
         star_cat = None
+        sbparams.nstars = np.int(sbparams.nstars)
 
     ### Now create PSF. First, define Zernicke polynomial component
     ### note: aberrations were definined for lam = 550, and close to the
@@ -1065,7 +1073,7 @@ def main():
                           galsim.UniformDeviate(sbparams.stars_seed+k+1),
                           pud,
                           star_cat,
-                          k,
+                          batch_indices[k],
                           wcs,
                           affine,
                           optics,
@@ -1081,6 +1089,7 @@ def main():
             dt = time.time() - start
             logprint(f'Total time for star injections: {dt:.1f}s')
 
+
         else:
             # get local range to iterate over in this process
             local_start, local_end = M.mpi_local_range(sbparams.nstars)
@@ -1091,7 +1100,7 @@ def main():
                 pud = np.random.default_rng(sbparams.stars_seed)
                 star_stamp,truth = make_a_star(ud=ud,pud=pud,
                                             star_cat=star_cat,
-                                            k = k,
+                                            index=k,
                                             wcs=wcs,
                                             affine=affine,
                                             optics=optics,
