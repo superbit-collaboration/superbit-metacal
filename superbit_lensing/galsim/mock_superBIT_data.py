@@ -400,8 +400,7 @@ def make_a_star(ud, pud, star_cat, k, wcs, affine, optics, sbparams, logprint, o
     # Draw star flux at random; based on either a semi-analytic distribution or GAIA stars
     # Default to blue stars, which are plenty bright
 
-    #index = obj_index - 1
-    print(f'index = {index} for star # {obj_index}')
+    index = obj_index - 1
 
     if star_cat is not None:
         if sbparams.bandpass=='crates_adu_shape':
@@ -793,11 +792,11 @@ def main():
     elif (sbparams.star_cat_name is not None) and (sbparams.nstars is not None):
         star_cat = Table.read(os.path.join(sbparams.datadir,
                     sbparams.star_cat_name))
-        sbparams.nstars = np.int(sbparams.nstars)
+        sbparams.nstars = int(sbparams.nstars)
 
     else:
         star_cat = None
-        sbparams.nstars = np.int(sbparams.nstars)
+        sbparams.nstars = int(sbparams.nstars)
 
     ### Now create PSF. First, define Zernicke polynomial component
     ### note: aberrations were definined for lam = 550, and close to the
