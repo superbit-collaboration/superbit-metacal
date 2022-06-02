@@ -539,9 +539,14 @@ class BITMeasurement():
 
                 psfex_model_file = self._make_psfex_model(im_cats[i], weightfile=weightfile,select_truth_stars=select_truth_stars,star_params=star_params)
 
-                # move checkimages to psfex_output
-                cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', self.psf_path])
-                cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', self.psf_path])
+                # create & move checkimages to psfex_output
+                psfex_plotdir = os.path.join(self.data_dir,'psfex-output')
+
+                if not os.path.exists(psfex_checkplot_dir):
+                    os.mkdir(self.psf_path)
+
+                cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', psfex_plotdir])
+                cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', psfex_plotdir])
                 os.system(cleanup_cmd)
                 os.system(cleanup_cmd2)
                 self.psf_models.append(psfex.PSFEx(psfex_model_file))
@@ -574,6 +579,7 @@ class BITMeasurement():
             psfcat_name = im_cat
 
         # Now run PSFEx on that image and accompanying catalog
+
         psfex_config_arg = '-c '+sextractor_config_path+'psfex.mock.config'
         outcat_name = imagefile.replace('.fits','.psfex.star')
         cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
