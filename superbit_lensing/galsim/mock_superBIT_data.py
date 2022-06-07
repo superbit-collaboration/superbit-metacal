@@ -774,6 +774,9 @@ def main():
     cosmos_cat = Table.read(os.path.join(sbparams.datadir,
                                          sbparams.cat_file_name))
     logprint(f'Read in {len(cosmos_cat)} galaxies from catalog and associated fit info')
+    
+    size_wg = (cosmos_cat['FLUX_RADIUS'] >= 0) & (cosmos_cat['hlr_cosmos10'] < 50)
+    cosmos_cat = cosmos_cat[size_wg]
 
     try:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name,
