@@ -238,7 +238,7 @@ class SuperBITNgmixFitter():
             #     - std_dev = sqrt(bkg) = 5.3
             #     - sky_sigma = std_dev**2 = 25.1
 
-            sky_sigma = 2.18 #SIGMA = 4.7ish for Blue, 4.7**2 for shape
+            sky_sigma = 4.77 #SIGMA = 4.7ish for Blue, 4.7**2 for shape
             
             this_image = image_cutouts[i]
 
