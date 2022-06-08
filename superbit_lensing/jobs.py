@@ -48,8 +48,11 @@ class JobsManager(object):
         directory structure, config files, etc.
         '''
 
+        print('Creating jobs...')
         self.jobs = self.create_jobs()
+        print('Setting jobs seeds...')
         self.set_job_seeds()
+        print('Creating job configs...')
         self.make_job_configs()
 
         print('Done!')
@@ -75,13 +78,9 @@ class JobsManager(object):
 
         for vals, name in zip([masses, redshifts], ['mass_bins', 'z_bins']):
             if isinstance(vals, list):
-                # i = 0
                 for v in vals:
                     if not isinstance(v, float):
-                        # try:
-
                         raise TypeError(f'`{name}` entries must be a float!')
-                    # i += 1
             elif isinstance(v, float):
                 pass
             else:
