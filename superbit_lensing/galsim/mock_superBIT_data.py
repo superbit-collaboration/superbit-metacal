@@ -565,8 +565,8 @@ class SuperBITParameters:
                 self.master_seed = int(value)
             elif option == "noise_seed":
                 self.noise_seed = int(value)
-            elif option == "gal_seed":
-                self.gal_seed = int(value)
+            elif option == "galobj_seed":
+                self.galobj_seed = int(value)
             elif option == "cluster_seed":
                 self.cluster_seed = int(value)
             elif option == "stars_seed":
@@ -617,7 +617,7 @@ class SuperBITParameters:
         Handle the setting of various seeds
         '''
 
-        seed_types = ['gal_seed', 'cluster_seed', 'star_seed', 'noise_seed']
+        seed_types = ['galobj_seed', 'cluster_seed', 'star_seed', 'noise_seed']
         Nseeds = len(seed_types)
         needed_seeds = Nseeds
 
@@ -892,7 +892,7 @@ def main():
                         ([
                           batch_indices[k],
                           'gal',
-                          galsim.UniformDeviate(sbparams.gal_seed+k+1),
+                          galsim.UniformDeviate(sbparams.galobj_seed+k+1),
                           wcs,
                           affine,
                           cosmos_cat,
@@ -917,7 +917,7 @@ def main():
                 time1 = time.time()
 
                 # The usual random number generator using a different seed for each galaxy.
-                ud = galsim.UniformDeviate(sbparams.gal_seed+k+1)
+                ud = galsim.UniformDeviate(sbparams.galobj_seed+k+1)
 
                 try:
                     # make single galaxy object
@@ -1123,7 +1123,7 @@ def main():
             noise = galsim.CCDNoise(
                 sky_level=0,
                 gain=sbparams.gain,
-                read_noise=sbparams.read_noise
+                read_noise=sbparams.read_noise,
                 rng=galsim.BaseDeviate(sbparams.noise_seed)
                 )
 
