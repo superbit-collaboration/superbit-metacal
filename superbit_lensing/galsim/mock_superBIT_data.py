@@ -612,7 +612,7 @@ class SuperBITParameters:
 
         return
 
-    def _set_seeds(sel):
+    def _set_seeds(self):
         '''
         Handle the setting of various seeds
         '''
