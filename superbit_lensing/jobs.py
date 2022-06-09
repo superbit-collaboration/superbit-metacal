@@ -149,7 +149,7 @@ class JobsManager(object):
                 utils.make_dir(cluster_dir)
 
                 # Set truth nfw filename
-                nfw_fname = f'nfw_{cl_name}.fits' # TODO: Update w/ actual names when known!
+                nfw_fname = f'nfw_{cl_name}.fits'
                 nfw_file = os.path.join(nfw_dir, cl_name, nfw_fname)
 
                 for r in realizations:
