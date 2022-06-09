@@ -617,7 +617,7 @@ class SuperBITParameters:
         Handle the setting of various seeds
         '''
 
-        seed_types = ['galobj_seed', 'cluster_seed', 'star_seed', 'noise_seed']
+        seed_types = ['galobj_seed', 'cluster_seed', 'stars_seed', 'noise_seed']
         Nseeds = len(seed_types)
         needed_seeds = Nseeds
 
