@@ -649,15 +649,17 @@ class SuperBITParameters:
             child_seeds = ss.spawn(needed_seeds)
             streams = [default_rng(s) for s in child_seeds]
 
-            # for stream, seed in zip(streams, seed_types):
             k = 0
-            for seed_name, val in seeds.items():
-                if val is not None:
-                    setattr(self, seed_name, int(stream.random()*1e16))
+            print('seeds:')
+            for seed_name, val in seeds:
+                if val is None:
+                    val = int(streams[k].random()*1e16)
+                    setattr(self, seed_name, val)
                     k += 1
+                print(seed_name, val)
 
-            assert k+1 == needed_seeds
-            assert not (None in seeds.values())
+            assert k == needed_seeds
+            assert not (None in dict(seeds).values())
 
         return
 
