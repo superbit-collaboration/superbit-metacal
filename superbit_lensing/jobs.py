@@ -150,7 +150,7 @@ class JobsManager(object):
 
                 # Set truth nfw filename
                 nfw_fname = f'nfw_{cl_name}.fits'
-                nfw_file = os.path.join(nfw_dir, cl_name, nfw_fname)
+                nfw_file = os.path.join(nfw_dir, nfw_fname)
 
                 for r in realizations:
                     # make subdirectory
