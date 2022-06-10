@@ -386,9 +386,10 @@ class BITMeasurement():
         # Choose sources based on quality cuts on this catalog.
         #keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
         #self.catalog = self.catalog[keep.nonzero()[0]]
-        self.logprint("Selecting analysis objects on CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
-        keep2 = self.catalog['CLASS_STAR']<0.92
-        self.catalog = self.catalog[keep2.nonzero()[0]]
+        self.logprint("Selecting analysis objects on FLUX_APER > 1 and SNR_WIN > 1...") # Adapt based on needs of data; FWHM~8 for empirical!
+        keep = (self.catalog['FLUX_APER'] > 1) & (self.catalog['SNR_WIN'] > 1)
+
+        self.catalog = self.catalog[keep.nonzero()[0]]
 
         # Write trimmed catalog to file
         fullcat_name=catname.replace('.ldac','_full.ldac')
@@ -434,7 +435,7 @@ class BITMeasurement():
             filter_arg, '-c', config_arg
             ])
         if weight_file is not None:
-            weight_arg = '-WEIGHT_IMAGE '+ weight_file
+            weight_arg = '-WEIGHT_IMAGE ' + weight_file + ' -WEIGHT_TYPE MAP_WEIGHT'
             cmd = ' '.join([cmd, weight_arg])
 
         self.logprint("sex cmd is " + cmd)
@@ -468,7 +469,9 @@ class BITMeasurement():
         self.pix_scale = utils.get_pixel_scale(self.coadd_file)
 
         # Run SExtractor on coadd
-        cat_name = self._run_sextractor(detection_filepath,sextractor_config_path=sextractor_config_path)
+        cat_name = self._run_sextractor(detection_filepath, 
+                                        weight_file = weight_filepath, 
+                                        sextractor_config_path=sextractor_config_path)
 
         try:
             le_cat = fits.open(cat_name)
@@ -804,6 +807,31 @@ class BITMeasurement():
 
         return obj_str
 
+    def filter_meds(self, outfile, clean=True, min_cutouts=0):
+        ###
+        ### Filter out objects from MEDS that are in fewer 
+        ### than "min_cutouts" exposures
+        
+        if (clean == True) & (min_cutouts > 0):
+        
+            f = fits.open(outfile)
+
+            wb = f[1].data['ncutout'] <= min_cutouts
+
+            print(f'{len(f[1].data[wb])}/{len(f[1].data)} objects with fewer than {min_cutouts} found')
+            print(f'removing {len(f[1].data[wb])}/{len(f[1].data)} objects; saving original to full.meds')
+
+            wg = f[1].data['ncutout'] > min_cutouts
+            f[1].data = f[1].data[wg]
+            
+            full_name = outfile.replace('.meds', '_full.meds')
+            cmd_str = 'mv {outfile} {full_name}'
+            os.system(cmd_str.format(outfile=outfile, full_name = full_name))
+            
+            f.writeto(outfile, overwrite=True)
+                      
+        return 
+
 
     def run(self,outfile='mock_superbit.meds', clobber=False, source_selection=False,
             select_truth_stars=False,psf_mode='piff'):
@@ -844,3 +872,5 @@ class BITMeasurement():
         medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
                                        psf_data=self.psf_models,meta_data=meta)
         medsObj.write(outfile)
+        
+        self.filter_meds(outfile)

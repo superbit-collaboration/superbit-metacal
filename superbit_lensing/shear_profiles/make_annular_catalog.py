@@ -170,7 +170,7 @@ class AnnularCatalog():
         min_sn = 10 # orig 8 for ensemble
         min_T = 0.03 # orig 0.05
         max_T = 10 # orig inf
-        covcut = 1E-2 # orig 1 for ensemble
+        covcut = 1E-2 #E-2 # orig 1 for ensemble
 
         qualcuts = {'min_Tpsf':min_Tpsf, 'max_sn':max_sn, 'min_sn':min_sn,
                     'min_T':min_T, 'max_T':max_T, 'covcut':covcut}
@@ -306,7 +306,9 @@ class AnnularCatalog():
     def compute_tan_shear_profile(self, outfile, plotfile, overwrite=False, vb=False,
                                   xy_cols=['X_IMAGE', 'Y_IMAGE'],
                                   g_cols=['g1_Rinv', 'g2_Rinv'],
-                                  nfw_center=[5031, 3353]):
+                                  nfw_center=[4940, 3258.5]):
+
+        # nfw_center=[5031, 3353]
 
         if self.truth_file is None:
             truth_name = ''.join([self.run_name,'_truth.fits'])
@@ -335,7 +337,7 @@ class AnnularCatalog():
                 'nfw_file': self.nfw_file,
                 'xy_args': ['x_image','y_image'],
                 'shear_args': ['nfw_g1','nfw_g2'],
-                'nfw_center': [4784, 3190],
+                'nfw_center': [4784.5, 3190.5],
             }
 
         else: nfw_info = None
@@ -366,7 +368,19 @@ class AnnularCatalog():
         outfile = os.path.join(self.outdir, f'{p}shear_profile_cat.fits')
         plotfile = os.path.join(self.outdir, f'{p}shear_profile.pdf')
 
-        self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
+        # Get center of galaxy cluster for fitting
+        if self.run_name is not None:
+            coadd_im_name = os.path.join(self.outdir, f'{self.run_name}_mock_coadd.fits')
+            if os.path.exists(coadd_im_name) is True:
+                hdr = fits.getheader(coadd_im_name)
+                xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
+                nfw_center = [xcen, ycen]
+                print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
+        else:
+            nfw_center = [4936.5, 3257.5]
+            print(f'No image data used, using default NFW center of ({xcen}, {ycen})')
+
+        self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb, nfw_center=nfw_center)
 
         return
 

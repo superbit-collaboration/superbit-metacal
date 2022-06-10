@@ -205,6 +205,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint):
     # This is still an x/y corrdinate
     uv_pos = affine.toWorld(image_pos)
     logprint.debug('created galaxy position')
+
     ## Draw a Galaxy from scratch
     index = int(np.floor(ud()*len(cosmos_cat))) # This is a kludge to obain a repeatable index
     gal_z = cosmos_cat[index]['ZPDF']

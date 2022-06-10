@@ -110,9 +110,13 @@ def main():
 
     medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
                                     psf_data=bm.psf_models, meta_data=meta)
-
+    
     logprint(f'Writing to {outfile}')
     medsObj.write(outfile)
+    
+    # Remove spurious detections with 0 cutouts
+    bm.filter_meds(outfile, clean=True, min_cutouts=1)
+   
     """
     bm.run(clobber=clobber,source_selection = source_selection, select_stars = select_stars, outfile = outfile,psf_mode=psf_mode)
     """

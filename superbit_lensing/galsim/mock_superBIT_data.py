@@ -170,7 +170,11 @@ def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
         bounds = stamp.bounds & full_image.bounds
 
         # Finally, add the stamp to the full image.
-        full_image[bounds] += stamp[bounds]
+        try:
+            full_image[bounds] += stamp[bounds]
+        except galsim.errors.GalSimBoundsError as e:
+            print(e)
+
         this_flux = np.sum(stamp.array)
 
         if exp_num == 1:
@@ -826,6 +830,29 @@ def main():
     logprint('Made telescope PSF profile')
 
     ###
+    ### Make generic WCS
+    ###
+
+    # If you wanted to make a non-trivial WCS system, could set theta to a non-zero number
+    fiducial_full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
+
+    theta = 0.0 * galsim.degrees
+    dudx = np.cos(theta) * sbparams.pixel_scale
+    dudy = -np.sin(theta) * sbparams.pixel_scale
+    dvdx = np.sin(theta) * sbparams.pixel_scale
+    dvdy = np.cos(theta) * sbparams.pixel_scale
+
+    affine = galsim.AffineTransform(dudx, dudy, dvdx, dvdy, origin=fiducial_full_image.true_center)
+    sky_center = galsim.CelestialCoord(ra=sbparams.center_ra, dec=sbparams.center_dec)
+    wcs = galsim.TanWCS(affine, sky_center, units=galsim.arcsec)
+
+    ##
+    ## Define RNG for dither offsets
+    ##
+    rng = np.random.default_rng()
+
+
+    ###
     ### MAKE SIMULATED OBSERVATIONS
     ### ITERATE n TIMES TO MAKE n SEPARATE IMAGES
     ###
@@ -857,20 +884,12 @@ def main():
         full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
         sky_level = sbparams.exp_time * sbparams.sky_bkg
         full_image.fill(sky_level)
-        full_image.setOrigin(0,0)
 
-        # If you wanted to make a non-trivial WCS system, could set theta to a non-zero number
-        theta = 0.0 * galsim.degrees
-        dudx = np.cos(theta) * sbparams.pixel_scale
-        dudy = -np.sin(theta) * sbparams.pixel_scale
-        dvdx = np.sin(theta) * sbparams.pixel_scale
-        dvdy = np.cos(theta) * sbparams.pixel_scale
-        image_center = full_image.true_center
-        affine = galsim.AffineTransform(dudx, dudy, dvdx, dvdy, origin=full_image.true_center)
-        sky_center = galsim.CelestialCoord(ra=sbparams.center_ra, dec=sbparams.center_dec)
-
-        wcs = galsim.TanWCS(affine, sky_center, units=galsim.arcsec)
+        ## Define X & Y dither offsets
+        dither_offsets = rng.integers(-100, 100, size=2)
+        full_image.setOrigin(dither_offsets[0], dither_offsets[1])
         full_image.wcs = wcs
+
 
         ##
         ## Check for the existence of star, galaxy and cluster galaxy seeds
