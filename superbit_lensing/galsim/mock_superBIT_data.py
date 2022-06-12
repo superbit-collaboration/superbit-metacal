@@ -622,7 +622,7 @@ class SuperBITParameters:
         needed_seeds = Nseeds
 
         master_seed = None
-        seeds = zip(seed_types, Nseeds*[None])
+        seeds = dict(zip(seed_types, Nseeds*[None]))
 
         if hasattr(self, 'master_seed'):
             # can't pass separate seeds if a master seed is passed
@@ -635,10 +635,11 @@ class SuperBITParameters:
         else:
             for seed_name in seeds.keys():
                 if hasattr(self, seed_name):
-                    seeds[seed_name] = self.seed_name
+                    seeds[seed_name] = getattr(self, seed_name)
                     needed_seeds -= 1
 
         assert needed_seeds >= 0
+        print('seeds: seeds')
         if needed_seeds > 0:
             # Create safe, independent obj seeds given a master seed
             if master_seed is None:
@@ -653,7 +654,7 @@ class SuperBITParameters:
             k = 0
             for seed_name, val in seeds.items():
                 if val is not None:
-                    setattr(self, seed_name, int(stream.random()*1e16))
+                    setattr(self, seed_name, int(streams[k].random()*1e16))
                     k += 1
 
             assert k+1 == needed_seeds
