@@ -119,7 +119,7 @@ class SuperBITngmixRunner(object):
         cols = ['cen', 'g', 'T', 'F']
         prior_list = [cen_prior, g_prior, T_prior, F_prior]
 
-        if gal_model in ['cm', 'bdf]':
+        if gal_model in ['cm', 'bdf']:
             # setup fracdev
             fd_mean = self.config['priors']['fracdev_mean']
             fd_sig = self.config['priors']['fracdev_sigma']
