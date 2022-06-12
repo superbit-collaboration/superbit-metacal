@@ -617,7 +617,7 @@ class SuperBITParameters:
         Handle the setting of various seeds
         '''
 
-        seed_types = ['galobj_seed', 'cluster_seed', 'star_seed', 'noise_seed']
+        seed_types = ['galobj_seed', 'cluster_seed', 'stars_seed', 'noise_seed']
         Nseeds = len(seed_types)
         needed_seeds = Nseeds
 
@@ -639,7 +639,7 @@ class SuperBITParameters:
                     needed_seeds -= 1
 
         assert needed_seeds >= 0
-        print('seeds: seeds')
+        print(f'seeds: {seeds}')
         if needed_seeds > 0:
             # Create safe, independent obj seeds given a master seed
             if master_seed is None:
@@ -650,15 +650,18 @@ class SuperBITParameters:
             child_seeds = ss.spawn(needed_seeds)
             streams = [default_rng(s) for s in child_seeds]
 
-            # for stream, seed in zip(streams, seed_types):
             k = 0
+            print('seeds:')
             for seed_name, val in seeds.items():
-                if val is not None:
-                    setattr(self, seed_name, int(streams[k].random()*1e16))
+                if val is None:
+                    val = int(streams[k].random()*1e16)
+                    seeds[seed_name] = val
+                    setattr(self, seed_name, val)
                     k += 1
+                print(seed_name, val)
 
-            assert k+1 == needed_seeds
-            assert not (None in seeds.values())
+            assert k == needed_seeds
+            assert not (None in dict(seeds).values())
 
         return
 
