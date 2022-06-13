@@ -1,6 +1,6 @@
 # SuperBIT parameters
 # -------------------
-pixel_scale:        0.144       # Pixel scale                               [arcsec/px]
+pixel_scale:        0.141       # Pixel scale                               [arcsec/px]
 gain:               1.2207      # Camera gain                               [e- / ADU]
 read_noise:         1.8         # Read noise                                [e-]
 dark_current:       0.0046      # mean dark current                         [ADU / px / s]
@@ -16,7 +16,7 @@ strut_thick:        0.087       # Fraction of diameter strut thickness      [m/m
 strut_theta:        90          # Angle between vertical and nearest        [deg]
 obscuration:        0.380       # Fraction of aperture obscured by M2       []
 bandpass:     'crates_adu_b'    # Catalog filter name for simulation        []
-jitter_fwhm:        0.1         # Kernel size of SuperBIT jitter            [arcsec]
+jitter_fwhm:        0.24        # Kernel size of SuperBIT jitter            [arcsec]
 
 # Simulated image parameters
 # --------------------------
@@ -27,30 +27,30 @@ sky_sigma:          0.06        # standard deviation of sky background      [ADU
 nobj:               1000           # Number of galaxies (COSMOS 25.2 depth)    []
 nstars:             300        # Number of stars in the field              []
 nexp:               2           # Number of exposures per PSF model         []
-nclustergal:        100           # Number of cluster galaxies (arbitrary)    []
-#index_convention:   '1'
-
+nclustergal:        100
+run_name:   'mock_superbit_obs'              # Root for exposure name creation           []
 # Simulated cluster parameters
 # ----------------------------
-lam:                625         # Fiducial wavelength for abberations       [nm]
-mass:               7.0e14      # Cluster mass                              [Msol / h]
-nfw_z_halo:         0.3        # redshift of the halo                      []
+lam:                475         # Fiducial wavelength for abberations       [nm]
+mass:               2.2e15      # Cluster mass                              [Msol / h]
+nfw_z_halo:         0.44         # redshift of the halo                      []
 nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
-omega_m:            0.3         # Omega matter for the background cosmology.
-omega_lam:          0.7         # Omega lambda for the background cosmology.
+omega_m:            0.3         # Omega matter for the background cosmology []
+omega_lam:          0.7         # Omega lambda for the background cosmology []
 
 # Run parameters
 # --------------
 # Define some paths and filenames
-cosmosdir:         '/Users/jemcclea/Research/SuperBIT/GalSim/data/' # Path to COSMOS data directory
-datadir:           '/Users/jemcclea/Research/SuperBIT/GalSim/data/' # Path to repo/galsim data directory
-cat_file_name:     'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
-cluster_cat_name:  'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
-outdir:            './forecasting/pipe_test' # directory where output images and truth catalogs are saved
+cosmosdir:        '/users/jmcclear/data/superbit/superbit-metacal/GalSim/data/galsim_cosmos_catalogs' # Path to COSMOS data directory
+datadir:          '/users/jmcclear/data/superbit/superbit-metacal/GalSim/data' # Path to repo/GalSim data directory
+cat_file_name:    'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
+cluster_cat_name: 'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
+star_cat_name:    'APRA_cluster_GAIA_starcats/GAIAstars_Abell_2163.csv' #'master_gaiastar_cat.fits'
+outdir:           './forecasting/offset' # directory where output images and truth catalogs are saved
 
 # Misc parameters
 # ---------------
-noise_seed:    25401414         # Random number seed for image noise
-galobj_seed:   16433921         # Random number seed for galaxy objects
-cluster_seed:  52785525         # Random number seed fro cluster galaxies
-stars_seed:    23024648         # Random number seed for stars
+stars_seed:             # Random number seed for stars
+galobj_seed:            # Random number seed for galaxy objects
+cluster_seed:           # Random number seed for cluster galaxies
+noise_seed:             # Random number seed for sky noise
