@@ -824,9 +824,11 @@ class BITMeasurement():
             wg = f[1].data['ncutout'] > min_cutouts
             f[1].data = f[1].data[wg]
             
-            full_name = outfile.replace('.meds', '_full.meds')
-            cmd_str = 'mv {outfile} {full_name}'
-            os.system(cmd_str.format(outfile=outfile, full_name = full_name))
+            if (min_cutouts > 3):
+                # Probably don't need to save the zero-cutout rows!
+                full_name = outfile.replace('.meds', '_full.meds')
+                cmd_str = 'mv {outfile} {full_name}'
+                os.system(cmd_str.format(outfile=outfile, full_name = full_name))
             
             f.writeto(outfile, overwrite=True)
                       
