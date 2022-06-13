@@ -28,6 +28,7 @@ import scipy
 import yaml
 import numpy as np
 import fitsio
+from numpy.random import SeedSequence, default_rng
 from functools import reduce
 from astropy.table import Table
 from argparse import ArgumentParser
@@ -448,6 +449,8 @@ class SuperBITParameters:
         # Check that certain params are set either on command line or in config
         utils.check_req_params(self, self.__req_params, self.__req_defaults)
 
+        self._set_seeds()
+
         return
 
     def _load_config_file(self, config_file):
@@ -558,6 +561,8 @@ class SuperBITParameters:
                 self.bp_file = str(value)
             elif option == "outdir":
                 self.outdir = str(value)
+            elif option == "master_seed":
+                self.master_seed = int(value)
             elif option == "noise_seed":
                 self.noise_seed = int(value)
             elif option == "galobj_seed":
@@ -604,6 +609,59 @@ class SuperBITParameters:
         self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain
         if not hasattr(self,'jitter_fwhm'):
             self.jitter_fwhm = 0.1
+
+        return
+
+    def _set_seeds(self):
+        '''
+        Handle the setting of various seeds
+        '''
+
+        seed_types = ['galobj_seed', 'cluster_seed', 'stars_seed', 'noise_seed']
+        Nseeds = len(seed_types)
+        needed_seeds = Nseeds
+
+        master_seed = None
+        seeds = dict(zip(seed_types, Nseeds*[None]))
+
+        if hasattr(self, 'master_seed'):
+            # can't pass separate seeds if a master seed is passed
+            for seed in seed_types:
+                if hasattr(self, seed):
+                    raise AttributeError(f'Cannot set {seed} if a ' +\
+                                         'master_seed is set!')
+            master_seed = self.master_seed
+
+        else:
+            for seed_name in seeds.keys():
+                if hasattr(self, seed_name):
+                    seeds[seed_name] = getattr(self, seed_name)
+                    needed_seeds -= 1
+
+        assert needed_seeds >= 0
+        print(f'seeds: {seeds}')
+        if needed_seeds > 0:
+            # Create safe, independent obj seeds given a master seed
+            if master_seed is None:
+                # local time in microseconds
+                master_seed = int(time.time()*1e6)
+
+            ss = SeedSequence(master_seed)
+            child_seeds = ss.spawn(needed_seeds)
+            streams = [default_rng(s) for s in child_seeds]
+
+            k = 0
+            print('seeds:')
+            for seed_name, val in seeds.items():
+                if val is None:
+                    val = int(streams[k].random()*1e16)
+                    seeds[seed_name] = val
+                    setattr(self, seed_name, val)
+                    k += 1
+                print(seed_name, val)
+
+            assert k == needed_seeds
+            assert not (None in dict(seeds).values())
 
         return
 
@@ -1067,8 +1125,12 @@ def main():
             # Add ccd noise
             logprint('Adding CCD noise')
             noise = galsim.CCDNoise(
-                sky_level=0, gain=sbparams.gain,
-                read_noise=sbparams.read_noise)
+                sky_level=0,
+                gain=sbparams.gain,
+                read_noise=sbparams.read_noise,
+                rng=galsim.BaseDeviate(sbparams.noise_seed)
+                )
+
             full_image.addNoise(noise)
 
             logprint.debug('Added noise to final output image')
