@@ -1115,7 +1115,6 @@ def main():
             # get local range to iterate over in this process
             local_start, local_end = M.mpi_local_range(sbparams.nstars)
             for k in range(local_start, local_end):
-                print(f'doing star {k}')
                 time1 = time.time()
                 ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
                 pud = np.random.default_rng(sbparams.stars_seed)

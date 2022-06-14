@@ -816,20 +816,26 @@ class BITMeasurement():
         
             f = fits.open(outfile)
 
-            wb = f[1].data['ncutout'] <= min_cutouts
+            low_ncutout = f[1].data['ncutout'] <= min_cutouts
 
-            print(f'{len(f[1].data[wb])}/{len(f[1].data)} objects with fewer than {min_cutouts} found')
-            print(f'removing {len(f[1].data[wb])}/{len(f[1].data)} objects; saving original to full.meds')
+            print(f'{len(f[1].data[low_ncutout])}/{len(f[1].data)} objects with fewer than {min_cutouts} found')
+            print(f'removing {len(f[1].data[low_ncutout])}/{len(f[1].data)} objects; saving original to full.meds')
 
-            wg = f[1].data['ncutout'] > min_cutouts
-            f[1].data = f[1].data[wg]
+            ncutouts_above_min = f[1].data['ncutout'] > min_cutouts
+            f[1].data = f[1].data[ncutouts_above_min]
             
-            if (min_cutouts > 3):
-                # Probably don't need to save the zero-cutout rows!
-                full_name = outfile.replace('.meds', '_full.meds')
-                cmd_str = 'mv {outfile} {full_name}'
-                os.system(cmd_str.format(outfile=outfile, full_name = full_name))
-            
+            # Before saving the "hacked" MEDS file, save the original MEDS file
+            # (including rows with ncutout < min_ncutout) to 
+            # {run_name}_full.meds using "mv"
+ 
+            full__medscat_name = outfile.replace('.meds', '_full.meds')
+            cmd_str = 'mv {outfile} {full_name}'
+            os.system(cmd_str.format(outfile=outfile, full_name = full_name))
+
+            # Now save the hacked MEDS file, which contains 
+            # only entries with ncutout > min_cutouts, to file as
+            # {run_name}.meds
+
             f.writeto(outfile, overwrite=True)
                       
         return 
