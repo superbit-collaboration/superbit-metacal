@@ -44,7 +44,7 @@ class AnnularCatalog():
     SExtractor catalog (set in option in main)
     """
 
-    def __init__(self, cat_info, annular_bins):
+    def __init__(self, cat_info, annular_info):
         """
         cat_info: dict
             A dictionary that must contain the paths for the SExtractor
@@ -53,17 +53,20 @@ class AnnularCatalog():
             A dictionary holding the definitions of the annular bins
         """
 
+        self.cat_info = cat_info
+        self.annular_info = annular_info
         self.se_file = cat_info['se_file']
         self.mcal_file = cat_info['mcal_file']
-        self.outfile = cat_info['outfile']
+        self.outfile = cat_info['mcal_selected']
         self.outdir = cat_info['outdir']
         self.run_name = cat_info['run_name']
         self.truth_file = cat_info['truth_file']
         self.nfw_file = cat_info['nfw_file']
 
-        self.rmin = annular_bins['rmin']
-        self.rmax = annular_bins['rmax']
-        self.nbins = annular_bins['nbins']
+        self.rmin = annular_info['rmin']
+        self.rmax = annular_info['rmax']
+        self.nbins = annular_info['nbins']
+        self.coadd_center = annular_info['coadd_center']
 
         if self.outdir is not None:
             self.outfile = os.path.join(self.outdir, self.outfile)
@@ -303,42 +306,35 @@ class AnnularCatalog():
 
         return qualcuts
 
-    def compute_tan_shear_profile(self, outfile, plotfile, overwrite=False, vb=False,
-                                  xy_cols=['X_IMAGE', 'Y_IMAGE'],
-                                  g_cols=['g1_Rinv', 'g2_Rinv'],
-                                  nfw_center=[4940, 3258.5]):
+    def compute_tan_shear_profile(self, outfile, plotfile, overwrite=False, vb=False):
 
-        # nfw_center=[5031, 3353]
+        cat_info = self.cat_info
+        
+        annular_info = self.annular_info
 
-        if self.truth_file is None:
+        if self.cat_info['truth_file'] is None:
             truth_name = ''.join([self.run_name,'_truth.fits'])
             truth_dir = self.outdir
-            truth_file = os.path.join(truth_dir,truth_name)
+            self.cat_info['truth_file'] = os.path.join(truth_dir,truth_name)
 
         else:
             truth_file = self.truth_file
 
-        cat_info = {
-            'infile': self.outfile,
-            'truth_file': truth_file,
-            'nfw_file': self.nfw_file,
-            'xy_args': xy_cols,
-            'shear_args': g_cols
-        }
-        annular_info = {
-            'rad_args': [self.rmin, self.rmax],
-            'nfw_center': nfw_center,
-            'nbins': self.nbins
-        }
 
         if self.nfw_file is not None:
+
+            nfw_truth_tab = Table.read(self.nfw_file, format='fits')
+            nfw_truth_xcenter = nfw_truth_tab.meta['NFW_XCENTER']
+            nfw_truth_ycenter = nfw_truth_tab.meta['NFW_YCENTER']
 
             nfw_info = {
                 'nfw_file': self.nfw_file,
                 'xy_args': ['x_image','y_image'],
                 'shear_args': ['nfw_g1','nfw_g2'],
-                'nfw_center': [4784.5, 3190.5],
-            }
+                'nfw_center': [nfw_truth_xcenter, nfw_truth_ycenter]
+                }
+
+
 
         else: nfw_info = None
 
@@ -367,20 +363,8 @@ class AnnularCatalog():
 
         outfile = os.path.join(self.outdir, f'{p}shear_profile_cat.fits')
         plotfile = os.path.join(self.outdir, f'{p}shear_profile.pdf')
-
-        # Get center of galaxy cluster for fitting
-        if self.run_name is not None:
-            coadd_im_name = os.path.join(self.outdir, f'{self.run_name}_mock_coadd.fits')
-            if os.path.exists(coadd_im_name) is True:
-                hdr = fits.getheader(coadd_im_name)
-                xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
-                nfw_center = [xcen, ycen]
-                print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
-        else:
-            nfw_center = [4936.5, 3257.5]
-            print(f'No image data used, using default NFW center of ({xcen}, {ycen})')
-
-        self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb, nfw_center=nfw_center)
+        
+        self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return
 
@@ -399,26 +383,52 @@ def main(args):
     overwrite = args.overwrite
     vb = args.vb
 
+
+    # Define position args                                                                                                                          
+    xy_cols = ['X_IMAGE', 'Y_IMAGE']
+    shear_args = ['g1_Rinv', 'g2_Rinv']
+    
+    ## Get center of galaxy cluster for fitting
+    ## Throw error if image can't be read in
+    
+    try:
+        coadd_im_name = os.path.join(outdir, f'{run_name}_mock_coadd.fits')
+        assert os.path.exists(coadd_im_name) is True
+        hdr = fits.getheader(coadd_im_name)
+        xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
+        coadd_center = [xcen, ycen]
+        print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
+
+    except:
+        print('\n\n\nNo coadd image center found, cannot calculate tangential shear\n\n.')
+        
+        
+    ## n.b outfile is the name of the metacalibrated & 
+    ## quality-selected galaxy catalog 
+
     cat_info={
         'se_file': se_file,
         'mcal_file': mcal_file,
         'run_name': run_name,
-        'outfile': outfile,
+        'mcal_selected': outfile,
         'outdir': outdir,
         'truth_file': truth_file,
         'nfw_file': nfw_file
-        }
-
-    annular_bins = {
-        'rmin': rmin,
-        'rmax': rmax,
-        'nbins': nbins
     }
 
-    annular = AnnularCatalog(cat_info, annular_bins)
+    annular_info = {
+        'rmin': rmin,
+        'rmax': rmax,
+        'nbins': nbins,
+        'coadd_center': coadd_center,
+        'xy_args': xy_cols,
+        'shear_args': shear_args
+    }
+
+    annular_cat = AnnularCatalog(cat_info, annular_info)
 
     # run everything
-    annular.run(overwrite=overwrite, vb=vb)
+    annular_cat.run(overwrite=overwrite, vb=vb)
 
     return 0
 
