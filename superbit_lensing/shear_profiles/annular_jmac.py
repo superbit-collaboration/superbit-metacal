@@ -603,28 +603,20 @@ def main(args):
     if outdir is not None:
         outfile = os.path.join(self.outdir, outfile)
 
-    """
-    # If obtaining "true" g_tan using the truth file:
-    x_arg = 'x_image'
-    y_arg = 'y_image'
-    startrad = 100
-    endrad = 5000
-    nfw_center = [4784,3190]
-    """
+    
+    # Read in coadd image header to set cluster/NFW center for tangential shear calculation
+    coadd_im_name = os.path.join(self.outdir, f'{self.run_name}_mock_coadd.fits')
 
-            # Get center of galaxy cluster for fitting                                                                                                              
-    if self.run_name is not None:
-        coadd_im_name = os.path.join(self.outdir, f'{self.run_name}_mock_coadd.fits')
-        if os.path.exists(coadd_im_name) is True:
-            hdr = fits.getheader(coadd_im_name)
-            xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
-            nfw_center = [xcen, ycen]
-            print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
-        else:
-            nfw_center = [4938.5, 3257.5]
-            print(f'No image data used, using default NFW center of ({xcen}, {ycen})')
-        
-    # Otherwise, define annular args
+    if os.path.exists(coadd_im_name) is True:
+        hdr = fits.getheader(coadd_im_name)
+        xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
+        nfw_center = [xcen, ycen]
+        print(f'Read image data and setting cluster NFW center to ({xcen},{ycen})')
+    else:
+        print('No coadd image found, cluster NFW center cannot be set')
+
+
+    # Define position args
     x_arg = 'X_IMAGE'
     y_arg = 'Y_IMAGE'
 
