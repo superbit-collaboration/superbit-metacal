@@ -202,7 +202,7 @@ class SuperBITNgmixFitter():
         return psfex_cutouts
 
 
-    def _get_jacobians(self, source_id=None):
+    def _get_jacobians(self, source_id=None, logprint=None):
         try:
             jlist = self.medsObj.get_jacobian_list(source_id)
             jac = [ngmix.Jacobian(row=jj['row0'],
@@ -216,12 +216,13 @@ class SuperBITNgmixFitter():
             # cause a ValueError when building an obs list. We want to have
             # this error identified during the flag check, so for now we will
             # just return None
-            print(e)
+            if logprint is not None:
+                print(e)
             jac = None
 
         return jac
 
-    def _get_source_observations(self, source_id=None, psf_noise=1e-6):
+    def _get_source_observations(self, source_id=None, logprint=None, psf_noise=1e-6):
         try:
             jaclist = self._get_jacobians(source_id)
             psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
@@ -270,7 +271,8 @@ class SuperBITNgmixFitter():
             # cause a ValueError when building an obs list. We want to have
             # this error identified during the flag check, so for now we will
             # just return None
-            print(e)
+            if logprint is not None:
+                logprint(e)
             image_obslist = None
 
         return image_obslist
@@ -790,8 +792,12 @@ def main():
             mcal_res.append(mp_run_fit(
                             i,
                             setup_obj(i, BITfitter.medsObj[i]),
-                            BITfitter._get_jacobians(i),
-                            BITfitter._get_source_observations(i),
+                            BITfitter._get_jacobians(
+                                i, logprint=logprint
+                                ),
+                            BITfitter._get_source_observations(
+                                i, logprint=logprint
+                                ),
                             priors,
                             imc_list[i-index_start],
                             plotter,
@@ -808,8 +814,12 @@ def main():
                                         [(i,
                                           index_start,
                                           setup_obj(i, BITfitter.medsObj[i]),
-                                          BITfitter._get_jacobians(i),
-                                          BITfitter._get_source_observations(i),
+                                          BITfitter._get_jacobians(
+                                              i, logprint=logprint
+                                              ),
+                                          BITfitter._get_source_observations(
+                                              i, logprint=logprint
+                                              ),
                                           priors,
                                           imc_list[i-index_start],
                                           plotter,
