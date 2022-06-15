@@ -386,9 +386,10 @@ class BITMeasurement():
         # Choose sources based on quality cuts on this catalog.
         #keep = (self.catalog[size_key] > min_size) & (self.catalog[size_key] < max_size)
         #self.catalog = self.catalog[keep.nonzero()[0]]
-        self.logprint("Selecting analysis objects on CLASS_STAR...") # Adapt based on needs of data; FWHM~8 for empirical!
-        keep2 = self.catalog['CLASS_STAR']<0.92
-        self.catalog = self.catalog[keep2.nonzero()[0]]
+        self.logprint("Selecting analysis objects on FLUX_APER > 1 and SNR_WIN > 1...") # Adapt based on needs of data; FWHM~8 for empirical!
+        keep = (self.catalog['FLUX_APER'] > 1) & (self.catalog['SNR_WIN'] > 1)
+
+        self.catalog = self.catalog[keep.nonzero()[0]]
 
         # Write trimmed catalog to file
         fullcat_name=catname.replace('.ldac','_full.ldac')
@@ -434,7 +435,7 @@ class BITMeasurement():
             filter_arg, '-c', config_arg
             ])
         if weight_file is not None:
-            weight_arg = '-WEIGHT_IMAGE '+ weight_file
+            weight_arg = '-WEIGHT_IMAGE ' + weight_file + ' -WEIGHT_TYPE MAP_WEIGHT'
             cmd = ' '.join([cmd, weight_arg])
 
         self.logprint("sex cmd is " + cmd)
@@ -468,7 +469,9 @@ class BITMeasurement():
         self.pix_scale = utils.get_pixel_scale(self.coadd_file)
 
         # Run SExtractor on coadd
-        cat_name = self._run_sextractor(detection_filepath,sextractor_config_path=sextractor_config_path)
+        cat_name = self._run_sextractor(detection_filepath, 
+                                        weight_file = weight_filepath, 
+                                        sextractor_config_path=sextractor_config_path)
 
         try:
             le_cat = fits.open(cat_name)
@@ -539,9 +542,14 @@ class BITMeasurement():
 
                 psfex_model_file = self._make_psfex_model(im_cats[i], weightfile=weightfile,select_truth_stars=select_truth_stars,star_params=star_params)
 
-                # move checkimages to psfex_output
-                cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', self.psf_path])
-                cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', self.psf_path])
+                # create & move checkimages to psfex_output
+                psfex_plotdir = os.path.join(self.data_dir,'psfex-output')
+
+                if not os.path.exists(psfex_checkplot_dir):
+                    os.mkdir(self.psf_path)
+
+                cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', psfex_plotdir])
+                cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', psfex_plotdir])
                 os.system(cleanup_cmd)
                 os.system(cleanup_cmd2)
                 self.psf_models.append(psfex.PSFEx(psfex_model_file))
@@ -574,6 +582,7 @@ class BITMeasurement():
             psfcat_name = im_cat
 
         # Now run PSFEx on that image and accompanying catalog
+
         psfex_config_arg = '-c '+sextractor_config_path+'psfex.mock.config'
         outcat_name = imagefile.replace('.fits','.psfex.star')
         cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
@@ -798,6 +807,39 @@ class BITMeasurement():
 
         return obj_str
 
+    def filter_meds(self, outfile, clean=True, min_cutouts=0):
+        ###
+        ### Filter out objects from MEDS that are in fewer 
+        ### than "min_cutouts" exposures
+        
+        if (clean == True) & (min_cutouts > 0):
+        
+            f = fits.open(outfile)
+
+            low_ncutout = f[1].data['ncutout'] <= min_cutouts
+
+            print(f'{len(f[1].data[low_ncutout])}/{len(f[1].data)} objects with fewer than {min_cutouts} found')
+            print(f'removing {len(f[1].data[low_ncutout])}/{len(f[1].data)} objects; saving original to full.meds')
+
+            ncutouts_above_min = f[1].data['ncutout'] > min_cutouts
+            f[1].data = f[1].data[ncutouts_above_min]
+            
+            # Before saving the "hacked" MEDS file, save the original MEDS file
+            # (including rows with ncutout < min_ncutout) to 
+            # {run_name}_full.meds using "mv"
+ 
+            full__medscat_name = outfile.replace('.meds', '_full.meds')
+            cmd_str = 'mv {outfile} {full_name}'
+            os.system(cmd_str.format(outfile=outfile, full_name = full_name))
+
+            # Now save the hacked MEDS file, which contains 
+            # only entries with ncutout > min_cutouts, to file as
+            # {run_name}.meds
+
+            f.writeto(outfile, overwrite=True)
+                      
+        return 
+
 
     def run(self,outfile='mock_superbit.meds', clobber=False, source_selection=False,
             select_truth_stars=False,psf_mode='piff'):
@@ -838,3 +880,5 @@ class BITMeasurement():
         medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
                                        psf_data=self.psf_models,meta_data=meta)
         medsObj.write(outfile)
+        
+        self.filter_meds(outfile)

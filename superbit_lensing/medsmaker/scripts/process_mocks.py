@@ -67,7 +67,7 @@ def main():
         fname_base = args.fname_base
 
 
-    science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub].fits')
+    science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub,mock_coadd].fits')
     logprint(f'Science frames: {science}')
 
     outfile = os.path.join(outdir, outfile)
@@ -78,7 +78,6 @@ def main():
         )
 
     bm.set_working_dir(path=outdir)
-    bm.set_path_to_psf(path=os.path.join(outdir, 'psfex_output'))
     bm.set_mask(mask_name='forecast_mask.fits',mask_dir=os.path.join(mock_dir,'mask_files'))
     bm.set_weight(weight_name='forecast_weight.fits',weight_dir=os.path.join(mock_dir,'weight_files'))
 
@@ -111,9 +110,13 @@ def main():
 
     medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
                                     psf_data=bm.psf_models, meta_data=meta)
-
+    
     logprint(f'Writing to {outfile}')
     medsObj.write(outfile)
+    
+    # Remove spurious detections with 0 cutouts
+    bm.filter_meds(outfile, clean=True, min_cutouts=1)
+   
     """
     bm.run(clobber=clobber,source_selection = source_selection, select_stars = select_stars, outfile = outfile,psf_mode=psf_mode)
     """
