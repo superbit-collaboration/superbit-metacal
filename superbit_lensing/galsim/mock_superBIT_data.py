@@ -23,7 +23,7 @@ import galsim
 import galsim.des
 import galsim.convolve
 import pdb, pudb
-import glob
+from glob import glob
 import scipy
 import yaml
 import numpy as np
@@ -384,7 +384,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     return cluster_stamp, cluster_galaxy_truth
 
 
-def make_a_star(ud, pud, star_cat, k, wcs, affine, optics, sbparams, logprint, obj_index=None):
+def make_a_star(ud, pud, k, wcs, affine, optics, sbparams, logprint, obj_index=None):
     """
     makes a star-like object for injection into larger image.
     """
@@ -406,18 +406,18 @@ def make_a_star(ud, pud, star_cat, k, wcs, affine, optics, sbparams, logprint, o
 
     index = obj_index - 1
 
-    if star_cat is not None:
+    if sbparams.star_cat is not None:
         if sbparams.bandpass=='crates_adu_shape':
-            star_flux = star_cat['bit_flux_shape'][index]
+            star_flux = sbparams.star_cat['bit_flux_shape'][index]
 
         elif sbparams.bandpass=='crates_adu_b':
-            star_flux = star_cat['bit_flux_b'][index]
+            star_flux = sbparams.star_cat['bit_flux_b'][index]
 
         else:
-            star_flux = star_cat['bit_flux_b'][index]
+            raise NotImplementedError('Star catalog sampling only implemented ' +\
+                                      'for adu_shape and adu_b!')
 
-        star_flux*=sbparams.exp_time
-
+        star_flux *= sbparams.exp_time
 
     else:
         pud = np.random.default_rng()
@@ -426,26 +426,28 @@ def make_a_star(ud, pud, star_cat, k, wcs, affine, optics, sbparams, logprint, o
         star_flux = flux_p
 
         if sbparams.bandpass=='crates_adu_b':
-            star_flux*=0.8271672
+            star_flux *= 0.8271672
+        else:
+            raise NotImplementedError('Star power law only implemented for adu_b!')
 
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    star=galsim.Convolve([jitter_psf, optics, deltastar])
+    jitter_psf = galsim.Gaussian(flux=1, fwhm=sbparams.jitter_fwhm)
+    star = galsim.Convolve([jitter_psf, optics, deltastar])
 
     star_stamp = star.drawImage(wcs=wcs.local(image_pos)) # before it was scale = 0.206, and that was bad!
-    star_stamp.setCenter(image_pos.x,image_pos.y)
+    star_stamp.setCenter(image_pos.x, image_pos.y)
 
-    star_truth=truth()
+    star_truth = truth()
     star_truth.ra = ra.deg; star_truth.dec = dec.deg
-    star_truth.x = image_pos.x; star_truth.y =image_pos.y
+    star_truth.x = image_pos.x; star_truth.y = image_pos.y
     star_truth.obj_class = 'star'
 
     try:
-        star_truth.fwhm=star.calculateFWHM()
+        star_truth.fwhm = star.calculateFWHM()
     except galsim.errors.GalSimError:
         logprint.debug('fwhm calculation failed')
-        star_truth.fwhm=-9999.0
+        star_truth.fwhm =- 9999.0
 
     try:
         star_truth.mom_size=star_stamp.FindAdaptiveMom().moments_sigma
@@ -476,6 +478,9 @@ class SuperBITParameters:
 
         # Check that certain params are set either on command line or in config
         utils.check_req_params(self, self.__req_params, self.__req_defaults)
+
+        # Setup stellar injection
+        self._setup_stars()
 
         return
 
@@ -652,6 +657,40 @@ class SuperBITParameters:
 
         return
 
+    def _setup_stars(self):
+        valid_args = ['nstars', 'star_cat_name', 'sample_gaia_cats', 'gaia_dir']
+
+        for arg in valid_args:
+            if not hasattr(self, arg):
+                setattr(self, arg, None)
+
+        assert (self.nstars is not None) or \
+               (self.star_cat_name is not None) or \
+               (self.sample_gaia_cats is not None)
+
+        if (self.star_cat_name is not None) and (self.sample_gaia_cats is not None):
+            raise AttributeError('Cannot set both `star_cat_name` and ' +\
+                                 '`sample_gaia_cats`!')
+
+        # if sampling from a GAIA cat, do that first
+        if self.sample_gaia_cats is True:
+            if self.gaia_dir is not None:
+                raise AttributeError('Must set `gaia_dir` if sampling from gaia cats!')
+
+            gaia_cats = glob(f'{self.gaia_dir}/GAIA*.csv')
+            self.star_cat_name = np.random.choice(gaia_cats)
+
+        if self.star_cat_name is not None:
+            star_fname = os.path.join(self.datadir, self.star_cat_name)
+            self.star_cat = Table.read(star_fname)
+        else:
+            self.star_cat = None
+
+        if self.nstars is None:
+            self.nstars = len(star_cat)
+
+        return
+
     # TODO: This should be updated to be sensible. see issue #10
     def make_mask_files(self, logprint, clobber):
         mask_dir = os.path.join(self.outdir, 'mask_files')
@@ -790,23 +829,6 @@ def main():
     except:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
 
-    ###
-    ### Bit hacky.
-    ###
-    if (sbparams.star_cat_name is not None) and (sbparams.nstars is None):
-        star_cat = Table.read(os.path.join(sbparams.datadir,
-                                        sbparams.star_cat_name))
-        sbparams.nstars = len(star_cat)
-
-    elif (sbparams.star_cat_name is not None) and (sbparams.nstars is not None):
-        star_cat = Table.read(os.path.join(sbparams.datadir,
-                    sbparams.star_cat_name))
-        sbparams.nstars = int(sbparams.nstars)
-
-    else:
-        star_cat = None
-        sbparams.nstars = int(sbparams.nstars)
-
     ### Now create PSF. First, define Zernicke polynomial component
     ### note: aberrations were definined for lam = 550, and close to the
     ### center of the camera. The PSF degrades at the edge of the FOV
@@ -823,11 +845,17 @@ def main():
     aberrations[37] = 0.00000004
     logprint(f'Calculated lambda over diam = {lam_over_diam} arcsec')
 
-    if sbparams.use_optics is False:
+    # due to how the config is structured...
+    if hasattr(sbparams, 'use_optics'):
+        use_optics = sbparams.use_optics
+    else:
+        use_optics = True
+
+    if use_optics is False:
         optics = galsim.DeltaFunction(flux=1)
         logprint('\nuse_optics is False; using jitter-only PSF\n')
 
-    elif sbparams.use_optics is True:
+    elif use_optics is True:
         # will store the Zernicke component of the PSF
         optics = galsim.OpticalPSF(lam=sbparams.lam,diam=sbparams.tel_diam,
                         obscuration=sbparams.obscuration, nstruts=sbparams.nstruts,
@@ -1100,7 +1128,6 @@ def main():
                           'star',
                           galsim.UniformDeviate(sbparams.stars_seed+k+1),
                           pud,
-                          star_cat,
                           batch_indices[k],
                           wcs,
                           affine,
@@ -1126,7 +1153,6 @@ def main():
                 ud = galsim.UniformDeviate(sbparams.stars_seed+k+1)
                 pud = np.random.default_rng(sbparams.stars_seed)
                 star_stamp,truth = make_a_star(ud=ud,pud=pud,
-                                            star_cat=star_cat,
                                             index=k,
                                             wcs=wcs,
                                             affine=affine,
