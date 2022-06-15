@@ -260,7 +260,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, 
         mu = 1.0
 
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    final=galsim.Convolve([jitter_psf,gal])
+    final=galsim.Convolve([jitter_psf, optics, gal])
 
     logprint.debug('Convolved star and PSF at galaxy position')
 
@@ -344,7 +344,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     logprint.debug(f'rescaled galaxy with scaling factor {sbparams.flux_scaling}')
 
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    final=galsim.Convolve([jitter_psf,gal])
+    final=galsim.Convolve([jitter_psf, optics, gal])
 
     logprint.debug('Convolved star and PSF at galaxy position')
 
@@ -431,7 +431,7 @@ def make_a_star(ud, pud, star_cat, k, wcs, affine, optics, sbparams, logprint, o
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    star=galsim.Convolve([jitter_psf,deltastar])
+    star=galsim.Convolve([jitter_psf, optics, deltastar])
 
     star_stamp = star.drawImage(wcs=wcs.local(image_pos)) # before it was scale = 0.206, and that was bad!
     star_stamp.setCenter(image_pos.x,image_pos.y)
@@ -611,6 +611,8 @@ class SuperBITParameters:
                 self.mpi = bool(value)
             elif option == "ncores":
                 self.ncores = int(value)
+            elif option == "use_optics":
+                self.use_optics = bool(value)
             elif option == "noise_seed":
                 try:
                     self.noise_seed = int(value)
@@ -778,7 +780,7 @@ def main():
     cosmos_cat = Table.read(os.path.join(sbparams.datadir,
                                          sbparams.cat_file_name))
     logprint(f'Read in {len(cosmos_cat)} galaxies from catalog and associated fit info')
-    
+
     size_wg = (cosmos_cat['FLUX_RADIUS'] >= 0) & (cosmos_cat['hlr_cosmos10'] < 50)
     cosmos_cat = cosmos_cat[size_wg]
 
@@ -821,13 +823,18 @@ def main():
     aberrations[37] = 0.00000004
     logprint(f'Calculated lambda over diam = {lam_over_diam} arcsec')
 
-    # will store the Zernicke component of the PSF
-    optics = galsim.OpticalPSF(lam=sbparams.lam,diam=sbparams.tel_diam,
+    if sbparams.use_optics is False:
+        optics = galsim.DeltaFunction(flux=1)
+        logprint('\nuse_optics is False; using jitter-only PSF\n')
+
+    elif sbparams.use_optics is True:
+        # will store the Zernicke component of the PSF
+        optics = galsim.OpticalPSF(lam=sbparams.lam,diam=sbparams.tel_diam,
                         obscuration=sbparams.obscuration, nstruts=sbparams.nstruts,
                         strut_angle=sbparams.strut_angle, strut_thick=sbparams.strut_thick,
                         aberrations=aberrations)
 
-    logprint('Made telescope PSF profile')
+        logprint('\n Use_optics is True; convolving telescope optics PSF profile\n')
 
     ###
     ### Make generic WCS
