@@ -203,60 +203,75 @@ class SuperBITNgmixFitter():
 
 
     def _get_jacobians(self, source_id=None):
-        jlist = self.medsObj.get_jacobian_list(source_id)
-        jac = [ngmix.Jacobian(row=jj['row0'],col=jj['col0'],dvdrow = jj['dvdrow'],\
-                                  dvdcol=jj['dvdcol'],dudrow=jj['dudrow'],dudcol=jj['dudcol']) for jj in jlist]
+        try:
+            jlist = self.medsObj.get_jacobian_list(source_id)
+            jac = [ngmix.Jacobian(row=jj['row0'],
+                                  col=jj['col0'],
+                                  dvdrow=jj['dvdrow'],
+                                  dvdcol=jj['dvdcol'],
+                                  dudrow=jj['dudrow'],
+                                  dudcol=jj['dudcol']) for jj in jlist]
+        except ValueError as e:
+            # Some observations will have zero image cutouts, which will
+            # cause a ValueError when building an obs list. We want to have
+            # this error identified during the flag check, so for now we will
+            # just return None
+            print(e)
+            jac = None
 
         return jac
 
-    def _get_source_observations(self,source_id = None,psf_noise = 1e-6):
-        jaclist = self._get_jacobians(source_id)
-        psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
-        #psf_cutouts = self._make_psfex_cutouts(source_id)
-        weight_cutouts = self.medsObj.get_cutout_list(source_id, type='weight')
-        image_cutouts = self.medsObj.get_cutout_list(source_id, type='image')
-        image_obslist = ngmix.observation.ObsList()
+    def _get_source_observations(self, source_id=None, psf_noise=1e-6):
+        try:
+            jaclist = self._get_jacobians(source_id)
+            psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
+            #psf_cutouts = self._make_psfex_cutouts(source_id)
+            weight_cutouts = self.medsObj.get_cutout_list(source_id, type='weight')
+            image_cutouts = self.medsObj.get_cutout_list(source_id, type='image')
+            image_obslist = ngmix.observation.ObsList()
 
-        for i in range(len(image_cutouts)):
+            for i in range(len(image_cutouts)):
+                jj = jaclist[i]
 
-            jj = jaclist[i]
+                try:
+                    xcenter = psf_cutouts[i].true_center.x
+                    ycenter = psf_cutouts[i].true_center.y
+                    jj_psf = ngmix.DiagonalJacobian(scale=psf_cutouts[i].scale,x=xcenter,y=ycenter)
+                except AttributeError:
+                    jj_psf = jj
 
-            try:
-                xcenter = psf_cutouts[i].true_center.x
-                ycenter = psf_cutouts[i].true_center.y
-                jj_psf = ngmix.DiagonalJacobian(scale=psf_cutouts[i].scale,x=xcenter,y=ycenter)
-            except AttributeError:
-                jj_psf = jj
+                    # Apparently it likes to add noise to the psf.
+                    this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
+                    #this_psf = psf_cutouts[i].array + psf_noise * np.random.randn(psf_cutouts[i].array.shape[0],psf_cutouts[i].array.shape[1])
+                    this_psf_weight = np.zeros_like(this_psf) + 1./psf_noise**2
 
-            # Apparently it likes to add noise to the psf.
-            this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
-            #this_psf = psf_cutouts[i].array + psf_noise * np.random.randn(psf_cutouts[i].array.shape[0],psf_cutouts[i].array.shape[1])
-            this_psf_weight = np.zeros_like(this_psf) + 1./psf_noise**2
+                    # Treat sky background variance as a Poisson distribution, e.g.
+                    #     - mean bkg = 0.048*600
+                    #     - std_dev = sqrt(bkg) = 5.3
+                    #     - sky_sigma = std_dev**2 = 25.1
 
-            # Treat sky background variance as a Poisson distribution, e.g.
-            #     - mean bkg = 0.048*600
-            #     - std_dev = sqrt(bkg) = 5.3
-            #     - sky_sigma = std_dev**2 = 25.1
+                    sky_sigma = 4.77 #SIGMA = 4.7ish for Blue, 4.7**2 for shape
+                    this_image = image_cutouts[i]
+                    this_weight = np.zeros_like(this_image)+ 1./sky_sigma
 
-            sky_sigma = 4.77 #SIGMA = 4.7ish for Blue, 4.7**2 for shape
-            
-            this_image = image_cutouts[i]
+                    psfObs = ngmix.observation.Observation(this_psf,
+                                                           weight=this_psf_weight,
+                                                           jacobian=jj_psf)
 
-            this_weight = np.zeros_like(this_image)+ 1./sky_sigma
+                    imageObs = ngmix.observation.Observation(this_image,
+                                                             weight=this_weight,
+                                                             jacobian=jj,
+                                                             psf=psfObs)
+                    #imageObs.psf_nopix = imageObs.psf
+                    image_obslist.append(imageObs)
 
-
-            psfObs = ngmix.observation.Observation(this_psf,
-                                                   weight=this_psf_weight,
-                                                   jacobian=jj_psf)
-
-            imageObs = ngmix.observation.Observation(this_image,
-                                                     weight=this_weight,
-                                                     jacobian=jj,
-                                                     psf=psfObs)
-            #imageObs.psf_nopix = imageObs.psf
-
-            image_obslist.append(imageObs)
-
+        except ValueError as e:
+            # Some observations will have zero image cutouts, which will
+            # cause a ValueError when building an obs list. We want to have
+            # this error identified during the flag check, so for now we will
+            # just return None
+            print(e)
+            image_obslist = None
 
         return image_obslist
 
@@ -573,7 +588,7 @@ def setup_obj(i, meds_obj):
     obj['dec'] = meds_obj['dec']
     obj['X_IMAGE'] = meds_obj['X_IMAGE']
     obj['Y_IMAGE'] = meds_obj['Y_IMAGE']
-
+    obj['ncutout'] = meds_obj['ncutout']
 
     return obj
 
@@ -610,6 +625,9 @@ def mp_run_fit(i, start_ind, obj, jaclist, obslist, prior, imc,
     start = time.time()
 
     logprint(f'Starting fit for obj {i}')
+
+    if (jaclist is None) or (obslist is None):
+        logprint('jaclist or obslist is None')
 
     try:
         # first check if object is flagged
@@ -658,9 +676,8 @@ def mp_run_fit(i, start_ind, obj, jaclist, obslist, prior, imc,
                 # EM probably failed
                 logprint('Bad gmix model, no image made')
 
-
     except Exception as e:
-        logprint(e)
+        logprint(f'Exception: {e}')
         logprint(f'object {i} failed, skipping...')
 
         return Table()

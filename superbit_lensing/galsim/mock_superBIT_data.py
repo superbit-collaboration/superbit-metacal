@@ -631,6 +631,10 @@ class SuperBITParameters:
                 self.ncores = int(value)
             elif option == "use_optics":
                 self.use_optics = bool(value)
+            elif option == "sample_gaia_cats":
+                self.sample_gaia_cats = bool(value)
+            elif option == "gaia_dir":
+                self.gaia_dir = str(value)
             elif option == "noise_seed":
                 try:
                     self.noise_seed = int(value)
@@ -687,7 +691,7 @@ class SuperBITParameters:
 
         # if sampling from a GAIA cat, do that first
         if self.sample_gaia_cats is True:
-            if self.gaia_dir is not None:
+            if self.gaia_dir is None:
                 raise AttributeError('Must set `gaia_dir` if sampling from gaia cats!')
 
             gaia_cats = glob(f'{self.gaia_dir}/GAIA*.csv')
@@ -700,7 +704,7 @@ class SuperBITParameters:
             self.star_cat = None
 
         if self.nstars is None:
-            self.nstars = len(star_cat)
+            self.nstars = len(self.star_cat)
 
         return
 
