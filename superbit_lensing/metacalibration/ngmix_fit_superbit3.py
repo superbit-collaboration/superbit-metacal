@@ -262,6 +262,11 @@ class SuperBITNgmixFitter():
 
 class SuperBITPlotter(object):
 
+    def __init__(self, pixel_scale=0.141):
+        self.pixel_scale = pixel_scale
+
+        return
+
     def setup_jdict_list(self, index_start, index_end, meds_list):
         '''
         Need to grab jacobian dict list for later plotting in parallel
@@ -310,7 +315,7 @@ class SuperBITPlotter(object):
         try:
 
             hsm_fit = galsim_im.FindAdaptiveMom(guess_centroid=guess_centroid)
-            hsm_sigma = hsm_fit.moments_sigma * .144
+            hsm_sigma = hsm_fit.moments_sigma * self.pixel_scale
             hsm_g1 = hsm_fit.observed_shape.g1
             hsm_g2 = hsm_fit.observed_shape.g2
 

@@ -28,6 +28,7 @@ import scipy
 import yaml
 import numpy as np
 import fitsio
+from numpy.random import SeedSequence, default_rng
 from functools import reduce
 from astropy.table import Table
 from argparse import ArgumentParser
@@ -482,6 +483,8 @@ class SuperBITParameters:
         # Setup stellar injection
         self._setup_stars()
 
+        self._set_seeds()
+
         return
 
     def _load_config_file(self, config_file):
@@ -594,6 +597,16 @@ class SuperBITParameters:
                 self.bp_file = str(value)
             elif option == "outdir":
                 self.outdir = str(value)
+            elif option == "master_seed":
+                self.master_seed = int(value)
+            elif option == "noise_seed":
+                self.noise_seed = int(value)
+            elif option == "galobj_seed":
+                self.galobj_seed = int(value)
+            elif option == "cluster_seed":
+                self.cluster_seed = int(value)
+            elif option == "stars_seed":
+                self.stars_seed = int(value)
             elif option == "nstruts":
                 self.nstruts = int(value)
             elif option == "nstruts":
@@ -688,6 +701,60 @@ class SuperBITParameters:
 
         if self.nstars is None:
             self.nstars = len(star_cat)
+
+        return
+
+    def _set_seeds(self):
+        '''
+        Handle the setting of various seeds
+        '''
+
+        seed_types = ['galobj_seed', 'cluster_seed', 'stars_seed', 'noise_seed',
+                      'dithering_seed']
+        Nseeds = len(seed_types)
+        needed_seeds = Nseeds
+
+        master_seed = None
+        seeds = dict(zip(seed_types, Nseeds*[None]))
+
+        if hasattr(self, 'master_seed'):
+            # can't pass separate seeds if a master seed is passed
+            for seed in seed_types:
+                if hasattr(self, seed):
+                    raise AttributeError(f'Cannot set {seed} if a ' +\
+                                         'master_seed is set!')
+            master_seed = self.master_seed
+
+        else:
+            for seed_name in seeds.keys():
+                if hasattr(self, seed_name):
+                    seeds[seed_name] = getattr(self, seed_name)
+                    needed_seeds -= 1
+
+        assert needed_seeds >= 0
+        print(f'seeds: {seeds}')
+        if needed_seeds > 0:
+            # Create safe, independent obj seeds given a master seed
+            if master_seed is None:
+                # local time in microseconds
+                master_seed = int(time.time()*1e6)
+
+            ss = SeedSequence(master_seed)
+            child_seeds = ss.spawn(needed_seeds)
+            streams = [default_rng(s) for s in child_seeds]
+
+            k = 0
+            print('seeds:')
+            for seed_name, val in seeds.items():
+                if val is None:
+                    val = int(streams[k].random()*1e16)
+                    seeds[seed_name] = val
+                    setattr(self, seed_name, val)
+                    k += 1
+                print(seed_name, val)
+
+            assert k == needed_seeds
+            assert not (None in dict(seeds).values())
 
         return
 
@@ -884,7 +951,7 @@ def main():
     ##
     ## Define RNG for dither offsets
     ##
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(sbparams.dithering_seed)
 
 
     ###
@@ -924,31 +991,6 @@ def main():
         dither_offsets = rng.integers(-100, 100, size=2)
         full_image.setOrigin(dither_offsets[0], dither_offsets[1])
         full_image.wcs = wcs
-
-
-        ##
-        ## Check for the existence of star, galaxy and cluster galaxy seeds
-        ## If they don't exist, create new ones
-
-        if sbparams.stars_seed is None:
-            star_seed = np.random.randint(11111111,99999999)
-            sbparams.stars_seed = star_seed
-            print(f'\nNo stars seed found, using {sbparams.stars_seed}\n')
-            logprint(f'\nNo stars seed found, using {sbparams.stars_seed}\n')
-
-
-        if sbparams.galobj_seed is None:
-            galobj_seed = np.random.randint(11111111,99999999)
-            sbparams.galobj_seed = galobj_seed
-            print(f'\nNo galaxy seed found, using {sbparams.galobj_seed}\n')
-            logprint(f'\nNo galaxy seed found, using {sbparams.galobj_seed}\n')
-
-        if sbparams.cluster_seed is None:
-            cluster_seed = np.random.randint(11111111,99999999)
-            sbparams.cluster_seed = cluster_seed
-            print(f'\nNo cluster galaxy seed found, using {sbparams.cluster_seed}\n')
-            logprint(f'\nNo cluster galaxy seed found, using {sbparams.cluster_seed}\n')
-
 
         ##
         ## Now let's read in the PSFEx PSF model, if using.
@@ -1210,8 +1252,12 @@ def main():
             # Add ccd noise
             logprint('Adding CCD noise')
             noise = galsim.CCDNoise(
-                sky_level=0, gain=sbparams.gain,
-                read_noise=sbparams.read_noise)
+                sky_level=0,
+                gain=sbparams.gain,
+                read_noise=sbparams.read_noise,
+                rng=galsim.BaseDeviate(sbparams.noise_seed)
+                )
+
             full_image.addNoise(noise)
 
             logprint.debug('Added noise to final output image')
