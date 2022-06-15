@@ -588,7 +588,9 @@ def check_obj_flags(obj, min_cutouts=1):
     if obj['ncutout'] < min_cutouts:
         return True, 'min_cutouts'
 
-    return
+    # other flags...
+
+    return False, None
 
 def mp_run_fit(i, start_ind, obj, jaclist, obslist, prior, imc,
                plotter, config, logprint):
