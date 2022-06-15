@@ -572,6 +572,24 @@ def setup_obj(i, meds_obj):
 
     return obj
 
+def check_obj_flags(obj, min_cutouts=1):
+    '''
+    Check if MEDS obj has any flags.
+
+    obj: meds.MEDS row
+        An element of the meds.MEDS catalog
+    min_cutouts: int
+        Minimum number of image cutouts per object
+
+    returns: is_flagged (bool), flag_name (str)
+    '''
+
+    # check that at least min_cutouts is stored in image data
+    if obj['ncutout'] < min_cutouts:
+        return True, 'min_cutouts'
+
+    return
+
 def mp_run_fit(i, start_ind, obj, jaclist, obslist, prior, imc,
                plotter, config, logprint):
     '''
@@ -587,6 +605,12 @@ def mp_run_fit(i, start_ind, obj, jaclist, obslist, prior, imc,
     logprint(f'Starting fit for obj {i}')
 
     try:
+        # first check if object is flagged
+        flagged, flag_name = check_obj_flags(obj)
+
+        if flagged is True:
+            raise Exception(f'Object flagged with {flag_name}')
+
         # mcal_res: the bootstrapper's get_mcal_result() dict
         # mcal_fit: the mcal model image
         mcal_res, mcal_fit = mp_fit_one(i, jaclist, obslist, prior, logprint)
