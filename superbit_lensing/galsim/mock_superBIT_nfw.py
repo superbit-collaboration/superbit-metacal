@@ -33,7 +33,7 @@ from astropy.table import Table
 from mpi_helper import MPIHelper
 
 class truth():
-    
+
     def __init__(self):
         '''
         class to store attributes of a mock galaxy or star
@@ -43,8 +43,8 @@ class truth():
         :mu: NFW magnification
         :z: galaxy redshift
         '''
-    
-        self.x = None 
+
+        self.x = None
         self.y = None
         self.ra = None
         self.dec = None
@@ -59,7 +59,7 @@ class truth():
         self.scale_h_over_r = 0.0
 
 def nfw_lensing(nfw_halo, pos, nfw_z_source):
-    """ 
+    """
     - For some much-needed tidiness in main(), place the function that shears each galaxy here
     - Usage is borrowed from demo9.py
     - nfw_halo is galsim.NFW() object created in main()
@@ -72,7 +72,7 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
     nfw_mu = nfw_halo.getMagnification( pos , nfw_z_source )
 
     if nfw_mu < 0:
-        """                                                                                                                                                                               
+        """
         This doesn't seem to play well with MPI/batch scripting...                                                                                                                                      import warnings
         warnings.warn("Warning: mu < 0 means strong lensing!  Using mu=25.")
         """
@@ -80,15 +80,15 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
         nfw_mu = 25
     elif nfw_mu > 25:
         print("Warning: mu > 25 means strong lensing!  Using mu=25.")
-        nfw_mu = 25        
-    
+        nfw_mu = 25
+
     return nfw_shear, nfw_mu
 
 def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
     """
-    Method to make a single galaxy object and return stamp for 
+    Method to make a single galaxy object and return stamp for
     injecting into larger GalSim image
-    
+
     """
     # Choose a random RA, Dec around the sky_center.
     # Note that for this to come out close to a square shape, we need to account for the
@@ -97,18 +97,18 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
     dec = sbparams.center_dec + (ud()-0.5) * sbparams.image_ysize_arcsec * galsim.arcsec
     ra = sbparams.center_ra + (ud()-0.5) * sbparams.image_xsize_arcsec / numpy.cos(dec) * galsim.arcsec
     world_pos = galsim.CelestialCoord(ra,dec)
-    
+
     # We will need the image position as well, so use the wcs to get that
     image_pos = wcs.toImage(world_pos)
-   
+
     # We also need this in the tangent plane, which we call "world coordinates" here.
-    # This is still an x/y corrdinate 
+    # This is still an x/y corrdinate
     uv_pos = affine.toWorld(image_pos)
     logger.debug('created galaxy position')
-    
+
     ## Draw a Galaxy from scratch
     index = int(np.floor(ud()*len(cosmos_cat))) # This is a kludge to obain a repeatable index
-    gal_z = cosmos_cat[index]['ZPDF']                    
+    gal_z = cosmos_cat[index]['ZPDF']
 
     gal = galsim.Gaussian(flux=100,fwhm=0.5)
 
@@ -117,20 +117,20 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
         nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
         g1=nfw_shear.g1; g2=nfw_shear.g2
         gal = gal.lens(g1, g2, mu)
-        
+
     except:
         print("could not lens galaxy at z = %f, setting default values..." % gal_z)
         g1 = 0.0; g2 = 0.0
         mu = 1.0
-        
-    
+
+
     logger.debug("Convolved star and PSF at galaxy position")
 
 
 
     #stamp = gal.drawImage(wcs=wcs.local(image_pos))
     #stamp.setCenter(image_pos.x,image_pos.y)
-    logger.debug('would have drawn & centered galaxy!')    
+    logger.debug('would have drawn & centered galaxy!')
     galaxy_truth=truth()
     galaxy_truth.ra=ra.deg; galaxy_truth.dec=dec.deg
     galaxy_truth.x=image_pos.x; galaxy_truth.y=image_pos.y
@@ -155,7 +155,7 @@ def make_a_galaxy(ud,wcs,affine,cosmos_cat,nfw,optics,sbparams):
     except galsim.errors.GalSimError:
         logger.debug('sigma calculation failed')
         galaxy_truth.mom_size=-9999.
-        
+
     logger.debug('stamp made, moving to next galaxy')
     return 0, galaxy_truth
 
@@ -188,7 +188,7 @@ class SuperBITParameters:
             with open(config_file) as fsettings:
                 config = yaml.load(fsettings, Loader=yaml.FullLoader)
             self._load_dict(config)
-            
+
         def _args_to_dict(self, argv):
             """
             Converts a command line argument array to a dictionary.
@@ -218,50 +218,50 @@ class SuperBITParameters:
                 if option == "config_file":
                     logger.info('Overriding default config!\nLoading parameters from %s' % (value))
                     self._load_config_file(str(value))
-                elif option == "pixel_scale":     
+                elif option == "pixel_scale":
                     self.pixel_scale = float(value)
-                elif option == "sky_bkg":        
-                    self.sky_bkg = float(value) 
-                elif option == "sky_sigma":     
+                elif option == "sky_bkg":
+                    self.sky_bkg = float(value)
+                elif option == "sky_sigma":
                     self.sky_sigma = float(value)
-                elif option == "gain":          
-                    self.gain = float(value)   
+                elif option == "gain":
+                    self.gain = float(value)
                 elif option == "read_noise":
                     self.read_noise = float(value)
                 elif option == "dark_current":
                     self.dark_current = float(value)
                 elif option == "dark_current_std":
                     self. dark_current_std = float(value)
-                elif option == "image_xsize":   
-                    self.image_xsize = int(value)    
-                elif option == "image_ysize":   
-                    self.image_ysize = int(value)    
-                elif option == "center_ra":     
+                elif option == "image_xsize":
+                    self.image_xsize = int(value)
+                elif option == "image_ysize":
+                    self.image_ysize = int(value)
+                elif option == "center_ra":
                     self.center_ra = float(value) * galsim.hours
-                elif option == "center_dec": 
+                elif option == "center_dec":
                     self.center_dec = float(value) * galsim.degrees
-                elif option == "nexp":      
-                    self.nexp = int(value)          
-                elif option == "exp_time":   
-                    self.exp_time = float(value) 
-                elif option == "nobj":     
-                    self.nobj = int(value)     
-                elif option == "nclustergal":     
-                    self.nclustergal = int(value)     
-                elif option == "nstars": 
-                    self.nstars = int(value)    
-                elif option == "tel_diam": 
+                elif option == "nexp":
+                    self.nexp = int(value)
+                elif option == "exp_time":
+                    self.exp_time = float(value)
+                elif option == "nobj":
+                    self.nobj = int(value)
+                elif option == "nclustergal":
+                    self.nclustergal = int(value)
+                elif option == "nstars":
+                    self.nstars = int(value)
+                elif option == "tel_diam":
                     self.tel_diam = float(value)
-                elif option == "lam":     
-                    self.lam = float(value)      
-                elif option == "mass": 
-                    self.mass = float(value)         
-                elif option == "nfw_conc":   
-                    self.nfw_conc = float(value) 
-                elif option == "nfw_z_halo": 
+                elif option == "lam":
+                    self.lam = float(value)
+                elif option == "mass":
+                    self.mass = float(value)
+                elif option == "nfw_conc":
+                    self.nfw_conc = float(value)
+                elif option == "nfw_z_halo":
                     self.nfw_z_halo = float(value)
-                elif option == "omega_m":   
-                    self.omega_m = float(value)  
+                elif option == "omega_m":
+                    self.omega_m = float(value)
                 elif option == "omega_lam":
                     self.omega_lam = float(value)
                 elif option == "cosmosdir":
@@ -278,23 +278,23 @@ class SuperBITParameters:
                     self.bp_file = str(value)
                 elif option == "outdir":
                     self.outdir = str(value)
-                elif option == "noise_seed":     
-                    self.noise_seed = int(value)     
-                elif option == "galobj_seed":     
-                    self.galobj_seed = int(value)     
-                elif option == "cluster_seed":     
-                    self.cluster_seed = int(value)     
-                elif option == "stars_seed":     
-                    self.stars_seed = int(value)     
-                elif option == "nstruts":     
-                    self.nstruts = int(value)     
-                elif option == "nstruts":     
-                    self.nstruts = int(value)     
-                elif option == "strut_thick":     
-                    self.strut_thick = float(value)     
-                elif option == "strut_theta":  
-                    self.strut_theta = float(value)        
-                elif option == "obscuration":  
+                elif option == "noise_seed":
+                    self.noise_seed = int(value)
+                elif option == "galobj_seed":
+                    self.galobj_seed = int(value)
+                elif option == "cluster_seed":
+                    self.cluster_seed = int(value)
+                elif option == "stars_seed":
+                    self.stars_seed = int(value)
+                elif option == "nstruts":
+                    self.nstruts = int(value)
+                elif option == "nstruts":
+                    self.nstruts = int(value)
+                elif option == "strut_thick":
+                    self.strut_thick = float(value)
+                elif option == "strut_theta":
+                    self.strut_theta = float(value)
+                elif option == "obscuration":
                     self.obscuration = float(0.380)
                 elif option == "bandpass":
                     self.bandpass=str(value)
@@ -307,16 +307,16 @@ class SuperBITParameters:
                     raise ValueError("Invalid parameter \"%s\" with value \"%s\"" % (option, value))
 
             # Derive image parameters from the base parameters
-            self.image_xsize_arcsec = self.image_xsize * self.pixel_scale 
-            self.image_ysize_arcsec = self.image_ysize * self.pixel_scale 
+            self.image_xsize_arcsec = self.image_xsize * self.pixel_scale
+            self.image_ysize_arcsec = self.image_ysize * self.pixel_scale
             self.center_coords = galsim.CelestialCoord(self.center_ra,self.center_dec)
             self.strut_angle = self.strut_theta * galsim.degrees
-            
-            # OUR NEW CATALOG IS ALREADY SCALED TO SUPERBIT 0.5 m MIRROR.  
-            # Scaling used for cluster galaxies, which are drawn from default GalSim-COSMOS catalog   
+
+            # OUR NEW CATALOG IS ALREADY SCALED TO SUPERBIT 0.5 m MIRROR.
+            # Scaling used for cluster galaxies, which are drawn from default GalSim-COSMOS catalog
             hst_eff_area = 2.4**2 #* (1.-0.33**2)
-            sbit_eff_area = self.tel_diam**2 #* (1.-0.380**2) 
-            self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain 
+            sbit_eff_area = self.tel_diam**2 #* (1.-0.380**2)
+            self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain
             if not hasattr(self,'jitter_fwhm'):
                 self.jitter_fwhm = 0.1
 
@@ -343,7 +343,7 @@ def main(argv):
       - The galaxy shape parameters are assigned in a probabilistic way through matching
         galaxy fluxes and redshifts to similar GalSim-COSMOS galaxies (see A. Gill+ 2021)
     """
-    
+
     global logger
     logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
     logger = logging.getLogger("mock_superbit_data")
@@ -352,7 +352,7 @@ def main(argv):
 
     # Define some parameters we'll use below.
     sbparams = SuperBITParameters(argv=argv)
-    
+
     # Set up the NFWHalo:
     nfw = galsim.NFWHalo(mass=sbparams.mass, conc=sbparams.nfw_conc, redshift=sbparams.nfw_z_halo,
                      omega_m=sbparams.omega_m, omega_lam=sbparams.omega_lam)
@@ -360,19 +360,19 @@ def main(argv):
     logger.info('Set up NFW halo for lensing')
 
     # Read in galaxy catalog, as well as catalog containing
-    # information from COSMOS fits like redshifts, hlr, etc.   
+    # information from COSMOS fits like redshifts, hlr, etc.
     # cosmos_cat = galsim.COSMOSCatalog(sbparams.cat_file_name, dir=sbparams.datadir)
     # fitcat = Table.read(os.path.join(sbparams.cosmosdir, sbparams.fit_file_name))
 
     cosmos_cat = Table.read(os.path.join(sbparams.datadir,sbparams.cat_file_name))
     logger.info('Read in %d galaxies from catalog and associated fit info', len(cosmos_cat))
-    
+
     try:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name, dir=sbparams.cosmosdir)
     except:
         cluster_cat = galsim.COSMOSCatalog(sbparams.cluster_cat_name)
     #logger.debug('Read in %d cluster galaxies from catalog' % cosmos_cat.nobjects)
-    
+
 
     ### Now create PSF. First, define Zernicke polynomial component
     ### note: aberrations were definined for lam = 550, and close to the
@@ -391,36 +391,36 @@ def main(argv):
     logger.info('Calculated lambda over diam = %f arcsec', lam_over_diam)
 
     # will store the Zernicke component of the PSF
-    optics = galsim.OpticalPSF(lam=sbparams.lam,diam=sbparams.tel_diam, 
-                        obscuration=sbparams.obscuration, nstruts=sbparams.nstruts, 
+    optics = galsim.OpticalPSF(lam=sbparams.lam,diam=sbparams.tel_diam,
+                        obscuration=sbparams.obscuration, nstruts=sbparams.nstruts,
                         strut_angle=sbparams.strut_angle, strut_thick=sbparams.strut_thick,
                         aberrations=aberrations)
 
     logger.info('Made telescope PSF profile')
-        
+
     ###
-    ### MAKE SIMULATED OBSERVATIONS 
+    ### MAKE SIMULATED OBSERVATIONS
     ### ITERATE n TIMES TO MAKE n SEPARATE IMAGES
     ###
 
-        
-    for i in numpy.arange(1,sbparams.nexp+1):          
+
+    for i in numpy.arange(1,sbparams.nexp+1):
         # get MPI processes in sync at start of each image
         M.barrier()
-        
+
         #rng = galsim.BaseDeviate(sbparams.noise_seed+i)
 
         try:
             timescale=str(sbparams.exp_time)
             outname=''.join(['superbit_nfwstars_',str(i).zfill(3),'.fits'])
-            truth_file_name=''.join([sbparams.outdir, '/truth_nfwstars_', str(i).zfill(3), '.dat'])
+            truth_file_name=''.join([sbparams.outdir, '/truth_nfwstars_', str(i).zfill(3), '.fits'])
             file_name = os.path.join(sbparams.outdir, outname)
 
         except galsim.errors.GalSimError:
             print("naming failed, check path")
             pdb.set_trace()
 
-            
+
         # Setting up a truth catalog
         names = [ 'gal_num', 'x_image', 'y_image',
                     'ra', 'dec', 'nfw_g1', 'nfw_g2', 'nfw_mu', 'redshift','flux','truth_fwhm','truth_mom',
@@ -430,14 +430,14 @@ def main(argv):
                       float, float, float]
         truth_catalog = galsim.OutputCatalog(names, types)
 
-        
+
         # Set up the image:
         full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
         sky_level = sbparams.exp_time * sbparams.sky_bkg
         full_image.fill(sky_level)
         full_image.setOrigin(0,0)
-        
-        
+
+
         # If you wanted to make a non-trivial WCS system, could set theta to a non-zero number
         theta = 0.0 * galsim.degrees
         dudx = numpy.cos(theta) * sbparams.pixel_scale
@@ -447,14 +447,14 @@ def main(argv):
         image_center = full_image.true_center
         affine = galsim.AffineTransform(dudx, dudy, dvdx, dvdy, origin=full_image.true_center)
         sky_center = galsim.CelestialCoord(ra=sbparams.center_ra, dec=sbparams.center_dec)
-        
+
         wcs = galsim.TanWCS(affine, sky_center, units=galsim.arcsec)
         full_image.wcs = wcs
 
-        
+
         ## Now let's read in the PSFEx PSF model, if using.
         ## We read the image directly into an InterpolatedImage GSObject,
-        ## so we can manipulate it as needed 
+        ## so we can manipulate it as needed
         #psf_wcs=wcs
         #psf = galsim.des.DES_PSFEx(psf_filen,wcs=psf_wcs)
         #logger.info('Constructed PSF object from PSFEx file')
@@ -462,30 +462,30 @@ def main(argv):
         #####
         ## Loop over galaxy objects:
         #####
-        
+
         # get local range to iterate over in this process
         local_start, local_end = M.mpi_local_range(sbparams.nobj)
         for k in range(local_start, local_end):
             time1 = time.time()
-            
+
             # The usual random number generator using a different seed for each galaxy.
             ud = galsim.UniformDeviate(sbparams.galobj_seed+k+1)
 
-            try: 
+            try:
                 # make single galaxy object
                 stamp,truth = make_a_galaxy(ud=ud,wcs=wcs,affine=affine,
                         cosmos_cat=cosmos_cat,optics=optics,nfw=nfw,
-                        sbparams=sbparams)                
+                        sbparams=sbparams)
                 # Find the overlapping bounds:
                 #bounds = stamp.bounds & full_image.bounds
-                
+
                 # We need to keep track of how much variance we have currently in the image, so when
                 # we add more noise, we can omit what is already there.
 
                 # noise_image[bounds] += truth.variance
-        
+
                 # Finally, add the stamp to the full image.
-            
+
                 time2 = time.time()
                 tot_time = time2-time1
                 if (k%1000 == 0):
@@ -510,28 +510,28 @@ def main(argv):
             # do the adding of noise and writing to disk entirely on root
             # root and the rest meet again at barrier at start of loop
             continue
-        
+
 
         # The first thing to do is to make the Gaussian noise uniform across the whole image.
-                
+
         # Add ccd noise
         logger.info('Adding CCD noise')
         noise = galsim.CCDNoise(
             sky_level=0, gain=sbparams.gain,
             read_noise=sbparams.read_noise)
         full_image.addNoise(noise)
-        
+
         logger.debug('Added noise to final output image')
         if not os.path.exists(os.path.dirname(file_name)):
             os.makedirs(os.path.dirname(file_name))
         full_image.write(file_name)
 
-     
-        # Write truth catalog to file. 
-        truth_catalog.write(truth_file_name)
+
+        # Write truth catalog to file.
+        truth_catalog.writeFits(truth_file_name)
         logger.info('Wrote image to %r',file_name)
 
-            
+
     logger.info(' ')
     logger.info('completed all images')
     logger.info(' ')

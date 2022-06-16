@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.table import Table
 import pudb
+import pdb
 from esutil import htm
 
 from shear_plots import ShearProfilePlotter
@@ -160,7 +161,7 @@ class Annular(object):
     def __init__(self, cat_info, annular_info, nfw_info=None, run_name=None, vb=False):
 
         """
-        :infile:   table that will be read in
+        :mcal_selected:   table that will be read in
         :outcat:   name of output shear profile catalog
         :truth_file: name of truth file with redshift info
         :g1/2:     reduced-shear components
@@ -192,7 +193,7 @@ class Annular(object):
 
     def open_table(self, cat_info):
 
-        annular_file = cat_info['infile']
+        annular_file = cat_info['mcal_selected']
         print(f'loading annular file {annular_file}')
 
         try:
@@ -200,17 +201,17 @@ class Annular(object):
         except:
             tab = Table.read(annular_file, format='ascii')
         try:
-            self.x = tab[cat_info['xy_args'][0]]
-            self.y = tab[cat_info['xy_args'][1]]
-            self.g1 = tab[cat_info['shear_args'][0]]
-            self.g2 = tab[cat_info['shear_args'][1]]
+            self.x = tab[self.annular_info['xy_args'][0]]
+            self.y = tab[self.annular_info['xy_args'][1]]
+            self.g1 = tab[self.annular_info['shear_args'][0]]
+            self.g2 = tab[self.annular_info['shear_args'][1]]
             self.ra = tab['ra']
             self.dec = tab['dec']
 
 
         except Exception as e:
             print('Could not load xy/g1g2/radec columns; check supplied column names?')
-            print(f'cat_info = {cat_info}')
+            print(f'annular_info = {self.annular_info}')
             raise e
 
         return
@@ -228,8 +229,8 @@ class Annular(object):
             'g2': self.g2
             }
 
-        xc = self.annular_info['nfw_center'][0]
-        yc = self.annular_info['nfw_center'][1]
+        xc = self.annular_info['coadd_center'][0]
+        yc = self.annular_info['coadd_center'][1]
 
         shears = ShearCalc(inputs = shear_inputs)
         shears.get_r_gtan(xc=xc, yc=yc)
@@ -265,7 +266,7 @@ class Annular(object):
         truth_file = self.cat_info['truth_file']
 
         try:
-            truth = Table.read(truth_file)
+            truth = Table.read(truth_file, format='fits')
             if self.vb is True:
                 print(f'Read in truth file {truth_file}')
 
@@ -436,11 +437,11 @@ class Annular(object):
         Computes mean tangential and cross shear of background (redshift-filtered)
         galaxies in azimuthal bins
         '''
-        minrad = self.annular_info['rad_args'][0]
-        maxrad = self.annular_info['rad_args'][1]
-        num_bins = self.annular_info['nbins']
+        minrad = self.annular_info['rmin']
+        maxrad = self.annular_info['rmax']
+        nbins = self.annular_info['nbins']
 
-        bins = np.linspace(minrad, maxrad, num_bins)
+        bins = np.linspace(minrad, maxrad, nbins)
 
         counts, bins = np.histogram(self.r, bins=bins)
 
@@ -555,97 +556,3 @@ class Annular(object):
 
         return
 
-def print_header(args):
-
-    print('###\n### Shear profile calculation\n###')
-    print('### created with:')
-    print(f'### {args}\n###')
-    print('## r: midpoint radius of annulus')
-    print('## n: number of objects for shear calculation')
-    print('## gtan: tangential (E-mode) reduced-shear')
-    print('## err_gtan: standard error of gtan')
-    print('## gcross: cross (B-mode) reduced-shear')
-    print('## err_gcross: standard error of gcross')
-
-    return
-
-def main(args):
-
-    """
-    NOTE: This remains for legacy calls. The main way to run the analysis is now with
-    the AnnularRunner class
-
-    TODO: clean up input arguments, using -o --option format
-    and make startrad/endrad options as well, rather than magic numbers
-    """
-
-    if ( ( len(args) < 3) or (args == '-h') or (args == '--help') ):
-        print("\n### \n### annular_jmac is a routine which takes an ascii table and x/y/g1/g2 column names as its input and returns shear profiles")
-        print("### Note that at present, annular_jmac assumes that the shear arguments [g1, g2] are *reduced shear*, not image ellipticities\n###\n")
-        print(" python annular_jmac.py infile g1_arg g2_arg start_rad end_rad n_bins\n \n")
-
-    else:
-        pass
-
-    # Define catalog args
-    infile = args.annular_file
-    outfile = args.outfile
-    g1_arg = args.g1_col
-    g2_arg = args.g2_col
-    startrad = args.start_rad
-    endrad = args.end_rad
-    num_bins = args.nbins
-    outdir = args.outdir
-    run_name = args.run_name
-    overwrite = args.overwrite
-    vb = args.vb
-
-    if outdir is not None:
-        outfile = os.path.join(self.outdir, outfile)
-
-    """
-    # If obtaining "true" g_tan using the truth file:
-    x_arg = 'x_image'
-    y_arg = 'y_image'
-    startrad = 100
-    endrad = 5000
-    nfw_center = [4784,3190]
-    """
-
-    # Otherwise, define annular args
-    x_arg = 'X_IMAGE'
-    y_arg = 'Y_IMAGE'
-    nfw_center = [5031, 3353]
-
-    print_header(args)
-
-    cat_info = {
-        'infile': infile,
-        'xy_args': [x_arg, y_arg],
-        'shear_args': [g1_arg, g2_arg]
-        }
-
-    annular_info = {
-        'rad_args': [startrad, endrad],
-        'nfw_center': nfw_center,
-        'nbins': num_bins
-        }
-
-    annular = Annular(
-        cat_info, annular_info, nfw_info, run_name=run_name, vb=vb
-        )
-
-    annular.run(outfile, overwrite=overwrite, outdir=outdir)
-
-    return
-
-if __name__ == '__main__':
-
-    args = parser.parse_args()
-
-    rc = main(args)
-
-    if rc == 0:
-        print('annular_jmac.py has completed succesfully')
-    else:
-        print(f'annular_jmac.py has failed w/ rc={rc}')

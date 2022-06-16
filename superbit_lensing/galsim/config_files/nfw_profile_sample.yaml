@@ -1,6 +1,6 @@
 # SuperBIT parameters
 # -------------------
-pixel_scale:        0.144       # Pixel scale                               [arcsec/px]
+pixel_scale:        0.141       # Pixel scale                               [arcsec/px]
 gain:               1.2207           # Camera gain                               [ADU / e-]
 read_noise:         1.0         # Read noise                                [e-]
 dark_current:       0.0056      # mean dark current                         [ADU / px / s]
@@ -32,7 +32,7 @@ nclustergal:        0           # Number of cluster galaxies (arbitrary)    []
 # Simulated cluster parameters
 # ----------------------------
 lam:                625         # Fiducial wavelength for abberations       [nm]
-mass:               5.5E14      # Cluster mass                              [Msol / h]
+mass:               1.5E15      # Cluster mass                              [Msol / h]
 nfw_z_halo:         0.25        # redshift of the halo                      []
 nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
 omega_m:            0.3         # Omega matter for the background cosmology.
@@ -48,7 +48,7 @@ outdir:             './debug_stars_only' # directory where output images and tru
 
 # Misc parameters
 # ---------------
-noise_seed:         34601780    # Random number seed for image noise
-galobj_seed:        80068113    # Random number seed for galaxy objects
-cluster_seed:       89709160    # Random number seed fro cluster galaxies
-stars_seed:         14161113    # Random number seed for stars
+noise_seed:             # Random number seed for image noise
+galobj_seed:            # Random number seed for galaxy objects
+cluster_seed:           # Random number seed fro cluster galaxies
+stars_seed:             # Random number seed for stars
