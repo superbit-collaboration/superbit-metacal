@@ -105,13 +105,13 @@ class SuperBITngmixRunner(object):
 
         T_range = self.config['priors']['T_range']
         T_prior = ngmix.priors.FlatPrior(minval=T_range[0],
-                                            maxval=T_range[1],
-                                            rng=rng)
+                                         maxval=T_range[1],
+                                         rng=rng)
 
         F_range = self.config['priors']['F_range']
         F_prior = ngmix.priors.FlatPrior(minval=F_range[0],
-                                            maxval=F_range[1],
-                                            rng=rng)
+                                         maxval=F_range[1],
+                                         rng=rng)
 
         if self.config['nbands'] > 1:
             F_prior = [F_prior]*nbands
@@ -119,7 +119,7 @@ class SuperBITngmixRunner(object):
         cols = ['cen', 'g', 'T', 'F']
         prior_list = [cen_prior, g_prior, T_prior, F_prior]
 
-        if gal_model == 'bdf':
+        if gal_model in ['cm', 'bdf']:
             # setup fracdev
             fd_mean = self.config['priors']['fracdev_mean']
             fd_sig = self.config['priors']['fracdev_sigma']

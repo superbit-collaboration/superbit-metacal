@@ -6,7 +6,7 @@ import pudb
 
 class ShearProfilePlotter(object):
 
-    def __init__(self, cat_file, pix_scale=0.144):
+    def __init__(self, cat_file, pix_scale=0.141):
         '''
         cat_file: str
             Filename for binned shear profile data.

@@ -91,7 +91,7 @@ class MatchedTruthCatalog(MatchedCatalog):
         return
 
     @property
-    def truth_file(self):
+    def true_file(self):
         return self.cat1_file
 
     @property
@@ -99,7 +99,7 @@ class MatchedTruthCatalog(MatchedCatalog):
         return self.cat2_file
 
     @property
-    def truth(self):
+    def true(self):
         return self.cat1
 
     @property
