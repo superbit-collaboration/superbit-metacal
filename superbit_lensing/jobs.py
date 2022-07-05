@@ -70,6 +70,7 @@ class JobsManager(object):
 
         for key, default in self._opt.items():
             if key not in self.config.keys():
+                print(f'{key} not in config; using default of {default}')
                 self.config[key] = default
 
         masses = self.config['mass_bins']

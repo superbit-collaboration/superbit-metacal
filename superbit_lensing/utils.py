@@ -4,7 +4,6 @@ import sys
 import yaml
 import re
 from astropy.table import Table
-import superbit_lensing as sb
 import numpy as np
 import subprocess
 import pdb, pudb

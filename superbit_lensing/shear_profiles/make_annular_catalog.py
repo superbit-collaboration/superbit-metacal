@@ -383,14 +383,13 @@ def main(args):
     overwrite = args.overwrite
     vb = args.vb
 
-
-    # Define position args                                                                                                                          
+    # Define position args
     xy_cols = ['X_IMAGE', 'Y_IMAGE']
     shear_args = ['g1_Rinv', 'g2_Rinv']
-    
+
     ## Get center of galaxy cluster for fitting
     ## Throw error if image can't be read in
-    
+
     try:
         coadd_im_name = os.path.join(outdir, f'{run_name}_mock_coadd.fits')
         assert os.path.exists(coadd_im_name) is True
@@ -399,12 +398,12 @@ def main(args):
         coadd_center = [xcen, ycen]
         print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
 
-    except:
+    except Exception as e:
         print('\n\n\nNo coadd image center found, cannot calculate tangential shear\n\n.')
-        
-        
-    ## n.b outfile is the name of the metacalibrated & 
-    ## quality-selected galaxy catalog 
+        raise e
+
+    ## n.b outfile is the name of the metacalibrated &
+    ## quality-selected galaxy catalog
 
     cat_info={
         'se_file': se_file,

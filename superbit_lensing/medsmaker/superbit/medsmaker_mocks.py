@@ -807,40 +807,6 @@ class BITMeasurement():
 
         return obj_str
 
-    def filter_meds(self, outfile, clean=True, min_cutouts=0):
-        ###
-        ### Filter out objects from MEDS that are in fewer 
-        ### than "min_cutouts" exposures
-        
-        if (clean == True) & (min_cutouts > 0):
-        
-            f = fits.open(outfile)
-
-            low_ncutout = f[1].data['ncutout'] <= min_cutouts
-
-            print(f'{len(f[1].data[low_ncutout])}/{len(f[1].data)} objects with fewer than {min_cutouts} found')
-            print(f'removing {len(f[1].data[low_ncutout])}/{len(f[1].data)} objects; saving original to full.meds')
-
-            ncutouts_above_min = f[1].data['ncutout'] > min_cutouts
-            f[1].data = f[1].data[ncutouts_above_min]
-            
-            # Before saving the "hacked" MEDS file, save the original MEDS file
-            # (including rows with ncutout < min_ncutout) to 
-            # {run_name}_full.meds using "mv"
- 
-            full__medscat_name = outfile.replace('.meds', '_full.meds')
-            cmd_str = 'mv {outfile} {full_name}'
-            os.system(cmd_str.format(outfile=outfile, full_name = full_name))
-
-            # Now save the hacked MEDS file, which contains 
-            # only entries with ncutout > min_cutouts, to file as
-            # {run_name}.meds
-
-            f.writeto(outfile, overwrite=True)
-                      
-        return 
-
-
     def run(self,outfile='mock_superbit.meds', clobber=False, source_selection=False,
             select_truth_stars=False,psf_mode='piff'):
         # Make a MEDS, clobbering if needed
@@ -880,5 +846,3 @@ class BITMeasurement():
         medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
                                        psf_data=self.psf_models,meta_data=meta)
         medsObj.write(outfile)
-        
-        self.filter_meds(outfile)
