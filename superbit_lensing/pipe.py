@@ -637,7 +637,8 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                                                    run_name=run_name)
 
         # dummy truth
-        nfw_file = os.path.join(utils.BASE_DIR, 'runs/truth/cl3_nfwonly_truth_cat.fits')
+        nfw_file = os.path.join(
+            utils.BASE_DIR, 'runs/truth/nfw_truth_files/nfw_cl_m2.2e15_z0.44.fits')
 
         overwrite = True
         with open(filename, 'w') as f:
