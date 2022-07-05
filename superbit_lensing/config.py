@@ -23,7 +23,9 @@ parser.add_argument('--run_overwrite', action='store_true',
 #                help='Output filepath for config file')
 
 def make_run_config(run_name, outfile, nfw_file, gs_config,
-                    outdir=None, config_overwrite=False, run_overwrite=False):
+                    outdir=None, config_overwrite=False,
+                    run_overwrite=False, ncores=1, run_diagnostics=True,
+                    vb=True):
     '''
     Makes a standard pipe run config given a few inputs.
     Minor changes can easily be made on the output if desired
@@ -42,6 +44,12 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
         Set to overwrite config file
     run_overwrite: bool
         Set to overwrite run files
+    ncores: int
+        Number of processors to use for pipe job
+    run_diagnostics: bool
+        Set to True to run module diagnostics
+    vb: bool
+        Set to True for verbose printing
     '''
 
     if outdir is not None:
@@ -66,9 +74,9 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
         'run_options': {
             'run_name': run_name,
             'outdir': outdir,
-            'vb': True,
-            'ncores': 8,
-            'run_diagnostics': True,
+            'vb': vb,
+            'ncores': ncores,
+            'run_diagnostics': run_diagnostics,
             'order': [
                 'galsim',
                 'medsmaker',
