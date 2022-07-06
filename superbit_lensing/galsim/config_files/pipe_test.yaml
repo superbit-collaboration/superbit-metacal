@@ -46,7 +46,7 @@ omega_lam:          0.7         # Omega lambda for the background cosmology []
 # Define some paths and filenames
 cosmosdir:         '/Users/jemcclea/Research/SuperBIT/GalSim/data/' # Path to COSMOS data directory
 datadir:           '/Users/jemcclea/Research/SuperBIT/GalSim/data/' # Path to repo/galsim data directory
-cat_file_name:     'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
+cat_file_name:     'cosmos15_superbit2023_phot_shapes.csv' #'cosmos2015_cam2021_filt2021.csv' catalog file name for COSMOS (in cosmosdir)
 cluster_cat_name:  'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
 star_cat_name:      'GAIAstars_1E0657.csv' #'master_gaiastar_cat.fits' # File containing GAIA star fluxes
 outdir:            './forecasting/pipe_test' # directory where output images and truth catalogs are saved
@@ -54,7 +54,7 @@ outdir:            './forecasting/pipe_test' # directory where output images and
 
 # Misc parameters
 # ---------------
-stars_seed:             # Random number seed for stars
-galobj_seed:            # Random number seed for galaxy objects
-cluster_seed:           # Random number seed for cluster galaxies
-noise_seed:             # Random number seed for sky noise
+#stars_seed:             # Random number seed for stars
+#galobj_seed:            # Random number seed for galaxy objects
+#cluster_seed:           # Random number seed for cluster galaxies
+#noise_seed:             # Random number seed for sky noise
