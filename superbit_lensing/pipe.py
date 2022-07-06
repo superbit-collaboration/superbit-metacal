@@ -230,9 +230,8 @@ class SuperBITPipeline(SuperBITModule):
 
         self.logprint = utils.LogPrint(log, self.vb)
 
-        if self._config['run_options']['ncores'] is None:
-            # use half available cores by default
-            ncores = os.cpu_count() #// 2
+        if self._config['run_options']['ncores'] in [None, 'none', 'None']:
+            ncores = os.cpu_count()
             self._config['run_options']['ncores'] = ncores
             self.logprint(f'`ncores` was not set; using all available ({ncores})')
 

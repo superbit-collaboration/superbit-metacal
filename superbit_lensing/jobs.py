@@ -18,8 +18,10 @@ class JobsManager(object):
     # values are defaults if not present
     _opt = {
         'realizations': 1,
-        'ncores_per_job': 8,
-        'memory_per_job': 64, # GB
+        'ncores_per_job': 1,
+        'memory_per_job': 32, # GB
+        'vb': True,
+        'run_diagnostics': True
     }
 
     def __init__(self, config_file, fresh=False):
@@ -135,6 +137,8 @@ class JobsManager(object):
         realizations = config['realizations']
         ncores = config['ncores_per_job']
         memory = config['memory_per_job']
+        run_diagnostics = config['run_diagnostics']
+        vb = config['vb']
 
         jobs = [] # list of ClusterJob's
         jindx = 0
@@ -170,7 +174,9 @@ class JobsManager(object):
                         'mass_mantissa': mantissa,
                         'mass_exp': exp,
                         'ncores': ncores,
-                        'memory': memory
+                        'memory': memory,
+                        'run_diagnostics': run_diagnostics,
+                        'vb': vb
                     }
                     jobs.append(ClusterJob(job_dict))
                     jindx += 1
@@ -216,12 +222,10 @@ class JobsManager(object):
 
     def make_job_configs(self):
         '''
-        jobs: list
-            A list of ClusterJob's
-        config: dict
-            The prep_jobs configuration dictionary
+        Make individual cluster job pipeline configs from job list
         '''
 
+        # common galsim config for all jobs
         gs_base_config = utils.read_yaml(self.config['gs_base_config'])
 
         for i in range(len(self.jobs)):
@@ -244,7 +248,7 @@ class ClusterJob(object):
     _req_params = ['base_dir', 'run_name', 'mass', 'z', 'job_index',
                    'nfw_file', 'ncores', 'memory', 'realization']
 
-    _opt_params = ['gs_master_seed', 'gs_config']
+    _opt_params = ['gs_master_seed', 'gs_config', 'run_diagnostics', 'vb']
 
     def __init__(self, job_config):
         self._parse_job_config(job_config)
@@ -295,14 +299,17 @@ class ClusterJob(object):
 
         config_dict = {}
 
+        # parse output filename
         run_name = self._config['run_name']
-        base_dir = self._config['base_dir']
         cl_name = self._config['cl_name']
         filename = f'{run_name}_{cl_name}.yaml'
 
         # Some key names are the same as those used by
         # config.make_run_config()
-        same_keys = ['run_name', 'gs_config', 'nfw_file']
+        same_keys = [
+            'run_name', 'gs_config', 'nfw_file', 'ncores', 'vb',
+            'run_diagnostics'
+            ]
         for key in same_keys:
             config_dict[key] = self._config[key]
 
