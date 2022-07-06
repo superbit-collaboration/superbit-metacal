@@ -993,6 +993,7 @@ def main():
 
         ## Define X & Y dither offsets
         dither_offsets = rng.integers(-100, 100, size=2)
+        logprint(f'dithers are {dither_offsets}')
         full_image.setOrigin(dither_offsets[0], dither_offsets[1])
         full_image.wcs = wcs
 
