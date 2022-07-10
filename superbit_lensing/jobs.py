@@ -283,10 +283,23 @@ class ClusterJob(object):
             'mass': self._config['mass'], # Msol / h
             'nfw_z_halo': self._config['z'],
             'outdir': self._config['base_dir'],
-            'master_seed': self._config['gs_master_seed']
         }
-        for key, val in updates.items():
-            gs_config[key] = val
+
+        # generate needed seeds given job master seed
+        seed_names = [
+            'galobj_seed', 'cluster_seed', 'stars_seed', 'noise_seed',
+            'dithering_seed'
+            ]
+        Nseeds = len(seed_names)
+        gs_seeds = utils.generate_seeds(
+            Nseeds, master_seed=self._config['gs_master_seed']
+            )
+        seed_dict = dict(zip(seed_names, gs_seeds))
+
+        updates.update(seed_dict)
+
+        # incorporate all updates for specific job
+        gs_config.update(updates)
 
         utils.write_yaml(gs_config, gs_filepath)
 

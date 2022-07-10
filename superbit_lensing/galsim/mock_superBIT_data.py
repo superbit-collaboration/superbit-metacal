@@ -601,6 +601,8 @@ class SuperBITParameters:
                 self.master_seed = int(value)
             elif option == "noise_seed":
                 self.noise_seed = int(value)
+            elif option == "dithering_seed":
+                self.dithering_seed = int(value)
             elif option == "galobj_seed":
                 self.galobj_seed = int(value)
             elif option == "cluster_seed":
@@ -736,28 +738,23 @@ class SuperBITParameters:
                     needed_seeds -= 1
 
         assert needed_seeds >= 0
-        print(f'seeds: {seeds}')
         if needed_seeds > 0:
             # Create safe, independent obj seeds given a master seed
-            if master_seed is None:
-                # local time in microseconds
-                master_seed = int(time.time()*1e6)
-
-            ss = SeedSequence(master_seed)
-            child_seeds = ss.spawn(needed_seeds)
-            streams = [default_rng(s) for s in child_seeds]
+            new_seeds = utils.generate_seeds(
+                needed_seeds, master_seed=master_seed
+                )
 
             k = 0
-            print('seeds:')
             for seed_name, val in seeds.items():
                 if val is None:
-                    val = int(streams[k].random()*1e16)
+                    val = new_seeds.pop()
                     seeds[seed_name] = val
                     setattr(self, seed_name, val)
                     k += 1
                 print(seed_name, val)
 
             assert k == needed_seeds
+            assert len(new_seeds) == 0
             assert not (None in dict(seeds).values())
 
         return
