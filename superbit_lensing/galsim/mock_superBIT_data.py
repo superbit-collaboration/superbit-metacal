@@ -751,11 +751,13 @@ class SuperBITParameters:
                     seeds[seed_name] = val
                     setattr(self, seed_name, val)
                     k += 1
-                print(seed_name, val)
 
             assert k == needed_seeds
             assert len(new_seeds) == 0
             assert not (None in dict(seeds).values())
+
+        for seed_name, val in seeds.items():
+            print(seed_name, val)
 
         return
 

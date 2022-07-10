@@ -1,4 +1,3 @@
-Galsim/
 *.vscode
 *.pyc
 GalSim/data/*.csv
