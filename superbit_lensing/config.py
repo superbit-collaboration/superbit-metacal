@@ -1,5 +1,6 @@
 import os
 import yaml
+from glob import glob
 from argparse import ArgumentParser
 
 import pipe
@@ -148,6 +149,60 @@ def make_run_config_from_dict(config_dict):
     kwargs = config_dict
 
     return make_run_config(*args, **kwargs)
+
+def update_run_configs(basedir, pipe_update, gs_update, run_name=None,
+                        pipe_regex=None, gs_regex=None):
+    '''
+    Helper function to update a series of configs in
+    standard pipe config dirs
+
+    basedir: str
+        The root location of all cluster dirs for a given run
+    pipe_update: dict
+        A dictionary of key:val updates to the pipe config
+    gs_update: dict
+        A dictionary of key:val updates to the galsim config
+    pipe_regex: str
+        a regular expression to find the pipeline config file
+    gs_regex: str
+        a regular expression to find the galsim config file
+    '''
+
+    if run_name is None:
+        p = ''
+    else:
+        p = f'{run_name}_'
+
+    if pipe_regex is None:
+        pipe_regex = f'{p}_cl*.yaml'
+
+    if gs_regex is None:
+        gs_regex = f'{p}gs*.yaml'
+
+    clusters = glob(os.path.join(basedir, 'cl_*'))
+
+    for cluster in clusters:
+        if not os.path.isdir(cluster):
+            continue
+        reals = glob(os.path.join(cluster, 'r*'))
+        for real in reals:
+            if not os.path.isdir(real):
+                continue
+            import ipdb
+            ipdb.set_trace()
+            pipe_file = glob(os.path.join(real, pipe_regex))[0]
+            gs_file = glob(os.path.join(real, gs_regex))[0]
+
+            pipe = utils.read_yaml(pipe_file)
+            gs = utils.read_yaml(gs_file)
+
+            pipe.update(pipe_update)
+            gs.update(gs_update)
+
+            utils.write_yaml(pipe, pipe_file)
+            utils.write_yaml(gs, gs_file)
+
+    return
 
 def main(args):
     run_name = args.run_name
