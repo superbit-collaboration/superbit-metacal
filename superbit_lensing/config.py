@@ -188,8 +188,7 @@ def update_run_configs(basedir, pipe_update, gs_update, run_name=None,
         for real in reals:
             if not os.path.isdir(real):
                 continue
-            import ipdb
-            ipdb.set_trace()
+
             pipe_file = glob(os.path.join(real, pipe_regex))[0]
             gs_file = glob(os.path.join(real, gs_regex))[0]
 
