@@ -189,17 +189,17 @@ def update_run_configs(basedir, pipe_update, gs_update, run_name=None,
             if not os.path.isdir(real):
                 continue
 
-            pipe_file = glob(os.path.join(real, pipe_regex))[0]
-            gs_file = glob(os.path.join(real, gs_regex))[0]
+            if pipe_update is not None:
+                pipe_file = glob(os.path.join(real, pipe_regex))[0]
+                pipe = utils.read_yaml(pipe_file)
+                pipe.update(pipe_update)
+                utils.write_yaml(pipe, pipe_file)
 
-            pipe = utils.read_yaml(pipe_file)
-            gs = utils.read_yaml(gs_file)
-
-            pipe.update(pipe_update)
-            gs.update(gs_update)
-
-            utils.write_yaml(pipe, pipe_file)
-            utils.write_yaml(gs, gs_file)
+            if gs_update is not None:
+                gs_file = glob(os.path.join(real, gs_regex))[0]
+                gs = utils.read_yaml(gs_file)
+                gs.update(gs_update)
+                utils.write_yaml(gs, gs_file)
 
     return
 
