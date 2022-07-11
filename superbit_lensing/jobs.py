@@ -21,7 +21,8 @@ class JobsManager(object):
         'ncores_per_job': 1,
         'memory_per_job': 32, # GB
         'vb': True,
-        'run_diagnostics': True
+        'run_diagnostics': True,
+        'master_seed': None
     }
 
     def __init__(self, config_file, fresh=False):
@@ -207,15 +208,26 @@ class JobsManager(object):
 
         Njobs = len(self.jobs)
 
-        # Set master seed of *all* job seed generation
-        # to be local time in microseconds
-        ss = SeedSequence(int(time.time()*1e6))
+        # Can set a master seed for all jobs if you want predictable
+        # seeds throughout, say for validation testing
+        master_seed = self.config['master_seed']
+        if master_seed is None:
+            # Set master seed of *all* job seed generation
+            # to be local time in microseconds
+            master_seed = int(time.time()*1e6)
+        else:
+            print(f'WARNING: using master_seed={master_seed}\nfor all ' +\
+                  'subsequent job seeds. You probably only want this ' +\
+                  'for testing purposes')
+
+        ss = SeedSequence(master_seed)
 
         child_seeds = ss.spawn(Njobs)
         streams = [default_rng(s) for s in child_seeds]
 
         for i in range(len(self.jobs)):
             job_seed = int(streams[i].random()*1e16)
+            # "master seed" here is for a specific job, not all jobs
             self.jobs[i]['gs_master_seed'] = job_seed
 
         return
@@ -283,10 +295,23 @@ class ClusterJob(object):
             'mass': self._config['mass'], # Msol / h
             'nfw_z_halo': self._config['z'],
             'outdir': self._config['base_dir'],
-            'master_seed': self._config['gs_master_seed']
         }
-        for key, val in updates.items():
-            gs_config[key] = val
+
+        # generate needed seeds given job master seed
+        seed_names = [
+            'galobj_seed', 'cluster_seed', 'stars_seed', 'noise_seed',
+            'dithering_seed'
+            ]
+        Nseeds = len(seed_names)
+        gs_seeds = utils.generate_seeds(
+            Nseeds, master_seed=self._config['gs_master_seed']
+            )
+        seed_dict = dict(zip(seed_names, gs_seeds))
+
+        updates.update(seed_dict)
+
+        # incorporate all updates for specific job
+        gs_config.update(updates)
 
         utils.write_yaml(gs_config, gs_filepath)
 
