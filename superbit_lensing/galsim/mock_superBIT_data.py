@@ -604,8 +604,6 @@ class SuperBITParameters:
                 self.noise_seed = int(value)
             elif option == "dithering_seed":
                 self.dithering_seed = int(value)
-            elif option == "galobj_seed":
-                self.galobj_seed = int(value)
             elif option == "cluster_seed":
                 self.cluster_seed = int(value)
             elif option == "stars_seed":
