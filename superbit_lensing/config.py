@@ -174,7 +174,7 @@ def update_run_configs(basedir, pipe_update=None, gs_update=None,
         p = f'{run_name}_'
 
     if pipe_regex is None:
-        pipe_regex = f'{p}_cl*.yaml'
+        pipe_regex = f'{p}cl*.yaml'
 
     if gs_regex is None:
         gs_regex = f'{p}gs*.yaml'
