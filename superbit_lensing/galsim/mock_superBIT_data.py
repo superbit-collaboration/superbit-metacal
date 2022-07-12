@@ -953,8 +953,8 @@ def main():
     ##
     ## Define RNG for dither offsets
     ##
-    #rng = np.random.default_rng(sbparams.dithering_seed)
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(sbparams.dithering_seed)
+    #rng = np.random.default_rng()
 
     ###
     ### MAKE SIMULATED OBSERVATIONS
