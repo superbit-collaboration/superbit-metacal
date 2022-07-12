@@ -316,13 +316,16 @@ class Annular(object):
         if self.nfw_info is not None:
 
             # Resample so redshift distribution matches input galaxies
-            nfw_tab = self._nfw_resample_redshift(gal_redshifts, outdir, overwrite)
+            nfw_tab = self._nfw_resample_redshift(
+                gal_redshifts, outdir=outdir, overwrite=overwrite
+                )
 
             # Calculate tangential and cross shears for nfw
             self._nfw_transform_shear(nfw_tab)
 
             nfw_tab.write(
-                os.path.join(outdir,'subsampled_nfw_cat.fits'),format='fits', overwrite=overwrite
+                os.path.join(
+                    outdir,'subsampled_nfw_cat.fits'), format='fits', overwrite=overwrite
                 )
 
         else:

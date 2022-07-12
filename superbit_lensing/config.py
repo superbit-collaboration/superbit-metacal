@@ -150,8 +150,8 @@ def make_run_config_from_dict(config_dict):
 
     return make_run_config(*args, **kwargs)
 
-def update_run_configs(basedir, pipe_update, gs_update, run_name=None,
-                        pipe_regex=None, gs_regex=None):
+def update_run_configs(basedir, pipe_update=None, gs_update=None,
+                       run_name=None, pipe_regex=None, gs_regex=None):
     '''
     Helper function to update a series of configs in
     standard pipe config dirs
