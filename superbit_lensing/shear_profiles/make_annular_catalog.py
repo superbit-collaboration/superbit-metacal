@@ -168,12 +168,12 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 1. # orig 1.15
+        min_Tpsf = 0.5 # orig 1.
         max_sn = 1000
-        min_sn = 10 # orig 8 for ensemble
-        min_T = 0.03 # orig 0.05
+        min_sn = 10 
+        min_T = 0.0 # orig 0.03
         max_T = 10 # orig inf
-        covcut = 1E-2 #E-2 # orig 1 for ensemble
+        covcut = 1E-2 #
 
         qualcuts = {'min_Tpsf':min_Tpsf, 'max_sn':max_sn, 'min_sn':min_sn,
                     'min_T':min_T, 'max_T':max_T, 'covcut':covcut}
