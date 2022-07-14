@@ -35,8 +35,6 @@ run_name:         'pipe_test'   # Root for exposure name creation           []
 # Simulated cluster parameters
 # ----------------------------
 lam:                475         # Fiducial wavelength for abberations       [nm]
-mass:               1.6e15      # Cluster mass                              [Msol / h]
-nfw_z_halo:         0.25        # redshift of the halo                      []
 nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
 omega_m:            0.3         # Omega matter for the background cosmology []
 omega_lam:          0.7         # Omega lambda for the background cosmology []
@@ -46,9 +44,9 @@ omega_lam:          0.7         # Omega lambda for the background cosmology []
 # Define some paths and filenames
 cosmosdir:        '/users/jmcclear/data/superbit/superbit-metacal/GalSim/data/galsim_cosmos_catalogs' # Path to COSMOS data directory
 datadir:          '/users/jmcclear/data/superbit/superbit-metacal/GalSim/data' # Path to repo/GalSim data directory
-cat_file_name:    'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir)
+cat_file_name:    'cosmos15_superbit2023_phot_shapes.csv' # catalog file name for COSMOS (in cosmosdir)
 cluster_cat_name: 'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
-#star_cat_name:    'APRA_cluster_GAIA_starcats/GAIAstars_Abell_2163.csv' # Uncomment if using only one star catalog
 outdir:           './forecasting/offset' # directory where output images and truth catalogs are saved
 gaia_dir:         '/users/jmcclear/data/superbit/superbit-metacal/GalSim/data/APRA_cluster_GAIA_starcats'
 sample_gaia_cats: True
+
