@@ -481,10 +481,10 @@ class SuperBITParameters:
         # Check that certain params are set either on command line or in config
         utils.check_req_params(self, self.__req_params, self.__req_defaults)
 
+        self._set_seeds()
+
         # Setup stellar injection
         self._setup_stars()
-
-        self._set_seeds()
 
         return
 
@@ -696,7 +696,8 @@ class SuperBITParameters:
                 raise AttributeError('Must set `gaia_dir` if sampling from gaia cats!')
 
             gaia_cats = glob(f'{self.gaia_dir}/GAIA*.csv')
-            self.star_cat_name = np.random.choice(gaia_cats)
+            sample_gaia_rng = np.random.default_rng(self.stars_seed)
+            self.star_cat_name = sample_gaia_rng.choice(gaia_cats)
 
         if self.star_cat_name is not None:
             star_fname = os.path.join(self.datadir, self.star_cat_name)
