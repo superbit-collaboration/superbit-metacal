@@ -236,59 +236,70 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 0.5 # orig 1.15
+        min_Tpsf = 0.5 
         max_sn = 1000
-        min_sn = 10 # orig 8 for ensemble
-        min_T = 0.0 # orig 0.05
-        max_T = 10 # orig inf
-        covcut = 1 #E-2 # orig 1 for ensemble
+        min_sn = 10 
+        min_T = 0.0 
+        max_T = 10 
+        #covcut = 1e-2
         min_redshift = self.cluster_redshift
 
         qualcuts = {'min_Tpsf':min_Tpsf, 'max_sn':max_sn, 'min_sn':min_sn,
-                    'min_T':min_T, 'max_T':max_T, 'covcut':covcut}
+                    'min_T':min_T, 'max_T':max_T, 'redshift':redshift}
 
         print(f'#\n# cuts applied: Tpsf_ratio>{min_Tpsf:.2f}' +\
-              f' SN>{min_sn:.1f} T>{min_T:.2f} covcut={covcut:.1e}\n#\n')
+              f' SN>{min_sn:.1f} T>{min_T:.2f} redshift={min_redshift:.3f}\n#\n')
 
         mcal = self.joined_gals
-
-        noshear_selection = mcal[(mcal['T_noshear']>=min_Tpsf*mcal['Tpsf_noshear'])\
-                                        & (mcal['T_noshear']<max_T)\
-                                        & (mcal['T_noshear']>=min_T)\
+        
+        noshear_selection = mcal[(mcal['T_r_noshear']>=min_Tpsf*mcal['Tpsf_noshear'])\
+                                        & (mcal['T_r_noshear']<max_T)\
+                                        & (mcal['T_r_noshear']>=min_T)\
                                         & (mcal['s2n_r_noshear']>min_sn)\
                                         & (mcal['s2n_r_noshear']<max_sn)\
                                         & (mcal['redshift'] > min_redshift)
+                                        #& (mcal['g_cov_noshear'][:,0,0]<covcut)\
+                                        #& (mcal['g_cov_noshear'][:,1,1]<covcut)
+                                
                                   ]
 
-        selection_1p = mcal[(mcal['T_1p']>=min_Tpsf*mcal['Tpsf_1p'])\
-                                      & (mcal['T_1p']<=max_T)\
-                                      & (mcal['T_1p']>=min_T)\
+        selection_1p = mcal[(mcal['T_r_1p']>=min_Tpsf*mcal['Tpsf_1p'])\
+                                      & (mcal['T_r_1p']<=max_T)\
+                                      & (mcal['T_r_1p']>=min_T)\
                                       & (mcal['s2n_r_1p']>min_sn)\
                                       & (mcal['s2n_r_1p']<max_sn)\
+                                      #& (mcal['g_cov_1p'][:,0,0]<covcut)\
+                                      #& (mcal['g_cov_1p'][:,1,1]<covcut)\
                                       & (mcal['redshift'] > min_redshift)
                                   ]
 
-        selection_1m = mcal[(mcal['T_1m']>=min_Tpsf*mcal['Tpsf_1m'])\
-                                      & (mcal['T_1m']<=max_T)\
-                                      & (mcal['T_1m']>=min_T)\
+        selection_1m = mcal[(mcal['T_r_1m']>=min_Tpsf*mcal['Tpsf_1m'])\
+                                      & (mcal['T_r_1m']<=max_T)\
+                                      & (mcal['T_r_1m']>=min_T)\
                                       & (mcal['s2n_r_1m']>min_sn)\
                                       & (mcal['s2n_r_1m']<max_sn)\
+                                      #& (mcal['g_cov_1m'][:,0,0]<covcut)\
+                                      #& (mcal['g_cov_1m'][:,1,1]<covcut)\
                                       & (mcal['redshift'] > min_redshift)
                                   ]
 
-        selection_2p = mcal[(mcal['T_2p']>=min_Tpsf*mcal['Tpsf_2p'])\
-                                      & (mcal['T_2p']<=max_T)\
-                                      & (mcal['T_2p']>=min_T)\
+        selection_2p = mcal[(mcal['T_r_2p']>=min_Tpsf*mcal['Tpsf_2p'])\
+                                      & (mcal['T_r_2p']<=max_T)\
+                                      & (mcal['T_r_2p']>=min_T)\
                                       & (mcal['s2n_r_2p']>min_sn)\
                                       & (mcal['s2n_r_2p']<max_sn)\
+                                      #& (mcal['g_cov_2p'][:,0,0]<covcut)\
+                                      #& (mcal['g_cov_2p'][:,1,1]<covcut)
                                       & (mcal['redshift'] > min_redshift)
                                   ]
 
-        selection_2m = mcal[(mcal['T_2m']>=min_Tpsf*mcal['Tpsf_2m'])\
-                                      & (mcal['T_2m']<=max_T)\
-                                      & (mcal['T_2m']>=min_T)\
+        selection_2m = mcal[(mcal['T_r_2m']>=min_Tpsf*mcal['Tpsf_2m'])\
+                                      & (mcal['T_r_2m']<=max_T)\
+                                      & (mcal['T_r_2m']>=min_T)\
                                       & (mcal['s2n_r_2m']>min_sn)\
                                       & (mcal['s2n_2m']<max_sn)\
+                                      #& (mcal['g_cov_2m'][:,0,0]<covcut)\
+                                      #& (mcal['g_cov_2m'][:,1,1]<covcut)
                                       & (mcal['redshift'] > min_redshift)
                                   ]
 
@@ -323,7 +334,7 @@ class AnnularCatalog():
         tot_covar = 2.0*shape_noise**2 +\
                 self.selected['g_cov_noshear'][:,0,0] +\
                 self.selected['g_cov_noshear'][:,1,1]
-        weight = 1. / tot_covar
+        weight = 1/tot_covar
 
         try:
             r11 = ( noshear_selection['g_1p'][:,0] - noshear_selection['g_1m'][:,0] ) / (2.*mcal_shear)

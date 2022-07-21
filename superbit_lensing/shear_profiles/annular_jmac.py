@@ -338,7 +338,7 @@ class Annular(object):
 
         return nfw_tab
 
-    def _nfw_resample_redshift(self, gal_redshifts, outdir='.', nfactor=10,
+    def _nfw_resample_redshift(self, gal_redshifts, outdir='.', nfactor=100,
                                overwrite=False):
         '''
         Subsample theoretical galaxy redshift distribution to match redshift
