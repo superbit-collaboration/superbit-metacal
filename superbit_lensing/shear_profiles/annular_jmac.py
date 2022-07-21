@@ -14,6 +14,8 @@ from astropy.table import Table
 import pudb
 import pdb
 from esutil import htm
+from statsmodels.stats.weightstats import DescrStatsW
+
 
 from shear_plots import ShearProfilePlotter
 
@@ -463,13 +465,18 @@ class Annular(object):
             annulus = (self.r >= b1) & (self.r < b2)
             n = counts[i]
             midpoint_r[i] = np.mean([b1, b2])
-            gtan_mean[i] = np.average(self.gtan[annulus], weights=self.weight[annulus])
-            gcross_mean[i] = np.average(self.gcross[annulus], weights=self.weight[annulus])
-            gtan_err[i] = np.std(self.gtan[annulus]) / np.sqrt(n)
-            gcross_err[i] = np.std(self.gcross[annulus]) / np.sqrt(n)
+
+            weighted_gtan_stats = DescrStatsW(self.gtan[annulus], weights=self.weight[annulus], ddof=0)
+            weighted_gcross_stats = DescrStatsW(self.gcross[annulus], weights=self.weight[annulus], ddof=0)
+            
+            gtan_mean[i] = weighted_gtan_stats.mean
+            gcross_mean[i] = weighted_gcross_stats.mean
+
+            gtan_err[i] = weighted_gtan_stats.std / np.sqrt(n)
+            gcross_err[i] =  weighted_gcross_stats.std / np.sqrt(n)
 
             i += 1
-
+            
         table = Table()
         table.add_columns(
             [counts, midpoint_r, gtan_mean, gcross_mean, gtan_err, gcross_err],
