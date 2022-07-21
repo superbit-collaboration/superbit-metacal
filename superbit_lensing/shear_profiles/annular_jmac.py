@@ -183,6 +183,7 @@ class Annular(object):
         self.g2 = None
         self.gcross = None
         self.gtan = None
+        self.weight = None
         self.ra = None
         self.dec = None
         self.x = None
@@ -207,7 +208,7 @@ class Annular(object):
             self.g2 = tab[self.annular_info['shear_args'][1]]
             self.ra = tab['ra']
             self.dec = tab['dec']
-
+            self.weight = tab['weight']
 
         except Exception as e:
             print('Could not load xy/g1g2/radec columns; check supplied column names?')
@@ -240,11 +241,11 @@ class Annular(object):
         self.r = shears.r
         self.gtan = shears.gtan
         self.gcross = shears.gcross
-
+        
         newtab = Table()
         newtab.add_columns(
-            [x, y, self.r, self.gtan, self.gcross],
-            names=['x', 'y', 'r', 'gcross', 'gtan']
+            [x, y, self.r, self.gtan, self.gcross, self.weight],
+            names=['x', 'y', 'r', 'gcross', 'gtan', 'weight']
             )
 
         run_name = self.run_name
@@ -299,7 +300,8 @@ class Annular(object):
         self.gtan = self.gtan[ann_file_ind]
         self.gcross = self.gcross[ann_file_ind]
         self.r = self.r[ann_file_ind]
-
+        self.weight = self.weight[ann_file_ind]
+        
         gal_redshifts = truth_bg_gals[truth_bg_ind]['redshift']
 
         return gal_redshifts
@@ -461,8 +463,8 @@ class Annular(object):
             annulus = (self.r >= b1) & (self.r < b2)
             n = counts[i]
             midpoint_r[i] = np.mean([b1, b2])
-            gtan_mean[i] = np.mean(self.gtan[annulus])
-            gcross_mean[i] = np.mean(self.gcross[annulus])
+            gtan_mean[i] = np.average(self.gtan[annulus], weights=self.weight[annulus])
+            gcross_mean[i] = np.average(self.gcross[annulus], weights=self.weight[annulus])
             gtan_err[i] = np.std(self.gtan[annulus]) / np.sqrt(n)
             gcross_err[i] = np.std(self.gcross[annulus]) / np.sqrt(n)
 
