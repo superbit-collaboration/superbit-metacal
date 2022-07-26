@@ -183,7 +183,7 @@ class AnnularCatalog():
         print(f'#\n# cuts applied: Tpsf_ratio>{min_Tpsf:.2f}' +\
               f' SN>{min_sn:.1f} T>{min_T:.2f} redshift={min_redshift:.3f}\n#\n')
 
-<<<<<<< HEAD
+
         mcal = self.joined_gals
         
         noshear_selection = mcal[(mcal['T_r_noshear']>=min_Tpsf*mcal['Tpsf_noshear'])\
