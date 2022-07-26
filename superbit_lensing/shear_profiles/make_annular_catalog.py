@@ -241,7 +241,6 @@ class AnnularCatalog():
         min_sn = 10 
         min_T = 0.0 
         max_T = 10 
-        #covcut = 1e-2
         min_redshift = self.cluster_redshift
 
         qualcuts = {'min_Tpsf':min_Tpsf, 'max_sn':max_sn, 'min_sn':min_sn,
@@ -258,8 +257,6 @@ class AnnularCatalog():
                                         & (mcal['s2n_r_noshear']>min_sn)\
                                         & (mcal['s2n_r_noshear']<max_sn)\
                                         & (mcal['redshift'] > min_redshift)
-                                        #& (mcal['g_cov_noshear'][:,0,0]<covcut)\
-                                        #& (mcal['g_cov_noshear'][:,1,1]<covcut)
                                 
                                   ]
 
@@ -268,8 +265,6 @@ class AnnularCatalog():
                                       & (mcal['T_r_1p']>=min_T)\
                                       & (mcal['s2n_r_1p']>min_sn)\
                                       & (mcal['s2n_r_1p']<max_sn)\
-                                      #& (mcal['g_cov_1p'][:,0,0]<covcut)\
-                                      #& (mcal['g_cov_1p'][:,1,1]<covcut)\
                                       & (mcal['redshift'] > min_redshift)
                                   ]
 
@@ -278,8 +273,6 @@ class AnnularCatalog():
                                       & (mcal['T_r_1m']>=min_T)\
                                       & (mcal['s2n_r_1m']>min_sn)\
                                       & (mcal['s2n_r_1m']<max_sn)\
-                                      #& (mcal['g_cov_1m'][:,0,0]<covcut)\
-                                      #& (mcal['g_cov_1m'][:,1,1]<covcut)\
                                       & (mcal['redshift'] > min_redshift)
                                   ]
 
@@ -288,8 +281,6 @@ class AnnularCatalog():
                                       & (mcal['T_r_2p']>=min_T)\
                                       & (mcal['s2n_r_2p']>min_sn)\
                                       & (mcal['s2n_r_2p']<max_sn)\
-                                      #& (mcal['g_cov_2p'][:,0,0]<covcut)\
-                                      #& (mcal['g_cov_2p'][:,1,1]<covcut)
                                       & (mcal['redshift'] > min_redshift)
                                   ]
 
@@ -298,8 +289,6 @@ class AnnularCatalog():
                                       & (mcal['T_r_2m']>=min_T)\
                                       & (mcal['s2n_r_2m']>min_sn)\
                                       & (mcal['s2n_2m']<max_sn)\
-                                      #& (mcal['g_cov_2m'][:,0,0]<covcut)\
-                                      #& (mcal['g_cov_2m'][:,1,1]<covcut)
                                       & (mcal['redshift'] > min_redshift)
                                   ]
 
@@ -326,8 +315,8 @@ class AnnularCatalog():
 
         # compute noise; not entirely sure whether there needs to be a factor of 0.5 on tot_covar...
         # seems like not if I'm applying it just to tangential ellip, yes if it's being applied to each
-        shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
-        #shape_noise = 0.22
+        #shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
+        shape_noise = 0.22
 
         print(f'shape noise is {shape_noise}')
 
