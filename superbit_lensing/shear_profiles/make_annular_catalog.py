@@ -170,17 +170,17 @@ class AnnularCatalog():
                                         dec = truth_gals['dec']
                                         )
 
-        joined_file_ind, truth_bg_ind, dist = truth_matcher.match(
+        joined_file_ind, truth_ind, dist = truth_matcher.match(
                                             ra = joined_cat['ra'],
                                             dec = joined_cat['dec'],
                                             maxmatch = 1,
                                             radius = 1./3600.
                                             )
 
-        print(f"# {len(dist)} of {len(joined_cat['ra'])} objects matched to truth background galaxies")
+        print(f"# {len(dist)} of {len(joined_cat['ra'])} objects matched to truth galaxies")
 
         gals_joined_cat = joined_cat[joined_file_ind]
-        gals_joined_cat.add_column(truth_gals['redshift'][truth_bg_ind])
+        gals_joined_cat.add_column(truth_gals['redshift'][truth_ind])
 
         try:
             if self.run_name is None:
@@ -188,7 +188,7 @@ class AnnularCatalog():
             else:
                 p = f'{self.run_name}_'
 
-                outfile = os.path.join(self.outdir, f'{p}bg_gals_joined_catalog.fits')
+                outfile = os.path.join(self.outdir, f'{p}gals_joined_catalog.fits')
                 gals_joined_cat.write(outfile, overwrite=overwrite)
 
         except OSError as err:
@@ -242,9 +242,6 @@ class AnnularCatalog():
         min_T = 0.0 
         max_T = 10 
         min_redshift = self.cluster_redshift
-
-        qualcuts = {'min_Tpsf':min_Tpsf, 'max_sn':max_sn, 'min_sn':min_sn,
-                    'min_T':min_T, 'max_T':max_T, 'redshift':redshift}
 
         print(f'#\n# cuts applied: Tpsf_ratio>{min_Tpsf:.2f}' +\
               f' SN>{min_sn:.1f} T>{min_T:.2f} redshift={min_redshift:.3f}\n#\n')
