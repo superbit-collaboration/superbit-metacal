@@ -73,6 +73,7 @@ class AnnularCatalog():
         else:
             self.outdir = ''
 
+
         self.se_cat = Table.read(self.se_file, hdu=2)
         self.mcal = Table.read(self.mcal_file)
         self.joined = None
@@ -134,7 +135,8 @@ class AnnularCatalog():
 
         return
 
-    def _redshift_select(self, overwrite=False):
+
+    def _redshift_select(self, truth_file, overwrite=False):
         '''
         Select background galaxies from larger transformed shear catalog:
             - Load in truth file
@@ -144,7 +146,6 @@ class AnnularCatalog():
             - Also store the number of galaxies injected into simulation
         '''
 
-        truth_file = self.truth_file
         joined_cat = self.joined
 
         try:
@@ -201,25 +202,39 @@ class AnnularCatalog():
 
     def make_table(self, overwrite=False):
         """
+        - Remove foreground galaxies from sample using redshift info in truth file
         - Select from catalog on g_cov, T/T_psf, etc.
         - Correct g1/g2_noshear for the Rinv quantity (see Huff & Mandelbaum 2017)
         - Save shear-response corrected ellipticities to an output table
         """
 
-        # This step both applies selection cuts and generates shear-calibrated
-        # tangential ellipticity moments
+        # Access truth file name
+        cat_info = self.cat_info
 
-        self._redshift_select(overwrite=overwrite)
+        if cat_info['truth_file'] is None:
+
+            truth_name = ''.join([self.run_name,'_truth.fits'])
+            truth_dir = self.outdir
+            truth_file = os.path.join(truth_dir,truth_name) 
+            self.cat_info['truth_file'] = truth_file
+
+        else:
+            truth_file = self.truth_file
+        
+        # Filter out foreground galaxies using redshifts in truth file
+        self._redshift_select(truth_file, overwrite=overwrite)
+
+        # Apply selection cuts and produce responsivity-corrected shear moments
+        # Return selection (quality) cuts
         qualcuts = self._compute_metacal_quantities()
 
-        # I would love to be able to save qualcuts as comments in FITS header
-        # but can't figure it out rn
-        # self.selected.meta={qualcuts}
+        # Save selected galaxies to file
+        for key in qualcuts.keys():
+            self.selected.meta[key] = qualcuts[key]
 
-        #self.selected.write('selected_metacal_bgCat.fits',overwrite=True)
         self.selected.write(self.outfile, format='fits', overwrite=overwrite)
 
-        return
+        return qualcuts
 
     def _compute_metacal_quantities(self):
         """
@@ -245,6 +260,13 @@ class AnnularCatalog():
 
         print(f'#\n# cuts applied: Tpsf_ratio>{min_Tpsf:.2f}' +\
               f' SN>{min_sn:.1f} T>{min_T:.2f} redshift={min_redshift:.3f}\n#\n')
+
+        qualcuts = {'min_Tpsf' :min_Tpsf,
+                    'max_sn' : max_sn,
+                    'min_sn' : min_sn,
+                    'min_T' : min_T,
+                    'max_T' : max_T,
+                    'min_redshift' : min_redshift}
 
         mcal = self.joined_gals
         
@@ -313,11 +335,12 @@ class AnnularCatalog():
         # compute noise; not entirely sure whether there needs to be a factor of 0.5 on tot_covar...
         # seems like not if I'm applying it just to tangential ellip, yes if it's being applied to each
         #shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
+
         shape_noise = 0.22
 
         print(f'shape noise is {shape_noise}')
 
-        tot_covar = 2.0*shape_noise**2 +\
+        tot_covar = shape_noise +\
                 self.selected['g_cov_noshear'][:,0,0] +\
                 self.selected['g_cov_noshear'][:,1,1]
         
@@ -374,16 +397,8 @@ class AnnularCatalog():
     def compute_tan_shear_profile(self, outfile, plotfile, overwrite=False, vb=False):
 
         cat_info = self.cat_info
-
+        
         annular_info = self.annular_info
-
-        if self.cat_info['truth_file'] is None:
-            truth_name = ''.join([self.run_name,'_truth.fits'])
-            truth_dir = self.outdir
-            self.cat_info['truth_file'] = os.path.join(truth_dir,truth_name)
-
-        else:
-            truth_file = self.truth_file
 
 
         if self.nfw_file is not None:
@@ -428,7 +443,7 @@ class AnnularCatalog():
 
         outfile = os.path.join(self.outdir, f'{p}shear_profile_cat.fits')
         plotfile = os.path.join(self.outdir, f'{p}shear_profile.pdf')
-
+        
         self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return
@@ -449,6 +464,7 @@ def main(args):
     vb = args.vb
 
     # Define position args
+    #xy_cols = ['X_IMAGE', 'Y_IMAGE']
     xy_cols = ['X_IMAGE_se', 'Y_IMAGE_se']
     shear_args = ['g1_Rinv', 'g2_Rinv']
 

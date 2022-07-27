@@ -486,7 +486,7 @@ class Annular(object):
             )
 
         # Repeat calculation if an nfw table is supplied, and also compute shear bias
-        # Separating out the NFW loop significantly slows the code...
+
         if nfw_tab is not None:
             nfw_mid_r = np.zeros(N)
             nfw_gtan_mean = np.zeros(N)

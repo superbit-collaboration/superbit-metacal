@@ -5,7 +5,8 @@ import yaml
 import re
 from astropy.table import Table
 from numpy.random import SeedSequence, default_rng
-from time import time
+#from time import time
+import time
 import numpy as np
 import subprocess
 import pdb, pudb
