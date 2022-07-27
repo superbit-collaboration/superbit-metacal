@@ -320,7 +320,8 @@ class AnnularCatalog():
         tot_covar = 2.0*shape_noise**2 +\
                 self.selected['g_cov_noshear'][:,0,0] +\
                 self.selected['g_cov_noshear'][:,1,1]
-        weight = 1/tot_covar
+        
+        weight = 1. / tot_covar
 
         try:
             r11 = ( noshear_selection['g_1p'][:,0] - noshear_selection['g_1m'][:,0] ) / (2.*mcal_shear)
