@@ -73,9 +73,12 @@ class AnnularCatalog():
         else:
             self.outdir = ''
 
+
         self.se_cat = Table.read(self.se_file, hdu=2)
         self.mcal = Table.read(self.mcal_file)
         self.joined = None
+        self.joined_gals = None
+        self.cluster_redshift = None
         self.selected = None
         self.outcat = None
 
@@ -132,26 +135,106 @@ class AnnularCatalog():
 
         return
 
+
+    def _redshift_select(self, truth_file, overwrite=False):
+        '''
+        Select background galaxies from larger transformed shear catalog:
+            - Load in truth file
+            - Select background galaxies behind galaxy cluster
+            - Match in RA/Dec to transformed shear catalog
+            - Filter self.r, self.gtan, self.gcross to be background-only
+            - Also store the number of galaxies injected into simulation
+        '''
+
+        joined_cat = self.joined
+
+        try:
+            truth = Table.read(truth_file, format='fits')
+            #if vb is True:
+            print(f'Read in truth file {truth_file}')
+
+        except FileNotFoundError as fnf_err:
+            print(f'truth catalog {truth_file} not found, check name/type?')
+            raise fnf_err
+
+        truth_gals = truth[truth['obj_class'] == 'gal']
+        self.n_truth_gals = len(truth_gals)
+
+        cluster_gals = truth[truth['obj_class']=='cluster_gal']
+        cluster_redshift = np.mean(cluster_gals['redshift'])
+        self.cluster_redshift = cluster_redshift
+
+        truth_bg_gals = truth[truth['redshift'] > cluster_redshift]
+        
+        truth_matcher = htm.Matcher(16,
+                                        ra = truth_gals['ra'],
+                                        dec = truth_gals['dec']
+                                        )
+
+        joined_file_ind, truth_ind, dist = truth_matcher.match(
+                                            ra = joined_cat['ra'],
+                                            dec = joined_cat['dec'],
+                                            maxmatch = 1,
+                                            radius = 1./3600.
+                                            )
+
+        print(f"# {len(dist)} of {len(joined_cat['ra'])} objects matched to truth galaxies")
+
+        gals_joined_cat = joined_cat[joined_file_ind]
+        gals_joined_cat.add_column(truth_gals['redshift'][truth_ind])
+
+        try:
+            if self.run_name is None:
+                p = ''
+            else:
+                p = f'{self.run_name}_'
+
+                outfile = os.path.join(self.outdir, f'{p}gals_joined_catalog.fits')
+                gals_joined_cat.write(outfile, overwrite=overwrite)
+
+        except OSError as err:
+            print('Cannot overwrite {outfile} unless `overwrite` is set to True!')
+            raise err
+
+        self.joined_gals = gals_joined_cat
+
+        return
+
     def make_table(self, overwrite=False):
         """
+        - Remove foreground galaxies from sample using redshift info in truth file
         - Select from catalog on g_cov, T/T_psf, etc.
         - Correct g1/g2_noshear for the Rinv quantity (see Huff & Mandelbaum 2017)
         - Save shear-response corrected ellipticities to an output table
         """
 
-        # This step both applies selection cuts and generates shear-calibrated
-        # tangential ellipticity moments
+        # Access truth file name
+        cat_info = self.cat_info
 
+        if cat_info['truth_file'] is None:
+
+            truth_name = ''.join([self.run_name,'_truth.fits'])
+            truth_dir = self.outdir
+            truth_file = os.path.join(truth_dir,truth_name) 
+            self.cat_info['truth_file'] = truth_file
+
+        else:
+            truth_file = self.truth_file
+        
+        # Filter out foreground galaxies using redshifts in truth file
+        self._redshift_select(truth_file, overwrite=overwrite)
+
+        # Apply selection cuts and produce responsivity-corrected shear moments
+        # Return selection (quality) cuts
         qualcuts = self._compute_metacal_quantities()
 
-        # I would love to be able to save qualcuts as comments in FITS header
-        # but can't figure it out rn
-        # self.selected.meta={qualcuts}
+        # Save selected galaxies to file
+        for key in qualcuts.keys():
+            self.selected.meta[key] = qualcuts[key]
 
-        #self.selected.write('selected_metacal_bgCat.fits',overwrite=True)
         self.selected.write(self.outfile, format='fits', overwrite=overwrite)
 
-        return
+        return qualcuts
 
     def _compute_metacal_quantities(self):
         """
@@ -168,62 +251,64 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 0.5 # orig 1.
+        min_Tpsf = 0.5 
         max_sn = 1000
         min_sn = 10 
-        min_T = 0.0 # orig 0.03
-        max_T = 10 # orig inf
-        covcut = 1E-2 #
-
-        qualcuts = {'min_Tpsf':min_Tpsf, 'max_sn':max_sn, 'min_sn':min_sn,
-                    'min_T':min_T, 'max_T':max_T, 'covcut':covcut}
+        min_T = 0.0 
+        max_T = 10 
+        min_redshift = self.cluster_redshift
 
         print(f'#\n# cuts applied: Tpsf_ratio>{min_Tpsf:.2f}' +\
-              f' SN>{min_sn:.1f} T>{min_T:.2f} covcut={covcut:.1e}\n#\n')
+              f' SN>{min_sn:.1f} T>{min_T:.2f} redshift={min_redshift:.3f}\n#\n')
 
-        noshear_selection = self.mcal[(self.mcal['T_noshear']>=min_Tpsf*self.mcal['Tpsf_noshear'])\
-                                        & (self.mcal['T_noshear']<max_T)\
-                                        & (self.mcal['T_noshear']>=min_T)\
-                                        & (self.mcal['s2n_r_noshear']>min_sn)\
-                                        & (self.mcal['s2n_r_noshear']<max_sn)\
-                                        & (self.mcal['g_cov_noshear'][:,0,0]<covcut)\
-                                        & (self.mcal['g_cov_noshear'][:,1,1]<covcut)
-                                       ]
+        qualcuts = {'min_Tpsf' :min_Tpsf,
+                    'max_sn' : max_sn,
+                    'min_sn' : min_sn,
+                    'min_T' : min_T,
+                    'max_T' : max_T,
+                    'min_redshift' : min_redshift}
 
-        selection_1p = self.mcal[(self.mcal['T_1p']>=min_Tpsf*self.mcal['Tpsf_1p'])\
-                                      & (self.mcal['T_1p']<=max_T)\
-                                      & (self.mcal['T_1p']>=min_T)\
-                                      & (self.mcal['s2n_r_1p']>min_sn)\
-                                      & (self.mcal['s2n_r_1p']<max_sn)\
-                                      & (self.mcal['g_cov_1p'][:,0,0]<covcut)\
-                                      & (self.mcal['g_cov_1p'][:,1,1]<covcut)
+        mcal = self.joined_gals
+        
+        noshear_selection = mcal[(mcal['T_r_noshear']>=min_Tpsf*mcal['Tpsf_noshear'])\
+                                        & (mcal['T_r_noshear']<max_T)\
+                                        & (mcal['T_r_noshear']>=min_T)\
+                                        & (mcal['s2n_r_noshear']>min_sn)\
+                                        & (mcal['s2n_r_noshear']<max_sn)\
+                                        & (mcal['redshift'] > min_redshift)
+                                
                                   ]
 
-        selection_1m = self.mcal[(self.mcal['T_1m']>=min_Tpsf*self.mcal['Tpsf_1m'])\
-                                      & (self.mcal['T_1m']<=max_T)\
-                                      & (self.mcal['T_1m']>=min_T)\
-                                      & (self.mcal['s2n_r_1m']>min_sn)\
-                                      & (self.mcal['s2n_r_1m']<max_sn)\
-                                      & (self.mcal['g_cov_1m'][:,0,0]<covcut)\
-                                      & (self.mcal['g_cov_1m'][:,1,1]<covcut)
+        selection_1p = mcal[(mcal['T_r_1p']>=min_Tpsf*mcal['Tpsf_1p'])\
+                                      & (mcal['T_r_1p']<=max_T)\
+                                      & (mcal['T_r_1p']>=min_T)\
+                                      & (mcal['s2n_r_1p']>min_sn)\
+                                      & (mcal['s2n_r_1p']<max_sn)\
+                                      & (mcal['redshift'] > min_redshift)
                                   ]
 
-        selection_2p = self.mcal[(self.mcal['T_2p']>=min_Tpsf*self.mcal['Tpsf_2p'])\
-                                      & (self.mcal['T_2p']<=max_T)\
-                                      & (self.mcal['T_2p']>=min_T)\
-                                      & (self.mcal['s2n_r_2p']>min_sn)\
-                                      & (self.mcal['s2n_r_2p']<max_sn)\
-                                      & (self.mcal['g_cov_2p'][:,0,0]<covcut)\
-                                      & (self.mcal['g_cov_2p'][:,1,1]<covcut)
+        selection_1m = mcal[(mcal['T_r_1m']>=min_Tpsf*mcal['Tpsf_1m'])\
+                                      & (mcal['T_r_1m']<=max_T)\
+                                      & (mcal['T_r_1m']>=min_T)\
+                                      & (mcal['s2n_r_1m']>min_sn)\
+                                      & (mcal['s2n_r_1m']<max_sn)\
+                                      & (mcal['redshift'] > min_redshift)
                                   ]
 
-        selection_2m = self.mcal[(self.mcal['T_2m']>=min_Tpsf*self.mcal['Tpsf_2m'])\
-                                      & (self.mcal['T_2m']<=max_T)\
-                                      & (self.mcal['T_2m']>=min_T)\
-                                      & (self.mcal['s2n_r_2m']>min_sn)\
-                                      & (self.mcal['s2n_2m']<max_sn)\
-                                      & (self.mcal['g_cov_2m'][:,0,0]<covcut)\
-                                      & (self.mcal['g_cov_2m'][:,1,1]<covcut)
+        selection_2p = mcal[(mcal['T_r_2p']>=min_Tpsf*mcal['Tpsf_2p'])\
+                                      & (mcal['T_r_2p']<=max_T)\
+                                      & (mcal['T_r_2p']>=min_T)\
+                                      & (mcal['s2n_r_2p']>min_sn)\
+                                      & (mcal['s2n_r_2p']<max_sn)\
+                                      & (mcal['redshift'] > min_redshift)
+                                  ]
+
+        selection_2m = mcal[(mcal['T_r_2m']>=min_Tpsf*mcal['Tpsf_2m'])\
+                                      & (mcal['T_r_2m']<=max_T)\
+                                      & (mcal['T_r_2m']>=min_T)\
+                                      & (mcal['s2n_r_2m']>min_sn)\
+                                      & (mcal['s2n_2m']<max_sn)\
+                                      & (mcal['redshift'] > min_redshift)
                                   ]
 
         # assuming delta_shear in ngmix_fit_superbit is 0.01
@@ -249,13 +334,16 @@ class AnnularCatalog():
 
         # compute noise; not entirely sure whether there needs to be a factor of 0.5 on tot_covar...
         # seems like not if I'm applying it just to tangential ellip, yes if it's being applied to each
-        shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
+        #shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
+
+        shape_noise = 0.22
+
         print(f'shape noise is {shape_noise}')
 
-        #shape_noise = 0.3
         tot_covar = shape_noise +\
                 self.selected['g_cov_noshear'][:,0,0] +\
                 self.selected['g_cov_noshear'][:,1,1]
+        
         weight = 1. / tot_covar
 
         try:
@@ -311,14 +399,6 @@ class AnnularCatalog():
         cat_info = self.cat_info
         
         annular_info = self.annular_info
-
-        if self.cat_info['truth_file'] is None:
-            truth_name = ''.join([self.run_name,'_truth.fits'])
-            truth_dir = self.outdir
-            self.cat_info['truth_file'] = os.path.join(truth_dir,truth_name)
-
-        else:
-            truth_file = self.truth_file
 
 
         if self.nfw_file is not None:
@@ -384,7 +464,8 @@ def main(args):
     vb = args.vb
 
     # Define position args
-    xy_cols = ['X_IMAGE', 'Y_IMAGE']
+    #xy_cols = ['X_IMAGE', 'Y_IMAGE']
+    xy_cols = ['X_IMAGE_se', 'Y_IMAGE_se']
     shear_args = ['g1_Rinv', 'g2_Rinv']
 
     ## Get center of galaxy cluster for fitting

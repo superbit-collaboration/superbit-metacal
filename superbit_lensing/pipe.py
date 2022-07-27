@@ -512,7 +512,7 @@ class NgmixFitModule(SuperBITModule):
 class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
     _opt_fields = ['outdir', 'run_name','truth_file','nfw_file']
-    _flag_fields = ['overwrite', 'vb']
+    _flag_fields = ['overwrite', 'vb', 'redshift_select']
 
     def __init__(self, name, config):
         super(ShearProfileModule, self).__init__(name, config)
@@ -636,8 +636,9 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                                                    run_name=run_name)
 
         # dummy truth
-        nfw_file = os.path.join(
-            utils.BASE_DIR, 'runs/truth/nfw_truth_files/nfw_cl_m2.2e15_z0.44.fits')
+        #nfw_file = os.path.join(
+        #    utils.BASE_DIR, 'runs/truth/nfw_truth_files/nfw_cl_m2.2e15_z0.44.fits')
+        nfw_file = '/users/jmcclear/data/superbit/mock-data-forecasting/nfw_truth/nfw_cl_m5.8e14_z0.075.fits'
 
         overwrite = True
         with open(filename, 'w') as f:
