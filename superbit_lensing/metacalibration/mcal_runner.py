@@ -4,6 +4,7 @@ from ngmix.fitting import Fitter
 import numpy as np
 import os
 import collections
+from multiprocessing import Pool
 import time
 from astropy.table import Table, vstack, hstack
 import matplotlib.pyplot as plt
@@ -18,6 +19,8 @@ def parse_args():
                         help='Starting MEDS index for mcal fitting')
     parser.add_argument('-end', type=int, default=1,
                         help='Ending MEDS index for mcal fitting')
+    parser.add_argument('-ncores', type=int, default=1,
+                        help='Number of cores to use for mcal fitting')
     parser.add_argument('--vb', action='store_true', default=False,
                         help='Make verbose')
 
@@ -323,38 +326,104 @@ class MetacalRunner(object):
 
         return
 
-    def go(self, start, end):
+    def _get_fit_args(self, iobj):
         '''
-        Run the metacal measurement on all observations from
-        `start` to `end`
+        Get the args & kwargs to run the metacal measurement for
+        a single object
+
+        iobj: int
+            MEDS index of object to be fit
+        '''
+
+        obs = self.get_obslist(iobj)
+        obj_info = self.get_obj_info(iobj)
+
+        args = [iobj, self.boot, obs, obj_info, self.shear_step]
+        kwargs = {'vb': self.vb}
+
+        return args, kwargs
+
+    @staticmethod
+    def _fit_one(iobj, bootstrapper, obs, obj_info, mcal_shear, vb=False):
+        '''
+        A static method to wrap the mcal fitting to allow
+        for multiprocessing
+
+        iobj: int
+            The MEDS index of the object to fit
+        bootstrapper: ngmix.bootstrapper
+            The ngmix bootstrapper that will automate the mcal fit
+        obs: ngmix.Observation
+            All requisite images & metadata of the obj to fit
+        obj_info: A dictionary of object properties to add to standard
+            mcal return dict
+        mcal_shear: float
+            The applied shear to the metacal images
+        vb: bool
+            Turn on for verbose printing
+
+        returns: astropy.Table
+            A table that holds all mcal info for the obj, including
+            responsivities
+        '''
+
+        if vb is True:
+            print(f'Starting fit for obj {iobj}')
+
+        res_dict, obs_dict = bootstrapper.go(obs)
+        res_dict = add_mcal_responsivities(res_dict, mcal_shear)
+
+        return mcal_dict2tab(res_dict, obj_info)
+
+    def go(self, start, end, ncores=1):
+        '''
+        Run the metacal measurement from start to end.
+        NOTE: cannot be parallelized
         '''
 
         if end < start:
             raise ValueError('end must be greater than start!')
         N = end - start
 
-        mcal_tabs = []
-        for iobj in range(start, end):
+        if ncores == 1:
+            mcal_tabs = []
+            k = 1
+            for iobj in range(start, end):
+                if self.vb is True:
+                    print(f'Starting index {iobj}; {k} of {N}...')
+                    args, kwargs = self._get_fit_args(iobj)
+                    mcal_tabs.append(
+                        MetacalRunner._fit_one(*args, **kwargs)
+                        )
+                    k += 1
+
             if self.vb is True:
-                print(f'Starting {iobj} of {N}...')
+                print('Stacking mcal results...')
+                mcal_table = vstack(mcal_tabs)
 
-            obs = self.get_obslist(iobj)
-            obj_info = self.get_obj_info(iobj)
-
-            res_dict, obs_dict = self.boot.go(obs)
-
-            res_dict = self.add_mcal_responsivities(res_dict)
-            res_tab = self.mcal_dict2tab(res_dict, obj_info)
-            mcal_tabs.append(res_tab)
-
-        if self.vb is True:
-            print('Stacking mcal results...')
-        mcal_tabs = vstack(mcal_tabs)
+        else:
+            # multiprocessing
+            if self.vb is True:
+                print(f'Running on {ncores} cores')
+            with Pool(ncores) as pool:
+                # TODO: I want to use self._get_fit_args() here, but
+                # a little complicated...
+                mcal_table = vstack(pool.starmap(self._fit_one,
+                                               [(i,
+                                                 self.boot,
+                                                 self.get_obslist(i),
+                                                 self.get_obj_info(i),
+                                                 self.shear_step,
+                                                 self.vb
+                                                 ) for i in range(start, end)
+                                                ]
+                                               )
+                                  )
 
         if self.vb is True:
             print('Done!')
 
-        return mcal_tabs
+        return mcal_table
 
     def get_obslist(self, iobj):
         return self.meds.get_obslist(iobj)
@@ -522,82 +591,81 @@ class MetacalRunner(object):
 
         return
 
-    def add_mcal_responsivities(self, mcal_res):
-        '''
-        Compute and add the mcal responsivity values to the output
-        result dict from get_metacal_result()
-        NOTE: These are only for the selection-independent component!
-        '''
+def add_mcal_responsivities(mcal_res, mcal_shear):
+    '''
+    Compute and add the mcal responsivity values to the output
+    result dict from get_metacal_result()
+    NOTE: These are only for the selection-independent component!
+    '''
 
-        mcal_shear = self.shear_step
+    # Define full responsivity matrix, take inner product with shear moments
+    r11 = (mcal_res['1p']['g'][0] - mcal_res['1m']['g'][0]) / (2*mcal_shear)
+    r12 = (mcal_res['2p']['g'][0] - mcal_res['2m']['g'][0]) / (2*mcal_shear)
+    r21 = (mcal_res['1p']['g'][1] - mcal_res['1m']['g'][1]) / (2*mcal_shear)
+    r22 = (mcal_res['2p']['g'][1] - mcal_res['2m']['g'][1]) / (2*mcal_shear)
 
-        # Define full responsivity matrix, take inner product with shear moments
-        r11 = (mcal_res['1p']['g'][0] - mcal_res['1m']['g'][0]) / (2*mcal_shear)
-        r12 = (mcal_res['2p']['g'][0] - mcal_res['2m']['g'][0]) / (2*mcal_shear)
-        r21 = (mcal_res['1p']['g'][1] - mcal_res['1m']['g'][1]) / (2*mcal_shear)
-        r22 = (mcal_res['2p']['g'][1] - mcal_res['2m']['g'][1]) / (2*mcal_shear)
+    R = [ [r11, r12], [r21, r22] ]
+    Rinv = np.linalg.inv(R)
+    gMC = np.dot(Rinv,
+                 mcal_res['noshear']['g']
+                 )
 
-        R = [ [r11, r12], [r21, r22] ]
-        Rinv = np.linalg.inv(R)
-        gMC = np.dot(Rinv,
-                     mcal_res['noshear']['g']
-                     )
+    MC = {
+        'r11':r11, 'r12':r12,
+        'r21':r21, 'r22':r22,
+        'g1_MC':gMC[0], 'g2_MC':gMC[1]
+    }
 
-        MC = {
-            'r11':r11, 'r12':r12,
-            'r21':r21, 'r22':r22,
-            'g1_MC':gMC[0], 'g2_MC':gMC[1]
-        }
+    mcal_res['MC'] = MC
 
-        mcal_res['MC'] = MC
+    return mcal_res
 
-        return mcal_res
+def mcal_dict2tab(mcal, obj_info):
+    '''
+    mcal is the dict returned by ngmix.get_metacal_result()
+    obj_info is an array with MEDS identification info like id, ra, dec
+    not returned by the function
+    '''
 
-    def mcal_dict2tab(self, mcal, obj_info):
-        '''
-        mcal is the dict returned by ngmix.get_metacal_result()
-        obj_info is an array with MEDS identification info like id, ra, dec
-        not returned by the function
-        '''
+    # Annoying, but have to do this to make Table from scalars
+    for key, val in obj_info.items():
+        obj_info[key] = np.array([val])
 
-        # Annoying, but have to do this to make Table from scalars
-        for key, val in obj_info.items():
-            obj_info[key] = np.array([val])
+    tab_names = ['noshear', '1p', '1m', '2p', '2m','MC']
+    for name in tab_names:
+        tab = mcal[name]
 
-        tab_names = ['noshear', '1p', '1m', '2p', '2m','MC']
-        for name in tab_names:
-            tab = mcal[name]
+        for key, val in tab.items():
+            tab[key] = np.array([val])
 
-            for key, val in tab.items():
-                tab[key] = np.array([val])
+        mcal[name] = tab
 
-            mcal[name] = tab
+    id_tab = Table(data=obj_info)
 
-        id_tab = Table(data=obj_info)
+    tab_noshear = Table(mcal['noshear'])
+    tab_1p = Table(mcal['1p'])
+    tab_1m = Table(mcal['1m'])
+    tab_2p = Table(mcal['2p'])
+    tab_2m = Table(mcal['2m'])
+    tab_MC = Table(mcal['MC'])
 
-        tab_noshear = Table(mcal['noshear'])
-        tab_1p = Table(mcal['1p'])
-        tab_1m = Table(mcal['1m'])
-        tab_2p = Table(mcal['2p'])
-        tab_2m = Table(mcal['2m'])
-        tab_MC = Table(mcal['MC'])
+    join_tab = hstack([id_tab, hstack([tab_noshear,
+                                       tab_1p,
+                                       tab_1m,
+                                       tab_2p,
+                                       tab_2m,
+                                       tab_MC
+                                       ],
+                                      table_names=tab_names)
+                       ]
+                      )
 
-        join_tab = hstack([id_tab, hstack([tab_noshear,
-                                           tab_1p,
-                                           tab_1m,
-                                           tab_2p,
-                                           tab_2m,
-                                           tab_MC
-                                           ],
-                                          table_names=tab_names)
-                           ]
-                          )
-
-        return join_tab
+    return join_tab
 
 def main(args):
     start = args.start
     end = args.end
+    ncores = args.ncores
     vb = args.vb
 
     test_dir = '/Users/sweveret/repos/superbit-metacal/runs/real-test/'
@@ -627,7 +695,7 @@ def main(args):
         gal_kwargs=gal_kwargs, psf_kwargs=psf_kwargs,
         ntry=3
         )
-    mcal_runner.go(start, end)
+    mcal_runner.go(start, end, ncores=ncores)
 
     if vb is True:
         print('Running bootstrapper for a ngmix.GaussMom/GaussMom model...')
@@ -637,7 +705,7 @@ def main(args):
     psf_fitter = build_fitter('psf', 'gaussmom', kwargs=psf_kwargs)
     mcal_runner.setup_bootstrapper(fitter, psf_fitter, shear,
                                    psf_kwargs=psf_kwargs, ntry=3)
-    mcal_runner.go(start, end)
+    mcal_runner.go(start, end, ncores=ncores)
 
     if vb is True:
         print('Running bootstrapper for a Exponential/Coellip model...')
@@ -646,7 +714,7 @@ def main(args):
     psf_fitter = 'coellip'
     mcal_runner.setup_bootstrapper(fitter, psf_fitter, shear,
                                    ntry=3)
-    mcal_runner.go(start, end)
+    mcal_runner.go(start, end, ncores=ncores)
 
     return 0
 
