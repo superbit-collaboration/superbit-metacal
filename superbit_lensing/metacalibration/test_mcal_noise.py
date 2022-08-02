@@ -23,7 +23,7 @@ def parse_args():
                         help='The number of noise realizations per obj')
     parser.add_argument('-ncores', type=int, default=1,
                         help='The number of cores to use for the test')
-    parser.add_argument('-outdir', type=str, default=None,
+    parser.add_argument('-outdir', type=str, default='',
                         help='Output directory location')
     parser.add_argument('--vb', action='store_true', default=False,
                         help='Make verbose')
