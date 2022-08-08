@@ -10,6 +10,8 @@ from astropy.table import Table, vstack, hstack
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 
+import superbit_lensing.utils as utils
+
 import ipdb
 
 def parse_args():
@@ -69,13 +71,13 @@ PSF_FITTERS = CaseInsensitiveDict({
     'GalsimPSFFlux': ngmix.fitting.GalsimPSFFluxFitter,
 })
 # These are the base classes for all allowed fitters
-BASE_FITTERS = [
+BASE_FITTERS = (
     ngmix.fitting.Fitter,
     ngmix.fitting.PSFFluxFitter,
     ngmix.fitting.GalsimFitter,
     ngmix.fitting.GalsimPSFFluxFitter,
     ngmix.gaussmom.GaussMom
-    ]
+    )
 
 def build_fitter(fit_type, fitter_name, kwargs):
     '''
@@ -113,7 +115,6 @@ def build_fitter(fit_type, fitter_name, kwargs):
 
     return fitter
 
-
 class MetacalRunner(object):
     '''
     A helper class to organize interaction w/ various ngmix
@@ -124,15 +125,25 @@ class MetacalRunner(object):
     _gal_fitters = GAL_FITTERS
     _psf_fitters = PSF_FITTERS
 
-    def __init__(self, medsfile, vb=False):
+    def __init__(self, medsfile, vb=False, logprint=None):
         '''
         medsfile: str
             The medsfile that we will use for metacalibration
         vb: bool
             Turn on for verbose printing
+        logprint: LogPrint
+            A LogPrint object, which simultaneously handles
+            logging & printing. Takes precedence over vb
         '''
 
         self.medsfile = medsfile
+
+        if logprint is None:
+            # don't log, just print
+            logprint = utils.LogPrint(None, vb)
+        else:
+            vb = logprint.vb
+        self.logprint = logprint
         self.vb = vb
 
         self.meds = NGMixMEDS(medsfile)
@@ -151,6 +162,8 @@ class MetacalRunner(object):
         self.guesser = None
         self.psf_guesser = None
         self.lm_pars = None
+
+        self.mcal_table = None
 
         return
 
@@ -236,9 +249,9 @@ class MetacalRunner(object):
                 f = getattr(fitter, 'go', None)
                 if f is not None:
                     if callable(f):
-                        print(f'WARNING! {fitter} is not a registered ' +\
-                              'ngmix fitter, but does have a go() ' +\
-                              'method. Will proceed')
+                        self.logprint(f'WARNING! {fitter} is not a ' +\
+                                 'registered ngmix fitter, but does have ' +\
+                                 ' a go() method. Will proceed')
                     else:
                         raise AttributeError(f'{fitter} does not have a ' +\
                                              'callable go() method!')
@@ -339,12 +352,12 @@ class MetacalRunner(object):
         obj_info = self.get_obj_info(iobj)
 
         args = [iobj, self.boot, obs, obj_info, self.shear_step]
-        kwargs = {'vb': self.vb}
+        kwargs = {'logprint': self.logprint}
 
         return args, kwargs
 
     @staticmethod
-    def _fit_one(iobj, bootstrapper, obs, obj_info, mcal_shear, vb=False):
+    def _fit_one(iobj, bootstrapper, obs, obj_info, mcal_shear, logprint):
         '''
         A static method to wrap the mcal fitting to allow
         for multiprocessing
@@ -359,16 +372,16 @@ class MetacalRunner(object):
             mcal return dict
         mcal_shear: float
             The applied shear to the metacal images
-        vb: bool
-            Turn on for verbose printing
+        logprint: LogPrint
+            A LogPrint object, which simultaneously handles
+            logging & printing
 
         returns: astropy.Table
             A table that holds all mcal info for the obj, including
             responsivities
         '''
 
-        if vb is True:
-            print(f'Starting fit for obj {iobj}')
+        logprint(f'Starting fit for obj {iobj}')
 
         res_dict, obs_dict = bootstrapper.go(obs)
         res_dict = add_mcal_responsivities(res_dict, mcal_shear)
@@ -389,22 +402,19 @@ class MetacalRunner(object):
             mcal_tabs = []
             k = 1
             for iobj in range(start, end):
-                if self.vb is True:
-                    print(f'Starting index {iobj}; {k} of {N}...')
-                    args, kwargs = self._get_fit_args(iobj)
-                    mcal_tabs.append(
-                        MetacalRunner._fit_one(*args, **kwargs)
-                        )
-                    k += 1
+                self.logprint(f'Starting index {iobj}; {k} of {N}...')
+                args, kwargs = self._get_fit_args(iobj)
+                mcal_tabs.append(
+                    MetacalRunner._fit_one(*args, **kwargs)
+                    )
+                k += 1
 
-            if self.vb is True:
-                print('Stacking mcal results...')
-                mcal_table = vstack(mcal_tabs)
+            self.logprint('Stacking mcal results...')
+            self.mcal_table = vstack(mcal_tabs)
 
         else:
             # multiprocessing
-            if self.vb is True:
-                print(f'Running on {ncores} cores')
+            self.logprint(f'Running on {ncores} cores')
             with Pool(ncores) as pool:
                 # TODO: I want to use self._get_fit_args() here, but
                 # a little complicated...
@@ -414,16 +424,16 @@ class MetacalRunner(object):
                                                  self.get_obslist(i),
                                                  self.get_obj_info(i),
                                                  self.shear_step,
-                                                 self.vb
+                                                 self.logprint
                                                  ) for i in range(start, end)
                                                 ]
                                                )
                                   )
+                self.mcal_table = mcal_table
 
-        if self.vb is True:
-            print('Done!')
+        self.logprint('Done!')
 
-        return mcal_table
+        return
 
     def get_obslist(self, iobj):
         return self.meds.get_obslist(iobj)
@@ -553,7 +563,7 @@ class MetacalRunner(object):
             prior=self.prior,
         )
 
-        print(f'WARING: No guesser passed, using default: {self.guesser}')
+        self.logprint(f'WARING: No guesser passed, using default: {self.guesser}')
 
         return
 
@@ -569,7 +579,8 @@ class MetacalRunner(object):
             rng=self.rng, ngauss=psf_ngauss
             )
 
-        print(f'WARING: No psf guesser passed, using default: {self.psf_guesser}')
+        self.logprint(f'WARING: No psf guesser passed, ' +\
+                      f'using default: {self.psf_guesser}')
 
         return
 
@@ -588,6 +599,21 @@ class MetacalRunner(object):
             'ftol': 1.0e-05,
             'xtol': 1.0e-05,
             }
+
+        return
+
+    def write_output(self, outfile, overwrite=False):
+        '''
+        Write mcal_table to outfile
+
+        outfile: str
+            The filename of the output mcal table
+        '''
+
+        if self.mcal_table is None:
+            raise ValueError('mcal_table is still None! Try using go()')
+
+        self.mcal_table.write(outfile, overwrite=overwrite)
 
         return
 

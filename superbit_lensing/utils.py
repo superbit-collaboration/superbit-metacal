@@ -33,8 +33,11 @@ class LogPrint(object):
         Requires a logging obj and verbosity level
         '''
 
-        # Must be a Logger object
-        assert(isinstance(log, logging.Logger))
+        # Must be either a Logger object or None
+        if log is not None:
+            if not isinstance(log, logging.Logger):
+                raise TypeError('log must be either a Logger ' +\
+                                'instance or None!')
 
         self.log = log
         self.vb = vb
@@ -46,7 +49,9 @@ class LogPrint(object):
         treat it like print()
         e.g. lprint = LogPrint(...); lprint('message')
         '''
-        self.log.info(msg)
+
+        if self.log is not None:
+            self.log.info(msg)
         if self.vb is True:
             print(msg)
 

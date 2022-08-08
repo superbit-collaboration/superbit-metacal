@@ -6,14 +6,16 @@ from argparse import ArgumentParser
 import utils
 from pipe import SuperBITPipeline, make_test_config
 
-parser = ArgumentParser()
+def parse_args():
+    parser = ArgumentParser()
 
-parser.add_argument('--fresh', action='store_true', default=False,
-                    help='Clean test directory of old outputs')
+    parser.add_argument('--fresh', action='store_true', default=False,
+                        help='Clean test directory of old outputs')
 
-def main():
+    return parser.parse_args()
 
-    args = parser.parse_args()
+def main(args):
+
     fresh = args.fresh
 
     testdir = utils.get_test_dir()
@@ -42,7 +44,8 @@ def main():
     return rc
 
 if __name__ == '__main__':
-    rc = main()
+    args = parse_args()
+    rc = main(args)
 
     if rc == 0:
         print('\nTests have completed without errors')
