@@ -175,12 +175,8 @@ class MetacalRunner(object):
         '''
 
         if seed is None:
-            # quickly check if it has been set explicitly
-            try:
-                seed = self.seed
-            except AttributeError:
-                # current time in microseconds
-                seed = int(1e6*time.time())
+            # current time in microseconds
+            seed = int(1e6*time.time())
 
         self.seed = seed
 
