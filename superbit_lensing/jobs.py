@@ -18,8 +18,11 @@ class JobsManager(object):
     # values are defaults if not present
     _opt = {
         'realizations': 1,
-        'ncores_per_job': 8,
-        'memory_per_job': 64, # GB
+        'ncores_per_job': 1,
+        'memory_per_job': 32, # GB
+        'vb': True,
+        'run_diagnostics': True,
+        'master_seed': None
     }
 
     def __init__(self, config_file, fresh=False):
@@ -48,8 +51,11 @@ class JobsManager(object):
         directory structure, config files, etc.
         '''
 
+        print('Creating jobs...')
         self.jobs = self.create_jobs()
+        print('Setting jobs seeds...')
         self.set_job_seeds()
+        print('Creating job configs...')
         self.make_job_configs()
 
         print('Done!')
@@ -67,6 +73,7 @@ class JobsManager(object):
 
         for key, default in self._opt.items():
             if key not in self.config.keys():
+                print(f'{key} not in config; using default of {default}')
                 self.config[key] = default
 
         masses = self.config['mass_bins']
@@ -75,13 +82,9 @@ class JobsManager(object):
 
         for vals, name in zip([masses, redshifts], ['mass_bins', 'z_bins']):
             if isinstance(vals, list):
-                # i = 0
                 for v in vals:
                     if not isinstance(v, float):
-                        # try:
-
                         raise TypeError(f'`{name}` entries must be a float!')
-                    # i += 1
             elif isinstance(v, float):
                 pass
             else:
@@ -135,6 +138,8 @@ class JobsManager(object):
         realizations = config['realizations']
         ncores = config['ncores_per_job']
         memory = config['memory_per_job']
+        run_diagnostics = config['run_diagnostics']
+        vb = config['vb']
 
         jobs = [] # list of ClusterJob's
         jindx = 0
@@ -150,8 +155,8 @@ class JobsManager(object):
                 utils.make_dir(cluster_dir)
 
                 # Set truth nfw filename
-                nfw_fname = f'nfw_{cl_name}.fits' # TODO: Update w/ actual names when known!
-                nfw_file = os.path.join(nfw_dir, cl_name, nfw_fname)
+                nfw_fname = f'nfw_{cl_name}.fits'
+                nfw_file = os.path.join(nfw_dir, nfw_fname)
 
                 for r in realizations:
                     # make subdirectory
@@ -170,7 +175,9 @@ class JobsManager(object):
                         'mass_mantissa': mantissa,
                         'mass_exp': exp,
                         'ncores': ncores,
-                        'memory': memory
+                        'memory': memory,
+                        'run_diagnostics': run_diagnostics,
+                        'vb': vb
                     }
                     jobs.append(ClusterJob(job_dict))
                     jindx += 1
@@ -201,27 +208,36 @@ class JobsManager(object):
 
         Njobs = len(self.jobs)
 
-        # Set master seed of *all* job seed generation
-        # to be local time in microseconds
-        ss = SeedSequence(int(time.time()*1e6))
+        # Can set a master seed for all jobs if you want predictable
+        # seeds throughout, say for validation testing
+        master_seed = self.config['master_seed']
+        if master_seed is None:
+            # Set master seed of *all* job seed generation
+            # to be local time in microseconds
+            master_seed = int(time.time()*1e6)
+        else:
+            print(f'WARNING: using master_seed={master_seed}\nfor all ' +\
+                  'subsequent job seeds. You probably only want this ' +\
+                  'for testing purposes')
+
+        ss = SeedSequence(master_seed)
 
         child_seeds = ss.spawn(Njobs)
         streams = [default_rng(s) for s in child_seeds]
 
         for i in range(len(self.jobs)):
             job_seed = int(streams[i].random()*1e16)
+            # "master seed" here is for a specific job, not all jobs
             self.jobs[i]['gs_master_seed'] = job_seed
 
         return
 
     def make_job_configs(self):
         '''
-        jobs: list
-            A list of ClusterJob's
-        config: dict
-            The prep_jobs configuration dictionary
+        Make individual cluster job pipeline configs from job list
         '''
 
+        # common galsim config for all jobs
         gs_base_config = utils.read_yaml(self.config['gs_base_config'])
 
         for i in range(len(self.jobs)):
@@ -244,7 +260,7 @@ class ClusterJob(object):
     _req_params = ['base_dir', 'run_name', 'mass', 'z', 'job_index',
                    'nfw_file', 'ncores', 'memory', 'realization']
 
-    _opt_params = ['gs_master_seed', 'gs_config']
+    _opt_params = ['gs_master_seed', 'gs_config', 'run_diagnostics', 'vb']
 
     def __init__(self, job_config):
         self._parse_job_config(job_config)
@@ -279,10 +295,23 @@ class ClusterJob(object):
             'mass': self._config['mass'], # Msol / h
             'nfw_z_halo': self._config['z'],
             'outdir': self._config['base_dir'],
-            'master_seed': self._config['gs_master_seed']
         }
-        for key, val in updates.items():
-            gs_config[key] = val
+
+        # generate needed seeds given job master seed
+        seed_names = [
+            'galobj_seed', 'cluster_seed', 'stars_seed', 'noise_seed',
+            'dithering_seed'
+            ]
+        Nseeds = len(seed_names)
+        gs_seeds = utils.generate_seeds(
+            Nseeds, master_seed=self._config['gs_master_seed']
+            )
+        seed_dict = dict(zip(seed_names, gs_seeds))
+
+        updates.update(seed_dict)
+
+        # incorporate all updates for specific job
+        gs_config.update(updates)
 
         utils.write_yaml(gs_config, gs_filepath)
 
@@ -295,14 +324,17 @@ class ClusterJob(object):
 
         config_dict = {}
 
+        # parse output filename
         run_name = self._config['run_name']
-        base_dir = self._config['base_dir']
         cl_name = self._config['cl_name']
         filename = f'{run_name}_{cl_name}.yaml'
 
         # Some key names are the same as those used by
         # config.make_run_config()
-        same_keys = ['run_name', 'gs_config', 'nfw_file']
+        same_keys = [
+            'run_name', 'gs_config', 'nfw_file', 'ncores', 'vb',
+            'run_diagnostics'
+            ]
         for key in same_keys:
             config_dict[key] = self._config[key]
 

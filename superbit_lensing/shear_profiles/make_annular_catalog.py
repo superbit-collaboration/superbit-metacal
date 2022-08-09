@@ -44,7 +44,7 @@ class AnnularCatalog():
     SExtractor catalog (set in option in main)
     """
 
-    def __init__(self, cat_info, annular_bins):
+    def __init__(self, cat_info, annular_info):
         """
         cat_info: dict
             A dictionary that must contain the paths for the SExtractor
@@ -53,17 +53,20 @@ class AnnularCatalog():
             A dictionary holding the definitions of the annular bins
         """
 
+        self.cat_info = cat_info
+        self.annular_info = annular_info
         self.se_file = cat_info['se_file']
         self.mcal_file = cat_info['mcal_file']
-        self.outfile = cat_info['outfile']
+        self.outfile = cat_info['mcal_selected']
         self.outdir = cat_info['outdir']
         self.run_name = cat_info['run_name']
         self.truth_file = cat_info['truth_file']
         self.nfw_file = cat_info['nfw_file']
 
-        self.rmin = annular_bins['rmin']
-        self.rmax = annular_bins['rmax']
-        self.nbins = annular_bins['nbins']
+        self.rmin = annular_info['rmin']
+        self.rmax = annular_info['rmax']
+        self.nbins = annular_info['nbins']
+        self.coadd_center = annular_info['coadd_center']
 
         if self.outdir is not None:
             self.outfile = os.path.join(self.outdir, self.outfile)
@@ -170,7 +173,7 @@ class AnnularCatalog():
         min_sn = 10 # orig 8 for ensemble
         min_T = 0.03 # orig 0.05
         max_T = 10 # orig inf
-        covcut = 1E-2 # orig 1 for ensemble
+        covcut = 1E-2 #E-2 # orig 1 for ensemble
 
         qualcuts = {'min_Tpsf':min_Tpsf, 'max_sn':max_sn, 'min_sn':min_sn,
                     'min_T':min_T, 'max_T':max_T, 'covcut':covcut}
@@ -303,40 +306,35 @@ class AnnularCatalog():
 
         return qualcuts
 
-    def compute_tan_shear_profile(self, outfile, plotfile, overwrite=False, vb=False,
-                                  xy_cols=['X_IMAGE', 'Y_IMAGE'],
-                                  g_cols=['g1_Rinv', 'g2_Rinv'],
-                                  nfw_center=[5031, 3353]):
+    def compute_tan_shear_profile(self, outfile, plotfile, overwrite=False, vb=False):
 
-        if self.truth_file is None:
+        cat_info = self.cat_info
+        
+        annular_info = self.annular_info
+
+        if self.cat_info['truth_file'] is None:
             truth_name = ''.join([self.run_name,'_truth.fits'])
             truth_dir = self.outdir
-            truth_file = os.path.join(truth_dir,truth_name)
+            self.cat_info['truth_file'] = os.path.join(truth_dir,truth_name)
 
         else:
             truth_file = self.truth_file
 
-        cat_info = {
-            'infile': self.outfile,
-            'truth_file': truth_file,
-            'nfw_file': self.nfw_file,
-            'xy_args': xy_cols,
-            'shear_args': g_cols
-        }
-        annular_info = {
-            'rad_args': [self.rmin, self.rmax],
-            'nfw_center': nfw_center,
-            'nbins': self.nbins
-        }
 
         if self.nfw_file is not None:
+
+            nfw_truth_tab = Table.read(self.nfw_file, format='fits')
+            nfw_truth_xcenter = nfw_truth_tab.meta['NFW_XCENTER']
+            nfw_truth_ycenter = nfw_truth_tab.meta['NFW_YCENTER']
 
             nfw_info = {
                 'nfw_file': self.nfw_file,
                 'xy_args': ['x_image','y_image'],
                 'shear_args': ['nfw_g1','nfw_g2'],
-                'nfw_center': [4784, 3190],
-            }
+                'nfw_center': [nfw_truth_xcenter, nfw_truth_ycenter]
+                }
+
+
 
         else: nfw_info = None
 
@@ -365,7 +363,7 @@ class AnnularCatalog():
 
         outfile = os.path.join(self.outdir, f'{p}shear_profile_cat.fits')
         plotfile = os.path.join(self.outdir, f'{p}shear_profile.pdf')
-
+        
         self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return
@@ -385,26 +383,51 @@ def main(args):
     overwrite = args.overwrite
     vb = args.vb
 
+    # Define position args
+    xy_cols = ['X_IMAGE', 'Y_IMAGE']
+    shear_args = ['g1_Rinv', 'g2_Rinv']
+
+    ## Get center of galaxy cluster for fitting
+    ## Throw error if image can't be read in
+
+    try:
+        coadd_im_name = os.path.join(outdir, f'{run_name}_mock_coadd.fits')
+        assert os.path.exists(coadd_im_name) is True
+        hdr = fits.getheader(coadd_im_name)
+        xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
+        coadd_center = [xcen, ycen]
+        print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
+
+    except Exception as e:
+        print('\n\n\nNo coadd image center found, cannot calculate tangential shear\n\n.')
+        raise e
+
+    ## n.b outfile is the name of the metacalibrated &
+    ## quality-selected galaxy catalog
+
     cat_info={
         'se_file': se_file,
         'mcal_file': mcal_file,
         'run_name': run_name,
-        'outfile': outfile,
+        'mcal_selected': outfile,
         'outdir': outdir,
         'truth_file': truth_file,
         'nfw_file': nfw_file
-        }
-
-    annular_bins = {
-        'rmin': rmin,
-        'rmax': rmax,
-        'nbins': nbins
     }
 
-    annular = AnnularCatalog(cat_info, annular_bins)
+    annular_info = {
+        'rmin': rmin,
+        'rmax': rmax,
+        'nbins': nbins,
+        'coadd_center': coadd_center,
+        'xy_args': xy_cols,
+        'shear_args': shear_args
+    }
+
+    annular_cat = AnnularCatalog(cat_info, annular_info)
 
     # run everything
-    annular.run(overwrite=overwrite, vb=vb)
+    annular_cat.run(overwrite=overwrite, vb=vb)
 
     return 0
 

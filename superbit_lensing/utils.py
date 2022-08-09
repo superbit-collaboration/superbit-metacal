@@ -4,7 +4,8 @@ import sys
 import yaml
 import re
 from astropy.table import Table
-import superbit_lensing as sb
+from numpy.random import SeedSequence, default_rng
+from time import time
 import numpy as np
 import subprocess
 import pdb, pudb
@@ -140,6 +141,34 @@ def write_yaml(yaml_dict, yaml_outfile):
         yaml.dump(yaml_dict, yaml_file, default_flow_style=False)
 
     return
+
+def generate_seeds(Nseeds, master_seed=None):
+    '''
+    generate a set of safe, independent seeds given a master seed
+
+    Nseeds: int
+        The number of desired independent seeds
+    master_seed: int
+        A seed that initializes the SeedSequence, if desired
+    '''
+
+    if (not isinstance(Nseeds, int)) or (Nseeds < 1):
+        raise ValueError('Nseeds must be a positive int!')
+
+    if master_seed is None:
+        # local time in microseconds
+        master_seed = int(time.time()*1e6)
+
+    ss = SeedSequence(master_seed)
+    child_seeds = ss.spawn(Nseeds)
+    streams = [default_rng(s) for s in child_seeds]
+
+    seeds = []
+    for k in range(Nseeds):
+        val = int(streams[k].random()*1e16)
+        seeds.append(val)
+
+    return seeds
 
 # def check_req_params(params, values, defaults, config):
 def check_req_params(config, params, defaults):

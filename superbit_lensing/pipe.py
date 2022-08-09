@@ -4,8 +4,8 @@ import yaml
 import logging
 import subprocess
 
-from superbit_lensing import utils
-from superbit_lensing.diagnostics import build_diagnostics
+import utils
+from diagnostics import build_diagnostics
 
 import pudb
 
@@ -230,9 +230,8 @@ class SuperBITPipeline(SuperBITModule):
 
         self.logprint = utils.LogPrint(log, self.vb)
 
-        if self._config['run_options']['ncores'] is None:
-            # use half available cores by default
-            ncores = os.cpu_count() #// 2
+        if self._config['run_options']['ncores'] in [None, 'none', 'None']:
+            ncores = os.cpu_count()
             self._config['run_options']['ncores'] = ncores
             self.logprint(f'`ncores` was not set; using all available ({ncores})')
 
@@ -637,7 +636,8 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                                                    run_name=run_name)
 
         # dummy truth
-        nfw_file = os.path.join(utils.BASE_DIR, 'runs/truth/cl3_nfwonly_truth_cat.fits')
+        nfw_file = os.path.join(
+            utils.BASE_DIR, 'runs/truth/nfw_truth_files/nfw_cl_m2.2e15_z0.44.fits')
 
         overwrite = True
         with open(filename, 'w') as f:
