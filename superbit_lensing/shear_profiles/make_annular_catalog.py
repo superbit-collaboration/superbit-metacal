@@ -334,7 +334,7 @@ class AnnularCatalog():
         # seems like not if I'm applying it just to tangential ellip, yes if it's being applied to each
         #shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
 
-        shape_noise = 0.22
+        shape_noise = 0.26
 
         print(f'shape noise is {shape_noise}')
 
