@@ -417,7 +417,7 @@ def make_a_star(ud, pud, k, wcs, affine, optics, sbparams, logprint, obj_index=N
 
         else:
             raise NotImplementedError('Star catalog sampling only implemented ' +\
-                                      'for adu_shape and adu_b!')
+                                      'for crates_shape and crates_b!')
 
         star_flux *= sbparams.exp_time / sbparams.gain
 
@@ -430,7 +430,7 @@ def make_a_star(ud, pud, k, wcs, affine, optics, sbparams, logprint, obj_index=N
         if sbparams.bandpass=='crates_b':
             star_flux *= 0.8271672
         else:
-            raise NotImplementedError('Star power law only implemented for adu_b!')
+            raise NotImplementedError('Star power law only implemented for crates_b!')
 
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)
@@ -955,7 +955,6 @@ def main():
     ## Define RNG for dither offsets
     ##
     rng = np.random.default_rng(sbparams.dithering_seed)
-    #rng = np.random.default_rng()
 
     ###
     ### MAKE SIMULATED OBSERVATIONS
