@@ -256,7 +256,11 @@ class AnnularCatalog():
         min_sn = 10 
         min_T = 0.0 
         max_T = 10 
-        min_redshift = self.cluster_redshift
+        
+        if self.cluster_redshift is not None:
+            min_redshift = self.cluster_redshift
+        else:
+            min_redshift = 0
 
         print(f'#\n# cuts applied: Tpsf_ratio>{min_Tpsf:.2f}' +\
               f' SN>{min_sn:.1f} T>{min_T:.2f} redshift={min_redshift:.3f}\n#\n')
