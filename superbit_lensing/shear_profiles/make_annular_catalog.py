@@ -468,7 +468,6 @@ def main(args):
     vb = args.vb
 
     # Define position args
-    #xy_cols = ['X_IMAGE', 'Y_IMAGE']
     xy_cols = ['X_IMAGE_se', 'Y_IMAGE_se']
     shear_args = ['g1_Rinv', 'g2_Rinv']
 
