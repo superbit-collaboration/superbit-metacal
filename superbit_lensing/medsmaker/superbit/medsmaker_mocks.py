@@ -429,9 +429,11 @@ class BITMeasurement():
         filter_arg = '-FILTER_NAME '+sextractor_config_path+'default.conv'
 
         bkg_name = detection_file.replace('.fits','.sub.fits')
-        bkg_arg = '-CHECKIMAGE_NAME ' + bkg_name
+        seg_name = detection_file.replace('.fits','.sgm.fits')
+        checkname_arg = f'-CHECKIMAGE_NAME  {bkg_name},{seg_name}'
+
         cmd = ' '.join([
-            'sex', detection_file, name_arg,  bkg_arg,  param_arg, nnw_arg,
+            'sex', detection_file, name_arg,  checkname_arg,  param_arg, nnw_arg,
             filter_arg, '-c', config_arg
             ])
         if weight_file is not None:
@@ -462,15 +464,15 @@ class BITMeasurement():
         outfile_name = f'{p}mock_coadd.fits'
         weightout_name = outfile_name.replace('.fits', '.weight.fits')
 
-        detection_filepath, weight_filepath= self._make_detection_image(outfile_name=outfile_name,weightout_name=weightout_name)
+        detection_filepath, weight_filepath = self._make_detection_image(outfile_name=outfile_name, weightout_name=weightout_name)
         self.coadd_file = detection_filepath
 
         # Set pixel scale
         self.pix_scale = utils.get_pixel_scale(self.coadd_file)
 
         # Run SExtractor on coadd
-        cat_name = self._run_sextractor(detection_filepath, 
-                                        weight_file = weight_filepath, 
+        cat_name = self._run_sextractor(detection_filepath,
+                                        weight_file=weight_filepath,
                                         sextractor_config_path=sextractor_config_path)
 
         try:
@@ -482,7 +484,7 @@ class BITMeasurement():
 
             if source_selection is True:
                 self.logprint("selecting sources")
-                self._select_sources_from_catalog(fullcat=le_cat,catname=cat_name)
+                self._select_sources_from_catalog(fullcat=le_cat, catname=cat_name)
         except Exception as e:
             self.logprint("coadd catalog could not be loaded; check name?")
             raise(e)
@@ -492,12 +494,12 @@ class BITMeasurement():
         sexcat_names = []
 
         for imagefile in self.image_files:
-            sexcat = self._run_sextractor(imagefile,weight_file=weight_file,sextractor_config_path=sextractor_config_path)
+            sexcat = self._run_sextractor(imagefile,weight_file=weight_file,        sextractor_config_path=sextractor_config_path)
             sexcat_names.append(sexcat)
 
         return sexcat_names
 
-    def make_psf_models(self, select_truth_stars=False, im_cats=None, use_coadd=False, psf_mode='piff',star_params=None):
+    def make_psf_models(self, select_truth_stars=False, im_cats=None, use_coadd=False, psf_mode='piff', star_params=None):
 
         if star_params is None:
             star_keys = {'size_key':'FLUX_RAD','mag_key':'MAG_AUTO'}
@@ -561,8 +563,6 @@ class BITMeasurement():
         Gets called by make_psf_models for every image in self.image_files
         Wrapper for PSFEx. Requires a FITS format catalog with vignettes
 
-        For stellar locus filtering, these values are not currently accessible hard-coded in
-
         '''
 
         if sextractor_config_path is None:
@@ -570,7 +570,6 @@ class BITMeasurement():
 
         # If flagged, get a "clean" star catalog for PSFEx input
         if select_truth_stars==True:
-
             # This will break for any truth file nomenclature that isn't pipeline default
             truthdir=self.data_dir
             truthcat = glob.glob(''.join([truthdir,'*truth*.fits']))[0]
@@ -717,13 +716,16 @@ class BITMeasurement():
                     image_file = self.image_files[i]
 
             bkgsub_name = image_file.replace('.fits','.sub.fits')
+            segmap_name = image_file.replace('.fits','.sgm.fits')
 
-            image_info[i]['image_path'] = bkgsub_name
-            image_info[i]['image_ext'] = 0
-            image_info[i]['weight_path'] = self.weight_file
-            image_info[i]['weight_ext'] = 0
-            image_info[i]['bmask_path'] = self.mask_file
-            image_info[i]['bmask_ext'] = 0
+            image_info[i]['image_path']  =  bkgsub_name
+            image_info[i]['image_ext']   =  0
+            image_info[i]['weight_path'] =  self.weight_file
+            image_info[i]['weight_ext']  =  0
+            image_info[i]['bmask_path']  =  self.mask_file
+            image_info[i]['bmask_ext']   =  0
+            image_info[i]['seg_path']    =  segmap_name
+            image_info[i]['seg_ext']     =  0
 
             # The default is for 0 offset between the internal numpy arrays
             # and the images, but we use the FITS standard of a (1,1) origin.
