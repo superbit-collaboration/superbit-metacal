@@ -494,7 +494,7 @@ class BITMeasurement():
         sexcat_names = []
 
         for imagefile in self.image_files:
-            sexcat = self._run_sextractor(imagefile,weight_file=weight_file,        sextractor_config_path=sextractor_config_path)
+            sexcat = self._run_sextractor(imagefile, weight_file=weight_file, sextractor_config_path=sextractor_config_path)
             sexcat_names.append(sexcat)
 
         return sexcat_names
