@@ -14,6 +14,8 @@ from astropy.table import Table
 import pudb
 import pdb
 from esutil import htm
+from statsmodels.stats.weightstats import DescrStatsW
+
 
 from shear_plots import ShearProfilePlotter
 
@@ -183,6 +185,7 @@ class Annular(object):
         self.g2 = None
         self.gcross = None
         self.gtan = None
+        self.weight = None
         self.ra = None
         self.dec = None
         self.x = None
@@ -207,7 +210,7 @@ class Annular(object):
             self.g2 = tab[self.annular_info['shear_args'][1]]
             self.ra = tab['ra']
             self.dec = tab['dec']
-
+            self.weight = tab['weight']
 
         except Exception as e:
             print('Could not load xy/g1g2/radec columns; check supplied column names?')
@@ -240,11 +243,11 @@ class Annular(object):
         self.r = shears.r
         self.gtan = shears.gtan
         self.gcross = shears.gcross
-
+        
         newtab = Table()
         newtab.add_columns(
-            [x, y, self.r, self.gtan, self.gcross],
-            names=['x', 'y', 'r', 'gcross', 'gtan']
+            [x, y, self.r, self.gtan, self.gcross, self.weight],
+            names=['x', 'y', 'r', 'gcross', 'gtan', 'weight']
             )
 
         run_name = self.run_name
@@ -299,7 +302,8 @@ class Annular(object):
         self.gtan = self.gtan[ann_file_ind]
         self.gcross = self.gcross[ann_file_ind]
         self.r = self.r[ann_file_ind]
-
+        self.weight = self.weight[ann_file_ind]
+        
         gal_redshifts = truth_bg_gals[truth_bg_ind]['redshift']
 
         return gal_redshifts
@@ -461,13 +465,18 @@ class Annular(object):
             annulus = (self.r >= b1) & (self.r < b2)
             n = counts[i]
             midpoint_r[i] = np.mean([b1, b2])
-            gtan_mean[i] = np.mean(self.gtan[annulus])
-            gcross_mean[i] = np.mean(self.gcross[annulus])
-            gtan_err[i] = np.std(self.gtan[annulus]) / np.sqrt(n)
-            gcross_err[i] = np.std(self.gcross[annulus]) / np.sqrt(n)
+
+            weighted_gtan_stats = DescrStatsW(self.gtan[annulus], weights=self.weight[annulus], ddof=0)
+            weighted_gcross_stats = DescrStatsW(self.gcross[annulus], weights=self.weight[annulus], ddof=0)
+            
+            gtan_mean[i] = weighted_gtan_stats.mean
+            gcross_mean[i] = weighted_gcross_stats.mean
+
+            gtan_err[i] = weighted_gtan_stats.std / np.sqrt(n)
+            gcross_err[i] =  weighted_gcross_stats.std / np.sqrt(n)
 
             i += 1
-
+            
         table = Table()
         table.add_columns(
             [counts, midpoint_r, gtan_mean, gcross_mean, gtan_err, gcross_err],
@@ -477,7 +486,7 @@ class Annular(object):
             )
 
         # Repeat calculation if an nfw table is supplied, and also compute shear bias
-        # Separating out the NFW loop significantly slows the code...
+
         if nfw_tab is not None:
             nfw_mid_r = np.zeros(N)
             nfw_gtan_mean = np.zeros(N)
