@@ -164,8 +164,6 @@ class AnnularCatalog():
         cluster_redshift = np.mean(cluster_gals['redshift'])
         self.cluster_redshift = cluster_redshift
 
-        truth_bg_gals = truth[truth['redshift'] > cluster_redshift]
-        
         truth_matcher = htm.Matcher(16,
                                         ra = truth_gals['ra'],
                                         dec = truth_gals['dec']
