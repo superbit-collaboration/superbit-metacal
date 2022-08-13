@@ -41,4 +41,3 @@ superbit_lensing/prep_sanity_check_config.yaml
 superbit_lensing/run_scripts/
 superbit_lensing/shear_profiles/make_annular_catalog2.py
 superbit_lensing/tests/get_avg_alpha.py
-tests/

@@ -275,6 +275,39 @@ class ClusterJob(object):
 
         return
 
+    def generate_job_seeds(self):
+        '''
+        generate needed seeds given job master seed
+        '''
+
+        seed_names = [
+            'galobj_seed', 'cluster_seed', 'stars_seed', 'noise_seed',
+            'dithering_seed', 'psf_seed', 'mcal_seed', 'nfw_seed'
+            ]
+        Nseeds = len(seed_names)
+        seeds = utils.generate_seeds(
+            Nseeds, master_seed=self._config['gs_master_seed']
+            )
+
+        self.seeds = dict(zip(seed_names, seeds))
+
+        # some seeds are stored in the gs_config
+        self.gs_seeds = {}
+        gs_seed_names = [
+            'galobj_seed', 'cluster_seed', 'stars_seed', 'noise_seed',
+            'dithering_seed'
+            ]
+        for name in gs_seed_names:
+            self.gs_seeds[name] = self.seeds[name]
+
+        # some seeds are separate from the gs_config
+        self.misc_seeds = {}
+        seed_names = ['psf_seed', 'mcal_seed', 'nfw_seed']
+        for name in seed_names:
+            self.misc_seeds[name] = self.seeds[name]
+
+        return
+
     def make_gs_config(self, gs_base_config):
         '''
         Make a job-specific GalSim config file given a base config
@@ -297,18 +330,7 @@ class ClusterJob(object):
             'outdir': self._config['base_dir'],
         }
 
-        # generate needed seeds given job master seed
-        seed_names = [
-            'galobj_seed', 'cluster_seed', 'stars_seed', 'noise_seed',
-            'dithering_seed'
-            ]
-        Nseeds = len(seed_names)
-        gs_seeds = utils.generate_seeds(
-            Nseeds, master_seed=self._config['gs_master_seed']
-            )
-        seed_dict = dict(zip(seed_names, gs_seeds))
-
-        updates.update(seed_dict)
+        updates.update(self.gs_seeds)
 
         # incorporate all updates for specific job
         gs_config.update(updates)
@@ -343,6 +365,9 @@ class ClusterJob(object):
         # as already handled by run manager w/ --fresh
         config_dict['outfile'] = filename
         config_dict['outdir'] = self._config['base_dir']
+
+        # for seeds not in gs_config
+        config_dict['seeds'] = self.misc_seeds
 
         make_run_config_from_dict(config_dict)
 

@@ -513,7 +513,7 @@ class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
     _opt_fields = ['outdir', 'run_name', 'truth_file', 'nfw_file', 'Nresample',
                    'rmin', 'rmax', 'nbins']
-    _flag_fields = ['overwrite', 'vb']
+    _flag_fields = ['overwrite', 'vb', 'redshift_select']
 
     def __init__(self, name, config):
         super(ShearProfileModule, self).__init__(name, config)
