@@ -11,11 +11,11 @@ from scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.table import Table
-import pudb
-import pdb
 from esutil import htm
 
 from shear_plots import ShearProfilePlotter
+
+import ipdb
 
 parser = ArgumentParser()
 
@@ -248,7 +248,9 @@ class Annular(object):
             )
 
         run_name = self.run_name
-        outfile = os.path.join(outdir, f'{run_name}_transformed_shear_tab.fits')
+        outfile = os.path.join(
+            outdir, f'{run_name}_transformed_shear_tab.fits'
+            )
         newtab.write(outfile, format='fits', overwrite=overwrite)
 
         return
@@ -294,7 +296,8 @@ class Annular(object):
                                             radius = 1./3600.
                                             )
 
-        print(f'# {len(dist)} of {len(self.ra)} objects matched to truth background galaxies')
+        print(f'# {len(dist)} of {len(self.ra)} objects matched to ' +\
+              'truth background galaxies')
 
         self.gtan = self.gtan[ann_file_ind]
         self.gcross = self.gcross[ann_file_ind]
@@ -304,20 +307,24 @@ class Annular(object):
 
         return gal_redshifts
 
-    def process_nfw(self, gal_redshifts, outdir='.', overwrite=False):
+    def process_nfw(self, gal_redshifts, Nresample, outdir='.',
+                    overwrite=False):
         '''
         Subsample theoretical galaxy redshift distribution to match redshift
         distribution of detected galaxy catalog using a sort of MC rejection
         sampling algorithm
 
         Also compute g_tan, g_cross
+
+        Nresample: int
+            Number of times to resample NFW profile redshifts
         '''
 
         if self.nfw_info is not None:
 
             # Resample so redshift distribution matches input galaxies
             nfw_tab = self._nfw_resample_redshift(
-                gal_redshifts, outdir=outdir, overwrite=overwrite
+                gal_redshifts, Nresample, outdir=outdir, overwrite=overwrite,
                 )
 
             # Calculate tangential and cross shears for nfw
@@ -334,7 +341,7 @@ class Annular(object):
 
         return nfw_tab
 
-    def _nfw_resample_redshift(self, gal_redshifts, outdir='.', nfactor=100,
+    def _nfw_resample_redshift(self, gal_redshifts, nfactor, outdir='.',
                                overwrite=False):
         '''
         Subsample theoretical galaxy redshift distribution to match redshift
@@ -535,7 +542,7 @@ class Annular(object):
 
         return
 
-    def run(self, outfile, plotfile, overwrite=False):
+    def run(self, outfile, plotfile, Nresample, overwrite=False):
 
         outdir = os.path.dirname(outfile)
 
@@ -549,7 +556,9 @@ class Annular(object):
         gal_redshifts = self.redshift_select()
 
         # Resample NFW file (if supplied) to match galaxy redshift distribution; otherwise return None
-        nfw_tab = self.process_nfw(gal_redshifts, outdir=outdir, overwrite=overwrite)
+        nfw_tab = self.process_nfw(
+            gal_redshifts, Nresample, outdir=outdir, overwrite=overwrite
+            )
 
         # Compute azimuthally averaged shear profiles
         profile_tab = self.compute_profile(outfile, nfw_tab, overwrite=overwrite)

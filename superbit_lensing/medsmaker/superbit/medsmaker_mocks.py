@@ -6,7 +6,7 @@ import piff
 from astropy.io import fits
 import string
 from pathlib import Path
-import pdb, pudb
+import ipdb
 from astropy import wcs
 import fitsio
 import esutil as eu
@@ -35,7 +35,7 @@ TO DO:
     - Run medsmaker
 '''
 
-def piff_extender(piff_file,stamp_size=20):
+def piff_extender(piff_file, stamp_size=20):
     """
     Utility function to add the get_rec function expected
     by the MEDS package
@@ -59,7 +59,6 @@ def piff_extender(piff_file,stamp_size=20):
 
         def get_rec(self,row,col):
 
-            #print('Working!!!')
             fake_pex = self.psf.draw(x=col, y=row, stamp_size=stamp_size).array
 
             return fake_pex
@@ -77,7 +76,6 @@ def piff_extender(piff_file,stamp_size=20):
     psf_extended.psf = psf
 
     return psf_extended
-
 
 class BITMeasurement():
     def __init__(self, image_files=None, flat_files=None, dark_files=None,
@@ -242,7 +240,7 @@ class BITMeasurement():
                 bias_frame = fitsio.read(ibias_file)
                 bias_array.append(bias_frame)
                 master_bias = np.median(bias_array,axis=0)
-                fitsio.write(os.path.join(self.work_path,'master_bias_median.fits'),master_bias,clobber=True)
+                fitsio.write(os.path.join(self.work_path,'master_bias_median.fits'),master_bias,overwrite=True)
         else:
         """
         master_bias = fitsio.read(bname)
@@ -256,7 +254,7 @@ class BITMeasurement():
                 dark_frame = ((fitsio.read(idark_file)) - master_bias) * 1./time
                 dark_array.append(dark_frame)
                 master_dark = np.median(dark_array,axis=0)
-                fitsio.write(os.path.join(self.mask_path,'master_dark_median.fits'),master_dark,clobber=True)
+                fitsio.write(os.path.join(self.mask_path,'master_dark_median.fits'),master_dark,overwrite=True)
         else:
             master_dark=fitsio.read(dname)
 
@@ -272,7 +270,7 @@ class BITMeasurement():
                 flat_array.append(flat_frame)
                 master_flat1 = np.median(flat_array,axis=0)
                 master_flat = master_flat1/np.median(master_flat1)
-                fitsio.write(os.path.join(self.mask_path,'master_flat_median.fits'),master_flat,clobber=True)
+                fitsio.write(os.path.join(self.mask_path,'master_flat_median.fits'),master_flat,overwrite=True)
         else:
             master_flat=fitsio.read(fname)
         if not skip_sci_reduce:
@@ -377,8 +375,6 @@ class BITMeasurement():
             # rc = utils.run_command(cmd, logprint=self.logprint)
             os.system(cmd)
             self.logprint('\n')
-
-        # pudb.set_trace()
 
         return detection_file, weight_file
 
@@ -807,9 +803,9 @@ class BITMeasurement():
 
         return obj_str
 
-    def run(self,outfile='mock_superbit.meds', clobber=False, source_selection=False,
+    def run(self,outfile='mock_superbit.meds', overwrite=False, source_selection=False,
             select_truth_stars=False,psf_mode='piff'):
-        # Make a MEDS, clobbering if needed
+        # Make a MEDS, overwriteing if needed
 
         #### ONLY FOR DEBUG
         #### Set up the paths to the science and calibration data
@@ -821,10 +817,10 @@ class BITMeasurement():
         ####################
 
         # Reduce the data.
-        # self.reduce(overwrite=clobber,skip_sci_reduce=True)
+        # self.reduce(overwrite=overwrite,skip_sci_reduce=True)
         # Make a mask.
         # NB: can also read in a pre-existing mask by setting self.mask_file
-        #self.make_mask(mask_name='mask.fits',overwrite=clobber)
+        #self.make_mask(mask_name='mask.fits',overwrite=overwrite)
 
         # Combine images, make a catalog.
         config_path = os.path.join(self.base_dir, 'superbit/astro_config/')

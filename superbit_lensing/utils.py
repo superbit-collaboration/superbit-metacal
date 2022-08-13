@@ -5,12 +5,14 @@ import yaml
 import re
 from astropy.table import Table
 from numpy.random import SeedSequence, default_rng
-from time import time
+import time
 import numpy as np
 import subprocess
-import pdb, pudb
 from astropy.io import fits
 import astropy.wcs as wcs
+
+import pdb
+import ipdb
 
 class ForkedPdb(pdb.Pdb):
     """A Pdb subclass that may be used

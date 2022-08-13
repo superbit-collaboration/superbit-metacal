@@ -1,5 +1,5 @@
 import numpy as np
-import pdb, pudb
+import ipdb
 from astropy.table import Table, vstack, hstack, join
 import glob
 import sys, os
@@ -9,32 +9,38 @@ from argparse import ArgumentParser
 
 from annular_jmac import Annular
 
-parser = ArgumentParser()
+def parse_args():
 
-parser.add_argument('se_file', type=str,
-                    help='SExtractor catalog filename')
-parser.add_argument('mcal_file', type=str,
-                    help='Metacal catalog filename')
-parser.add_argument('outfile', type=str,
-                    help='Output selected source catalog filename')
-parser.add_argument('-run_name', type=str, default=None,
-                    help='Name of simulation run')
-parser.add_argument('-outdir', type=str, default=None,
-                    help='Output directory')
-parser.add_argument('-truth_file', type=str, default=None,
-                    help='Truth file containing redshifts')
-parser.add_argument('-nfw_file', type=str, default=None,
-                    help='Theory NFW shear catalog')
-parser.add_argument('-rmin', type=float, default=100,
-                    help='Starting radius value (in pixels)')
-parser.add_argument('-rmax', type=float, default=5200,
-                    help='Ending radius value (in pixels)')
-parser.add_argument('-nbins', type=int, default=18,
-                    help='Number of radial bins')
-parser.add_argument('--overwrite', action='store_true', default=False,
-                    help='Set to overwrite output files')
-parser.add_argument('--vb', action='store_true', default=False,
-                    help='Turn on for verbose prints')
+    parser = ArgumentParser()
+
+    parser.add_argument('se_file', type=str,
+                        help='SExtractor catalog filename')
+    parser.add_argument('mcal_file', type=str,
+                        help='Metacal catalog filename')
+    parser.add_argument('outfile', type=str,
+                        help='Output selected source catalog filename')
+    parser.add_argument('-run_name', type=str, default=None,
+                        help='Name of simulation run')
+    parser.add_argument('-outdir', type=str, default=None,
+                        help='Output directory')
+    parser.add_argument('-truth_file', type=str, default=None,
+                        help='Truth file containing redshifts')
+    parser.add_argument('-nfw_file', type=str, default=None,
+                        help='Theory NFW shear catalog')
+    parser.add_argument('-Nresample', type=int, default=100,
+                        help='The number of NFW redshift resamples to compute')
+    parser.add_argument('-rmin', type=float, default=100,
+                        help='Starting radius value (in pixels)')
+    parser.add_argument('-rmax', type=float, default=5200,
+                        help='Ending radius value (in pixels)')
+    parser.add_argument('-nbins', type=int, default=18,
+                        help='Number of radial bins')
+    parser.add_argument('--overwrite', action='store_true', default=False,
+                        help='Set to overwrite output files')
+    parser.add_argument('--vb', action='store_true', default=False,
+                        help='Turn on for verbose prints')
+
+    return parser.parse_args()
 
 class AnnularCatalog():
 
@@ -62,6 +68,7 @@ class AnnularCatalog():
         self.run_name = cat_info['run_name']
         self.truth_file = cat_info['truth_file']
         self.nfw_file = cat_info['nfw_file']
+        self.Nresample = cat_info['Nresample']
 
         self.rmin = annular_info['rmin']
         self.rmax = annular_info['rmax']
@@ -306,10 +313,11 @@ class AnnularCatalog():
 
         return qualcuts
 
-    def compute_tan_shear_profile(self, outfile, plotfile, overwrite=False, vb=False):
+    def compute_tan_shear_profile(self, outfile, plotfile, Nresample,
+                                  overwrite=False, vb=False):
 
         cat_info = self.cat_info
-        
+
         annular_info = self.annular_info
 
         if self.cat_info['truth_file'] is None:
@@ -343,7 +351,7 @@ class AnnularCatalog():
         # runner = AnnularRunner(cat_info, annular_info)
         annular = Annular(cat_info, annular_info, nfw_info, run_name=self.run_name, vb=vb)
 
-        annular.run(outfile, plotfile, overwrite=overwrite)
+        annular.run(outfile, plotfile, Nresample, overwrite=overwrite)
 
         return
 
@@ -363,8 +371,11 @@ class AnnularCatalog():
 
         outfile = os.path.join(self.outdir, f'{p}shear_profile_cat.fits')
         plotfile = os.path.join(self.outdir, f'{p}shear_profile.pdf')
-        
-        self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
+        Nresample = self.Nresample
+
+        self.compute_tan_shear_profile(
+            outfile, plotfile, Nresample, overwrite=overwrite, vb=vb
+            )
 
         return
 
@@ -377,6 +388,7 @@ def main(args):
     outdir = args.outdir
     truth_file = args.truth_file
     nfw_file = args.nfw_file
+    Nresample = args.Nresample
     rmin = args.rmin
     rmax = args.rmax
     nbins = args.nbins
@@ -412,7 +424,8 @@ def main(args):
         'mcal_selected': outfile,
         'outdir': outdir,
         'truth_file': truth_file,
-        'nfw_file': nfw_file
+        'nfw_file': nfw_file,
+        'Nresample': Nresample
     }
 
     annular_info = {
@@ -433,7 +446,7 @@ def main(args):
 
 if __name__ == '__main__':
 
-    args = parser.parse_args()
+    args = parse_args()
 
     rc = main(args)
 

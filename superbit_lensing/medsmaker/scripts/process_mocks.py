@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 import superbit_lensing.utils as utils
 from superbit_lensing.medsmaker.superbit import medsmaker_mocks as medsmaker
 
-import pdb, pudb, traceback
+import ipdb
 
 ## Get the location of the main Medmaker superbit package.
 # filepath = Path(os.path.realpath(__file__))
