@@ -128,19 +128,18 @@ def main(args):
     }
     gal_fitter = build_fitter('gal', 'fitter', gal_kwargs)
 
-    # NOTE: This won't produce a Tpsf quantity...
-    # 4 coelliptical gaussians for PSF fit
-    # TODO: replace this w/ actual MEDS PSF!
-    # psf_kwargs = {
-    #     'ngauss': 4
-    # }
-    # psf_fitter = build_fitter('psf', 'coellip', psf_kwargs)
-
     # NOTE: just a single Gauss for testing
     psf_kwargs = {
         'model': 'gauss'
     }
     psf_fitter = build_fitter('psf', 'fitter', psf_kwargs)
+
+    # NOTE:Could do something else. For example:
+    # 4 coelliptical gaussians for PSF fit
+    # psf_kwargs = {
+    #     'ngauss': 4
+    # }
+    # psf_fitter = build_fitter('psf', 'coellip', psf_kwargs)
 
     # NOTE: can set specific guessers if desired. For now, we default
     # to those recommended in the ngmix examples page
