@@ -1,6 +1,7 @@
-import os, time
-from argparse import ArgumentParser
+import numpy as np
+import os
 import time
+from argparse import ArgumentParser
 
 # TODO: annoying thing we have to do while testing:
 import sys
@@ -75,7 +76,7 @@ def main(args):
     #-----------------------------------------------------------------
     # Initial setup
 
-    if outdir is None:
+    if outdir is not None:
         outdir = os.getcwd()
 
     if not os.path.isdir(outdir):
@@ -85,6 +86,13 @@ def main(args):
     logfile = 'mcal_fitting.log'
     log = utils.setup_logger(logfile, logdir=logdir)
     logprint = utils.LogPrint(log, vb)
+
+    #-----------------------------------------------------------------
+    # Create & setup metacal runner
+
+    mcal_runner = MetacalRunner(medsfile, logprint=logprint)
+
+    Ncat = mcal_runner.Nobjs
 
     if index_start == None:
         index_start = 0
@@ -99,20 +107,14 @@ def main(args):
                  'version of metacal running. Only here to not break ' +\
                  'old versions!')
 
-    #-----------------------------------------------------------------
-    # Create & setup metacal runner
 
-    mcal_runner = MetacalRunner(medsfile, logprint=logprint)
-
-    Ncat = mcal_runner.Nobjs
     if index_end > Ncat:
         logprint(f'Warning: index_end={index_end} larger than ' +\
                  f'catalog size of {Ncat}; running over full catalog')
         index_end = Ncat
 
     if seed is None:
-        # default to local time in microseconds
-        seed = int(time.time()*1e6)
+        seed = np.random.randint(0, 2**32-1)
     logprint(f'Using metacal seed {seed}')
     mcal_runner.set_seed(seed)
 
@@ -126,12 +128,19 @@ def main(args):
     }
     gal_fitter = build_fitter('gal', 'fitter', gal_kwargs)
 
+    # NOTE: This won't produce a Tpsf quantity...
     # 4 coelliptical gaussians for PSF fit
     # TODO: replace this w/ actual MEDS PSF!
+    # psf_kwargs = {
+    #     'ngauss': 4
+    # }
+    # psf_fitter = build_fitter('psf', 'coellip', psf_kwargs)
+
+    # NOTE: just a single Gauss for testing
     psf_kwargs = {
-        'ngauss': 4
+        'model': 'gauss'
     }
-    psf_fitter = build_fitter('psf', 'coellip', psf_kwargs)
+    psf_fitter = build_fitter('psf', 'fitter', psf_kwargs)
 
     # NOTE: can set specific guessers if desired. For now, we default
     # to those recommended in the ngmix examples page
@@ -147,7 +156,8 @@ def main(args):
     #-----------------------------------------------------------------
     # Run metacal
 
-    logprint(f'Starting metacal fitting with {ncores} cores')
+    s = '' if ncores==1 else 's'
+    logprint(f'Starting metacal fitting with {ncores} core{s}')
 
     start = time.time()
 
@@ -159,14 +169,14 @@ def main(args):
     logprint(f'Total fitting and stacking time: {T} seconds')
 
     N = index_end - index_start
-    logprint(f'{T/N} seconds per object (wall time)')
-    logprint(f'{T/N*ncores} seconds per object (CPU time)')
+    logprint(f'{T/N:.4} seconds per object (wall time)')
+    logprint(f'{T/N*ncores:.4} seconds per object (CPU time)')
     #-----------------------------------------------------------------
     # Save output metacal catalog
 
-    out = os.path.join(outdir, outfile)
-    logprint(f'Writing results to {out}')
-    mcal_runner.write_output(out, overwrite=overwrite)
+    outfile = os.path.join(outdir, outfile)
+    logprint(f'Writing results to {outfile}')
+    mcal_runner.write_output(outfile, overwrite=overwrite)
 
     logprint('Done!')
 

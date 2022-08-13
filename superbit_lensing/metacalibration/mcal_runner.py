@@ -3,7 +3,7 @@ from ngmix.medsreaders import NGMixMEDS
 from ngmix.fitting import Fitter
 import numpy as np
 import os
-import collections
+from collections.abc import Mapping
 from multiprocessing import Pool
 import time
 from astropy.table import Table, vstack, hstack
@@ -28,7 +28,7 @@ def parse_args():
 
     return parser.parse_args()
 
-class CaseInsensitiveDict(collections.Mapping):
+class CaseInsensitiveDict(Mapping):
     '''
     We want a case-insensitive dictionary to ease
     the mapping between fitter class names & user
@@ -175,8 +175,7 @@ class MetacalRunner(object):
         '''
 
         if seed is None:
-            # current time in microseconds
-            seed = int(1e6*time.time())
+            seed = np.random.randint(0, 2**32-1)
 
         self.seed = seed
 
@@ -379,10 +378,29 @@ class MetacalRunner(object):
 
         logprint(f'Starting fit for obj {iobj}')
 
-        res_dict, obs_dict = bootstrapper.go(obs)
-        res_dict = add_mcal_responsivities(res_dict, mcal_shear)
+        try:
+            # first check if object is flagged
+            flagged, flag_name = check_obj_flags(obj_info)
 
-        return mcal_dict2tab(res_dict, obj_info)
+            if flagged is True:
+                raise Exception(f'Object flagged with {flag_name}')
+
+            res_dict, obs_dict = bootstrapper.go(obs)
+
+            # R_gamma only for now - selections later
+            add_mcal_responsivities(res_dict, mcal_shear)
+
+            # We want to keep some of the fitted PSF quantities,
+            # such as Tpsf
+            add_psf_cols(res_dict, obs_dict)
+
+            return mcal_dict2tab(res_dict, obs_dict, obj_info)
+
+        except Exception as e:
+            logprint(f'object {iobj}: Exception: {e}')
+            logprint(f'object {iobj} failed, skipping...')
+
+            return Table()
 
     def go(self, start, end, ncores=1):
         '''
@@ -394,11 +412,12 @@ class MetacalRunner(object):
             raise ValueError('end must be greater than start!')
         N = end - start
 
+        self.logprint(f'Starting metacal fitting for {N} objects...')
+
         if ncores == 1:
             mcal_tabs = []
             k = 1
             for iobj in range(start, end):
-                self.logprint(f'Starting index {iobj}; {k} of {N}...')
                 args, kwargs = self._get_fit_args(iobj)
                 mcal_tabs.append(
                     MetacalRunner._fit_one(*args, **kwargs)
@@ -414,19 +433,23 @@ class MetacalRunner(object):
             with Pool(ncores) as pool:
                 # TODO: I want to use self._get_fit_args() here, but
                 # a little complicated...
-                mcal_table = vstack(pool.starmap(self._fit_one,
-                                               [(i,
-                                                 self.boot,
-                                                 self.get_obslist(i),
-                                                 self.get_obj_info(i),
-                                                 self.shear_step,
-                                                 self.logprint
-                                                 ) for i in range(start, end)
-                                                ]
-                                               )
-                                  )
-                self.mcal_table = mcal_table
+                self.mcal_table = vstack(pool.starmap(
+                    self._fit_one,
+                    [(i,
+                      self.boot,
+                      self.get_obslist(i),
+                      self.get_obj_info(i),
+                      self.shear_step,
+                      self.logprint
+                      # TODO: make this work!
+                      # *args, **kwargs = self._get_fit_args(i)
+                      ) for i in range(start, end)
+                     ])
+                )
 
+        Nfailed = N - len(self.mcal_table)
+        self.logprint(f'{Nfailed} objects failed metaalibration fitting ' +\
+                      'and are excluded from output catalog')
         self.logprint('Done!')
 
         return
@@ -454,6 +477,7 @@ class MetacalRunner(object):
 
         obj_info['meds_indx'] = iobj
         obj_info['id'] = obj['id']
+        obj_info['ncutout'] = obj['ncutout']
         obj_info['ra'] = obj['ra']
         obj_info['dec'] = obj['dec']
         obj_info['X_IMAGE'] = obj['X_IMAGE']
@@ -570,10 +594,20 @@ class MetacalRunner(object):
         NOTE: need to check what is best to put here!
         '''
 
+        if self.prior is None:
+            raise ValueError('prior must be setup before using the ' +\
+                             'default guesser!')
+
+        # make parameter guesses based on a psf flux and a rough T
+        self.psf_guesser = ngmix.guessers.PriorGuesser(
+            prior=self.prior,
+        )
+
+        # TODO: Decide what to do w/ this!
         # special guesser for coelliptical gaussians
-        self.psf_guesser = ngmix.guessers.CoellipPSFGuesser(
-            rng=self.rng, ngauss=psf_ngauss
-            )
+        # self.psf_guesser = ngmix.guessers.CoellipPSFGuesser(
+        #     rng=self.rng, ngauss=psf_ngauss
+        #     )
 
         self.logprint(f'WARING: No psf guesser passed, ' +\
                       f'using default: {self.psf_guesser}')
@@ -640,13 +674,19 @@ def add_mcal_responsivities(mcal_res, mcal_shear):
 
     mcal_res['MC'] = MC
 
-    return mcal_res
+    return
 
-def mcal_dict2tab(mcal, obj_info):
+def mcal_dict2tab(mcal_dict, obs_dict, obj_info):
     '''
-    mcal is the dict returned by ngmix.get_metacal_result()
-    obj_info is an array with MEDS identification info like id, ra, dec
-    not returned by the function
+    mcal_dict: dict
+        The main result dictionary returned by the ngmix metacal
+        bootstrapper.go() func
+    obs_dict: dict
+        The ngmix observation dictionary returned by the ngmix metacal
+        boostrapper.go() func, containing meta info like the PSF fit
+    obj_info: np.recarray, Table
+        An array or astropy table with MEDS identification info like
+        id, ra, dec not returned by the bootstrapper
     '''
 
     # Annoying, but have to do this to make Table from scalars
@@ -655,21 +695,21 @@ def mcal_dict2tab(mcal, obj_info):
 
     tab_names = ['noshear', '1p', '1m', '2p', '2m','MC']
     for name in tab_names:
-        tab = mcal[name]
+        tab = mcal_dict[name]
 
         for key, val in tab.items():
             tab[key] = np.array([val])
 
-        mcal[name] = tab
+        mcal_dict[name] = tab
 
     id_tab = Table(data=obj_info)
 
-    tab_noshear = Table(mcal['noshear'])
-    tab_1p = Table(mcal['1p'])
-    tab_1m = Table(mcal['1m'])
-    tab_2p = Table(mcal['2p'])
-    tab_2m = Table(mcal['2m'])
-    tab_MC = Table(mcal['MC'])
+    tab_noshear = Table(mcal_dict['noshear'])
+    tab_1p = Table(mcal_dict['1p'])
+    tab_1m = Table(mcal_dict['1m'])
+    tab_2p = Table(mcal_dict['2p'])
+    tab_2m = Table(mcal_dict['2m'])
+    tab_MC = Table(mcal_dict['MC'])
 
     join_tab = hstack([id_tab, hstack([tab_noshear,
                                        tab_1p,
@@ -683,6 +723,49 @@ def mcal_dict2tab(mcal, obj_info):
                       )
 
     return join_tab
+
+def add_psf_cols(mcal_dict, obs_dict):
+    '''
+    Add PSF fit quantities to the metacal results dictionary
+
+    mcal_dict: dict
+        The main result dictionary returned by the ngmix metacal
+        bootstrapper.go() func
+    obs_dict: dict
+        The ngmix observation dictionary returned by the ngmix metacal
+        boostrapper.go() func, containing meta info like the PSF fit
+    '''
+
+    Nexp = len(obs_dict['noshear'])
+
+    # For now, we'll just add a mean Tpsf
+    col = 'Tpsf'
+    for shear_type in ['noshear', '1p', '1m', '2p', '2m']:
+        mcal_dict[shear_type][col] = np.mean([
+            obs_dict[shear_type][i].psf.meta['result']['T']
+            for i in range(Nexp)])
+
+    return
+
+def check_obj_flags(obj, min_cutouts=1):
+    '''
+    Check if MEDS obj has any flags.
+
+    obj: meds.MEDS row
+        An element of the meds.MEDS catalog
+    min_cutouts: int
+        Minimum number of image cutouts per object
+
+    returns: is_flagged (bool), flag_name (str)
+    '''
+
+    # check that at least min_cutouts is stored in image data
+    if obj['ncutout'] < min_cutouts:
+        return True, 'min_cutouts'
+
+    # other flags...
+
+    return False, None
 
 def main(args):
     start = args.start
