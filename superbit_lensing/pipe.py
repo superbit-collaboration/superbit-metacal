@@ -7,7 +7,7 @@ import subprocess
 import utils
 from diagnostics import build_diagnostics
 
-import pudb
+import ipdb
 
 class SuperBITModule(dict):
     '''
@@ -371,7 +371,7 @@ class GalSimModule(SuperBITModule):
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
     _opt_fields = ['fname_base', 'run_name', 'meds_coadd', 'outdir', 'psf_type']
-    _flag_fields = ['clobber', 'source_select', 'select_truth_stars', 'vb']
+    _flag_fields = ['overwrite', 'source_select', 'select_truth_stars', 'vb']
 
     def __init__(self, name, config):
         super(MedsmakerModule, self).__init__(name, config)
@@ -415,8 +415,8 @@ class MedsmakerModule(SuperBITModule):
 
 class MetacalModule(SuperBITModule):
     _req_fields = ['meds_file', 'outfile']
-    _opt_fields = ['outdir','start', 'end', 'n']
-    _flag_fields = ['plot', 'vb']
+    _opt_fields = ['outdir','start', 'end', 'seed', 'ncores', 'shear', 'ntry']
+    _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
         super(MetacalModule, self).__init__(name, config)
@@ -445,14 +445,14 @@ class MetacalModule(SuperBITModule):
         outfile = self._config['outfile']
         mcal_dir = os.path.join(utils.get_module_dir(),
                                 'metacalibration')
-        filepath = os.path.join(mcal_dir, 'ngmix_fit_superbit3.py')
+        filepath = os.path.join(mcal_dir, 'run_mcal.py')
 
         base = f'python {filepath} {meds_file} {outfile}'
 
         # Set up some default values that require the run config
-        col = 'n'
+        col = 'ncores'
         if col not in self._config:
-            self._config['n'] = run_options['ncores']
+            self._config[col] = run_options[col]
 
         options = self._setup_options(run_options)
 
@@ -511,7 +511,8 @@ class NgmixFitModule(SuperBITModule):
 
 class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
-    _opt_fields = ['outdir', 'run_name','truth_file','nfw_file']
+    _opt_fields = ['outdir', 'run_name', 'truth_file', 'nfw_file', 'Nresample',
+                   'rmin', 'rmax', 'nbins']
     _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
@@ -621,11 +622,11 @@ def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
 
     return filename
 
-def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
+def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False):
     if outdir is not None:
         filename = os.path.join(outdir, config_file)
 
-    if (clobber is True) or (not os.path.exists(filename)):
+    if (overwrite is True) or (not os.path.exists(filename)):
         run_name = 'pipe_test'
         outdir = os.path.join(utils.TEST_DIR, run_name)
         se_file = os.path.join(outdir, f'{run_name}_mock_coadd_cat.ldac')
@@ -639,7 +640,6 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
         nfw_file = os.path.join(
             utils.BASE_DIR, 'runs/truth/nfw_truth_files/nfw_cl_m2.2e15_z0.44.fits')
 
-        overwrite = True
         with open(filename, 'w') as f:
             # Create dummy config file
             CONFIG = {
@@ -647,18 +647,19 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'run_name': run_name,
                     'outdir': outdir,
                     'vb': True,
-                    'ncores': 8,
+                    # 'ncores': 8,
+                    'ncores': 1,
                     'run_diagnostics': True,
                     'order': [
-                        'galsim',
-                        'medsmaker',
+                        # 'galsim',
+                        # 'medsmaker',
                         'metacal',
                         'shear_profile',
                         'ngmix_fit'
                         ]
                     },
                 'galsim': {
-                    'config_file': 'pipe_test.yaml',
+                    'config_file': 'spencer_pipe_test.yaml',
                     # 'config_file': 'superbit_parameters_forecast.yaml',
                     'config_dir': os.path.join(utils.MODULE_DIR,
                                                'galsim',
@@ -671,13 +672,15 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'outfile': meds_file,
                     'fname_base': run_name,
                     'run_name': run_name,
-                    'outdir': outdir
+                    'outdir': outdir,
+                    'overwrite': overwrite
                 },
                 'metacal': {
                     'meds_file': meds_file,
                     'outfile': mcal_file,
                     'outdir': outdir,
-                    'end': 2500
+                    'end': 10,
+                    'overwrite': overwrite
                 },
                 'ngmix_fit': {
                     'meds_file': meds_file,
@@ -693,6 +696,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'nfw_file': nfw_file,
                     'outdir': outdir,
                     'run_name': run_name,
+                    'Nresample': 1, # to run much faster
                     'overwrite': overwrite,
                 }
             }
