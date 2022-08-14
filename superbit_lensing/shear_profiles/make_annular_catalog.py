@@ -225,7 +225,7 @@ class AnnularCatalog():
 
         else:
             truth_file = self.truth_file
-        
+
         # Filter out foreground galaxies using redshifts in truth file
         self._redshift_select(truth_file, overwrite=overwrite)
 

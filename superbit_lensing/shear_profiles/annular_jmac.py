@@ -243,7 +243,7 @@ class Annular(object):
         self.r = shears.r
         self.gtan = shears.gtan
         self.gcross = shears.gcross
-        
+
         newtab = Table()
         newtab.add_columns(
             [x, y, self.r, self.gtan, self.gcross, self.weight],

@@ -678,7 +678,7 @@ class BITMeasurement():
         psfcat_arg = f'input.cat_file_name={psfcat_name}'
         output_name = imagefile.split('/')[-1].replace('.fits', '.piff')
         full_output_name = os.path.join(output_dir, output_name)
-        output_arg = f'output.file_name={output_name}, output.dir={output_dir}'
+        output_arg = f'output.file_name={output_name} output.dir={output_dir}'
         cmd = f'piffify {run_piff_config} {image_arg} {psfcat_arg} {output_arg}'
 
         self.logprint('piff cmd is ' + cmd)

@@ -387,12 +387,9 @@ class MetacalRunner(object):
 
             res_dict, obs_dict = bootstrapper.go(obs)
 
-            # R_gamma only for now - selections later
-            add_mcal_responsivities(res_dict, mcal_shear)
-
-            # We want to keep some of the fitted PSF quantities,
-            # such as Tpsf
-            add_psf_cols(res_dict, obs_dict)
+            # compute value-added cols such as gamma-only responsivity,
+            # PSF size, "roundified" s2n, etc.
+            add_mcal_cols(res_dict, obs_dict, mcal_shear)
 
             return mcal_dict2tab(res_dict, obs_dict, obj_info)
 
@@ -647,7 +644,81 @@ class MetacalRunner(object):
 
         return
 
-def add_mcal_responsivities(mcal_res, mcal_shear):
+def add_mcal_cols(res_dict, obs_dict, mcal_shear):
+    '''
+    There are additional value-added cols that modern ngmix no
+    longer returns automatically
+
+    res_dict: dict
+        The main result dictionary returned by the ngmix metacal
+        bootstrapper.go() func
+    obs_dict: dict
+        The ngmix observation dictionary returned by the ngmix metacal
+        boostrapper.go() func, containing meta info like the PSF fit
+    mcal_shear: float
+        The applied shear in the finite difference calculation
+    '''
+    ipdb.set_trace()
+
+    # grab cols related to the PSF fit, such as Tpsf
+    add_psf_cols(res_dict, obs_dict)
+
+    # some quantities like the S2N are most robust for
+    # the round version of the profile
+    add_round_cols(res_dict, obs_dict)
+
+    # R_gamma only for now - selections later
+    add_mcal_responsivities(res_dict, mcal_shear)
+
+    return
+
+def add_psf_cols(res_dict, obs_dict):
+    '''
+    Add PSF fit quantities to the metacal results dictionary
+
+    res_dict: dict
+        The main result dictionary returned by the ngmix metacal
+        bootstrapper.go() func
+    obs_dict: dict
+        The ngmix observation dictionary returned by the ngmix metacal
+        boostrapper.go() func, containing meta info like the PSF fit
+    '''
+
+    Nexp = len(obs_dict['noshear'])
+
+    # For now, we'll just add a mean Tpsf
+    col = 'Tpsf'
+    for shear_type in ['noshear', '1p', '1m', '2p', '2m']:
+        res_dict[shear_type][col] = np.mean([
+            obs_dict[shear_type][i].psf.meta['result']['T']
+            for i in range(Nexp)])
+
+    return
+
+def add_round_cols(res_dict, obs_dict):
+    '''
+    Add "roundified" fit quantities to the metacal results dictionary
+
+    mcal_dict: dict
+        The main result dictionary returned by the ngmix metacal
+        bootstrapper.go() func
+    obs_dict: dict
+        The ngmix observation dictionary returned by the ngmix metacal
+        boostrapper.go() func, containing meta info like the PSF fit
+    '''
+
+    Nexp = len(obs_dict['noshear'])
+
+    # For now, we'll just add a mean Tpsf
+    col = 's2n_r'
+    for shear_type in ['noshear', '1p', '1m', '2p', '2m']:
+        # res_dict[shear_type][col] = np.mean([
+        #     obs_dict[shear_type][i].psf.meta['result']['T']
+        #     for i in range(Nexp)])
+
+    return
+
+def add_mcal_responsivities(res_dict, mcal_shear):
     '''
     Compute and add the mcal responsivity values to the output
     result dict from get_metacal_result()
@@ -655,15 +726,15 @@ def add_mcal_responsivities(mcal_res, mcal_shear):
     '''
 
     # Define full responsivity matrix, take inner product with shear moments
-    r11 = (mcal_res['1p']['g'][0] - mcal_res['1m']['g'][0]) / (2*mcal_shear)
-    r12 = (mcal_res['2p']['g'][0] - mcal_res['2m']['g'][0]) / (2*mcal_shear)
-    r21 = (mcal_res['1p']['g'][1] - mcal_res['1m']['g'][1]) / (2*mcal_shear)
-    r22 = (mcal_res['2p']['g'][1] - mcal_res['2m']['g'][1]) / (2*mcal_shear)
+    r11 = (res_dict['1p']['g'][0] - res_dict['1m']['g'][0]) / (2*mcal_shear)
+    r12 = (res_dict['2p']['g'][0] - res_dict['2m']['g'][0]) / (2*mcal_shear)
+    r21 = (res_dict['1p']['g'][1] - res_dict['1m']['g'][1]) / (2*mcal_shear)
+    r22 = (res_dict['2p']['g'][1] - res_dict['2m']['g'][1]) / (2*mcal_shear)
 
     R = [ [r11, r12], [r21, r22] ]
     Rinv = np.linalg.inv(R)
     gMC = np.dot(Rinv,
-                 mcal_res['noshear']['g']
+                 res_dict['noshear']['g']
                  )
 
     MC = {
@@ -672,7 +743,7 @@ def add_mcal_responsivities(mcal_res, mcal_shear):
         'g1_MC':gMC[0], 'g2_MC':gMC[1]
     }
 
-    mcal_res['MC'] = MC
+    res_dict['MC'] = MC
 
     return
 
@@ -723,29 +794,6 @@ def mcal_dict2tab(mcal_dict, obs_dict, obj_info):
                       )
 
     return join_tab
-
-def add_psf_cols(mcal_dict, obs_dict):
-    '''
-    Add PSF fit quantities to the metacal results dictionary
-
-    mcal_dict: dict
-        The main result dictionary returned by the ngmix metacal
-        bootstrapper.go() func
-    obs_dict: dict
-        The ngmix observation dictionary returned by the ngmix metacal
-        boostrapper.go() func, containing meta info like the PSF fit
-    '''
-
-    Nexp = len(obs_dict['noshear'])
-
-    # For now, we'll just add a mean Tpsf
-    col = 'Tpsf'
-    for shear_type in ['noshear', '1p', '1m', '2p', '2m']:
-        mcal_dict[shear_type][col] = np.mean([
-            obs_dict[shear_type][i].psf.meta['result']['T']
-            for i in range(Nexp)])
-
-    return
 
 def check_obj_flags(obj, min_cutouts=1):
     '''

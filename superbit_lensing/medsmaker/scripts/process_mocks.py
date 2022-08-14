@@ -29,7 +29,7 @@ def parse_args():
                         help='model exposure PSF using either piff or psfex')
     parser.add_argument('-psf_seed', type=int, default=None,
                         help='Seed for chosen PSF estimation mode')
-    parser.add_argument('--clobber', action='store_true', default=False,
+    parser.add_argument('--overwrite', action='store_true', default=False,
                         help='Set to overwrite files')
     parser.add_argument('--source_select', action='store_true', default=False,
                         help='Set to select sources during MEDS creation')
@@ -48,7 +48,7 @@ def main(args):
     psf_mode = args.psf_mode
     psf_seed = args.psf_seed
     use_coadd = args.meds_coadd
-    clobber = args.clobber
+    overwrite = args.overwrite
     source_selection = args.source_select
     select_truth_stars = args.select_truth_stars
     vb = args.vb

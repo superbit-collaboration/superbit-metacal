@@ -214,15 +214,14 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, 
     logprint.debug('created galaxy position')
 
     ## Draw a Galaxy from scratch
-    ## Note units of sbparams.gain is assumed to be be e-/ADU.
-    index = int(np.floor(ud()*len(cosmos_cat)))
+    index = int(np.floor(ud()*len(cosmos_cat))) # This is a kludge to obain a repeatable index
     gal_z = cosmos_cat[index]['ZPDF']
-    gal_flux = cosmos_cat[index][sbparams.bandpass] * sbparams.exp_time / sbparams.gain
-    inclination = cosmos_cat[index]['c10_sersic_fit_phi'] * galsim.radians
-    q = cosmos_cat[index]['c10_sersic_fit_q']
+    gal_flux = cosmos_cat[index][sbparams.bandpass]*sbparams.exp_time
+    inclination = cosmos_cat[index]['phi_cosmos10']*galsim.radians
+    q = cosmos_cat[index]['q_cosmos10']
     # Cosmos HLR is in units of HST pix, convert to arcsec.
-    half_light_radius=cosmos_cat[index]['c10_sersic_fit_hlr']*0.03*np.sqrt(q)
-    n = cosmos_cat[index]['c10_sersic_fit_n']
+    half_light_radius=cosmos_cat[index]['hlr_cosmos10']*0.03*np.sqrt(q)
+    n = cosmos_cat[index]['n_sersic_cosmos10']
     logprint.debug(f'galaxy z={gal_z} flux={gal_flux} hlr={half_light_radius} ' + \
                    f'sersic_index={n}')
 
@@ -319,7 +318,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
 
     # We will need the image position as well, so use the wcs to get that,
     # plus a small gaussian jitter so cluster doesn't look too box-like
-    image_pos = galsim.PositionD(x+centerpix.x+(ud()-0.5)*100,y+centerpix.y+(ud()-0.5)*100)
+    image_pos = galsim.PositionD(x+centerpix.x+(ud()-0.5)*75,y+centerpix.y+(ud()-0.5)*75)
     world_pos = wcs.toWorld(image_pos)
     ra=world_pos.ra; dec = world_pos.dec
 
@@ -342,7 +341,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
 
     # The "magnify" is just for drama
     gal *= sbparams.flux_scaling
-    gal.magnify(2)
+    gal.magnify(4)
     logprint.debug(f'rescaled galaxy with scaling factor {sbparams.flux_scaling}')
 
     jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
@@ -409,17 +408,17 @@ def make_a_star(ud, pud, k, wcs, affine, optics, sbparams, logprint, obj_index=N
     index = obj_index - 1
 
     if sbparams.star_cat is not None:
-        if sbparams.bandpass=='crates_lum':
-            star_flux = sbparams.star_cat['bitflux_electrons_lum'][index]
+        if sbparams.bandpass=='crates_adu_shape':
+            star_flux = sbparams.star_cat['bit_flux_shape'][index]
 
-        elif sbparams.bandpass=='crates_b':
-            star_flux = sbparams.star_cat['bitflux_electrons_b'][index]
+        elif sbparams.bandpass=='crates_adu_b':
+            star_flux = sbparams.star_cat['bit_flux_b'][index]
 
         else:
             raise NotImplementedError('Star catalog sampling only implemented ' +\
-                                      'for crates_shape and crates_b!')
+                                      'for adu_shape and adu_b!')
 
-        star_flux *= sbparams.exp_time / sbparams.gain
+        star_flux *= sbparams.exp_time
 
     else:
         pud = np.random.default_rng()
@@ -427,10 +426,10 @@ def make_a_star(ud, pud, k, wcs, affine, optics, sbparams, logprint, obj_index=N
         flux_p = (10/p) - 10.
         star_flux = flux_p
 
-        if sbparams.bandpass=='crates_b':
+        if sbparams.bandpass=='crates_adu_b':
             star_flux *= 0.8271672
         else:
-            raise NotImplementedError('Star power law only implemented for crates_b!')
+            raise NotImplementedError('Star power law only implemented for adu_b!')
 
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)
@@ -617,7 +616,7 @@ class SuperBITParameters:
             elif option == "strut_theta":
                 self.strut_theta = float(value)
             elif option == "obscuration":
-                self.obscuration = float(value)
+                self.obscuration = float(0.380)
             elif option == "bandpass":
                 self.bandpass=str(value)
             elif option == "jitter_fwhm":
@@ -669,7 +668,7 @@ class SuperBITParameters:
         # Scaling used for cluster galaxies, which are drawn from default GalSim-COSMOS catalog
         hst_eff_area = 2.4**2 #* (1.-0.33**2)
         sbit_eff_area = self.tel_diam**2 #* (1.-0.380**2)
-        self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time
+        self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time * self.gain
         if not hasattr(self,'jitter_fwhm'):
             self.jitter_fwhm = 0.1
 
@@ -842,7 +841,7 @@ def main():
     """
     Make images using model PSFs and galaxy cluster shear:
       - The galaxies come from a processed COSMOS 2015 Catalog, scaled to match
-        anticipated SuperBIT 2023 observations
+        anticipated SuperBIT 2021 observations
       - The galaxy shape parameters are assigned in a probabilistic way through matching
         galaxy fluxes and redshifts to similar GalSim-COSMOS galaxies (see A. Gill+ 2023)
     """
@@ -890,7 +889,7 @@ def main():
                                          sbparams.cat_file_name))
     logprint(f'Read in {len(cosmos_cat)} galaxies from catalog and associated fit info')
 
-    size_wg = (cosmos_cat['FLUX_RADIUS'] > 0) & (cosmos_cat['c10_sersic_fit_hlr'] < 50)
+    size_wg = (cosmos_cat['FLUX_RADIUS'] >= 0) & (cosmos_cat['hlr_cosmos10'] < 50)
     cosmos_cat = cosmos_cat[size_wg]
 
     try:
@@ -956,6 +955,7 @@ def main():
     ##
     rng = np.random.default_rng(sbparams.dithering_seed)
 
+
     ###
     ### MAKE SIMULATED OBSERVATIONS
     ### ITERATE n TIMES TO MAKE n SEPARATE IMAGES
@@ -986,12 +986,11 @@ def main():
 
         # Set up the image:
         full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
-        sky_level = sbparams.exp_time * sbparams.sky_bkg / sbparams.gain
+        sky_level = sbparams.exp_time * sbparams.sky_bkg
         full_image.fill(sky_level)
 
         ## Define X & Y dither offsets
         dither_offsets = rng.integers(-100, 100, size=2)
-        logprint(f'dithers are {dither_offsets}')
         full_image.setOrigin(dither_offsets[0], dither_offsets[1])
         full_image.wcs = wcs
 
