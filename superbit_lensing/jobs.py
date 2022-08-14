@@ -241,6 +241,9 @@ class JobsManager(object):
         gs_base_config = utils.read_yaml(self.config['gs_base_config'])
 
         for i in range(len(self.jobs)):
+
+            self.jobs[i].generate_job_seeds()
+
             # Make gs job config from base config
             self.jobs[i].make_gs_config(gs_base_config)
 

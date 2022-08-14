@@ -75,7 +75,6 @@ class LogPrint(object):
 
         return
 
-
 class Logger(object):
 
     def __init__(self, logfile, logdir=None):
@@ -172,7 +171,6 @@ def generate_seeds(Nseeds, master_seed=None):
 
     return seeds
 
-# def check_req_params(params, values, defaults, config):
 def check_req_params(config, params, defaults):
     '''
     Ensure that certain required parameters have their values set to

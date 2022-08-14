@@ -82,14 +82,15 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
                 seeds[name] = None
                 needed_seeds += 1
 
-    gen_seeds = utils.generate_seeds(needed_seeds)
+    if needed_seeds > 0:
+        gen_seeds = utils.generate_seeds(needed_seeds)
 
-    k = 0
-    for name in seed_names:
-        if seeds[name] is None:
-            seeds[name] = gen_seeds[k]
-            k += 1
-    assert k == needed_seeds
+        k = 0
+        for name in seed_names:
+            if seeds[name] is None:
+                seeds[name] = gen_seeds[k]
+                k += 1
+                assert k == needed_seeds
 
     config = {
         'run_options': {
