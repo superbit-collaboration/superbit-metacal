@@ -658,7 +658,6 @@ def add_mcal_cols(res_dict, obs_dict, mcal_shear):
     mcal_shear: float
         The applied shear in the finite difference calculation
     '''
-    ipdb.set_trace()
 
     # grab cols related to the PSF fit, such as Tpsf
     add_psf_cols(res_dict, obs_dict)
@@ -684,14 +683,23 @@ def add_psf_cols(res_dict, obs_dict):
         boostrapper.go() func, containing meta info like the PSF fit
     '''
 
-    Nexp = len(obs_dict['noshear'])
-
     # For now, we'll just add a mean Tpsf
     col = 'Tpsf'
     for shear_type in ['noshear', '1p', '1m', '2p', '2m']:
-        res_dict[shear_type][col] = np.mean([
-            obs_dict[shear_type][i].psf.meta['result']['T']
-            for i in range(Nexp)])
+        obs = obs_dict[shear_type]
+
+        if isinstance(obs, ngmix.Observation):
+            Tpsf = obs.psf.meta['result']['T']
+        elif isinstance(obs, ngmix.ObsList):
+            Tpsf = np.mean([
+                ob.psf.meta['result']['T']
+                for ob in obs
+                ])
+        elif isinstance(obs, ngmix.MultiBandObsList):
+            raise NotImplementedError('Multiband observations ' +\
+                                      'not yet supported!')
+
+        res_dict[shear_type][col] = Tpsf
 
     return
 
@@ -707,16 +715,46 @@ def add_round_cols(res_dict, obs_dict):
         boostrapper.go() func, containing meta info like the PSF fit
     '''
 
-    Nexp = len(obs_dict['noshear'])
+    # For now, we'll just add T_r and s2n_r
+    cols = {
+        's2n_r': None,
+        'T_r': None
+    }
 
-    # For now, we'll just add a mean Tpsf
-    col = 's2n_r'
     for shear_type in ['noshear', '1p', '1m', '2p', '2m']:
-        # res_dict[shear_type][col] = np.mean([
-        #     obs_dict[shear_type][i].psf.meta['result']['T']
-        #     for i in range(Nexp)])
+        result = res_dict[shear_type]
+        obs = obs_dict[shear_type]
+
+        # get corresponding "roundified" version of model fit
+        round_gm = result.get_gmix().make_round()
+        cols['T_r'] = round_gm.get_T()
+
+        if isinstance(obs, ngmix.Observation):
+            cols['s2n_r'] = round_gm.get_model_s2n(obs)
+        elif isinstance(obs, ngmix.ObsList):
+            cols['s2n_r'] = np.mean([
+                round_gm.get_model_s2n(ob)
+                for ob in obs
+                ])
+        elif isinstance(obs, ngmix.MultiBandObsList):
+            raise NotImplementedError('Multiband observations ' +\
+                                      'not yet supported!')
+
+        for col, val in cols.items():
+            res_dict[shear_type][col] = val
 
     return
+
+def _compute_obs_s2n_r(result, obs):
+    '''
+    result: ngmix.fitting.Result
+    obs: ngmix.Observation
+    '''
+
+    round_gm = result.get_gmix().make_round()
+    s2n_r = round_gm.get_model_s2n(obs)
+
+    return s2n_r
 
 def add_mcal_responsivities(res_dict, mcal_shear):
     '''
