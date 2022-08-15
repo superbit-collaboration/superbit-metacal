@@ -513,7 +513,7 @@ class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
     _opt_fields = ['outdir', 'run_name', 'truth_file', 'nfw_file', 'Nresample',
                    'rmin', 'rmax', 'nbins']
-    _flag_fields = ['overwrite', 'vb', 'redshift_select']
+    _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
         super(ShearProfileModule, self).__init__(name, config)
@@ -655,11 +655,11 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                         # 'medsmaker',
                         'metacal',
                         'shear_profile',
-                        'ngmix_fit'
+                        # 'ngmix_fit'
                         ]
                     },
                 'galsim': {
-                    'config_file': 'spencer_pipe_test.yaml',
+                    'config_file': 'pipe_test.yaml',
                     # 'config_file': 'superbit_parameters_forecast.yaml',
                     'config_dir': os.path.join(utils.MODULE_DIR,
                                                'galsim',
@@ -679,7 +679,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'meds_file': meds_file,
                     'outfile': mcal_file,
                     'outdir': outdir,
-                    'end': 10,
+                    'end': 100,
                     'overwrite': overwrite
                 },
                 'ngmix_fit': {
