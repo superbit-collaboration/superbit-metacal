@@ -26,7 +26,7 @@ parser.add_argument('--run_overwrite', action='store_true',
 def make_run_config(run_name, outfile, nfw_file, gs_config,
                     outdir=None, config_overwrite=False, seeds=None,
                     run_overwrite=False, ncores=1, run_diagnostics=True,
-                    vb=True):
+                    meds_coadd=True, vb=True):
     '''
     Makes a standard pipe run config given a few inputs.
     Minor changes can easily be made on the output if desired
@@ -52,6 +52,8 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
         Number of processors to use for pipe job
     run_diagnostics: bool
         Set to True to run module diagnostics
+    meds_coadd: bool
+        Set to True to add coadd stamp to MEDS file
     vb: bool
         Set to True for verbose printing
     '''
@@ -122,6 +124,7 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
             'run_name': run_name,
             'outdir': outdir,
             'psf_seed': seeds['psf_seed'],
+            'meds_coadd': meds_coadd
         },
         'metacal': {
             'meds_file': meds_file,

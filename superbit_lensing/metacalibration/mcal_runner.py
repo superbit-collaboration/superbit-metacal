@@ -125,6 +125,13 @@ class MetacalRunner(object):
     _gal_fitters = GAL_FITTERS
     _psf_fitters = PSF_FITTERS
 
+    # for custom masking / deblending of neighbors
+    _deblend_types = ['seg']
+
+    # uberseg will mask out any pixels that are closer
+    # to another detected source than the fitted obj
+    _default_weight_type = 'uberseg'
+
     def __init__(self, medsfile, vb=False, logprint=None):
         '''
         medsfile: str
@@ -147,6 +154,7 @@ class MetacalRunner(object):
         self.vb = vb
 
         self.meds = NGMixMEDS(medsfile)
+        self.has_coadd = bool(self.meds._meta['has_coadd'])
         self.cat = self.meds.get_cat()
         self.Nobjs = len(self.cat)
 
@@ -451,8 +459,53 @@ class MetacalRunner(object):
 
         return
 
-    def get_obslist(self, iobj):
-        return self.meds.get_obslist(iobj)
+    def get_obslist(self, iobj, weight_type=None):
+
+        if weight_type is None:
+            weight_type = self._default_weight_type
+
+        obslist = self.meds.get_obslist(iobj, weight_type)
+
+        # TODO: Implement actual deblending in the future!
+        # obslist = self.deblend_neighbors(obslist)
+
+        # We don't want to fit to the coadd, as its PSF is not
+        # well defined
+        if self.has_coadd is True:
+            obslist = obslist[1:]
+
+        return obslist
+
+    def deblend_neighbors(self, obslist, deblend_type='seg'):
+        '''
+        Given an obslist, deblend and/or model neighbors using
+        desired method
+
+        obslist: ngmix.Observation, ngmix.ObsList
+            The ngmix observation or obs list that we are
+            to deblend neighbors of
+        '''
+
+        deblend_types = self._deblend_types
+        if deblend_type not in deblend_types:
+            raise ValueError('deblend_type must be one of {deblend_types}!')
+
+        if isinstance(obslist, ngmix.Observation):
+            obslist = self._deblend_neighbors(obslist, deblend_type)
+        elif isinstance(obslist, ngmix.ObsList):
+            for i, obs in enumerate(obslist):
+                obslist[i] = self._deblend_neighbors(obs, deblend_type)
+        else:
+            raise TypeError('obslist must be either a ngmix Observation ' +\
+                            'or ObsList!')
+
+        return obslist
+
+    def _deblend_neighbors(self, obs, deblend_type):
+        '''
+        see deblend_neighbors()
+        '''
+        pass
 
     def get_jacobians(self, iobj):
         Njac = len(self.meds.get_jacobian_list(iobj))
