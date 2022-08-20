@@ -370,7 +370,7 @@ class GalSimModule(SuperBITModule):
 
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
-    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_type']
+    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_type', 'psf_seed']
     _flag_fields = ['meds_coadd', 'source_select', 'select_truth_stars',
                     'overwrite', 'vb']
 
@@ -513,7 +513,7 @@ class NgmixFitModule(SuperBITModule):
 class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
     _opt_fields = ['outdir', 'run_name', 'truth_file', 'nfw_file', 'Nresample',
-                   'rmin', 'rmax', 'nbins']
+                   'rmin', 'rmax', 'nbins', 'nfw_seed']
     _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
