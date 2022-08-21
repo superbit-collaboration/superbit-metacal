@@ -3,6 +3,7 @@ from ngmix.medsreaders import NGMixMEDS
 from ngmix.fitting import Fitter
 import numpy as np
 import os
+from copy import deepcopy
 from collections.abc import Mapping
 from multiprocessing import Pool
 import time
@@ -472,7 +473,12 @@ class MetacalRunner(object):
         # We don't want to fit to the coadd, as its PSF is not
         # well defined
         if self.has_coadd is True:
-            obslist = obslist[1:]
+            # NOTE: doesn't produce the right type...
+            # obslist = obslist[1:]
+            se_obslist = ngmix.ObsList(meta=deepcopy(obslist._meta))
+            for obs in obslist[1:]:
+                se_obslist.append(obs)
+            obslist = se_obslist
 
         return obslist
 
