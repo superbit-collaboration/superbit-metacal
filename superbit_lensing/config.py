@@ -106,7 +106,7 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
                 'medsmaker',
                 'metacal',
                 'shear_profile',
-                'ngmix_fit'
+                # 'ngmix_fit'
                 ]
             },
         'galsim': {
