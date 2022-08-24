@@ -358,7 +358,10 @@ class Annular(object):
                        index
         '''
 
-        rng = np.random.default_rng()
+        try:
+            rng = np.random.default_rng(self.cat_info['nfw_seed'])
+        except KeyError:
+            rng = np.random.default_rng()
 
         nfw_file = self.nfw_info['nfw_file']
         nfw = Table.read(nfw_file, format='fits')

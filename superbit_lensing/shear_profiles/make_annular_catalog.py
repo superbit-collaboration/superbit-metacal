@@ -33,6 +33,8 @@ def parse_args():
                         help='Starting radius value (in pixels)')
     parser.add_argument('-rmax', type=float, default=5200,
                         help='Ending radius value (in pixels)')
+    parser.add_argument('-nfw_seed', type=int, default=None,
+                        help='Seed for nfw redshift resampling')
     parser.add_argument('-nbins', type=int, default=18,
                         help='Number of radial bins')
     parser.add_argument('--overwrite', action='store_true', default=False,
@@ -473,6 +475,7 @@ def main(args):
     Nresample = args.Nresample
     rmin = args.rmin
     rmax = args.rmax
+    nfw_seed = args.nfw_seed
     nbins = args.nbins
     overwrite = args.overwrite
     vb = args.vb
@@ -496,6 +499,9 @@ def main(args):
         print('\n\n\nNo coadd image center found, cannot calculate tangential shear\n\n.')
         raise e
 
+    if nfw_seed is None:
+        nfw_seed = utils.generate_seeds(1)
+
     ## n.b outfile is the name of the metacalibrated &
     ## quality-selected galaxy catalog
 
@@ -507,7 +513,8 @@ def main(args):
         'outdir': outdir,
         'truth_file': truth_file,
         'nfw_file': nfw_file,
-        'Nresample': Nresample
+        'Nresample': Nresample,
+        'nfw_seed': nfw_seed
     }
 
     annular_info = {
