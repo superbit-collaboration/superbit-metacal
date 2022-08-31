@@ -8,6 +8,7 @@ from esutil import htm
 from argparse import ArgumentParser
 
 from annular_jmac import Annular
+from superbit_lensing import utils
 
 def parse_args():
 
