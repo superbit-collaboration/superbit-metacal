@@ -275,17 +275,18 @@ class MetacalRunner(object):
         '''
         Initialize ngmix bootstrapper for metacal measurement
 
-        gal_model: str
-            The desired source model
-        psf_model: str
-            The desired psf model
+        gal_fitter: ngmix.Fitter
+            The desired ngmix fitter for the source image
+        psf_fitter: ngmix.Fitter
+            The desired ngmix psf fitter
         shear_step: float
             The step size for the shear finite-difference derivative
         guesser: ngmix.Guesser
             A ngmix Guesser object for the source fit. Defaults to
             a TPSFFluxAndPrior guesser
         psf_guesser: ngmix.Guesser
-            A ngmix Guesser object for the psf fit. Defaults to ??
+            A ngmix Guesser object for the psf fit. Defaults to a
+            SimplePSFGuesser
         prior: ngmix.prior
             A ngmix Prior object. Defaults to a simple joint prior
         lm_pars: dict
@@ -643,7 +644,7 @@ class MetacalRunner(object):
 
         return
 
-    def _setup_default_psf_guesser(self, psf_ngauss=4):
+    def _setup_default_psf_guesser(self):
         '''
         If no guesser for the psf is provided, create one
 
@@ -654,16 +655,8 @@ class MetacalRunner(object):
             raise ValueError('prior must be setup before using the ' +\
                              'default guesser!')
 
-        # make parameter guesses based on a psf flux and a rough T
-        self.psf_guesser = ngmix.guessers.PriorGuesser(
-            prior=self.prior,
-        )
-
-        # TODO: Decide what to do w/ this!
-        # special guesser for coelliptical gaussians
-        # self.psf_guesser = ngmix.guessers.CoellipPSFGuesser(
-        #     rng=self.rng, ngauss=psf_ngauss
-        #     )
+        # use simplest PSF guesser
+        self.psf_guesser = ngmix.guessers.SimplePSFGuesser(self.rng)
 
         self.logprint(f'WARING: No psf guesser passed, ' +\
                       f'using default: {self.psf_guesser}')
@@ -749,11 +742,26 @@ def add_psf_cols(res_dict, obs_dict):
 
         if isinstance(obs, ngmix.Observation):
             Tpsf = obs.psf.meta['result']['T']
+
         elif isinstance(obs, ngmix.ObsList):
-            Tpsf = np.mean([
-                ob.psf.meta['result']['T']
-                for ob in obs
-                ])
+            # simple average:
+            # Tpsf = np.mean([
+            #     ob.psf.meta['result']['T']
+            #     for ob in obs
+            #     ])
+
+            # weighted average:
+            wsum = 0.0
+            Tpsf_sum = 0.0
+            for ob in obs:
+                T = ob.psf.meta['result']['T']
+
+                twsum = ob.weight.sum()
+                wsum += twsum
+                Tpsf_sum += T*twsum
+
+            Tpsf = Tpsf_sum/wsum
+
         elif isinstance(obs, ngmix.MultiBandObsList):
             raise NotImplementedError('Multiband observations ' +\
                                       'not yet supported!')
@@ -791,10 +799,24 @@ def add_round_cols(res_dict, obs_dict):
         if isinstance(obs, ngmix.Observation):
             cols['s2n_r'] = round_gm.get_model_s2n(obs)
         elif isinstance(obs, ngmix.ObsList):
-            cols['s2n_r'] = np.mean([
-                round_gm.get_model_s2n(ob)
-                for ob in obs
-                ])
+            # simple average:
+            # cols['s2n_r'] = np.mean([
+            #     round_gm.get_model_s2n(ob)
+            #     for ob in obs
+            #     ])
+
+            # weighted average:
+            wsum = 0.0
+            s2n_r_sum = 0.0
+            for ob in obs:
+                s2n = round_gm.get_model_s2n(ob)
+
+                twsum = ob.weight.sum()
+                wsum += twsum
+                s2n_r_sum += s2n*twsum
+
+            s2n_r = s2n_r_sum/wsum
+
         elif isinstance(obs, ngmix.MultiBandObsList):
             raise NotImplementedError('Multiband observations ' +\
                                       'not yet supported!')
