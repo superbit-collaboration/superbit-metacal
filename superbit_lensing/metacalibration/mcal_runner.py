@@ -815,7 +815,7 @@ def add_round_cols(res_dict, obs_dict):
                 wsum += twsum
                 s2n_r_sum += s2n*twsum
 
-            s2n_r = s2n_r_sum/wsum
+            cols['s2n_r'] = s2n_r_sum/wsum
 
         elif isinstance(obs, ngmix.MultiBandObsList):
             raise NotImplementedError('Multiband observations ' +\
