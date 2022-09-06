@@ -455,7 +455,7 @@ class MetacalRunner(object):
                 )
 
         Nfailed = N - len(self.mcal_table)
-        self.logprint(f'{Nfailed} objects failed metaalibration fitting ' +\
+        self.logprint(f'{Nfailed} objects failed metacalibration fitting ' +\
                       'and are excluded from output catalog')
         self.logprint('Done!')
 
