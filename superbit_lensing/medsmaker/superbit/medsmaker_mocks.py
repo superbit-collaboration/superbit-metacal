@@ -752,9 +752,22 @@ class BITMeasurement():
 
         return config
 
-    def _meds_metadata(self,magzp=0.0):
-        meta = np.empty(1,[('magzp_ref',np.float)])
+    def _meds_metadata(self, magzp, use_coadd):
+        '''
+        magzp: float
+            The reference magnitude zeropoint
+        use_coadd: bool
+            Set to True if the first MEDS cutout is from the coadd
+        '''
+
+        meta = np.empty(1, [
+            ('magzp_ref', np.float),
+            ('has_coadd', np.bool)
+            ])
+
         meta['magzp_ref'] = magzp
+        meta['has_coadd'] = use_coadd
+
         return meta
 
     def _calculate_box_size(self,angular_size,size_multiplier = 2.5, min_size = 16, max_size= 64):
