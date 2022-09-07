@@ -227,7 +227,7 @@ class SuperBITNgmixFitter():
 
         return jac
 
-    def _get_source_observations(self, iobj, weight_type='uberseg', logprint=None)
+    def _get_source_observations(self, iobj, weight_type='uberseg', logprint=None):
 
         obslist = self.medsObj.get_obslist(iobj, weight_type)
 
