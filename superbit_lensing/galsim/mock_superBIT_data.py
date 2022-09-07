@@ -95,10 +95,6 @@ def nfw_lensing(nfw_halo, pos, nfw_z_source):
     nfw_mu = nfw_halo.getMagnification( pos , nfw_z_source )
 
     if nfw_mu < 0:
-        """
-        This doesn't seem to play well with MPI/batch scripting...                                                                                                                                      import warnings
-        warnings.warn("Warning: mu < 0 means strong lensing!  Using mu=25.")
-        """
         print("Warning: mu < 0 means strong lensing!  Using mu=25.")
         nfw_mu = 25
     elif nfw_mu > 25:
@@ -218,7 +214,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, 
     index = int(np.floor(ud()*len(cosmos_cat)))
     gal_z = cosmos_cat[index]['ZPDF']
     gal_flux = cosmos_cat[index][sbparams.bandpass] * sbparams.exp_time / sbparams.gain
-    inclination = cosmos_cat[index]['c10_sersic_fit_phi'] * galsim.radians
+    phi = cosmos_cat[index]['c10_sersic_fit_phi'] * galsim.radians
     q = cosmos_cat[index]['c10_sersic_fit_q']
     # Cosmos HLR is in units of HST pix, convert to arcsec.
     half_light_radius=cosmos_cat[index]['c10_sersic_fit_hlr']*0.03*np.sqrt(q)
@@ -226,27 +222,21 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, 
     logprint.debug(f'galaxy z={gal_z} flux={gal_flux} hlr={half_light_radius} ' + \
                    f'sersic_index={n}')
 
-    ## InclinedSersic requires 0.3 < n < 6;
-    ## set galaxy's n to another value if it falls outside this range
-    if n<0.3:
-        n=0.3
-    elif n>6:
-        n=4
+    # Sersic class requires index n >= 0.3
+    if (n < 0.3):
+        n = 0.3
 
-    ## Very large HLRs will also make GalSim fail
-    ## Set to a default, ~large but physical value.
-    if half_light_radius > 2:
-            half_light_radius = 2
+    gal = galsim.Sersic(n = n,
+                        flux = gal_flux,
+                        half_light_radius = half_light_radius)
 
-    gal = galsim.InclinedSersic(n=n,
-                                flux=gal_flux,
-                                half_light_radius=half_light_radius,
-                                inclination=inclination,
-                                scale_h_over_r=q
-                                )
-
+    gal = gal.shear(q = q, beta = phi)
     logprint.debug('created galaxy')
 
+    ## Apply a random rotation
+    theta = ud()*2.0*np.pi*galsim.radians
+    gal = gal.rotate(theta)
+                            
     ## Apply a random rotation
     theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
