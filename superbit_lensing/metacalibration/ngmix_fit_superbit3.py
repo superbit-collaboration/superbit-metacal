@@ -2,10 +2,11 @@ import meds
 import ngmix
 from ngmix.medsreaders import NGMixMEDS
 import numpy as np
-import pdb, pudb
+import ipdb
 import pickle
 from astropy.table import Table, Row, vstack, hstack
 import os, sys, time, traceback
+from copy import deepcopy
 import galsim
 import galsim.des
 import psfex
@@ -223,8 +224,7 @@ class SuperBITNgmixFitter():
 
         return jac
 
-    def _get_source_observations(self, iobj, weight_type='uberseg',
-                                 logprint=None, psf_noise=1e-6):
+    def _get_source_observations(self, iobj, weight_type='uberseg', logprint=None)
 
         obslist = self.medsObj.get_obslist(iobj, weight_type)
 
@@ -238,74 +238,7 @@ class SuperBITNgmixFitter():
                 se_obslist.append(obs)
             obslist = se_obslist
 
-        for obs in obslist:
-            # add psf noise
-            pass
-
         return obslist
-
-    # TODO: Remove once i've confirmed w/ JMAC
-    # def _get_source_observations(self, source_id=None, logprint=None, psf_noise=1e-6):
-    #     try:
-    #         jaclist = self._get_jacobians(source_id)
-    #         psf_cutouts = self.medsObj.get_cutout_list(source_id, type='psf')
-    #         #psf_cutouts = self._make_psfex_cutouts(source_id)
-    #         weight_cutouts = self.medsObj.get_cutout_list(source_id, type='weight')
-    #         image_cutouts = self.medsObj.get_cutout_list(source_id, type='image')
-    #         image_obslist = ngmix.observation.ObsList()
-
-    #         for i in range(len(image_cutouts)):
-    #             if (i == 0) and (self.has_coadd is True):
-    #                 # don't want to fit the coadd image with
-    #                 # ill-defined PSF
-    #                 continue
-
-    #             jj = jaclist[i]
-
-    #             try:
-    #                 xcenter = psf_cutouts[i].true_center.x
-    #                 ycenter = psf_cutouts[i].true_center.y
-    #                 jj_psf = ngmix.DiagonalJacobian(scale=psf_cutouts[i].scale,x=xcenter,y=ycenter)
-    #             except AttributeError:
-    #                 jj_psf = jj
-
-    #             # Apparently it likes to add noise to the psf.
-    #             this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
-    #             #this_psf = psf_cutouts[i].array + psf_noise * np.random.randn(psf_cutouts[i].array.shape[0],psf_cutouts[i].array.shape[1])
-    #             this_psf_weight = np.zeros_like(this_psf) + 1./psf_noise**2
-
-    #             # Treat sky background variance as a Poisson distribution, e.g.
-    #             #     - mean bkg = 0.048*600
-    #             #     - std_dev = sqrt(bkg) = 5.3
-    #             #     - sky_sigma = std_dev**2 = 25.1
-
-    #             sky_sigma = 4.77 #SIGMA = 4.7ish for Blue, 4.7**2 for shape
-    #             this_image = image_cutouts[i]
-    #             this_weight = np.zeros_like(this_image)+ 1./sky_sigma
-
-    #             psfObs = ngmix.observation.Observation(this_psf,
-    #                                                    weight=this_psf_weight,
-    #                                                    jacobian=jj_psf)
-
-    #             imageObs = ngmix.observation.Observation(this_image,
-    #                                                      weight=this_weight,
-    #                                                      jacobian=jj,
-    #                                                      psf=psfObs)
-    #             #imageObs.psf_nopix = imageObs.psf
-    #             image_obslist.append(imageObs)
-
-    #     except ValueError as e:
-    #         # Some observations will have zero image cutouts, which will
-    #         # cause a ValueError when building an obs list. We want to have
-    #         # this error identified during the flag check, so for now we will
-    #         # just return None
-    #         if logprint is not None:
-    #             logprint(e)
-    #         else:
-    #             print(e)
-    #         image_obslist = None
-
-    #     return image_obslist
 
 class SuperBITPlotter(object):
 
