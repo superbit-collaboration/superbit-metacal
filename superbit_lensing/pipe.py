@@ -687,6 +687,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                         'galsim',
                         'medsmaker',
                         'metacal',
+                        # 'metacal_v2',
                         'shear_profile',
                         # 'ngmix_fit'
                         ]
