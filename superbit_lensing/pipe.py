@@ -370,8 +370,9 @@ class GalSimModule(SuperBITModule):
 
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
-    _opt_fields = ['fname_base', 'run_name', 'meds_coadd', 'outdir', 'psf_type']
-    _flag_fields = ['clobber', 'source_select', 'select_truth_stars', 'vb']
+    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_type']
+    _flag_fields = ['clobber', 'source_select', 'select_truth_stars',
+                    'meds_coadd', 'vb']
 
     def __init__(self, name, config):
         super(MedsmakerModule, self).__init__(name, config)
@@ -671,6 +672,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, clobber=False):
                     'outfile': meds_file,
                     'fname_base': run_name,
                     'run_name': run_name,
+                    'meds_coadd': True,
                     'outdir': outdir
                 },
                 'metacal': {
