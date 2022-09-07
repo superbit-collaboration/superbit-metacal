@@ -416,8 +416,8 @@ class MedsmakerModule(SuperBITModule):
 
 class MetacalModule(SuperBITModule):
     _req_fields = ['meds_file', 'outfile']
-    _opt_fields = ['outdir','start', 'end', 'seed', 'ncores', 'shear', 'ntry']
-    _flag_fields = ['overwrite', 'vb']
+    _opt_fields = ['outdir','start', 'end', 'n']
+    _flag_fields = ['plot', 'overwrite', 'vb']
 
     def __init__(self, name, config):
         super(MetacalModule, self).__init__(name, config)
@@ -437,6 +437,38 @@ class MetacalModule(SuperBITModule):
         rc = self._run_command(cmd, logprint)
 
         return rc
+
+    def _setup_run_command(self, run_options):
+
+        run_name = run_options['run_name']
+        outdir = self._config['outdir']
+        meds_file = self._config['meds_file']
+        outfile = self._config['outfile']
+        mcal_dir = os.path.join(utils.get_module_dir(),
+                                'metacalibration')
+        filepath = os.path.join(mcal_dir, 'ngmix_fit_superbit3.py')
+
+        base = f'python {filepath} {meds_file} {outfile}'
+
+        # Set up some default values that require the run config
+        col = 'n'
+        if col not in self._config:
+            self._config['n'] = run_options['ncores']
+
+        options = self._setup_options(run_options)
+
+        cmd = base + options
+
+        return cmd
+
+class MetacalModuleV2(MetacalModule):
+    '''
+    Same as MetacalModule, but using ngmix v2.X
+    '''
+
+    _req_fields = ['meds_file', 'outfile']
+    _opt_fields = ['outdir','start', 'end', 'seed', 'ncores', 'shear', 'ntry']
+    _flag_fields = ['overwrite', 'vb']
 
     def _setup_run_command(self, run_options):
 
@@ -678,6 +710,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'meds_coadd': True
                 },
                 'metacal': {
+                # 'metacal_v2': {
                     'meds_file': meds_file,
                     'outfile': mcal_file,
                     'outdir': outdir,
@@ -715,6 +748,7 @@ MODULE_TYPES = {
     'galsim': GalSimModule,
     'medsmaker': MedsmakerModule,
     'metacal': MetacalModule,
+    'metacal_v2': MetacalModuleV2,
     'ngmix_fit': NgmixFitModule,
     'shear_profile': ShearProfileModule,
     }

@@ -36,6 +36,8 @@ parser.add_argument('-n', type=int, default=1,
                     help='Number of cores to use')
 parser.add_argument('--plot', action='store_true', default=False,
                     help='Set to make diagnstic plots')
+parser.add_argument('--overwrite', action='store_true', default=False,
+                    help='Overwrite output mcal file')
 parser.add_argument('--vb', action='store_true', default=False,
                     help='Make verbose')
 
@@ -468,11 +470,10 @@ def mcal_dict2tab(mcal, ident):
 
     return join_tab
 
-def write_output_table(outfilename, tab):
-    tab.write(outfilename, format='fits', overwrite=True)
+def write_output_table(outfilename, tab, overwrite=False):
+    tab.write(outfilename, format='fits', overwrite=overwrite)
 
     return
-
 
 # def mcal_dict2table(mcal, ident):
 #     '''
@@ -702,6 +703,7 @@ def main():
     index_end = args.end
     make_plots = args.plot
     nproc = args.n
+    overwrite = args.overwrite
     identifying = {'meds_index':[], 'id':[], 'ra':[], 'dec':[]}
     mcal = {'noshear':[], '1p':[], '1m':[], '2p':[], '2m':[]}
 
@@ -843,7 +845,7 @@ def main():
     out = os.path.join(outdir, outfilename)
     logprint(f'Writing results to {out}')
 
-    write_output_table(out, mcal_res)
+    write_output_table(out, mcal_res, overwrite=overwrite)
 
     logprint('Done!')
 
