@@ -37,6 +37,8 @@ parser.add_argument('-end', type=int, default=None,
                     help='Ending index for MEDS processing')
 parser.add_argument('-n', type=int, default=1,
                     help='Number of cores to use')
+parser.add_argument('-seed', type=int, default=None,
+                    help='Metacalibration seed')
 parser.add_argument('--plot', action='store_true', default=False,
                     help='Set to make diagnstic plots')
 parser.add_argument('--overwrite', action='store_true', default=False,
@@ -667,6 +669,7 @@ def main():
     index_end = args.end
     make_plots = args.plot
     nproc = args.n
+    seed = args.seed
     overwrite = args.overwrite
     identifying = {'meds_index':[], 'id':[], 'ra':[], 'dec':[]}
     mcal = {'noshear':[], '1p':[], '1m':[], '2p':[], '2m':[]}
@@ -705,7 +708,11 @@ def main():
     config['make_plots'] = make_plots
     config['im_savedir'] = im_savedir
     config['nproc'] = nproc
-    set_seed(config)
+
+    if seed is not None:
+        config['seed'] = seed
+    else:
+        set_seed(config)
 
     logdir = outdir
     logfile = 'mcal_fitting.log'

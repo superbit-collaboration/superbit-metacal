@@ -416,7 +416,7 @@ class MedsmakerModule(SuperBITModule):
 
 class MetacalModule(SuperBITModule):
     _req_fields = ['meds_file', 'outfile']
-    _opt_fields = ['outdir','start', 'end', 'n']
+    _opt_fields = ['outdir','start', 'end', 'n', 'seed']
     _flag_fields = ['plot', 'overwrite', 'vb']
 
     def __init__(self, name, config):
