@@ -524,7 +524,10 @@ class BITMeasurement():
         k = 0
         for i in range(Nim):
             if (i == 0) and (use_coadd is True):
-                imagefile = self.coadd_file
+                # TODO: temporary coadd PSF solution!
+                # see issue #83
+                self.psf_models.append(None)
+                continue
             else:
                 if use_coadd is True:
                     imagefile = self.image_files[i-1]
@@ -556,6 +559,11 @@ class BITMeasurement():
                 os.system(cleanup_cmd2)
                 self.psf_models.append(psfex.PSFEx(psfex_model_file))
 
+        # TODO: temporary coadd PSF solution!
+        # see issue #83
+        self.psf_models[0] = self.psf_models[1]
+
+        return
 
     def _make_psfex_model(self, im_cat, weightfile='weight.fits', sextractor_config_path=None,
                         psfex_out_dir='./tmp/', select_truth_stars=False,star_params=None):
@@ -752,9 +760,22 @@ class BITMeasurement():
 
         return config
 
-    def _meds_metadata(self,magzp=0.0):
-        meta = np.empty(1,[('magzp_ref',np.float)])
+    def _meds_metadata(self, magzp, use_coadd):
+        '''
+        magzp: float
+            The reference magnitude zeropoint
+        use_coadd: bool
+            Set to True if the first MEDS cutout is from the coadd
+        '''
+
+        meta = np.empty(1, [
+            ('magzp_ref', np.float),
+            ('has_coadd', np.bool)
+            ])
+
         meta['magzp_ref'] = magzp
+        meta['has_coadd'] = use_coadd
+
         return meta
 
     def _calculate_box_size(self,angular_size,size_multiplier = 2.5, min_size = 16, max_size= 64):

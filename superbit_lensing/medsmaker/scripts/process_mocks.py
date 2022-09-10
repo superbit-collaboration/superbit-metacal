@@ -27,8 +27,6 @@ parser.add_argument('-fname_base', action='store', type=str, default=None,
                     help='Basename of mock image files')
 parser.add_argument('-run_name', action='store', type=str, default=None,
                     help='Name of mock simulation run')
-parser.add_argument('-meds_coadd', action='store_true', default=False,
-                    help='Set to keep coadd cutout in MEDS file')
 parser.add_argument('-psf_mode', action='store', choices=['piff', 'psfex'], default='piff',
                     help='model exposure PSF using either piff or psfex')
 parser.add_argument('--clobber', action='store_true', default=False,
@@ -37,6 +35,8 @@ parser.add_argument('--source_select', action='store_true', default=False,
                     help='Set to select sources during MEDS creation')
 parser.add_argument('--select_truth_stars', action='store_true', default=False,
                     help='Set to match against truth catalog for PSF model fits')
+parser.add_argument('--meds_coadd', action='store_true', default=False,
+                    help='Set to keep coadd cutout in MEDS file')
 parser.add_argument('--vb', action='store_true', default=False,
                     help='Verbosity')
 
@@ -105,7 +105,8 @@ def main():
     meds_config = bm.make_meds_config(use_coadd=use_coadd)
 
     # Create metadata for MEDS
-    meta = bm._meds_metadata(magzp=30.0)
+    magzp = 30.0
+    meta = bm._meds_metadata(magzp, use_coadd)
     # Finally, make and write the MEDS file.
 
     medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
