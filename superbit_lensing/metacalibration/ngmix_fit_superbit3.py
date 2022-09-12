@@ -2,7 +2,6 @@ import meds
 import ngmix
 from ngmix.medsreaders import NGMixMEDS
 import numpy as np
-import ipdb
 import pickle
 from astropy.table import Table, Row, vstack, hstack
 import os, sys, time, traceback
@@ -22,6 +21,8 @@ import multiprocessing
 
 import superbit_lensing.utils as utils
 
+import ipdb
+
 parser = ArgumentParser()
 
 parser.add_argument('medsfile', type=str,
@@ -36,8 +37,12 @@ parser.add_argument('-end', type=int, default=None,
                     help='Ending index for MEDS processing')
 parser.add_argument('-n', type=int, default=1,
                     help='Number of cores to use')
+parser.add_argument('-seed', type=int, default=None,
+                    help='Metacalibration seed')
 parser.add_argument('--plot', action='store_true', default=False,
                     help='Set to make diagnstic plots')
+parser.add_argument('--overwrite', action='store_true', default=False,
+                    help='Overwrite output mcal file')
 parser.add_argument('--vb', action='store_true', default=False,
                     help='Make verbose')
 
@@ -224,7 +229,7 @@ class SuperBITNgmixFitter():
 
         return jac
 
-    def _get_source_observations(self, iobj, weight_type='uberseg', logprint=None)
+    def _get_source_observations(self, iobj, weight_type='uberseg', logprint=None):
 
         obslist = self.medsObj.get_obslist(iobj, weight_type)
 
@@ -431,11 +436,10 @@ def mcal_dict2tab(mcal, ident):
 
     return join_tab
 
-def write_output_table(outfilename, tab):
-    tab.write(outfilename, format='fits', overwrite=True)
+def write_output_table(outfilename, tab, overwrite=False):
+    tab.write(outfilename, format='fits', overwrite=overwrite)
 
     return
-
 
 # def mcal_dict2table(mcal, ident):
 #     '''
@@ -665,6 +669,8 @@ def main():
     index_end = args.end
     make_plots = args.plot
     nproc = args.n
+    seed = args.seed
+    overwrite = args.overwrite
     identifying = {'meds_index':[], 'id':[], 'ra':[], 'dec':[]}
     mcal = {'noshear':[], '1p':[], '1m':[], '2p':[], '2m':[]}
 
@@ -702,7 +708,11 @@ def main():
     config['make_plots'] = make_plots
     config['im_savedir'] = im_savedir
     config['nproc'] = nproc
-    set_seed(config)
+
+    if seed is not None:
+        config['seed'] = seed
+    else:
+        set_seed(config)
 
     logdir = outdir
     logfile = 'mcal_fitting.log'
@@ -806,7 +816,7 @@ def main():
     out = os.path.join(outdir, outfilename)
     logprint(f'Writing results to {out}')
 
-    write_output_table(out, mcal_res)
+    write_output_table(out, mcal_res, overwrite=overwrite)
 
     logprint('Done!')
 

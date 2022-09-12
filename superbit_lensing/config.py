@@ -24,9 +24,9 @@ parser.add_argument('--run_overwrite', action='store_true',
 #                help='Output filepath for config file')
 
 def make_run_config(run_name, outfile, nfw_file, gs_config,
-                    outdir=None, config_overwrite=False,
+                    outdir=None, config_overwrite=False, seeds=None,
                     run_overwrite=False, ncores=1, run_diagnostics=True,
-                    vb=True):
+                    meds_coadd=True, vb=True):
     '''
     Makes a standard pipe run config given a few inputs.
     Minor changes can easily be made on the output if desired
@@ -43,12 +43,17 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
         Output directory for outfile
     config_overwrite: bool
         Set to overwrite config file
+    seeds: dict
+        A dict of 'seed_name': seed pairs for seeds not
+        set in the galsim config
     run_overwrite: bool
         Set to overwrite run files
     ncores: int
         Number of processors to use for pipe job
     run_diagnostics: bool
         Set to True to run module diagnostics
+    meds_coadd: bool
+        Set to True to add coadd stamp to MEDS file
     vb: bool
         Set to True for verbose printing
     '''
@@ -71,6 +76,24 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
         'ngmix_test_config.yaml', outdir=outdir, run_name=run_name
         )
 
+    needed_seeds = 0
+    seed_names = ['psf_seed', 'mcal_seed', 'nfw_seed']
+    if seeds is not None:
+        for name in seed_names:
+            if name not in seeds:
+                seeds[name] = None
+                needed_seeds += 1
+
+    if needed_seeds > 0:
+        gen_seeds = utils.generate_seeds(needed_seeds)
+
+        k = 0
+        for name in seed_names:
+            if seeds[name] is None:
+                seeds[name] = gen_seeds[k]
+                k += 1
+                assert k == needed_seeds
+
     config = {
         'run_options': {
             'run_name': run_name,
@@ -83,7 +106,7 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
                 'medsmaker',
                 'metacal',
                 'shear_profile',
-                'ngmix_fit'
+                # 'ngmix_fit'
                 ]
             },
         'galsim': {
@@ -99,12 +122,15 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
             'outfile': meds_file,
             'fname_base': run_name,
             'run_name': run_name,
-            'outdir': outdir
+            'outdir': outdir,
+            'psf_seed': seeds['psf_seed'],
+            'meds_coadd': meds_coadd
         },
         'metacal': {
             'meds_file': meds_file,
             'outfile': mcal_file,
             'outdir': outdir,
+            'seed': seeds['mcal_seed'],
         },
         'ngmix_fit': {
             'meds_file': meds_file,
@@ -117,6 +143,7 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
             'mcal_file': mcal_file,
             'outfile': f'{run_name}_annular.fits',
             'nfw_file': nfw_file,
+            'nfw_seed': seeds['nfw_seed'],
             'outdir': outdir,
             'run_name': run_name,
             'overwrite': run_overwrite,

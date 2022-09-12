@@ -7,48 +7,48 @@ from argparse import ArgumentParser
 import superbit_lensing.utils as utils
 from superbit_lensing.medsmaker.superbit import medsmaker_mocks as medsmaker
 
-import pdb, pudb, traceback
+import ipdb
 
-## Get the location of the main Medmaker superbit package.
-# filepath = Path(os.path.realpath(__file__))
-# sbdir = filepath.parents[1]
-# sbdir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-# sys.path.insert(0,str(sbdir))
+def parse_args():
 
-parser = ArgumentParser()
+    parser = ArgumentParser()
 
-parser.add_argument('mock_dir', type=str,
-                    help='Directory containing mock data')
-parser.add_argument('outfile', type=str,
-                    help='Name of output MEDS file')
-parser.add_argument('-outdir', type=str, default=None,
-                    help='Output directory for MEDS file')
-parser.add_argument('-fname_base', action='store', type=str, default=None,
-                    help='Basename of mock image files')
-parser.add_argument('-run_name', action='store', type=str, default=None,
-                    help='Name of mock simulation run')
-parser.add_argument('-psf_mode', action='store', choices=['piff', 'psfex'], default='piff',
-                    help='model exposure PSF using either piff or psfex')
-parser.add_argument('--clobber', action='store_true', default=False,
-                    help='Set to overwrite files')
-parser.add_argument('--source_select', action='store_true', default=False,
-                    help='Set to select sources during MEDS creation')
-parser.add_argument('--select_truth_stars', action='store_true', default=False,
-                    help='Set to match against truth catalog for PSF model fits')
-parser.add_argument('--meds_coadd', action='store_true', default=False,
-                    help='Set to keep coadd cutout in MEDS file')
-parser.add_argument('--vb', action='store_true', default=False,
-                    help='Verbosity')
+    parser.add_argument('mock_dir', type=str,
+                        help='Directory containing mock data')
+    parser.add_argument('outfile', type=str,
+                        help='Name of output MEDS file')
+    parser.add_argument('-outdir', type=str, default=None,
+                        help='Output directory for MEDS file')
+    parser.add_argument('-fname_base', action='store', type=str, default=None,
+                        help='Basename of mock image files')
+    parser.add_argument('-run_name', action='store', type=str, default=None,
+                        help='Name of mock simulation run')
+    parser.add_argument('-psf_mode', action='store', choices=['piff', 'psfex'], default='piff',
+                        help='model exposure PSF using either piff or psfex')
+    parser.add_argument('-psf_seed', type=int, default=None,
+                        help='Seed for chosen PSF estimation mode')
+    parser.add_argument('--meds_coadd', action='store_true', default=False,
+                        help='Set to keep coadd cutout in MEDS file')
+    parser.add_argument('--overwrite', action='store_true', default=False,
+                        help='Set to overwrite files')
+    parser.add_argument('--source_select', action='store_true', default=False,
+                        help='Set to select sources during MEDS creation')
+    parser.add_argument('--select_truth_stars', action='store_true', default=False,
+                        help='Set to match against truth catalog for PSF model fits')
+    parser.add_argument('--vb', action='store_true', default=False,
+                        help='Verbosity')
 
-def main():
-    args = parser.parse_args()
+    return parser.parse_args()
+
+def main(args):
     mock_dir = args.mock_dir
     outfile = args.outfile
     outdir = args.outdir
     run_name = args.run_name
     psf_mode = args.psf_mode
+    psf_seed = args.psf_seed
     use_coadd = args.meds_coadd
-    clobber = args.clobber
+    overwrite = args.overwrite
     source_selection = args.source_select
     select_truth_stars = args.select_truth_stars
     vb = args.vb
@@ -67,19 +67,27 @@ def main():
         fname_base = args.fname_base
 
 
-    science = glob.glob(os.path.join(mock_dir, fname_base)+'*[!truth,mcal,.sub,mock_coadd].fits')
+    science = glob.glob(os.path.join(mock_dir, fname_base) +\
+                        '*[!truth,mcal,.sub,mock_coadd].fits')
     logprint(f'Science frames: {science}')
 
     outfile = os.path.join(outdir, outfile)
 
     logprint('Setting up configuration...')
     bm = medsmaker.BITMeasurement(
-        image_files=science, data_dir=mock_dir, run_name=run_name, log=log, vb=vb
+        image_files=science, data_dir=mock_dir, run_name=run_name,
+        log=log, vb=vb
         )
 
     bm.set_working_dir(path=outdir)
-    bm.set_mask(mask_name='forecast_mask.fits',mask_dir=os.path.join(mock_dir,'mask_files'))
-    bm.set_weight(weight_name='forecast_weight.fits',weight_dir=os.path.join(mock_dir,'weight_files'))
+    mask_dir = os.path.join(mock_dir,'mask_files')
+    weight_dir = os.path.join(mock_dir,'weight_files')
+    bm.set_mask(
+        mask_name='forecast_mask.fits', mask_dir=mask_dir
+        )
+    bm.set_weight(
+        weight_name='forecast_weight.fits', weight_dir=weight_dir
+        )
 
     # Combine images, make a catalog.
     logprint('Making coadd & its catalog...')
@@ -91,7 +99,13 @@ def main():
 
     # Build a PSF model for each image.
     logprint('Making PSF models...')
-    bm.make_psf_models(select_truth_stars=select_truth_stars,im_cats=im_cats, use_coadd=use_coadd,psf_mode=psf_mode)
+    bm.make_psf_models(
+        select_truth_stars=select_truth_stars,
+        im_cats=im_cats,
+        use_coadd=use_coadd,
+        psf_mode=psf_mode,
+        psf_seed=psf_seed
+        )
 
     logprint('Making MEDS...')
 
@@ -105,26 +119,25 @@ def main():
     meds_config = bm.make_meds_config(use_coadd=use_coadd)
 
     # Create metadata for MEDS
-    magzp = 30.0
+    magzp = 30.
     meta = bm._meds_metadata(magzp, use_coadd)
     # Finally, make and write the MEDS file.
 
-    medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
-                                    psf_data=bm.psf_models, meta_data=meta)
+    medsObj = meds.maker.MEDSMaker(
+        obj_info, image_info, config=meds_config,
+        psf_data=bm.psf_models, meta_data=meta
+        )
 
     logprint(f'Writing to {outfile}')
     medsObj.write(outfile)
-
-    """
-    bm.run(clobber=clobber,source_selection = source_selection, select_stars = select_stars, outfile = outfile,psf_mode=psf_mode)
-    """
 
     logprint('Done!')
 
     return 0
 
 if __name__ == '__main__':
-    rc = main()
+    args = parse_args()
+    rc = main(args)
 
     if rc !=0:
-        raise Exception
+        print(f'process_mocks failed w/ return code {rc}!')

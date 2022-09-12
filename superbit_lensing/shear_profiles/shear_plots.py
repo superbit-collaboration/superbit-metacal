@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import rc,rcParams
 import matplotlib.pyplot as plt
 from astropy.table import Table
-import pudb
+import ipdb
 
 class ShearProfilePlotter(object):
 

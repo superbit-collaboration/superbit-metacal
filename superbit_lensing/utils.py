@@ -8,9 +8,11 @@ from numpy.random import SeedSequence, default_rng
 import time
 import numpy as np
 import subprocess
-import pdb, pudb
 from astropy.io import fits
 import astropy.wcs as wcs
+
+import pdb
+import ipdb
 
 class ForkedPdb(pdb.Pdb):
     """A Pdb subclass that may be used
@@ -34,8 +36,11 @@ class LogPrint(object):
         Requires a logging obj and verbosity level
         '''
 
-        # Must be a Logger object
-        assert(isinstance(log, logging.Logger))
+        # Must be either a Logger object or None
+        if log is not None:
+            if not isinstance(log, logging.Logger):
+                raise TypeError('log must be either a Logger ' +\
+                                'instance or None!')
 
         self.log = log
         self.vb = vb
@@ -47,7 +52,9 @@ class LogPrint(object):
         treat it like print()
         e.g. lprint = LogPrint(...); lprint('message')
         '''
-        self.log.info(msg)
+
+        if self.log is not None:
+            self.log.info(msg)
         if self.vb is True:
             print(msg)
 
@@ -67,7 +74,6 @@ class LogPrint(object):
             print(msg)
 
         return
-
 
 class Logger(object):
 
@@ -137,7 +143,7 @@ def write_yaml(yaml_dict, yaml_outfile):
 
     return
 
-def generate_seeds(Nseeds, master_seed=None):
+def generate_seeds(Nseeds, master_seed=None, seed_bounds=(0, 2**32-1)):
     '''
     generate a set of safe, independent seeds given a master seed
 
@@ -145,10 +151,20 @@ def generate_seeds(Nseeds, master_seed=None):
         The number of desired independent seeds
     master_seed: int
         A seed that initializes the SeedSequence, if desired
+    seed_bounds: tuple of ints
+        The min & max values for the seeds to be sampled from
     '''
 
     if (not isinstance(Nseeds, int)) or (Nseeds < 1):
         raise ValueError('Nseeds must be a positive int!')
+
+    for b in seed_bounds:
+        if not isinstance(b, int):
+            raise TypeError('seed_bounds must be a tuple of ints!')
+        if seed_bounds[0] < 0:
+            raise ValueError('seed_bounds must be positive!')
+        if seed_bounds[1] < seed_bounds[0]:
+            raise ValueError('seed_bounds values must be monotonic!')
 
     if master_seed is None:
         # local time in microseconds
@@ -160,12 +176,11 @@ def generate_seeds(Nseeds, master_seed=None):
 
     seeds = []
     for k in range(Nseeds):
-        val = int(streams[k].random()*1e16)
+        val = int(streams[k].integers(seed_bounds[0], seed_bounds[1]))
         seeds.append(val)
 
     return seeds
 
-# def check_req_params(params, values, defaults, config):
 def check_req_params(config, params, defaults):
     '''
     Ensure that certain required parameters have their values set to

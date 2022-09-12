@@ -31,7 +31,7 @@ def main():
     logdir = os.path.join(testdir, 'pipe_test')
     log = utils.setup_logger(logfile, logdir=logdir)
 
-    config_file = make_test_config(clobber=True, outdir=logdir)
+    config_file = make_test_config(overwrite=True, outdir=logdir)
 
     config = utils.read_yaml(config_file)
     vb = config['run_options']['vb']

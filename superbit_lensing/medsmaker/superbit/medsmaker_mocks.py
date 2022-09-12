@@ -6,7 +6,7 @@ import piff
 from astropy.io import fits
 import string
 from pathlib import Path
-import pdb, pudb
+import ipdb
 from astropy import wcs
 import fitsio
 import esutil as eu
@@ -35,7 +35,7 @@ TO DO:
     - Run medsmaker
 '''
 
-def piff_extender(piff_file,stamp_size=20):
+def piff_extender(piff_file, stamp_size=20):
     """
     Utility function to add the get_rec function expected
     by the MEDS package
@@ -59,7 +59,6 @@ def piff_extender(piff_file,stamp_size=20):
 
         def get_rec(self,row,col):
 
-            #print('Working!!!')
             fake_pex = self.psf.draw(x=col, y=row, stamp_size=stamp_size).array
 
             return fake_pex
@@ -77,7 +76,6 @@ def piff_extender(piff_file,stamp_size=20):
     psf_extended.psf = psf
 
     return psf_extended
-
 
 class BITMeasurement():
     def __init__(self, image_files=None, flat_files=None, dark_files=None,
@@ -242,7 +240,7 @@ class BITMeasurement():
                 bias_frame = fitsio.read(ibias_file)
                 bias_array.append(bias_frame)
                 master_bias = np.median(bias_array,axis=0)
-                fitsio.write(os.path.join(self.work_path,'master_bias_median.fits'),master_bias,clobber=True)
+                fitsio.write(os.path.join(self.work_path,'master_bias_median.fits'),master_bias,overwrite=True)
         else:
         """
         master_bias = fitsio.read(bname)
@@ -256,7 +254,7 @@ class BITMeasurement():
                 dark_frame = ((fitsio.read(idark_file)) - master_bias) * 1./time
                 dark_array.append(dark_frame)
                 master_dark = np.median(dark_array,axis=0)
-                fitsio.write(os.path.join(self.mask_path,'master_dark_median.fits'),master_dark,clobber=True)
+                fitsio.write(os.path.join(self.mask_path,'master_dark_median.fits'),master_dark,overwrite=True)
         else:
             master_dark=fitsio.read(dname)
 
@@ -272,7 +270,7 @@ class BITMeasurement():
                 flat_array.append(flat_frame)
                 master_flat1 = np.median(flat_array,axis=0)
                 master_flat = master_flat1/np.median(master_flat1)
-                fitsio.write(os.path.join(self.mask_path,'master_flat_median.fits'),master_flat,clobber=True)
+                fitsio.write(os.path.join(self.mask_path,'master_flat_median.fits'),master_flat,overwrite=True)
         else:
             master_flat=fitsio.read(fname)
         if not skip_sci_reduce:
@@ -378,8 +376,6 @@ class BITMeasurement():
             os.system(cmd)
             self.logprint('\n')
 
-        # pudb.set_trace()
-
         return detection_file, weight_file
 
     def _select_sources_from_catalog(self, fullcat, catname='catalog.ldac', min_size =2, max_size=24.0, size_key='KRON_RADIUS'):
@@ -419,7 +415,9 @@ class BITMeasurement():
         '''
 
         if sextractor_config_path is None:
-            sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
+            sextractor_config_path = os.path.join(
+                self.base_dir, 'superbit/astro_config/'
+                )
 
         cat_name=detection_file.replace('.fits','_cat.ldac')
         name_arg='-CATALOG_NAME ' + cat_name
@@ -499,7 +497,9 @@ class BITMeasurement():
 
         return sexcat_names
 
-    def make_psf_models(self, select_truth_stars=False, im_cats=None, use_coadd=False, psf_mode='piff', star_params=None):
+    def make_psf_models(self, select_truth_stars=False, im_cats=None,
+                        use_coadd=False, psf_mode='piff', psf_seed=None,
+                        star_params=None):
 
         if star_params is None:
             star_keys = {'size_key':'FLUX_RAD','mag_key':'MAG_AUTO'}
@@ -510,6 +510,9 @@ class BITMeasurement():
                             'MAX_SIZE':3.0,
                             'MIN_SNR': 20
                             }
+
+        if psf_seed is None:
+            psf_seed = utils.generate_seeds(1)
 
         self.psf_models = []
 
@@ -538,14 +541,22 @@ class BITMeasurement():
             weightfile = self.mask_file.replace('mask', 'weight')
 
             if psf_mode == 'piff':
-
-                piff_model = self._make_piff_model(imagefile, select_truth_stars=select_truth_stars,
-                star_params=star_params)
+                piff_model = self._make_piff_model(
+                    imagefile,
+                    select_truth_stars=select_truth_stars,
+                    star_params=star_params,
+                    psf_seed=psf_seed
+                    )
                 self.psf_models.append(piff_model)
 
             elif psf_mode == 'psfex':
-
-                psfex_model_file = self._make_psfex_model(im_cats[i], weightfile=weightfile,select_truth_stars=select_truth_stars,star_params=star_params)
+                psfex_model_file = self._make_psfex_model(
+                    im_cats[i],
+                    weightfile=weightfile,
+                    select_truth_stars=select_truth_stars,
+                    star_params=star_params,
+                    psf_seed=psf_seed
+                    )
 
                 # create & move checkimages to psfex_output
                 psfex_plotdir = os.path.join(self.data_dir,'psfex-output')
@@ -553,10 +564,15 @@ class BITMeasurement():
                 if not os.path.exists(psfex_checkplot_dir):
                     os.mkdir(self.psf_path)
 
-                cleanup_cmd = ' '.join(['mv chi* resi* samp* snap* proto* *.xml', psfex_plotdir])
-                cleanup_cmd2 = ' '.join(['mv count*pdf ellipticity*pdf fwhm*pdf', psfex_plotdir])
+                cleanup_cmd = ' '.join(
+                    ['mv chi* resi* samp* snap* proto* *.xml', psfex_plotdir]
+                    )
+                cleanup_cmd2 = ' '.join(
+                    ['mv count*pdf ellipticity*pdf fwhm*pdf', psfex_plotdir]
+                    )
                 os.system(cleanup_cmd)
                 os.system(cleanup_cmd2)
+
                 self.psf_models.append(psfex.PSFEx(psfex_model_file))
 
         # TODO: temporary coadd PSF solution!
@@ -565,46 +581,58 @@ class BITMeasurement():
 
         return
 
-    def _make_psfex_model(self, im_cat, weightfile='weight.fits', sextractor_config_path=None,
-                        psfex_out_dir='./tmp/', select_truth_stars=False,star_params=None):
+    def _make_psfex_model(self, im_cat, weightfile='weight.fits',
+                          config_path=None,
+                          psfex_out_dir='./tmp/', psf_seed=None,
+                          select_truth_stars=False, star_params=None):
         '''
         Gets called by make_psf_models for every image in self.image_files
         Wrapper for PSFEx. Requires a FITS format catalog with vignettes
 
+        TODO: Implement psf_seed for PSFEx!
         '''
 
-        if sextractor_config_path is None:
-            sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
+        if config_path is None:
+            config_path = os.path.join(
+                self.base_dir, 'superbit/astro_config/'
+                )
 
         # If flagged, get a "clean" star catalog for PSFEx input
         if select_truth_stars==True:
-            # This will break for any truth file nomenclature that isn't pipeline default
-            truthdir=self.data_dir
+            # This will break for any truth file nomenclature that
+            # isn't pipeline default
+            truthdir = self.data_dir
             truthcat = glob.glob(''.join([truthdir,'*truth*.fits']))[0]
-            truthfilen=os.path.join(truthdir,truthcat)
+            truthfilen = os.path.join(truthdir,truthcat)
             self.logprint("using truth catalog %s" % truthfilen)
-            psfcat_name = self._select_stars_for_psf(sscat=im_cat,truthfile=truthfilen)
+            psfcat_name = self._select_stars_for_psf(
+                sscat=im_cat,truthfile=truthfilen
+                )
 
         else:
             psfcat_name = im_cat
 
         # Now run PSFEx on that image and accompanying catalog
 
-        psfex_config_arg = '-c '+sextractor_config_path+'psfex.mock.config'
-        outcat_name = imagefile.replace('.fits','.psfex.star')
-        cmd = ' '.join(['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME',
-                            outcat_name])
+        psfex_config_arg = '-c '+config_path+'psfex.mock.config'
+        outcat_name = im_cat.replace('.fits','.psfex.star')
+        cmd = ' '.join(
+            ['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME', outcat_name]
+            )
         self.logprint("psfex cmd is " + cmd)
         os.system(cmd)
         # utils.run_command(cmd, logprint=self.logprint)
 
-        psfex_model_file=imcat_ldac_name.replace('.ldac','.psf')
+        psfex_model_file = imcat_ldac_name.replace('.ldac','.psf')
 
-        # Just return name, the make_psf_models method reads it in as a PSFEx object
+        # Just return name, the make_psf_models method reads it in
+        # as a PSFEx object
         return psfex_model_file
 
-    def _make_piff_model(self, imagefile, weightfile='weight.fits', sextractor_config_path=None,
-            psfex_out_dir='./tmp/', select_truth_stars=False,star_params=None):
+    def _make_piff_model(self, imagefile, weightfile='weight.fits',
+                         config_path=None, psfex_out_dir='./tmp/',
+                         select_truth_stars=False, star_params=None,
+                         psf_seed=None):
         '''
         Method to invoke PIFF for PSF modeling
         Returns a "PiffExtender" object with the get_rec() and get_cen()
@@ -613,54 +641,67 @@ class BITMeasurement():
         First, let's get it to run on one, then we can focus on running list
         '''
 
-        if sextractor_config_path is None:
-                sextractor_config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
+        if config_path is None:
+            config_path = os.path.join(
+                self.base_dir, 'superbit/astro_config/'
+            )
 
-        imcat_ldac_name=imagefile.replace('.fits','_cat.ldac')
+        output_dir = os.path.join(self.data_dir, 'piff-output')
+        utils.make_dir(output_dir)
 
-        if select_truth_stars==True:
+        base_piff_config = os.path.join(config_path, 'piff.config')
+        run_piff_config = os.path.join(output_dir, 'piff.config')
 
-            # This will break for any truth file nomenclature that isn't pipeline default
-            truthdir=self.work_path
+        # update piff config w/ psf_seed
+        config = utils.read_yaml(base_piff_config)
+        if psf_seed is None:
+            psf_seed = utils.generate_seeds(1)
+        config['select']['seed'] = psf_seed
+        utils.write_yaml(config, run_piff_config)
+
+        imcat_ldac_name = imagefile.replace('.fits', '_cat.ldac')
+
+        if select_truth_stars is True:
+            # This will break for any truth file nomenclature that
+            # isn't pipeline default
+            truthdir = self.work_path
             try:
                 truthcat = glob.glob(os.path.join(truthdir,'*truth*.fits'))[0]
-            except:
+            except OSError:
+                # old way
                 truthcat = glob.glob(os.path.join(truthdir,'*truth*.dat'))[0]
-            truthfilen=os.path.join(truthdir,truthcat)
-            self.logprint("using truth catalog %s" % truthfilen)
-            psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,\
-                    truthfile=truthfilen,star_params=star_params)
 
-        else:
-            psfcat_name = self._select_stars_for_psf(sscat=imcat_ldac_name,\
-                    truthfile=None,star_params=star_params)
+            truthfilen = os.path.join(truthdir,truthcat)
+            self.logprint('using truth catalog %s' % truthfilen)
+
+        psfcat_name = self._select_stars_for_psf(
+            sscat=imcat_ldac_name,
+            star_params=star_params
+            )
 
         # Now run PIFF on that image and accompanying catalog
-        piff_config_arg = ''.join([sextractor_config_path,'piff.config'])
-        im_name = imagefile.replace('.fits','.sub.fits')
-        image_arg = ''.join(['input.image_file_name=',im_name])
-        psfcat_arg = ''.join(['input.cat_file_name=',psfcat_name])
-        output_name = imagefile.split('/')[-1].replace('.fits','.piff')
-        output_dir = os.path.join(self.data_dir,'piff-output')
-        full_output_name=os.path.join(output_dir,output_name)
-        output_arg = ''.join(['output.file_name=',output_name,' output.dir=',output_dir])
-        cmd = ' '.join(['piffify', piff_config_arg,image_arg,psfcat_arg, output_arg])
+        im_name = imagefile.replace('.fits', '.sub.fits')
+        image_arg = f'input.image_file_name={im_name}'
+        psfcat_arg = f'input.cat_file_name={psfcat_name}'
+        output_name = imagefile.split('/')[-1].replace('.fits', '.piff')
+        full_output_name = os.path.join(output_dir, output_name)
+        output_arg = f'output.file_name={output_name} output.dir={output_dir}'
+        cmd = f'piffify {run_piff_config} {image_arg} {psfcat_arg} {output_arg}'
 
-        self.logprint("piff cmd is " + cmd)
+        self.logprint('piff cmd is ' + cmd)
         os.system(cmd)
 
         piff_extended = piff_extender(full_output_name)
 
         return piff_extended
 
-
-    def _select_stars_for_psf(self,sscat,truthfile=None,starkeys=None,star_params=None):
+    def _select_stars_for_psf(self, sscat, truthfile=None, starkeys=None,
+                              star_params=None):
         '''
         Method to obtain stars from SExtractor catalog using the truth catalog from GalSim
             sscat : input ldac-format catalog from which to select stars
             truthcat : the simulation truth catalog written out by GalSim
         '''
-
 
         try:
             ss = Table.read(sscat,hdu=2)
@@ -668,7 +709,6 @@ class BITMeasurement():
             ss = Table.read(sscat,hdu=1)
 
         if truthfile is not None:
-
             # Read in truthfile, obtain stars with redshift cut
             try:
                 truthcat = Table.read(truthfile,format='fits')
@@ -688,9 +728,7 @@ class BITMeasurement():
             wg_stars = (ss['SNR_WIN']>star_params['MIN_SNR']) & (ss['CLASS_STAR']>star_params['CLASS_STAR'])
             ss[wg_stars].write(outname,format='fits',overwrite=True)
 
-
         else:
-
             # Do more standard stellar locus matching
             # Would be great to have stellar_locus_params be more customizable...
             outname = sscat.replace('.ldac','stars.ldac')
@@ -830,9 +868,10 @@ class BITMeasurement():
 
         return obj_str
 
-    def run(self,outfile='mock_superbit.meds', clobber=False, source_selection=False,
-            select_truth_stars=False,psf_mode='piff'):
-        # Make a MEDS, clobbering if needed
+    def run(self,outfile='mock_superbit.meds', overwrite=False,
+            source_selection=False, select_truth_stars=False, psf_mode='piff',
+            use_coadd=True):
+        # Make a MEDS, overwriteing if needed
 
         #### ONLY FOR DEBUG
         #### Set up the paths to the science and calibration data
@@ -844,10 +883,10 @@ class BITMeasurement():
         ####################
 
         # Reduce the data.
-        # self.reduce(overwrite=clobber,skip_sci_reduce=True)
+        # self.reduce(overwrite=overwrite,skip_sci_reduce=True)
         # Make a mask.
         # NB: can also read in a pre-existing mask by setting self.mask_file
-        #self.make_mask(mask_name='mask.fits',overwrite=clobber)
+        #self.make_mask(mask_name='mask.fits',overwrite=overwrite)
 
         # Combine images, make a catalog.
         config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
@@ -864,7 +903,8 @@ class BITMeasurement():
         # Make the MEDS config file.
         meds_config = self.make_meds_config()
         # Create metadata for MEDS
-        meta = self._meds_metadata(magzp=30.0)
+        magzp = 30.
+        meta = self._meds_metadata(magzp, use_coadd)
         # Finally, make and write the MEDS file.
         medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
                                        psf_data=self.psf_models,meta_data=meta)

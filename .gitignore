@@ -12,6 +12,7 @@ configs/gaia_shape_gaussian/
 *.txt
 ./configs/test_stars.yaml
 dist/
+tests/
 get_avg_alpha.py
 get_mean_shearprofile.py
 job_scripts/
@@ -20,6 +21,7 @@ make_job_scripts.py
 runs/
 slurm_outfiles/
 superbit_lensing/__pycache__/
+superbit_lensing/tests/*
 superbit_lensing/galsim/config_files/bit_0.24gauss_cl3.yaml
 superbit_lensing/galsim/config_files/bit_0.24gauss_cl5.yaml
 superbit_lensing/galsim/config_files/gs_cl_m2.2e15_z0.44.yaml
