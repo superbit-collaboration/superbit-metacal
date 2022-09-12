@@ -201,6 +201,11 @@ class Annular(object):
         self.y = None
         self.r = None
 
+        # may want to exclude radial bins whose mean gtan shear is
+        # sufficiently large
+        self.shear_cut = annular_info['shear_cut']
+        self.shear_cut_cat = annular_info['shear_cut_cat']
+
         return
 
     def open_table(self, cat_info):
