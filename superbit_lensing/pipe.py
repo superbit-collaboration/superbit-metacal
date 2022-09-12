@@ -545,7 +545,7 @@ class NgmixFitModule(SuperBITModule):
 class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
     _opt_fields = ['outdir', 'run_name', 'truth_file', 'nfw_file', 'Nresample',
-                   'rmin', 'rmax', 'nbins', 'nfw_seed']
+                   'rmin', 'rmax', 'shear_cut', 'nbins', 'nfw_seed']
     _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
@@ -684,9 +684,9 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'ncores': 1,
                     'run_diagnostics': True,
                     'order': [
-                        'galsim',
-                        'medsmaker',
-                        'metacal',
+                        # 'galsim',
+                        # 'medsmaker',
+                        # 'metacal',
                         # 'metacal_v2',
                         'shear_profile',
                         # 'ngmix_fit'
@@ -732,6 +732,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'nfw_file': nfw_file,
                     'outdir': outdir,
                     'run_name': run_name,
+                    'shear_cut': 0.08,
                     'Nresample': 1, # to run much faster
                     'overwrite': overwrite,
                 }

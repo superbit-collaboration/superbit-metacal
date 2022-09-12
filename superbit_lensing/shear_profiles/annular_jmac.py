@@ -118,7 +118,6 @@ class ShearCalc():
         self.r = None
 
         if inputs is not None:
-
             self.x = inputs['x']
             self.y = inputs['y']
             self.g1 = inputs['g1']
@@ -126,21 +125,31 @@ class ShearCalc():
 
         return
 
-    def get_r_gtan(self,xc,yc):
+    def get_r_gtan(self, xc, yc, apply_cut=True):
         '''
         Calculate distance from reference point located at (xc, yc) and rotate
         g1, g2 of galaxies into gtan, gcross
 
-        :xc:   x coordinate of reference point for shear calc
-        :yc:   y coordinate of reference point for shear calc
+        xc: float
+            x coordinate of reference point for shear calc
+        yc: float
+            y coordinate of reference point for shear calc
+        apply_cut: bool
+            Set to True to remove unphysical entries. This should be False
+            if you want to preserve indexing & length, such as when using
+            get_shear_cut()
         '''
 
         g = np.sqrt(self.g1**2 + self.g2**2)
         std_g = np.std(g)
-        wg = (g >= 0.)
 
-        nbad = len(wg[wg < 0])
-        print(f'## {nbad} of {len(g)} galaxies removed due to |g| < 0')
+        if apply_cut is True:
+            wg = (g >= 0.)
+            nbad = len(wg[wg < 0])
+            print(f'## {nbad} of {len(g)} galaxies removed due to |g| < 0')
+        else:
+            # do nothing
+            wg = np.ones(len(g), dtype=bool)
 
         self.g1 = self.g1[wg]
         self.g2 = self.g2[wg]
@@ -150,7 +159,7 @@ class ShearCalc():
         self.r = np.sqrt(((self.x-xc)**2.) + ((self.y-yc)**2.))
         phi = np.arctan2((self.y-yc), (self.x-xc))
 
-        print(f'## Mean g: {np.mean(g):.3f} sigma_g: {np.std(g):.3f}')
+        print(f'## Mean |g|: {np.mean(g):.3f} sigma_|g|: {np.std(g):.3f}')
 
         self.gtan= -1.*(self.g1*np.cos(2.*phi) + self.g2*np.sin(2.*phi))
         # note that annular.c has opposite sign convention

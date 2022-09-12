@@ -7,7 +7,7 @@ from astropy.io import fits
 from esutil import htm
 from argparse import ArgumentParser
 
-from annular_jmac import Annular
+from annular_jmac import Annular, ShearCalc
 from superbit_lensing import utils
 
 def parse_args():
@@ -34,6 +34,8 @@ def parse_args():
                         help='Starting radius value (in pixels)')
     parser.add_argument('-rmax', type=float, default=5200,
                         help='Ending radius value (in pixels)')
+    parser.add_argument('-shear_cut', type=float, default=None,
+                        help='Maximum gtan to include in shear bias calculation')
     parser.add_argument('-nfw_seed', type=int, default=None,
                         help='Seed for nfw redshift resampling')
     parser.add_argument('-nbins', type=int, default=18,
@@ -75,14 +77,17 @@ class AnnularCatalog():
 
         self.rmin = annular_info['rmin']
         self.rmax = annular_info['rmax']
+        self.shear_cut = annular_info['shear_cut']
         self.nbins = annular_info['nbins']
         self.coadd_center = annular_info['coadd_center']
+
+        # if self.shear_cut is not None:
+        #     self.outfile = outfile.replace('.fits', f'_shear_cut_{self.shear_cut}.fits')
 
         if self.outdir is not None:
             self.outfile = os.path.join(self.outdir, self.outfile)
         else:
             self.outdir = ''
-
 
         self.se_cat = Table.read(self.se_file, hdu=2)
         self.mcal = Table.read(self.mcal_file)
@@ -259,12 +264,12 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 0.5 
+        min_Tpsf = 0.5
         max_sn = 1000
-        min_sn = 10 
-        min_T = 0.0 
-        max_T = 10 
-        
+        min_sn = 10
+        min_T = 0.0
+        max_T = 10
+
         if self.cluster_redshift is not None:
             min_redshift = self.cluster_redshift
         else:
@@ -278,50 +283,56 @@ class AnnularCatalog():
                     'min_sn' : min_sn,
                     'min_T' : min_T,
                     'max_T' : max_T,
-                    'min_redshift' : min_redshift}
+                    'min_redshift' : min_redshift,
+                    'shear_cut': self.shear_cut
+                    }
 
         mcal = self.joined_gals
-        
+
         noshear_selection = mcal[(mcal['T_r_noshear']>=min_Tpsf*mcal['Tpsf_noshear'])\
-                                        & (mcal['T_r_noshear']<max_T)\
-                                        & (mcal['T_r_noshear']>=min_T)\
-                                        & (mcal['s2n_r_noshear']>min_sn)\
-                                        & (mcal['s2n_r_noshear']<max_sn)\
-                                        & (mcal['redshift'] > min_redshift)
-                                
-                                  ]
+                                 & (mcal['T_r_noshear']<max_T)\
+                                 & (mcal['T_r_noshear']>=min_T)\
+                                 & (mcal['s2n_r_noshear']>min_sn)\
+                                 & (mcal['s2n_r_noshear']<max_sn)\
+                                 & (mcal['redshift'] > min_redshift)\
+                                 & self.get_shear_cut(mcal, 'noshear')
+                                 ]
 
         selection_1p = mcal[(mcal['T_r_1p']>=min_Tpsf*mcal['Tpsf_1p'])\
-                                      & (mcal['T_r_1p']<=max_T)\
-                                      & (mcal['T_r_1p']>=min_T)\
-                                      & (mcal['s2n_r_1p']>min_sn)\
-                                      & (mcal['s2n_r_1p']<max_sn)\
-                                      & (mcal['redshift'] > min_redshift)
-                                  ]
+                            & (mcal['T_r_1p']<=max_T)\
+                            & (mcal['T_r_1p']>=min_T)\
+                            & (mcal['s2n_r_1p']>min_sn)\
+                            & (mcal['s2n_r_1p']<max_sn)\
+                            & (mcal['redshift'] > min_redshift)\
+                            & self.get_shear_cut(mcal, '1p')
+                            ]
 
         selection_1m = mcal[(mcal['T_r_1m']>=min_Tpsf*mcal['Tpsf_1m'])\
-                                      & (mcal['T_r_1m']<=max_T)\
-                                      & (mcal['T_r_1m']>=min_T)\
-                                      & (mcal['s2n_r_1m']>min_sn)\
-                                      & (mcal['s2n_r_1m']<max_sn)\
-                                      & (mcal['redshift'] > min_redshift)
-                                  ]
+                            & (mcal['T_r_1m']<=max_T)\
+                            & (mcal['T_r_1m']>=min_T)\
+                            & (mcal['s2n_r_1m']>min_sn)\
+                            & (mcal['s2n_r_1m']<max_sn)\
+                            & (mcal['redshift'] > min_redshift)\
+                            & self.get_shear_cut(mcal, '1m')
+                            ]
 
         selection_2p = mcal[(mcal['T_r_2p']>=min_Tpsf*mcal['Tpsf_2p'])\
-                                      & (mcal['T_r_2p']<=max_T)\
-                                      & (mcal['T_r_2p']>=min_T)\
-                                      & (mcal['s2n_r_2p']>min_sn)\
-                                      & (mcal['s2n_r_2p']<max_sn)\
-                                      & (mcal['redshift'] > min_redshift)
-                                  ]
+                            & (mcal['T_r_2p']<=max_T)\
+                            & (mcal['T_r_2p']>=min_T)\
+                            & (mcal['s2n_r_2p']>min_sn)\
+                            & (mcal['s2n_r_2p']<max_sn)\
+                            & (mcal['redshift'] > min_redshift)\
+                            & self.get_shear_cut(mcal, '2p')
+                            ]
 
         selection_2m = mcal[(mcal['T_r_2m']>=min_Tpsf*mcal['Tpsf_2m'])\
-                                      & (mcal['T_r_2m']<=max_T)\
-                                      & (mcal['T_r_2m']>=min_T)\
-                                      & (mcal['s2n_r_2m']>min_sn)\
-                                      & (mcal['s2n_2m']<max_sn)\
-                                      & (mcal['redshift'] > min_redshift)
-                                  ]
+                            & (mcal['T_r_2m']<=max_T)\
+                            & (mcal['T_r_2m']>=min_T)\
+                            & (mcal['s2n_r_2m']>min_sn)\
+                            & (mcal['s2n_2m']<max_sn)\
+                            & (mcal['redshift'] > min_redshift)\
+                            & self.get_shear_cut(mcal, '2m')
+                            ]
 
         # assuming delta_shear in ngmix_fit_superbit is 0.01
         r11_gamma = (np.mean(noshear_selection['g_1p'][:,0]) -
@@ -355,7 +366,7 @@ class AnnularCatalog():
         tot_covar = shape_noise +\
                 self.selected['g_cov_noshear'][:,0,0] +\
                 self.selected['g_cov_noshear'][:,1,1]
-        
+
         weight = 1. / tot_covar
 
         try:
@@ -406,6 +417,46 @@ class AnnularCatalog():
 
         return qualcuts
 
+    def get_shear_cut(self, mcal, stype):
+        '''
+        Apply the shear cut (if set) on gtan given a mcal table
+        and shear type
+        '''
+
+        if self.shear_cut is None:
+            return np.ones(len(mcal), dtype=bool)
+
+        if self.shear_cut < 0:
+            raise ValueError('shear_cut must be positive!')
+
+        # Normally the gtan calculation is left until later. But as we want the
+        # shear cut on gtan, we calculate it early before selections are applied
+        # using a ShearCalc instance
+
+        # x,y position of sources
+        xcol = self.annular_info['xy_args'][0]
+        ycol = self.annular_info['xy_args'][1]
+
+        # x,y position of coadd center
+        xc = self.annular_info['coadd_center'][0]
+        yc = self.annular_info['coadd_center'][1]
+
+        shear_inputs = {
+            'x': mcal[xcol],
+            'y': mcal[ycol],
+            'g1': mcal[f'g_{stype}'][:,0],
+            'g2': mcal[f'g_{stype}'][:,1],
+            }
+
+        # Compute radius from NFW center, gtan, and gcross
+        ipdb.set_trace()
+        shears = ShearCalc(inputs=shear_inputs)
+        shears.get_r_gtan(xc=xc, yc=yc, apply_cut=False)
+
+        gtan = shears.gtan
+
+        return gtan < self.shear_cut
+
     def compute_tan_shear_profile(self, outfile, plotfile, Nresample,
                                   overwrite=False, vb=False):
 
@@ -427,13 +478,10 @@ class AnnularCatalog():
                 'nfw_center': [nfw_truth_xcenter, nfw_truth_ycenter]
                 }
 
-
-
         else: nfw_info = None
 
         # Runs the Annular class in annular_jmac.py
         # Compute cross/tan shear, select background galaxies, obtain shear profile
-        # runner = AnnularRunner(cat_info, annular_info)
         annular = Annular(cat_info, annular_info, nfw_info, run_name=self.run_name, vb=vb)
 
         annular.run(outfile, plotfile, Nresample, overwrite=overwrite)
@@ -476,6 +524,7 @@ def main(args):
     Nresample = args.Nresample
     rmin = args.rmin
     rmax = args.rmax
+    shear_cut = args.shear_cut
     nfw_seed = args.nfw_seed
     nbins = args.nbins
     overwrite = args.overwrite
@@ -521,6 +570,7 @@ def main(args):
     annular_info = {
         'rmin': rmin,
         'rmax': rmax,
+        'shear_cut': shear_cut,
         'nbins': nbins,
         'coadd_center': coadd_center,
         'xy_args': xy_cols,
