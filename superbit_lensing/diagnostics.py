@@ -216,6 +216,7 @@ class MetacalDiagnostics(TruthDiagnostics):
         pass
 
 class MetacalV2Diagnostics(MetacalDiagnostics):
+    pass
 
 class NgmixFitDiagnostics(TruthDiagnostics):
 

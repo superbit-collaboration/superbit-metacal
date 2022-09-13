@@ -83,6 +83,8 @@ class AnalysisRunner(object):
         clusters = glob(os.path.join(self.basedir, 'cl*/'))
 
         for cluster in clusters:
+            cl = os.path.basename(os.path.abspath(cluster))
+            self.logprint(f'Starting cluster {cl}')
             self.run_mean_shear_profile(
                 cluster, overwrite=overwrite, show=show
                 )
