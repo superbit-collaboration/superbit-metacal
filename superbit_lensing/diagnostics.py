@@ -215,6 +215,8 @@ class MetacalDiagnostics(TruthDiagnostics):
     def plot_compare_shear(self, run_options, logprint):
         pass
 
+class MetacalV2Diagnostics(MetacalDiagnostics):
+
 class NgmixFitDiagnostics(TruthDiagnostics):
 
     def __init__(self, name, config):
@@ -300,6 +302,7 @@ DIAGNOSTICS_TYPES = {
     'galsim': GalSimDiagnostics,
     'medsmaker': MedsmakerDiagnostics,
     'metacal': MetacalDiagnostics,
+    'metacal_v2': MetacalV2Diagnostics,
     'ngmix_fit': NgmixFitDiagnostics,
     'shear_profile': ShearProfileDiagnostics,
 }

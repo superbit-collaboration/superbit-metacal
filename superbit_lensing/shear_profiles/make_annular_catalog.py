@@ -34,11 +34,6 @@ def parse_args():
                         help='Starting radius value (in pixels)')
     parser.add_argument('-rmax', type=float, default=5200,
                         help='Ending radius value (in pixels)')
-    parser.add_argument('-shear_cut', type=float, default=None,
-                        help='Maximum gtan to include in shear bias calculation')
-    parser.add_argument('-shear_cut_cat', type=str, default=None,
-                        help='Fiducial shear profile catalog to use in the ' +\
-                        'shear cut')
     parser.add_argument('-nfw_seed', type=int, default=None,
                         help='Seed for nfw redshift resampling')
     parser.add_argument('-nbins', type=int, default=18,
@@ -80,8 +75,6 @@ class AnnularCatalog():
 
         self.rmin = annular_info['rmin']
         self.rmax = annular_info['rmax']
-        self.shear_cut = annular_info['shear_cut']
-        self.shear_cut_cat_fname = annular_info['shear_cut_cat']
         self.nbins = annular_info['nbins']
         self.coadd_center = annular_info['coadd_center']
 
@@ -89,13 +82,6 @@ class AnnularCatalog():
             self.outfile = os.path.join(self.outdir, self.outfile)
         else:
             self.outdir = ''
-
-        if self.shear_cut is not None:
-            if self.shear_cut_cat_fname is None:
-                raise ValueError('Must pass a shear_cut_cat if shear_cut is set!')
-            self.shear_cut_cat = Table.read(self.shear_cut_cat_fname)
-        else:
-            self.shear_cut_cat = None
 
         self.se_cat = Table.read(self.se_file, hdu=2)
         self.mcal = Table.read(self.mcal_file)
@@ -292,22 +278,16 @@ class AnnularCatalog():
                     'min_T' : min_T,
                     'max_T' : max_T,
                     'min_redshift' : min_redshift,
-                    'shear_cut': self.shear_cut
                     }
 
         mcal = self.joined_gals
-
-        # adds shear cut cols to sources, if possible
-        mcal = self.setup_shear_cut(mcal)
-        shear_cut = self.get_shear_cut(mcal)
 
         noshear_selection = mcal[(mcal['T_r_noshear']>=min_Tpsf*mcal['Tpsf_noshear'])\
                                  & (mcal['T_r_noshear']<max_T)\
                                  & (mcal['T_r_noshear']>=min_T)\
                                  & (mcal['s2n_r_noshear']>min_sn)\
                                  & (mcal['s2n_r_noshear']<max_sn)\
-                                 & (mcal['redshift'] > min_redshift)\
-                                 & shear_cut
+                                 & (mcal['redshift'] > min_redshift)
                                  ]
 
         selection_1p = mcal[(mcal['T_r_1p']>=min_Tpsf*mcal['Tpsf_1p'])\
@@ -315,8 +295,7 @@ class AnnularCatalog():
                             & (mcal['T_r_1p']>=min_T)\
                             & (mcal['s2n_r_1p']>min_sn)\
                             & (mcal['s2n_r_1p']<max_sn)\
-                            & (mcal['redshift'] > min_redshift)\
-                            & shear_cut
+                            & (mcal['redshift'] > min_redshift)
                             ]
 
         selection_1m = mcal[(mcal['T_r_1m']>=min_Tpsf*mcal['Tpsf_1m'])\
@@ -324,8 +303,7 @@ class AnnularCatalog():
                             & (mcal['T_r_1m']>=min_T)\
                             & (mcal['s2n_r_1m']>min_sn)\
                             & (mcal['s2n_r_1m']<max_sn)\
-                            & (mcal['redshift'] > min_redshift)\
-                            & shear_cut
+                            & (mcal['redshift'] > min_redshift)
                             ]
 
         selection_2p = mcal[(mcal['T_r_2p']>=min_Tpsf*mcal['Tpsf_2p'])\
@@ -333,8 +311,7 @@ class AnnularCatalog():
                             & (mcal['T_r_2p']>=min_T)\
                             & (mcal['s2n_r_2p']>min_sn)\
                             & (mcal['s2n_r_2p']<max_sn)\
-                            & (mcal['redshift'] > min_redshift)\
-                            & shear_cut
+                            & (mcal['redshift'] > min_redshift)
                             ]
 
         selection_2m = mcal[(mcal['T_r_2m']>=min_Tpsf*mcal['Tpsf_2m'])\
@@ -342,8 +319,7 @@ class AnnularCatalog():
                             & (mcal['T_r_2m']>=min_T)\
                             & (mcal['s2n_r_2m']>min_sn)\
                             & (mcal['s2n_2m']<max_sn)\
-                            & (mcal['redshift'] > min_redshift)\
-                            & shear_cut
+                            & (mcal['redshift'] > min_redshift)
                             ]
 
         # assuming delta_shear in ngmix_fit_superbit is 0.01
@@ -429,65 +405,6 @@ class AnnularCatalog():
 
         return qualcuts
 
-    def get_shear_cut(self, mcal):
-        '''
-        Apply the shear cut (if set) on gtan given a mcal table
-        '''
-
-        shear_cut = np.ones(len(mcal), dtype=bool)
-
-        if self.shear_cut is None:
-            return shear_cut
-
-        shear_cut = np.abs(mcal['shear_profile_mean_gtan']) < shear_cut
-
-        return shear_cut
-
-    def setup_shear_cut(self, mcal):
-        '''
-        If performing a shear cut, we need to know which radial bin
-        each source lies in, as well as whether a given radial bin will
-        be cut according to its mean gtan *before* the shear cut. This
-        will require the shear_profile module to be run twice: first to
-        create the fiducial tan shear profile w/o cuts, and then loaded in
-        as the shear_cut_cat to compute the selection responsivitiy correctly
-        '''
-
-        if self.shear_cut is None:
-            return
-        if self.shear_cut < 0:
-            raise ValueError('shear_cut must be positive!')
-
-        # x,y position of sources
-        xcol = self.annular_info['xy_args'][0]
-        ycol = self.annular_info['xy_args'][1]
-        x = mcal[xcol]
-        y = mcal[ycol]
-
-        # x,y position of coadd center
-        xc = self.annular_info['coadd_center'][0]
-        yc = self.annular_info['coadd_center'][1]
-
-        r = np.sqrt(((x-xc)**2.) + ((y-yc)**2.))
-
-        # assign sources to fiducial radial bins
-        ipdb.set_trace()
-        indices = _find_nearest(r, self.shear_cut_cat['midpoint_r'])
-        mean_gtan = self.shear_cut_cat['mean_gtan'][indices]
-
-        mcal['shear_profile_bin'] = indices
-        mcal['shear_profile_mean_gtan'] = mean_gtan
-
-        return mcal
-
-    def _find_nearest(radii, bin_midpoints):
-        indices = -1 * np.ones(len(radii), dtype=int)
-        for i, r in enumerate(radii):
-            indices[i] = np.nanargmin(np.abs(r - bin_midpoints))
-
-        assert (indices != -1).any()
-        return indices
-
     def compute_tan_shear_profile(self, outfile, plotfile, Nresample,
                                   overwrite=False, vb=False):
 
@@ -555,8 +472,6 @@ def main(args):
     Nresample = args.Nresample
     rmin = args.rmin
     rmax = args.rmax
-    shear_cut = args.shear_cut
-    shear_cut_cat = args.shear_cut_cat
     nfw_seed = args.nfw_seed
     nbins = args.nbins
     overwrite = args.overwrite
@@ -602,8 +517,6 @@ def main(args):
     annular_info = {
         'rmin': rmin,
         'rmax': rmax,
-        'shear_cut': shear_cut,
-        'shear_cut_cat': shear_cut_cat,
         'nbins': nbins,
         'coadd_center': coadd_center,
         'xy_args': xy_cols,

@@ -545,8 +545,7 @@ class NgmixFitModule(SuperBITModule):
 class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
     _opt_fields = ['outdir', 'run_name', 'truth_file', 'nfw_file', 'Nresample',
-                   'rmin', 'rmax', 'shear_cut', 'shear_cut_cat', 'nbins',
-                   'nfw_seed']
+                   'rmin', 'rmax', 'nbins', 'nfw_seed']
     _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
@@ -594,6 +593,50 @@ class ShearProfileModule(SuperBITModule):
         if 'run_name' not in self._config:
             run_name = run_options['run_name']
             options += f' -run_name={run_name}'
+
+        cmd = base + options
+
+        return cmd
+
+class AnalysisModule(SuperBITModule):
+    _req_fields = ['basedir']
+    _opt_fields = ['shear_cut', 'outdir']
+    _flag_fields = ['overwrite', 'vb']
+
+    def __init__(self, name, config):
+        super(AnalysisModule, self).__init__(name, config)
+
+        #...
+
+        return
+
+    def run(self, run_options, logprint):
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
+
+        cmd = self._setup_run_command(run_options)
+
+        rc = self._run_command(cmd, logprint)
+
+        return rc
+
+    def _setup_run_command(self, run_options):
+
+        basedir = run_options['outdir']
+
+        analysis_dir = os.path.join(utils.MODULE_DIR, 'analysis')
+        filepath = os.path.join(
+            analysis_dir, 'run_analysis.py'
+            )
+
+        base = f'python {filepath} {basedir}'
+
+        options = self._setup_options(run_options)
+
+        if 'overwrite' not in options:
+            if 'overwrite' in run_options:
+                if run_options['overwrite'] is True:
+                    options += ' --overwrite'
 
         cmd = base + options
 
@@ -733,10 +776,9 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'nfw_file': nfw_file,
                     'outdir': outdir,
                     'run_name': run_name,
-                    'shear_cut': 0.08,
                     'Nresample': 1, # to run much faster
                     'overwrite': overwrite,
-                }
+                },
             }
 
             yaml.dump(CONFIG, f, default_flow_style=False)
@@ -754,4 +796,5 @@ MODULE_TYPES = {
     'metacal_v2': MetacalModuleV2,
     'ngmix_fit': NgmixFitModule,
     'shear_profile': ShearProfileModule,
+    'analysis': AnalysisModule,
     }
