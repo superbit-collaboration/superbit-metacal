@@ -14,8 +14,8 @@ from astropy.table import Table
 from esutil import htm
 from statsmodels.stats.weightstats import DescrStatsW
 
-
 from shear_plots import ShearProfilePlotter
+from bias import compute_shear_bias
 
 import ipdb
 
@@ -49,52 +49,6 @@ parser.add_argument('--overwrite', action='store_true', default=False,
                     help='Set to overwrite output files')
 parser.add_argument('--vb', action='store_true', default=False,
                     help='Turn on for verbose prints')
-
-def compute_shear_bias(profile_tab):
-    '''
-    Function to compute the max. likelihood estimator for the bias of a shear profile
-    relative to the input NFW profile and the uncertainty on the bias.
-
-    Saves the shear bias estimator ("alpha") and the uncertainty on the bias ("asigma")
-    within the meta of the input profile_tab
-
-    The following columns are assumed present in profile_tab:
-
-    :gtan:      tangential shear of data
-    :err_gtan:  RMS uncertainty for tangential shear data
-    :nfw_gtan:  reference (NFW) tangential shear
-
-    '''
-
-    assert isinstance(profile_tab,Table)
-
-    try:
-        T = profile_tab['mean_nfw_gtan']
-        D = profile_tab['mean_gtan']
-        errbar = profile_tab['err_gtan']
-
-    except KeyError as kerr:
-        print('Shear bias calculation:')
-        print('required columns not found; check input names?')
-        raise kerr
-
-    # C = covariance, alpha = shear bias maximum likelihood estimator
-    C = np.diag(errbar**2)
-    numer = T.T.dot(np.linalg.inv(C)).dot(D)
-    denom = T.T.dot(np.linalg.inv(C)).dot(T)
-    alpha = numer/denom
-
-    # sigalpha: Cramer-Rao bound uncertainty on Ahat
-    sig_alpha = 1. / np.sqrt((T.T.dot(np.linalg.inv(C)).dot(T)))
-
-    print('# ')
-    print(f'# shear bias is {alpha:.4f} +/- {sig_alpha:.3f}')
-    print('# ')
-
-    # add this information to profile_tab metadata
-    profile_tab.meta.update({'alpha': alpha, 'sig_alpha': sig_alpha})
-
-    return
 
 class ShearCalc():
 
@@ -136,8 +90,7 @@ class ShearCalc():
             y coordinate of reference point for shear calc
         apply_cut: bool
             Set to True to remove unphysical entries. This should be False
-            if you want to preserve indexing & length, such as when using
-            get_shear_cut()
+            if you want to preserve indexing & length
         '''
 
         g = np.sqrt(self.g1**2 + self.g2**2)
@@ -200,11 +153,6 @@ class Annular(object):
         self.x = None
         self.y = None
         self.r = None
-
-        # may want to exclude radial bins whose mean gtan shear is
-        # sufficiently large
-        self.shear_cut = annular_info['shear_cut']
-        self.shear_cut_cat = annular_info['shear_cut_cat']
 
         return
 
