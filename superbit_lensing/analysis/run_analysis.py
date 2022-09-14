@@ -5,7 +5,6 @@ from argparse import ArgumentParser
 
 import superbit_lensing.utils as utils
 from superbit_lensing.shear_profiles.shear_plots import ShearProfilePlotter
-from superbit_lensing.shear_profiles.bias import compute_shear_bias
 
 import ipdb
 
@@ -28,21 +27,15 @@ def parse_args():
     return parser.parse_args()
 
 class MeanShearProfilePlotter(ShearProfilePlotter):
-    def get_alpha(self, shear_cut):
+    def get_alpha(self):
         '''
         Compute alpha over the mean profile bins, ignoring any past
         the shear cut
         '''
 
-        if shear_cut is True:
-            cat = self.cat[self.cat['shear_cut_flag'] == 0]
-        else:
-            cat = self.cat
-
-        compute_shear_bias(cat)
-
-        alpha = cat.meta['alpha']
-        sig_alpha = cat.meta['sig_alpha']
+        # already computed in get_mean_shear_profile.py
+        alpha = self.cat.meta['mean_profile_alpha']
+        sig_alpha = self.cat.meta['mean_profile_sig_alpha']
 
         return alpha, sig_alpha
 

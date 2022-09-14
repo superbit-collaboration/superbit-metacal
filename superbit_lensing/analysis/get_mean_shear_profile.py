@@ -12,6 +12,7 @@ import collections
 from argparse import ArgumentParser
 
 import superbit_lensing.utils as utils
+from superbit_lensing.shear_profiles.bias import _compute_shear_bias
 
 import ipdb
 
@@ -171,6 +172,29 @@ def plot_curve_fit(pars, r, gtan_mean, err_gtan, mean_nfw_gtan, shear_cut_flag,
 
     return
 
+def add_mean_profile_alpha(mean_cat):
+    '''
+    mean_cat: astropy.Table
+        The stacked mean tangential shear profile catalog on which
+        we will compute the alpha, ignoring radial bins that have
+        been flagged
+
+    returns: mean_cat w/ alpha & sig_alpha in metadata
+    '''
+
+    # only consider bins outside of shear cut
+    cat = mean_cat[mean_cat['shear_cut_flag'] == 0]
+
+    # alpha & sig_alpha are added to catalog metadata
+    alpha, sig_alpha = _compute_shear_bias(cat)
+
+    mean_cat.meta.update({
+        'mean_profile_alpha': alpha,
+        'mean_profile_sig_alpha': sig_alpha
+        })
+
+    return mean_cat
+
 def main(args):
 
     shearcat_names = args.shear_cats
@@ -301,6 +325,9 @@ def main(args):
     table.meta['std_alpha'] = all_shears.std_a
     table.meta['num_alphas'] = all_shears.num_alphas
     table.meta['mean_n_gals'] = avg_n_sources
+
+    # compute mean profile alpha & sig alpha taking shear-cut into account
+    table = add_mean_profile_alpha(table)
 
     mean_shear_name = outfile.replace('stacked','mean')
     logprint(f'Writing out mean shear profile catalog to {mean_shear_name}')
