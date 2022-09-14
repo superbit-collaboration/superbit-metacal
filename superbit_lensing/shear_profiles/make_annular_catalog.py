@@ -7,7 +7,7 @@ from astropy.io import fits
 from esutil import htm
 from argparse import ArgumentParser
 
-from annular_jmac import Annular
+from annular_small_shear import Annular
 
 parser = ArgumentParser()
 
@@ -213,12 +213,12 @@ class AnnularCatalog():
 
             truth_name = ''.join([self.run_name,'_truth.fits'])
             truth_dir = self.outdir
-            truth_file = os.path.join(truth_dir,truth_name) 
+            truth_file = os.path.join(truth_dir,truth_name)
             self.cat_info['truth_file'] = truth_file
 
         else:
             truth_file = self.truth_file
-        
+
         # Filter out foreground galaxies using redshifts in truth file
         self._redshift_select(truth_file, overwrite=overwrite)
 
@@ -249,12 +249,12 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 0.5 
+        min_Tpsf = 0.5
         max_sn = 1000
-        min_sn = 10 
-        min_T = 0.0 
-        max_T = 10 
-        
+        min_sn = 10
+        min_T = 0.0
+        max_T = 10
+
         if self.cluster_redshift is not None:
             min_redshift = self.cluster_redshift
         else:
@@ -271,14 +271,14 @@ class AnnularCatalog():
                     'min_redshift' : min_redshift}
 
         mcal = self.joined_gals
-        
+
         noshear_selection = mcal[(mcal['T_r_noshear']>=min_Tpsf*mcal['Tpsf_noshear'])\
                                         & (mcal['T_r_noshear']<max_T)\
                                         & (mcal['T_r_noshear']>=min_T)\
                                         & (mcal['s2n_r_noshear']>min_sn)\
                                         & (mcal['s2n_r_noshear']<max_sn)\
                                         & (mcal['redshift'] > min_redshift)
-                                
+
                                   ]
 
         selection_1p = mcal[(mcal['T_r_1p']>=min_Tpsf*mcal['Tpsf_1p'])\
@@ -345,7 +345,7 @@ class AnnularCatalog():
         tot_covar = shape_noise +\
                 self.selected['g_cov_noshear'][:,0,0] +\
                 self.selected['g_cov_noshear'][:,1,1]
-        
+
         weight = 1. / tot_covar
 
         try:
@@ -399,7 +399,7 @@ class AnnularCatalog():
     def compute_tan_shear_profile(self, outfile, plotfile, overwrite=False, vb=False):
 
         cat_info = self.cat_info
-        
+
         annular_info = self.annular_info
 
 
@@ -445,7 +445,7 @@ class AnnularCatalog():
 
         outfile = os.path.join(self.outdir, f'{p}shear_profile_cat.fits')
         plotfile = os.path.join(self.outdir, f'{p}shear_profile.pdf')
-        
+
         self.compute_tan_shear_profile(outfile, plotfile, overwrite=overwrite, vb=vb)
 
         return
