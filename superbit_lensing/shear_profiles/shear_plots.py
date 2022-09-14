@@ -41,7 +41,7 @@ class ShearProfilePlotter(object):
             # in arcsec
             return angular_radius
 
-    def get_alpha(shear_cut=False):
+    def get_alpha(self, shear_cut=False):
         '''
         For a singe realization, just grab from cat metadata
 
