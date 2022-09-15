@@ -209,7 +209,7 @@ class Annular(object):
         newtab = Table()
         newtab.add_columns(
             [x, y, self.r, self.gtan, self.gcross, self.weight],
-            names=['x', 'y', 'r', 'gcross', 'gtan', 'weight']
+            names=['x', 'y', 'r', 'gtan', 'gcross', 'weight']
             )
 
         run_name = self.run_name
@@ -268,7 +268,7 @@ class Annular(object):
         self.gcross = self.gcross[ann_file_ind]
         self.r = self.r[ann_file_ind]
         self.weight = self.weight[ann_file_ind]
-        
+
         gal_redshifts = truth_bg_gals[truth_bg_ind]['redshift']
 
         return gal_redshifts
@@ -440,7 +440,7 @@ class Annular(object):
 
             weighted_gtan_stats = DescrStatsW(self.gtan[annulus], weights=self.weight[annulus], ddof=0)
             weighted_gcross_stats = DescrStatsW(self.gcross[annulus], weights=self.weight[annulus], ddof=0)
-            
+
             gtan_mean[i] = weighted_gtan_stats.mean
             gcross_mean[i] = weighted_gcross_stats.mean
 
@@ -448,7 +448,7 @@ class Annular(object):
             gcross_err[i] =  weighted_gcross_stats.std / np.sqrt(n)
 
             i += 1
-            
+
         table = Table()
         table.add_columns(
             [counts, midpoint_r, gtan_mean, gcross_mean, gtan_err, gcross_err],
@@ -541,4 +541,3 @@ class Annular(object):
         self.plot_profile(profile_tab, plotfile, nfw_tab=nfw_tab)
 
         return
-
