@@ -162,10 +162,10 @@ def compute_profile(catalog, minrad, maxrad, nbins, nfw_file):
         n = counts[i]
         midpoint_r[i] = np.mean([b1, b2])
 
-        weighted_gtan_stats = DescrStatsW(catalog['gcross'][annulus],
+        weighted_gtan_stats = DescrStatsW(catalog['gtan'][annulus],
             weights=catalog['weight'][annulus], ddof=0)
 
-        weighted_gcross_stats = DescrStatsW(catalog['gtan'][annulus],
+        weighted_gcross_stats = DescrStatsW(catalog['gcross'][annulus],
             weights=catalog['weight'][annulus], ddof=0)
 
         gtan_mean[i] = weighted_gtan_stats.mean
