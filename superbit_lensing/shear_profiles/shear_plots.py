@@ -41,20 +41,13 @@ class ShearProfilePlotter(object):
             # in arcsec
             return angular_radius
 
-    def get_alpha(shear_cut=False):
+    def get_alpha(self):
         '''
         For a singe realization, just grab from cat metadata
-
-        NOTE: for now, the per-realization get_alpha() won't work for a
-        shear cut. Including it here for inherited classes
         '''
 
-        if shear_cut is False:
-            alpha = self.cat.meta['alpha']
-            sig_alpha = self.cat.meta['sig_alpha']
-        else:
-            raise NotImplementedError('get_alpha() for single realizations ' +\
-                                      'is not yet implemented!')
+        alpha = self.cat.meta['alpha']
+        sig_alpha = self.cat.meta['sig_alpha']
 
         return alpha, sig_alpha
 
@@ -133,7 +126,7 @@ class ShearProfilePlotter(object):
             true_label = 'Reference NFW (resample)'
             axs[0].plot(true_radius, true_gtan, '-r', label=true_label)
 
-            alpha, sig_alpha = self.get_alpha(shear_cut=shear_cut)
+            alpha, sig_alpha = self.get_alpha()
 
             txt = str(r'$\hat{\alpha}=%.4f~\sigma_{\hat{\alpha}}=%.4f$' % (alpha, sig_alpha))
             ann = axs[0].annotate(
