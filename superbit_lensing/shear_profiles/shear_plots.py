@@ -41,10 +41,21 @@ class ShearProfilePlotter(object):
             # in arcsec
             return angular_radius
 
+    def get_alpha(self):
+        '''
+        For a singe realization, just grab from cat metadata
+        '''
+
+        alpha = self.cat.meta['alpha']
+        sig_alpha = self.cat.meta['sig_alpha']
+
+        return alpha, sig_alpha
+
     def plot_tan_profile(self, title=None, size=(10,7), label='annular',
                          rbounds=(5, 750), show=False, outfile=None,
                          nfw_label=None, smoothing=False, plot_truth=True,
-                         xlim=None, ylim=None):
+                         fill_between=True, xlim=None, ylim=None,
+                         shear_cut=False):
         '''
         xlim/ylim: list of tuples
             A list of len 2 containing the xlim/ylim boundaries for both plots;
@@ -85,25 +96,6 @@ class ShearProfilePlotter(object):
                 print('WARNING: Truth info not present in shear profile table!')
                 plot_truth = False
 
-        # NOTE: I don't think we should be doing this for our shear
-        # profile plots...it's not an error. Most science plots like
-        # this are implicitly over bins
-        # Compute errors
-        # upper_err = np.zeros_like(radius)
-        # for e in range(len(radius)-1):
-        #     this_err = (radius[e+1]-radius[e])*0.5
-        #     upper_err[e] = this_err
-        # upper_err[-1] = (maxrad-radius[-1])*0.5
-
-        # lower_err = np.zeros_like(radius)
-        # for e in (np.arange(len(radius)-1)+1):
-        #     this_err = (radius[e]-radius[e-1])*0.5
-        #     lower_err[e] = this_err
-
-        # lower_err[0] = (radius[0]-minrad)*0.5
-
-        # rad_err = np.vstack([lower_err,upper_err])
-
         rcParams['axes.linewidth'] = 1.3
         rcParams['xtick.labelsize'] = 16
         rcParams['ytick.labelsize'] = 16
@@ -120,6 +112,11 @@ class ShearProfilePlotter(object):
         axs[0].errorbar(radius, gtan, yerr=gtan_err, fmt='-o',
                         capsize=5, color='cornflowerblue', label=label)
 
+        if fill_between == True:
+            shear_hi = gtan+gtan_err
+            shear_low =  gtan-gtan_err
+            axs[0].fill_between(radius, y1=shear_hi, y2=shear_low, alpha=0.1,color='darkturquoise')
+
         # If truth info is present, plot it
         if plot_truth is True:
             if smoothing is True:
@@ -129,9 +126,7 @@ class ShearProfilePlotter(object):
             true_label = 'Reference NFW (resample)'
             axs[0].plot(true_radius, true_gtan, '-r', label=true_label)
 
-            # grab alpha statistics
-            alpha = cat.meta['alpha']
-            sig_alpha = cat.meta['sig_alpha']
+            alpha, sig_alpha = self.get_alpha()
 
             txt = str(r'$\hat{\alpha}=%.4f~\sigma_{\hat{\alpha}}=%.4f$' % (alpha, sig_alpha))
             ann = axs[0].annotate(
@@ -149,6 +144,15 @@ class ShearProfilePlotter(object):
         # axs[0].set_ylim(-0.05, 0.60)
         axs[0].legend()
 
+
+        # shear cut region
+        if shear_cut is True:
+            shear_cut_flag = cat['shear_cut_flag']
+            rmin = np.min(radius[shear_cut_flag == 0])
+            dr = radius[1]-radius[2]
+            slop = dr/2.
+            axs[0].axvspan(0, rmin+slop, facecolor='k', alpha=0.1)
+
         axs[1].errorbar(radius, gcross, yerr=gcross_err, fmt='d',
                         capsize=5, color='cornflowerblue', label=label)
         axs[1].axhline(y=0, c="black", alpha=0.4, linestyle='--')
@@ -157,6 +161,10 @@ class ShearProfilePlotter(object):
         axs[1].tick_params(which='major', width=1.3, length=8)
         axs[1].tick_params(which='minor', width=0.8, length=4)
         axs[1].legend()
+
+        # shear cut region
+        if shear_cut is True:
+            axs[1].axvspan(0, rmin+slop, facecolor='k', alpha=0.1)
 
         if xlim is not None:
             for i in range(2):

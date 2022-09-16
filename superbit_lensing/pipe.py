@@ -598,6 +598,50 @@ class ShearProfileModule(SuperBITModule):
 
         return cmd
 
+class AnalysisModule(SuperBITModule):
+    _req_fields = ['basedir']
+    _opt_fields = ['shear_cut', 'outdir']
+    _flag_fields = ['overwrite', 'vb']
+
+    def __init__(self, name, config):
+        super(AnalysisModule, self).__init__(name, config)
+
+        #...
+
+        return
+
+    def run(self, run_options, logprint):
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
+
+        cmd = self._setup_run_command(run_options)
+
+        rc = self._run_command(cmd, logprint)
+
+        return rc
+
+    def _setup_run_command(self, run_options):
+
+        basedir = run_options['outdir']
+
+        analysis_dir = os.path.join(utils.MODULE_DIR, 'analysis')
+        filepath = os.path.join(
+            analysis_dir, 'run_analysis.py'
+            )
+
+        base = f'python {filepath} {basedir}'
+
+        options = self._setup_options(run_options)
+
+        if 'overwrite' not in options:
+            if 'overwrite' in run_options:
+                if run_options['overwrite'] is True:
+                    options += ' --overwrite'
+
+        cmd = base + options
+
+        return cmd
+
 def build_module(name, config, logprint):
     name = name.lower()
 
@@ -680,8 +724,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'run_name': run_name,
                     'outdir': outdir,
                     'vb': True,
-                    # 'ncores': 8,
-                    'ncores': 1,
+                    'ncores': 8,
                     'run_diagnostics': True,
                     'order': [
                         'galsim',
@@ -734,7 +777,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'run_name': run_name,
                     'Nresample': 1, # to run much faster
                     'overwrite': overwrite,
-                }
+                },
             }
 
             yaml.dump(CONFIG, f, default_flow_style=False)
@@ -752,4 +795,5 @@ MODULE_TYPES = {
     'metacal_v2': MetacalModuleV2,
     'ngmix_fit': NgmixFitModule,
     'shear_profile': ShearProfileModule,
+    'analysis': AnalysisModule,
     }

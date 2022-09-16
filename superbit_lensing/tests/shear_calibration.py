@@ -13,7 +13,7 @@ from scipy.interpolate import interpn
 from superbit_lensing import utils
 from superbit_lensing.match import MatchedTruthCatalog
 
-import pudb
+import ipdb
 
 parser = ArgumentParser()
 
@@ -493,16 +493,29 @@ def compute_shear_bias(true_g, meas_g, meas_g_err, component):
 
     # intercept, slope = Polynomial.fit(x, y, 1)
 
-    def f(x, a, b):
-        return a*x + b
-    res, cov = curve_fit(f, x, y, sigma=meas_g_err)
-    slope, intercept = res[0], res[1]
+    try:
+        def f(x, a, b):
+            return a*x + b
+        res, cov = curve_fit(f, x, y, sigma=meas_g_err)
+        slope, intercept = res[0], res[1]
 
-    m = slope - 1. # bias defined as y=(1+m)*x+c
-    c = intercept
+        m = slope - 1. # bias defined as y=(1+m)*x+c
+        c = intercept
 
-    # TODO: actually compute errors
-    m_err, c_err = cov[0,0], cov[1,1]
+        # TODO: actually compute errors
+        m_err, c_err = cov[0,0], cov[1,1]
+
+    except ValueError as e:
+        # in pipe tests w/ very few sources, this can lead
+        # to NaNs
+        print('')
+        print(e)
+        print('Skipping for now')
+        print('')
+        m = np.NaN
+        m_err = np.NaN
+        c = np.NaN
+        c_err = np.NaN
 
     return (m, m_err, c, c_err)
 
@@ -678,7 +691,11 @@ def plot_binned_bias_by_col(match, col, bins, gbins=None, outfile=None, show=Fal
                     bin_mean.append(np.mean([gbins[i-1], gbins[i]]))
 
                 # Now compute shear bias from binned results
-                m, m_err, c, c_err = compute_shear_bias(bin_mean, gmean, gstd, g)
+                try:
+                    m, m_err, c, c_err = compute_shear_bias(bin_mean, gmean, gstd, g)
+                except TypeError:
+                    # some problems when running pipe tests
+                    m, m_err, c, c_err = None, None, None, None
 
                 # plt.errorbar(bin_mean, gmean, gstd, label=g)
                 # plt.plot(bin_mean, bin_mean, lw=2, ls='-', c='k', label='unity')
