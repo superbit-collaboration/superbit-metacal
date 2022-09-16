@@ -14,6 +14,7 @@ from statsmodels.stats.weightstats import DescrStatsW
 
 import superbit_lensing.utils as utils
 from superbit_lensing.shear_profiles.bias import _compute_shear_bias
+from superbit_lensing.shear_profiles.annular_jmac import _compute_profile
 
 import ipdb
 
@@ -23,8 +24,8 @@ def parse_args():
 
     parser.add_argument('-shear_cats', type=str, default=None,
                         help = 'Tables to read in: xxx_transformed_shear_tab.fits')
-    parser.add_argument('-nfw_files', type=str, default=None,
-                        help='Reference NFW shear catalog')
+    parser.add_argument('-nfw_cats', type=str, default=None,
+                        help='Reference NFW shear tables to read in')
     parser.add_argument('-shear_cut', type=float, default=None,
                         help='Max tangential shear to define scale cuts')
     parser.add_argument('-outfile', type=str, default=None,
@@ -94,11 +95,10 @@ class CatalogStacker():
 
         assert isinstance(catnames, list), f"catnames should be a list, got {type(catnames)} instead"
 
-        holding = {}
-
+        stack = []
         for i in np.arange(len(catnames)):
-            tab=Table.read(catnames[i],format='fits')
-            holding["tab{0}".format(i)] = tab
+            tab = Table.read(catnames[i],format='fits')
+            stack.append(tab)
 
             # Skip the alpha list if it doesn't exist
             try:
@@ -106,7 +106,7 @@ class CatalogStacker():
             except KeyError:
                 pass
 
-        stacked_catalog = vstack([holding[val] for val in holding.keys()], metadata_conflicts='silent')
+        stacked_catalog = vstack(stack, metadata_conflicts='silent')
         stacked_catalog.meta = collections.OrderedDict()
 
         self.stacked_cat = stacked_catalog
@@ -131,91 +131,6 @@ class CatalogStacker():
         self._get_cat_stats()
 
         return
-
-def compute_profile(catalog, minrad, maxrad, nbins, nfw_tab):
-    '''
-    Compute the weighted average tangential and cross shears
-    of the suppled catalog in radial bins.
-
-    Format is assumed to be same as the [run_name]_transformed_shear_tab.fits
-    output by the shear_profile module
-
-    If an NFW shear catalog  is provided, compute radial shear profile
-    for the NFW profile as well
-    '''
-
-    bins = np.linspace(minrad, maxrad, nbins)
-
-    counts, bins = np.histogram(catalog['r'], bins=bins)
-
-    N = len(bins) - 1
-    midpoint_r = np.zeros(N)
-    gtan_mean = np.zeros(N)
-    gtan_err = np.zeros(N)
-    gcross_mean = np.zeros(N)
-    gcross_err = np.zeros(N)
-
-
-    i = 0
-    for b1, b2 in zip(bins[:-1], bins[1:]):
-
-        annulus = (catalog['r'] >= b1) & (catalog['r'] < b2)
-        n = counts[i]
-        midpoint_r[i] = np.mean([b1, b2])
-
-        weighted_gtan_stats = DescrStatsW(catalog['gcross'][annulus],
-            weights=catalog['weight'][annulus], ddof=0)
-
-        weighted_gcross_stats = DescrStatsW(catalog['gtan'][annulus],
-            weights=catalog['weight'][annulus], ddof=0)
-
-        gtan_mean[i] = weighted_gtan_stats.mean
-        gcross_mean[i] = weighted_gcross_stats.mean
-
-        gtan_err[i] = weighted_gtan_stats.std 
-        gcross_err[i] =  weighted_gcross_stats.std 
-
-        i += 1
-
-    # Create table to store shear profile
-
-    table = Table()
-    table.add_columns(
-        [counts, midpoint_r, gtan_mean, gcross_mean, gtan_err, gcross_err],
-        names=['counts', 'midpoint_r', 'mean_gtan', 'mean_gcross', 'err_gtan', 'err_gcross']
-        )
-
-    # Repeat calculation if an nfw table is supplied
-    if nfw_tab is not None:
-
-        nfw_mid_r = np.zeros(N)
-        nfw_gtan_mean = np.zeros(N)
-        nfw_gtan_err = np.zeros(N)
-        nfw_gcross_mean = np.zeros(N)
-        nfw_gcross_err = np.zeros(N)
-
-        i = 0
-        for b1, b2 in zip(bins[:-1], bins[1:]):
-            annulus = (nfw_tab['r'] >= b1) & (nfw_tab['r'] < b2)
-            n = counts[i]
-            nfw_mid_r[i] = np.mean([b1, b2])
-            nfw_gtan_mean[i] = np.mean(nfw_tab['gtan'][annulus])
-            nfw_gcross_mean[i] = np.mean(nfw_tab['gcross'][annulus])
-            nfw_gtan_err[i] = np.std(nfw_tab['gtan'][annulus]) 
-            nfw_gcross_err[i] = np.std(nfw_tab['gcross'][annulus]) 
-
-            i += 1
-
-        # NFW shear profile should have same number of elements as galaxy shear profile
-        assert(len(nfw_mid_r) == len(midpoint_r))
-
-        # Add NFW profile to output table
-        table.add_columns(
-            [nfw_gtan_mean, nfw_gcross_mean, nfw_gtan_err, nfw_gcross_err],
-            names=['mean_nfw_gtan', 'mean_nfw_gcross', 'err_nfw_gtan', 'err_nfw_gcross'],
-            )
-
-    return table
 
 def shear_curve(r, a, b, c):
     '''
@@ -289,8 +204,8 @@ def add_mean_profile_alpha(mean_cat):
 
 def main(args):
 
-    shearcat_names = args.shear_cats
-    nfw_files = args.nfw_files
+    shear_cats = args.shear_cats
+    nfw_cats = args.nfw_cats
     shear_cut = args.shear_cut
     outfile = args.outfile
     minrad = args.minrad
@@ -300,10 +215,10 @@ def main(args):
     overwrite = args.overwrite
     vb = args.vb
 
-    if shearcat_names is None:
-        shearcat_names = 'r*/*_transformed_shear_tab.fits'
-   #if nfw_files is None:
-   #     nfw_files = 'r*/subsampled_nfw_cat.fits'
+    if shear_cats is None:
+        shear_cats = 'r*/*_transformed_shear_tab.fits'
+    if nfw_cats is None:
+       nfw_cats = 'r*/subsampled_nfw_cat.fits'
     if outfile is None:
         outfile = './mean_shear_profile_cat.fits'
 
@@ -311,28 +226,28 @@ def main(args):
         if shear_cut <= 0:
             raise ValueError('shear_cut must be positive')
 
-    
     outdir = os.path.dirname(outfile)
     stacked_cat_name = os.path.join(outdir,'all_source_gal_shears.fits')
     mean_shear_name = outfile
-
 
     logfile = 'mean_shear_profile.log'
     log = utils.setup_logger(logfile, logdir=outdir)
     logprint = utils.LogPrint(log, vb)
 
-    
     # Concatenate single-realization NFW catalogs
-    if nfw_files is not None:
-        nfwfile_list = glob.glob(nfw_files)
-        all_nfws = CatalogStacker(nfwfile_list)
-        all_nfws.run()
-        nfw_tab = all_nfws.stacked_cat
-    else:
-        nfw_tab = None
+    try:
+        nfw_filelist = glob.glob(nfw_cats)
+        if len(nfw_filelist) == 0:
+            stacked_nfw = None
+        else:
+            all_nfws = CatalogStacker(nfw_filelist)
+            all_nfws.run()
+            stacked_nfw = all_nfws.stacked_cat
+    except OSError:
+        stacked_nfw = None
 
     # Get source density, shear cats and also average alpha
-    shearcat_list = glob.glob(shearcat_names)
+    shearcat_list = glob.glob(shear_cats)
     all_shears = CatalogStacker(shearcat_list)
     all_shears.run()
 
@@ -344,14 +259,12 @@ def main(args):
     stacked_shear = all_shears.stacked_cat
     stacked_shear.sort('r')
 
-
     # Calculate mean shear profile, including the
     # NFW shear profile if such a catalog is provided
-
-    shear_profile = compute_profile(catalog=stacked_shear, minrad=minrad,
-                                    maxrad=maxrad, nbins=nbins, nfw_tab=nfw_tab)
-
-
+    rbins = np.linspace(minrad, maxrad, nbins)
+    shear_profile = _compute_profile(
+        stacked_shear, rbins, nfw_tab=stacked_nfw
+        )
 
     #---------------------------------------------------------------------------
     # Now fit a curve to the mean profile to determine where to apply the

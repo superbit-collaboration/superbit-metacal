@@ -15,8 +15,6 @@ def parse_args():
     parser.add_argument('basedir', type=str,
                         help='Location of run files to analyze. Should be ' +\
                         'a list of cluster directories')
-    parser.add_argument('-nfw_file', type=str, default=None,
-                        help='Reference NFW shear catalog')
     parser.add_argument('-shear_cut', type=float, default=None,
                         help='Max tangential shear to define scale cuts')
     parser.add_argument('-minrad', type=float, default=100,
@@ -50,7 +48,7 @@ class MeanShearProfilePlotter(ShearProfilePlotter):
 class AnalysisRunner(object):
 
     def __init__(self, basedir, minrad, maxrad, nbins, shear_cut=None,
-                outdir=None, logprint=None):
+                 outdir=None, logprint=None, vb=False):
         '''
         basedir: str
             Location of run files to analyze. Should be a list of cluster
@@ -90,6 +88,9 @@ class AnalysisRunner(object):
     def go(self, overwrite=False, show=False):
 
         clusters = glob(os.path.join(self.basedir, 'cl*/'))
+
+        if len(clusters) == 0:
+            self.logprint(f'No clusters found in {self.basedir}')
 
         for cluster in clusters:
             cl = os.path.basename(os.path.abspath(cluster))
@@ -132,7 +133,7 @@ class AnalysisRunner(object):
             )
 
         # regular expression to grab all reference NFW catalogs for a given cluster
-        nfw_files = os.path.join(
+        nfw_cats = os.path.join(
             cluster, 'r*/subsampled_nfw_cat.fits'
             )
 
@@ -141,7 +142,7 @@ class AnalysisRunner(object):
             )
 
         base = f'python {profile_script} '
-        opts = f'-shear_cats={shear_cats} -nfw_files={nfw_files} ' +\
+        opts = f'-shear_cats={shear_cats} -nfw_cats={nfw_cats} ' +\
                f'-minrad={minrad} -maxrad={maxrad} -nbins={nbins} ' +\
                f'-outfile={outfile}'
         cmd = base + opts
@@ -203,7 +204,6 @@ class AnalysisRunner(object):
 def main(args):
 
     basedir = args.basedir
-    nfw_file = args.nfw_file
     shear_cut = args.shear_cut
     minrad = args.minrad
     maxrad = args.maxrad
@@ -234,6 +234,6 @@ if __name__ == '__main__':
     rc = main(args)
 
     if rc == 0:
-        print('run_analysis.py has completed succesfully')
+        print('run_analysis.py has completed successfully')
     else:
         print(f'run_analysis.py has failed w/ rc={rc}')
