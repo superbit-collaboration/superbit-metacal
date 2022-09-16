@@ -172,8 +172,8 @@ def compute_profile(catalog, minrad, maxrad, nbins, nfw_file):
         gtan_mean[i] = weighted_gtan_stats.mean
         gcross_mean[i] = weighted_gcross_stats.mean
 
-        gtan_err[i] = weighted_gtan_stats.std / np.sqrt(n)
-        gcross_err[i] =  weighted_gcross_stats.std / np.sqrt(n)
+        gtan_err[i] = weighted_gtan_stats.std 
+        gcross_err[i] =  weighted_gcross_stats.std 
 
         i += 1
 
