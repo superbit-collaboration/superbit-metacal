@@ -30,7 +30,7 @@ nclustergal:        30          # Number of cluster galaxies (arbitrary)    []
 bandpass:     'crates_b'        # Catalog filter name for simulation        []
 jitter_fwhm:        0.24        # Kernel size of SuperBIT jitter            [arcsec]
 use_optics:         False       # Add optics model to PSF? (default: True)  [True/False]
-run_name:         'pipe_test'   # Root for exposure name creation           []
+run_name:         'gauss_uberseg'   # Root for exposure name creation           []
 
 # Simulated cluster parameters
 # ----------------------------
