@@ -504,9 +504,6 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
     r11 = mcal_res['MC']['r11']
     r22 = mcal_res['MC']['r22']
 
-    if logprint.vb is True:
-        logprint(f'R11: {r11:.3} \nR22: {r22:.3} ')
-
     # To generate a model image, these calls do need to be here
     mcb.fit_psfs(psf_model, 1.)
     mcb.fit_max(gal_model, max_pars, prior=prior)

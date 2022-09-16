@@ -10,9 +10,11 @@ import os
 import astropy
 import collections
 from argparse import ArgumentParser
+from statsmodels.stats.weightstats import DescrStatsW
 
 import superbit_lensing.utils as utils
 from superbit_lensing.shear_profiles.bias import _compute_shear_bias
+from superbit_lensing.shear_profiles.annular_jmac import _compute_profile
 
 import ipdb
 
@@ -21,13 +23,19 @@ def parse_args():
     parser = ArgumentParser()
 
     parser.add_argument('-shear_cats', type=str, default=None,
-                        help = 'Tables to read in: xxx_shear_profile_cat.fits')
-    parser.add_argument('-annular_cats', type=str, default=None,
-                        help = 'Tables to read in: xxx_annular.fits')
+                        help = 'Tables to read in: xxx_transformed_shear_tab.fits')
+    parser.add_argument('-nfw_cats', type=str, default=None,
+                        help='Reference NFW shear tables to read in')
     parser.add_argument('-shear_cut', type=float, default=None,
                         help='Max tangential shear to define scale cuts')
     parser.add_argument('-outfile', type=str, default=None,
-                        help = 'Name of ouput stacked catalog')
+                        help = 'Name of ouput mean shear profile')
+    parser.add_argument('-minrad', type=float, default=100,
+                        help='Starting radius value (in pixels)')
+    parser.add_argument('-maxrad', type=float, default=5200,
+                        help='Ending radius value (in pixels)')
+    parser.add_argument('-nbins', type=int, default=18,
+                        help='Number of radial bins')
     parser.add_argument('--overwrite', action='store_true', default=False,
                         help='Overwrite output mcal file')
     parser.add_argument('--show', action='store_true', default=False,
@@ -87,11 +95,10 @@ class CatalogStacker():
 
         assert isinstance(catnames, list), f"catnames should be a list, got {type(catnames)} instead"
 
-        holding = {}
-
+        stack = []
         for i in np.arange(len(catnames)):
-            tab=Table.read(catnames[i],format='fits')
-            holding["tab{0}".format(i)] = tab
+            tab = Table.read(catnames[i],format='fits')
+            stack.append(tab)
 
             # Skip the alpha list if it doesn't exist
             try:
@@ -99,7 +106,7 @@ class CatalogStacker():
             except KeyError:
                 pass
 
-        stacked_catalog = vstack([holding[val] for val in holding.keys()], metadata_conflicts='silent')
+        stacked_catalog = vstack(stack, metadata_conflicts='silent')
         stacked_catalog.meta = collections.OrderedDict()
 
         self.stacked_cat = stacked_catalog
@@ -197,141 +204,107 @@ def add_mean_profile_alpha(mean_cat):
 
 def main(args):
 
-    shearcat_names = args.shear_cats
-    annular_names = args.annular_cats
+    shear_cats = args.shear_cats
+    nfw_cats = args.nfw_cats
     shear_cut = args.shear_cut
     outfile = args.outfile
+    minrad = args.minrad
+    maxrad = args.maxrad
+    nbins = args.nbins
     show = args.show
     overwrite = args.overwrite
     vb = args.vb
 
-    if shearcat_names is None:
-        shearcat_names = 'r*/*_shear_profile_cat.fits'
-    if annular_names is None:
-        annular_names = 'r*/*annular.fits'
+    if shear_cats is None:
+        shear_cats = 'r*/*_transformed_shear_tab.fits'
+    if nfw_cats is None:
+       nfw_cats = 'r*/subsampled_nfw_cat.fits'
     if outfile is None:
-        outfile = 'stacked_shear_profile_cats.fits'
+        outfile = './mean_shear_profile_cat.fits'
 
     if shear_cut is not None:
         if shear_cut <= 0:
             raise ValueError('shear_cut must be positive')
 
     outdir = os.path.dirname(outfile)
+    stacked_cat_name = os.path.join(outdir,'all_source_gal_shears.fits')
+    mean_shear_name = outfile
+
     logfile = 'mean_shear_profile.log'
     log = utils.setup_logger(logfile, logdir=outdir)
     logprint = utils.LogPrint(log, vb)
 
-    shearcat_list = glob.glob(shearcat_names)
-    annular_list = glob.glob(annular_names)
+    # Concatenate single-realization NFW catalogs
+    try:
+        nfw_filelist = glob.glob(nfw_cats)
+        if len(nfw_filelist) == 0:
+            stacked_nfw = None
+        else:
+            all_nfws = CatalogStacker(nfw_filelist)
+            all_nfws.run()
+            stacked_nfw = all_nfws.stacked_cat
+    except OSError:
+        stacked_nfw = None
 
-    # Get source density
-    all_annulars = CatalogStacker(annular_list)
-    all_annulars.run()
+    # Get source density, shear cats and also average alpha
+    shearcat_list = glob.glob(shear_cats)
+    all_shears = CatalogStacker(shearcat_list)
+    all_shears.run()
 
-    avg_n_sources = np.ceil(all_annulars.avg_nobj)
-
+    avg_n_sources = np.ceil(all_shears.avg_nobj)
     logprint('')
     logprint(f'Avg number of galaxies in catalog is {avg_n_sources}')
     logprint('')
 
-    # Get shear cats and also average alpha
-    all_shears = CatalogStacker(shearcat_list)
-    all_shears.run()
-
     stacked_shear = all_shears.stacked_cat
+    stacked_shear.sort('r')
 
-    stacked_shear.sort('midpoint_r')
-    stacked_shear.write(outfile, format='fits', overwrite=overwrite)
-
-    radii = np.unique(stacked_shear['midpoint_r'])
-
-    # There must be a more elegant way to do this
-    N = len(radii)
-    counts = np.zeros(N)
-    midpoint_r = np.zeros(N)
-    gtan_mean = np.zeros(N)
-    gtan_err = np.zeros(N)
-    gcross_mean = np.zeros(N)
-    gcross_err = np.zeros(N)
-
-    nfw_mid_r = np.zeros(N)
-    nfw_gtan_mean = np.zeros(N)
-    nfw_gtan_err = np.zeros(N)
-    nfw_gcross_mean = np.zeros(N)
-    nfw_gcross_err = np.zeros(N)
-
-    for i,radius in enumerate(radii):
-
-        annulus = stacked_shear['midpoint_r'] == radius
-        n = len(stacked_shear[annulus])
-
-        midpoint_r[i] = radius
-        counts[i] = np.mean(stacked_shear['counts'][annulus])
-        gtan_mean[i] = np.mean(stacked_shear['mean_gtan'][annulus])
-        gcross_mean[i] = np.mean(stacked_shear['mean_gcross'][annulus])
-
-        gtan_err[i] = np.std(stacked_shear['mean_gtan'][annulus])
-        gcross_err[i] = np.std(stacked_shear['mean_gcross'][annulus])
-
-        nfw_gtan_mean[i] = np.mean(stacked_shear['mean_nfw_gtan'][annulus])
-        nfw_gcross_mean[i] = np.mean(stacked_shear['mean_nfw_gcross'][annulus])
-
-        nfw_gtan_err[i] = np.std(stacked_shear['mean_nfw_gtan'][annulus])
-        nfw_gcross_err[i] = np.std(stacked_shear['mean_nfw_gcross'][annulus])
+    # Calculate mean shear profile, including the
+    # NFW shear profile if such a catalog is provided
+    rbins = np.linspace(minrad, maxrad, nbins)
+    shear_profile = _compute_profile(
+        stacked_shear, rbins, nfw_tab=stacked_nfw
+        )
 
     #---------------------------------------------------------------------------
     # Now fit a curve to the mean profile to determine where to apply the
     # shear cut
     # pars, pars_cov = curve_fit(shear_curve, midpoint_r, gtan_mean, maxfev=2000)
     pars, pars_cov = curve_fit(
-        shear_curve, midpoint_r, gtan_mean, sigma=gtan_err, maxfev=20000,
+        shear_curve, shear_profile['midpoint_r'], shear_profile['mean_gtan'],
+        sigma=shear_profile['err_gtan'], maxfev=20000,
         p0=(.1, .0001, .1)
         )
     logprint(f'pars: {pars}')
 
     if shear_cut is not None:
-        shear_cut_flag = np.abs(shear_curve(midpoint_r, *pars)) > shear_cut
+        shear_cut_flag = np.abs(shear_curve(shear_profile['midpoint_r'], *pars)) > shear_cut
     else:
-        shear_cut_flag = np.zeros(len(midpoint_r), dtype=bool)
+        shear_cut_flag = np.zeros(len(shear_profile['midpoint_r']), dtype=bool)
 
     plt_outfile = os.path.join(outdir, 'mean_shear_profile_curve_fit.png')
     plot_curve_fit(
-        pars, midpoint_r, gtan_mean, gtan_err, nfw_gtan_mean,
+        pars, shear_profile['midpoint_r'], shear_profile['mean_gtan'],
+        shear_profile['err_gtan'], shear_profile['mean_nfw_gtan'],
         shear_cut_flag, shear_cut=shear_cut, show=show, outfile=plt_outfile
         )
 
     #---------------------------------------------------------------------------
     # save cols & metadata
 
-    table = Table()
-    table.add_columns(
-        [counts, midpoint_r, gtan_mean, gcross_mean, gtan_err, gcross_err],
-        names=['counts', 'midpoint_r', 'mean_gtan', 'mean_gcross', 'err_gtan', 'err_gcross']
-        )
-
-    table.add_columns(
-        [nfw_gtan_mean, nfw_gcross_mean, nfw_gtan_err, nfw_gcross_err],
-        names=['mean_nfw_gtan', 'mean_nfw_gcross', 'err_nfw_gtan', 'err_nfw_gcross'])
-
-    table.add_columns(
+    shear_profile.add_columns(
         [shear_cut_flag], names=['shear_cut_flag']
         )
-
-    logprint(f'mean alpha = {all_shears.mean_a:.5f} +/- ' +\
-             f'{all_shears.std_a/np.sqrt(all_shears.num_alphas):.4f}')
-    logprint(f'std alpha = {all_shears.std_a:.5f}')
-
-    table.meta['avg_alpha'] = all_shears.mean_a
-    table.meta['std_alpha'] = all_shears.std_a
-    table.meta['num_alphas'] = all_shears.num_alphas
-    table.meta['mean_n_gals'] = avg_n_sources
+    shear_profile.meta['mean_n_gals'] = avg_n_sources
 
     # compute mean profile alpha & sig alpha taking shear-cut into account
-    table = add_mean_profile_alpha(table)
+    shear_profile = add_mean_profile_alpha(shear_profile)
 
-    mean_shear_name = outfile.replace('stacked','mean')
+    logprint(f'Writing out concatenated source galaxy shears to {stacked_cat_name}')
+    stacked_shear.write(stacked_cat_name, format='fits', overwrite=overwrite)
+
     logprint(f'Writing out mean shear profile catalog to {mean_shear_name}')
-    table.write(mean_shear_name, format='fits', overwrite=overwrite)
+    shear_profile.write(mean_shear_name, format='fits', overwrite=overwrite)
 
     return
 

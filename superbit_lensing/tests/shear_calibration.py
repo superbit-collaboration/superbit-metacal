@@ -13,7 +13,7 @@ from scipy.interpolate import interpn
 from superbit_lensing import utils
 from superbit_lensing.match import MatchedTruthCatalog
 
-import pudb
+import ipdb
 
 parser = ArgumentParser()
 
@@ -691,7 +691,11 @@ def plot_binned_bias_by_col(match, col, bins, gbins=None, outfile=None, show=Fal
                     bin_mean.append(np.mean([gbins[i-1], gbins[i]]))
 
                 # Now compute shear bias from binned results
-                m, m_err, c, c_err = compute_shear_bias(bin_mean, gmean, gstd, g)
+                try:
+                    m, m_err, c, c_err = compute_shear_bias(bin_mean, gmean, gstd, g)
+                except TypeError:
+                    # some problems when running pipe tests
+                    m, m_err, c, c_err = None, None, None, None
 
                 # plt.errorbar(bin_mean, gmean, gstd, label=g)
                 # plt.plot(bin_mean, bin_mean, lw=2, ls='-', c='k', label='unity')

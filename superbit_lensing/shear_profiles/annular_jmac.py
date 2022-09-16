@@ -14,8 +14,8 @@ from astropy.table import Table
 from esutil import htm
 from statsmodels.stats.weightstats import DescrStatsW
 
-from shear_plots import ShearProfilePlotter
-from bias import compute_shear_bias
+from superbit_lensing.shear_profiles.shear_plots import ShearProfilePlotter
+from superbit_lensing.shear_profiles.bias import compute_shear_bias
 
 import ipdb
 
@@ -41,8 +41,6 @@ parser.add_argument('-run_name', type=str, default=None,
                     help='Name of simulation run')
 parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
-parser.add_argument('-truth_file', type=str, default=None,
-                    help='Truth file containing redshift information')
 parser.add_argument('-nfw_file', type=str, default=None,
                     help='Reference NFW shear catalog')
 parser.add_argument('--overwrite', action='store_true', default=False,
@@ -127,7 +125,6 @@ class Annular(object):
         """
         :mcal_selected:   table that will be read in
         :outcat:   name of output shear profile catalog
-        :truth_file: name of truth file with redshift info
         :g1/2:     reduced-shear components
         :gcross:   cross-shear (B-mode)
         :gtan:     tangential shear (E-mode)
@@ -141,7 +138,6 @@ class Annular(object):
         self.annular_info = annular_info
         self.nfw_info = nfw_info
         self.run_name = run_name
-        self.n_truth_gals = None
         self.vb = vb
         self.g1 = None
         self.g2 = None
@@ -172,6 +168,7 @@ class Annular(object):
             self.g2 = tab[self.annular_info['shear_args'][1]]
             self.ra = tab['ra']
             self.dec = tab['dec']
+            self.z = tab['redshift']
             self.weight = tab['weight']
 
         except Exception as e:
@@ -209,7 +206,7 @@ class Annular(object):
         newtab = Table()
         newtab.add_columns(
             [x, y, self.r, self.gtan, self.gcross, self.weight],
-            names=['x', 'y', 'r', 'gcross', 'gtan', 'weight']
+            names=['x', 'y', 'r', 'gtan', 'gcross', 'weight']
             )
 
         run_name = self.run_name
@@ -220,61 +217,7 @@ class Annular(object):
 
         return
 
-    def redshift_select(self):
-        '''
-        Select background galaxies from larger transformed shear catalog:
-            - Load in truth file
-            - Select background galaxies behind galaxy cluster
-            - Match in RA/Dec to transformed shear catalog
-            - Filter self.r, self.gtan, self.gcross to be background-only
-            - Also store the number of galaxies injected into simulation
-        '''
-
-        truth_file = self.cat_info['truth_file']
-
-        try:
-            truth = Table.read(truth_file, format='fits')
-            if self.vb is True:
-                print(f'Read in truth file {truth_file}')
-
-        except FileNotFoundError as fnf_err:
-            print(f'truth catalog {truth_file} not found, check name/type?')
-            raise fnf_err
-
-        truth_gals = truth[truth['obj_class'] == 'gal']
-        self.n_truth_gals = len(truth_gals)
-
-        cluster_gals = truth[truth['obj_class']=='cluster_gal']
-        cluster_redshift = np.mean(cluster_gals['redshift'])
-
-        truth_bg_gals = truth[truth['redshift'] > cluster_redshift]
-
-        truth_bg_matcher = htm.Matcher(16,
-                                        ra = truth_bg_gals['ra'],
-                                        dec = truth_bg_gals['dec']
-                                        )
-
-        ann_file_ind, truth_bg_ind, dist = truth_bg_matcher.match(
-                                            ra = self.ra,
-                                            dec = self.dec,
-                                            maxmatch = 1,
-                                            radius = 1./3600.
-                                            )
-
-        print(f'# {len(dist)} of {len(self.ra)} objects matched to ' +\
-              'truth background galaxies')
-
-        self.gtan = self.gtan[ann_file_ind]
-        self.gcross = self.gcross[ann_file_ind]
-        self.r = self.r[ann_file_ind]
-        self.weight = self.weight[ann_file_ind]
-        
-        gal_redshifts = truth_bg_gals[truth_bg_ind]['redshift']
-
-        return gal_redshifts
-
-    def process_nfw(self, gal_redshifts, Nresample, outdir='.',
-                    overwrite=False):
+    def process_nfw(self, Nresample, outdir='.', overwrite=False):
         '''
         Subsample theoretical galaxy redshift distribution to match redshift
         distribution of detected galaxy catalog using a sort of MC rejection
@@ -290,7 +233,7 @@ class Annular(object):
 
             # Resample so redshift distribution matches input galaxies
             nfw_tab = self._nfw_resample_redshift(
-                gal_redshifts, Nresample, outdir=outdir, overwrite=overwrite,
+                Nresample, outdir=outdir, overwrite=overwrite,
                 )
 
             # Calculate tangential and cross shears for nfw
@@ -307,8 +250,7 @@ class Annular(object):
 
         return nfw_tab
 
-    def _nfw_resample_redshift(self, gal_redshifts, nfactor, outdir='.',
-                               overwrite=False):
+    def _nfw_resample_redshift(self, nfactor, outdir='.', overwrite=False):
         '''
         Subsample theoretical galaxy redshift distribution to match redshift
         distribution of detected galaxy catalog using a sort of MC rejection
@@ -337,18 +279,18 @@ class Annular(object):
         pseudo_nfw = nfw
 
         n_selec, bin_edges = np.histogram(
-            gal_redshifts, bins=100, range=[gal_redshifts.min(),gal_redshifts.max()]
+            self.z, bins=100, range=[self.z.min(),self.z.max()]
             )
         n_nfw, bin_edges_nfw = np.histogram(
-            pseudo_nfw['redshift'], bins=100, range=[gal_redshifts.min(),gal_redshifts.max()]
+            pseudo_nfw['redshift'], bins=100, range=[self.z.min(),self.z.max()]
             )
 
         pseudo_prob = n_selec / n_nfw
-        domain = np.arange(gal_redshifts.min(), gal_redshifts.max(), 0.0001)
+        domain = np.arange(self.z.min(), self.z.max(), 0.0001)
 
         subsampled_redshifts = []; t = []
 
-        while(len(subsampled_redshifts) < nfactor*len(gal_redshifts)):
+        while(len(subsampled_redshifts) < nfactor*len(self.z)):
             #this_z = rng.choice(nfwstars['redshift'])
             i = rng.choice(len(nfw))
             this_z = nfw[i]['redshift']
@@ -367,10 +309,10 @@ class Annular(object):
         # This should be in diagnostics, but do it here for now
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 
-        ax.hist(nfw_tab['redshift'],bins=100,range=[gal_redshifts.min(),\
-            gal_redshifts.max()],histtype='step',label='nfw resamp')
-        ax.hist(gal_redshifts,bins=100,range=[gal_redshifts.min(),\
-            gal_redshifts.max()],histtype='step',label='selected galaxies')
+        ax.hist(nfw_tab['redshift'],bins=100,range=[self.z.min(),\
+            self.z.max()],histtype='step',label='nfw resamp')
+        ax.hist(self.z,bins=100,range=[self.z.min(),\
+            self.z.max()],histtype='step',label='selected galaxies')
         ax.set_xlabel('Galaxy redshift')
         ax.set_ylabel('Number')
         ax.legend()
@@ -416,78 +358,21 @@ class Annular(object):
         Computes mean tangential and cross shear of background (redshift-filtered)
         galaxies in azimuthal bins
         '''
+
         minrad = self.annular_info['rmin']
         maxrad = self.annular_info['rmax']
         nbins = self.annular_info['nbins']
 
         bins = np.linspace(minrad, maxrad, nbins)
 
-        counts, bins = np.histogram(self.r, bins=bins)
+        # create catalog from attributes
+        shear_tab = Table()
+        shear_tab['r'] = self.r
+        shear_tab['gtan'] = self.gtan
+        shear_tab['gcross'] = self.gcross
+        shear_tab['weight'] = self.weight
 
-        N = len(bins) - 1
-        midpoint_r = np.zeros(N)
-        gtan_mean = np.zeros(N)
-        gtan_err = np.zeros(N)
-        gcross_mean = np.zeros(N)
-        gcross_err = np.zeros(N)
-
-        i = 0
-        for b1, b2 in zip(bins[:-1], bins[1:]):
-
-            annulus = (self.r >= b1) & (self.r < b2)
-            n = counts[i]
-            midpoint_r[i] = np.mean([b1, b2])
-
-            weighted_gtan_stats = DescrStatsW(self.gtan[annulus], weights=self.weight[annulus], ddof=0)
-            weighted_gcross_stats = DescrStatsW(self.gcross[annulus], weights=self.weight[annulus], ddof=0)
-            
-            gtan_mean[i] = weighted_gtan_stats.mean
-            gcross_mean[i] = weighted_gcross_stats.mean
-
-            gtan_err[i] = weighted_gtan_stats.std / np.sqrt(n)
-            gcross_err[i] =  weighted_gcross_stats.std / np.sqrt(n)
-
-            i += 1
-            
-        table = Table()
-        table.add_columns(
-            [counts, midpoint_r, gtan_mean, gcross_mean, gtan_err, gcross_err],
-            names=[
-                'counts', 'midpoint_r', 'mean_gtan', 'mean_gcross', 'err_gtan', 'err_gcross'
-                ],
-            )
-
-        # Repeat calculation if an nfw table is supplied, and also compute shear bias
-
-        if nfw_tab is not None:
-            nfw_mid_r = np.zeros(N)
-            nfw_gtan_mean = np.zeros(N)
-            nfw_gtan_err = np.zeros(N)
-            nfw_gcross_mean = np.zeros(N)
-            nfw_gcross_err = np.zeros(N)
-
-            i = 0
-            for b1, b2 in zip(bins[:-1], bins[1:]):
-                annulus = (nfw_tab['r'] >= b1) & (nfw_tab['r'] < b2)
-                n = counts[i]
-                nfw_mid_r[i] = np.mean([b1, b2])
-                nfw_gtan_mean[i] = np.mean(nfw_tab['gtan'][annulus])
-                nfw_gcross_mean[i] = np.mean(nfw_tab['gcross'][annulus])
-                nfw_gtan_err[i] = np.std(nfw_tab['gtan'][annulus]) / np.sqrt(n)
-                nfw_gcross_err[i] = np.std(nfw_tab['gcross'][annulus]) / np.sqrt(n)
-
-                i += 1
-
-            # NFW shear profile should have same number of elements as galaxy shear profile
-            assert(len(nfw_mid_r) == len(midpoint_r))
-
-            table.add_columns(
-                [nfw_gtan_mean, nfw_gcross_mean, nfw_gtan_err, nfw_gcross_err],
-                names=['mean_nfw_gtan', 'mean_nfw_gcross', 'err_nfw_gtan', 'err_nfw_gcross'],
-                )
-
-            # Compute shear bias relative to reference NFW
-            compute_shear_bias(profile_tab=table)
+        table = _compute_profile(shear_tab, bins, nfw_tab=nfw_tab)
 
         print(f'Writing out shear profile catalog to {outfile}')
         table.write(outfile, format='fits', overwrite=overwrite)
@@ -526,19 +411,107 @@ class Annular(object):
         # Compute gtan/gx
         self.transform_shears(outdir, overwrite=overwrite)
 
-        # Select background galaxies by redshifts
-        gal_redshifts = self.redshift_select()
-
-        # Resample NFW file (if supplied) to match galaxy redshift distribution; otherwise return None
+        # Resample NFW file (if supplied) to match galaxy redshift distribution;
+        # otherwise return None
         nfw_tab = self.process_nfw(
-            gal_redshifts, Nresample, outdir=outdir, overwrite=overwrite
+            Nresample, outdir=outdir, overwrite=overwrite
             )
 
         # Compute azimuthally averaged shear profiles
-        profile_tab = self.compute_profile(outfile, nfw_tab, overwrite=overwrite)
+        profile_tab = self.compute_profile(
+            outfile, nfw_tab=nfw_tab, overwrite=overwrite
+            )
 
         # Plot results
         self.plot_profile(profile_tab, plotfile, nfw_tab=nfw_tab)
 
         return
+
+def _compute_profile(shear_tab, rbins, nfw_tab=None):
+    '''
+    A way to compute the tangential shear profile from transformed shear
+    catalogs w/o creating an Annular instance
+
+    shear_tab: astropy.Table
+        The shear_tab of radius, gtan/gcross shears, weights, and associated
+        errors
+    rbins: list, np.array
+        A list or array of radial bin edges for the profile
+    nfw_tab: astropy.Table
+        An optional shear_tab of true nfw shear values & positions
+
+    returns: profile
+        An astropy table of the shear profile bins
+    '''
+
+    counts, bins = np.histogram(shear_tab['r'], bins=rbins)
+
+    N = len(bins) - 1
+    midpoint_r = np.zeros(N)
+    gtan_mean = np.zeros(N)
+    gtan_err = np.zeros(N)
+    gcross_mean = np.zeros(N)
+    gcross_err = np.zeros(N)
+
+    i = 0
+    for b1, b2 in zip(bins[:-1], bins[1:]):
+        annulus = (shear_tab['r'] >= b1) & (shear_tab['r'] < b2)
+        n = counts[i]
+        midpoint_r[i] = np.mean([b1, b2])
+
+        weighted_gtan_stats = DescrStatsW(
+            shear_tab['gtan'][annulus], weights=shear_tab['weight'][annulus], ddof=0
+        )
+        weighted_gcross_stats = DescrStatsW(
+            shear_tab['gcross'][annulus], weights=shear_tab['weight'][annulus], ddof=0
+        )
+
+        gtan_mean[i] = weighted_gtan_stats.mean
+        gcross_mean[i] = weighted_gcross_stats.mean
+
+        gtan_err[i] = weighted_gtan_stats.std / np.sqrt(n)
+        gcross_err[i] =  weighted_gcross_stats.std / np.sqrt(n)
+
+        i += 1
+
+    table = Table()
+    table.add_columns(
+        [counts, midpoint_r, gtan_mean, gcross_mean, gtan_err, gcross_err],
+        names=[
+            'counts', 'midpoint_r', 'mean_gtan', 'mean_gcross', 'err_gtan', 'err_gcross'
+        ],
+    )
+
+    # Repeat calculation if an nfw table is supplied, and also compute shear bias
+    if nfw_tab is not None:
+        nfw_mid_r = np.zeros(N)
+        nfw_gtan_mean = np.zeros(N)
+        nfw_gtan_err = np.zeros(N)
+        nfw_gcross_mean = np.zeros(N)
+        nfw_gcross_err = np.zeros(N)
+
+        i = 0
+        for b1, b2 in zip(bins[:-1], bins[1:]):
+            annulus = (nfw_tab['r'] >= b1) & (nfw_tab['r'] < b2)
+            n = counts[i]
+            nfw_mid_r[i] = np.mean([b1, b2])
+            nfw_gtan_mean[i] = np.mean(nfw_tab['gtan'][annulus])
+            nfw_gcross_mean[i] = np.mean(nfw_tab['gcross'][annulus])
+            nfw_gtan_err[i] = np.std(nfw_tab['gtan'][annulus]) / np.sqrt(n)
+            nfw_gcross_err[i] = np.std(nfw_tab['gcross'][annulus]) / np.sqrt(n)
+
+            i += 1
+
+        # NFW shear profile should have same number of elements as galaxy shear profile
+        assert(len(nfw_mid_r) == len(midpoint_r))
+
+        table.add_columns(
+            [nfw_gtan_mean, nfw_gcross_mean, nfw_gtan_err, nfw_gcross_err],
+            names=['mean_nfw_gtan', 'mean_nfw_gcross', 'err_nfw_gtan', 'err_nfw_gcross'],
+        )
+
+        # Compute single-realization shear bias relative to reference NFW
+        compute_shear_bias(profile_tab=table)
+
+    return table
 
