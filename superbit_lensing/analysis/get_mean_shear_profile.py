@@ -23,7 +23,7 @@ def parse_args():
 
     parser.add_argument('-shear_cats', type=str, default=None,
                         help = 'Tables to read in: xxx_transformed_shear_tab.fits')
-    parser.add_argument('-nfw_file', type=str, default=None,
+    parser.add_argument('-nfw_files', type=str, default=None,
                         help='Reference NFW shear catalog')
     parser.add_argument('-shear_cut', type=float, default=None,
                         help='Max tangential shear to define scale cuts')
@@ -132,7 +132,7 @@ class CatalogStacker():
 
         return
 
-def compute_profile(catalog, minrad, maxrad, nbins, nfw_file):
+def compute_profile(catalog, minrad, maxrad, nbins, nfw_tab):
     '''
     Compute the weighted average tangential and cross shears
     of the suppled catalog in radial bins.
@@ -163,10 +163,10 @@ def compute_profile(catalog, minrad, maxrad, nbins, nfw_file):
         n = counts[i]
         midpoint_r[i] = np.mean([b1, b2])
 
-        weighted_gtan_stats = DescrStatsW(catalog['gtan'][annulus],
+        weighted_gtan_stats = DescrStatsW(catalog['gcross'][annulus],
             weights=catalog['weight'][annulus], ddof=0)
 
-        weighted_gcross_stats = DescrStatsW(catalog['gcross'][annulus],
+        weighted_gcross_stats = DescrStatsW(catalog['gtan'][annulus],
             weights=catalog['weight'][annulus], ddof=0)
 
         gtan_mean[i] = weighted_gtan_stats.mean
@@ -186,9 +186,7 @@ def compute_profile(catalog, minrad, maxrad, nbins, nfw_file):
         )
 
     # Repeat calculation if an nfw table is supplied
-    if nfw_file is not None:
-
-        nfw_tab = Table.read(nfw_file)
+    if nfw_tab is not None:
 
         nfw_mid_r = np.zeros(N)
         nfw_gtan_mean = np.zeros(N)
@@ -203,8 +201,8 @@ def compute_profile(catalog, minrad, maxrad, nbins, nfw_file):
             nfw_mid_r[i] = np.mean([b1, b2])
             nfw_gtan_mean[i] = np.mean(nfw_tab['gtan'][annulus])
             nfw_gcross_mean[i] = np.mean(nfw_tab['gcross'][annulus])
-            nfw_gtan_err[i] = np.std(nfw_tab['gtan'][annulus]) / np.sqrt(n)
-            nfw_gcross_err[i] = np.std(nfw_tab['gcross'][annulus]) / np.sqrt(n)
+            nfw_gtan_err[i] = np.std(nfw_tab['gtan'][annulus]) 
+            nfw_gcross_err[i] = np.std(nfw_tab['gcross'][annulus]) 
 
             i += 1
 
@@ -292,7 +290,7 @@ def add_mean_profile_alpha(mean_cat):
 def main(args):
 
     shearcat_names = args.shear_cats
-    nfw_file = args.nfw_file
+    nfw_files = args.nfw_files
     shear_cut = args.shear_cut
     outfile = args.outfile
     minrad = args.minrad
@@ -304,6 +302,8 @@ def main(args):
 
     if shearcat_names is None:
         shearcat_names = 'r*/*_transformed_shear_tab.fits'
+   #if nfw_files is None:
+   #     nfw_files = 'r*/subsampled_nfw_cat.fits'
     if outfile is None:
         outfile = './mean_shear_profile_cat.fits'
 
@@ -311,6 +311,7 @@ def main(args):
         if shear_cut <= 0:
             raise ValueError('shear_cut must be positive')
 
+    
     outdir = os.path.dirname(outfile)
     stacked_cat_name = os.path.join(outdir,'all_source_gal_shears.fits')
     mean_shear_name = outfile
@@ -320,10 +321,18 @@ def main(args):
     log = utils.setup_logger(logfile, logdir=outdir)
     logprint = utils.LogPrint(log, vb)
 
-    shearcat_list = glob.glob(shearcat_names)
-
+    
+    # Concatenate single-realization NFW catalogs
+    if nfw_files is not None:
+        nfwfile_list = glob.glob(nfw_files)
+        all_nfws = CatalogStacker(nfwfile_list)
+        all_nfws.run()
+        nfw_tab = all_nfws.stacked_cat
+    else:
+        nfw_tab = None
 
     # Get source density, shear cats and also average alpha
+    shearcat_list = glob.glob(shearcat_names)
     all_shears = CatalogStacker(shearcat_list)
     all_shears.run()
 
@@ -340,7 +349,7 @@ def main(args):
     # NFW shear profile if such a catalog is provided
 
     shear_profile = compute_profile(catalog=stacked_shear, minrad=minrad,
-                    maxrad=maxrad, nbins=nbins, nfw_file=nfw_file)
+                                    maxrad=maxrad, nbins=nbins, nfw_tab=nfw_tab)
 
 
 
@@ -373,17 +382,6 @@ def main(args):
     shear_profile.add_columns(
         [shear_cut_flag], names=['shear_cut_flag']
         )
-
-    if all_shears.mean_a is not None:
-        logprint(f'mean alpha = {all_shears.mean_a:.5f} +/- ' +\
-                 f'{all_shears.std_a/np.sqrt(all_shears.num_alphas):.4f}')
-        logprint(f'std alpha = {all_shears.std_a:.5f}')
-    else:
-        print('No alphas found in supplied table')
-
-    shear_profile.meta['avg_alpha'] = all_shears.mean_a
-    shear_profile.meta['std_alpha'] = all_shears.std_a
-    shear_profile.meta['num_alphas'] = all_shears.num_alphas
     shear_profile.meta['mean_n_gals'] = avg_n_sources
 
     # compute mean profile alpha & sig alpha taking shear-cut into account

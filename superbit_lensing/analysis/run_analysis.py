@@ -132,20 +132,16 @@ class AnalysisRunner(object):
             )
 
         # regular expression to grab all reference NFW catalogs for a given cluster
-        nfw_file_names = os.path.join(
+        nfw_files = os.path.join(
             cluster, 'r*/subsampled_nfw_cat.fits'
             )
-        all_nfw_files = glob(nfw_file_names)
-
-        # NFW cats of given cluster should be identical; pass the first one
-        nfw_file = all_nfw_files[0]
 
         outfile = os.path.join(
             self.outdir, cl, 'mean_shear_profile_cat.fits'
             )
 
         base = f'python {profile_script} '
-        opts = f'-shear_cats={shear_cats} -nfw_file={nfw_file} ' +\
+        opts = f'-shear_cats={shear_cats} -nfw_files={nfw_files} ' +\
                f'-minrad={minrad} -maxrad={maxrad} -nbins={nbins} ' +\
                f'-outfile={outfile}'
         cmd = base + opts
