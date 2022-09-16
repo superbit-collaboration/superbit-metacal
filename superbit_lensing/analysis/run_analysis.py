@@ -15,8 +15,16 @@ def parse_args():
     parser.add_argument('basedir', type=str,
                         help='Location of run files to analyze. Should be ' +\
                         'a list of cluster directories')
+    parser.add_argument('-nfw_file', type=str, default=None,
+                        help='Reference NFW shear catalog')
     parser.add_argument('-shear_cut', type=float, default=None,
                         help='Max tangential shear to define scale cuts')
+    parser.add_argument('-minrad', type=float, default=100,
+                        help='Starting radius value (in pixels)')
+    parser.add_argument('-maxrad', type=float, default=5200,
+                        help='Ending radius value (in pixels)')
+    parser.add_argument('-nbins', type=int, default=18,
+                        help='Number of radial bins')
     parser.add_argument('--show', action='store_true', default=False,
                         help='Show plots')
     parser.add_argument('--overwrite', action='store_true', default=False,
@@ -41,7 +49,8 @@ class MeanShearProfilePlotter(ShearProfilePlotter):
 
 class AnalysisRunner(object):
 
-    def __init__(self, basedir, shear_cut=None, outdir=None, logprint=None):
+    def __init__(self, basedir, minrad, maxrad, nbins, shear_cut=None,
+                outdir=None, logprint=None):
         '''
         basedir: str
             Location of run files to analyze. Should be a list of cluster
@@ -49,6 +58,10 @@ class AnalysisRunner(object):
         shear_cut: float
             The max absolute <gtan> value beyond which data bins
             are removed
+        minrad, maxrad: float
+            Minimum and maximum radius for shear profile calculation
+        nbins:
+            Number of bins for shear profile calculation
         outdir: str
             The output directory for analysis plots & cats
         logprint: LogPrint
@@ -57,6 +70,9 @@ class AnalysisRunner(object):
 
         self.basedir = basedir
         self.shear_cut = shear_cut
+        self.minrad = minrad
+        self.maxrad = maxrad
+        self.nbins = nbins
 
         if logprint is None:
             logprint = utils.LogPrint(None, vb)
@@ -100,6 +116,10 @@ class AnalysisRunner(object):
             Set to show plots
         '''
 
+        minrad = self.minrad
+        maxrad = self.maxrad
+        nbins = self.nbins
+
         cl = os.path.basename(os.path.abspath(cluster))
 
         profile_script = os.path.join(
@@ -108,17 +128,25 @@ class AnalysisRunner(object):
 
         # regular expressions to grab all relevant catalogs for a given cluster
         shear_cats = os.path.join(
-            cluster, 'r*/*shear_profile_cat.fits'
+            cluster, 'r*/*_transformed_shear_tab.fits'
             )
-        annular_cats = os.path.join(
-            cluster, 'r*/*annular.fits'
+
+        # regular expression to grab all reference NFW catalogs for a given cluster
+        nfw_file_names = os.path.join(
+            cluster, 'r*/subsampled_nfw_cat.fits'
             )
+        all_nfw_files = glob(nfw_file_names)
+
+        # NFW cats of given cluster should be identical; pass the first one
+        nfw_file = all_nfw_files[0]
+
         outfile = os.path.join(
-            self.outdir, cl, 'stacked_shear_profile_cats.fits'
+            self.outdir, cl, 'mean_shear_profile_cat.fits'
             )
 
         base = f'python {profile_script} '
-        opts = f'-shear_cats={shear_cats} -annular_cats={annular_cats} ' +\
+        opts = f'-shear_cats={shear_cats} -nfw_file={nfw_file} ' +\
+               f'-minrad={minrad} -maxrad={maxrad} -nbins={nbins} ' +\
                f'-outfile={outfile}'
         cmd = base + opts
 
@@ -146,7 +174,7 @@ class AnalysisRunner(object):
         outdir = os.path.join(self.outdir, cl)
 
         mean_catfile = os.path.join(
-            self.outdir, cl, 'mean_shear_profile_cats.fits'
+            self.outdir, cl, 'mean_shear_profile_cat.fits'
             )
 
         outfile = os.path.join(outdir, 'mean_shear_profile.png')
@@ -179,7 +207,11 @@ class AnalysisRunner(object):
 def main(args):
 
     basedir = args.basedir
+    nfw_file = args.nfw_file
     shear_cut = args.shear_cut
+    minrad = args.minrad
+    maxrad = args.maxrad
+    nbins = args.nbins
     overwrite = args.overwrite
     show = args.show
     vb = args.vb
@@ -190,7 +222,8 @@ def main(args):
     logprint = utils.LogPrint(log, vb)
 
     runner = AnalysisRunner(
-        basedir, shear_cut=shear_cut, logprint=logprint
+        basedir, shear_cut=shear_cut, logprint=logprint,
+        minrad=minrad, maxrad=maxrad, nbins=nbins
         )
 
     logprint('Starting AnalysisRunner')

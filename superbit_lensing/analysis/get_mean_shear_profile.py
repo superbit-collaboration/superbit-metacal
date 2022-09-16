@@ -28,10 +28,10 @@ def parse_args():
     parser.add_argument('-shear_cut', type=float, default=None,
                         help='Max tangential shear to define scale cuts')
     parser.add_argument('-outfile', type=str, default=None,
-                        help = 'Name of ouput stacked catalog')
-    parser.add_argument('-start_rad', type=float, default=100,
+                        help = 'Name of ouput mean shear profile')
+    parser.add_argument('-minrad', type=float, default=100,
                         help='Starting radius value (in pixels)')
-    parser.add_argument('-end_rad', type=float, default=5200,
+    parser.add_argument('-maxrad', type=float, default=5200,
                         help='Ending radius value (in pixels)')
     parser.add_argument('-nbins', type=int, default=18,
                         help='Number of radial bins')
@@ -295,8 +295,8 @@ def main(args):
     nfw_file = args.nfw_file
     shear_cut = args.shear_cut
     outfile = args.outfile
-    minrad = args.start_rad
-    maxrad = args.end_rad
+    minrad = args.minrad
+    maxrad = args.maxrad
     nbins = args.nbins
     show = args.show
     overwrite = args.overwrite
@@ -305,13 +305,17 @@ def main(args):
     if shearcat_names is None:
         shearcat_names = 'r*/*_transformed_shear_tab.fits'
     if outfile is None:
-        outfile = 'stacked_transformed_shear_tables.fits'
+        outfile = './mean_shear_profile_cat.fits'
 
     if shear_cut is not None:
         if shear_cut <= 0:
             raise ValueError('shear_cut must be positive')
 
     outdir = os.path.dirname(outfile)
+    stacked_cat_name = os.path.join(outdir,'all_source_gal_shears.fits')
+    mean_shear_name = outfile
+
+
     logfile = 'mean_shear_profile.log'
     log = utils.setup_logger(logfile, logdir=outdir)
     logprint = utils.LogPrint(log, vb)
@@ -329,9 +333,7 @@ def main(args):
     logprint('')
 
     stacked_shear = all_shears.stacked_cat
-
     stacked_shear.sort('r')
-    stacked_shear.write(outfile, format='fits', overwrite=overwrite)
 
 
     # Calculate mean shear profile, including the
@@ -385,9 +387,11 @@ def main(args):
     shear_profile.meta['mean_n_gals'] = avg_n_sources
 
     # compute mean profile alpha & sig alpha taking shear-cut into account
-    table = add_mean_profile_alpha(table)
+    shear_profile = add_mean_profile_alpha(shear_profile)
 
-    mean_shear_name = outfile.replace('stacked','mean')
+    logprint(f'Writing out concatenated source galaxy shears to {stacked_cat_name}')
+    stacked_shear.write(stacked_cat_name, format='fits', overwrite=overwrite)
+
     logprint(f'Writing out mean shear profile catalog to {mean_shear_name}')
     shear_profile.write(mean_shear_name, format='fits', overwrite=overwrite)
 
