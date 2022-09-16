@@ -426,11 +426,14 @@ class AnnularCatalog():
                 'nfw_center': [nfw_truth_xcenter, nfw_truth_ycenter]
                 }
 
-        else: nfw_info = None
+        else:
+            nfw_info = None
 
         # Runs the Annular class in annular_jmac.py
-        # Compute cross/tan shear, select background galaxies, obtain shear profile
-        annular = Annular(cat_info, annular_info, nfw_info, run_name=self.run_name, vb=vb)
+        # Compute cross/tan shear, & obtain single-realization shear profile
+        annular = Annular(
+            cat_info, annular_info, nfw_info, run_name=self.run_name, vb=vb
+            )
 
         annular.run(outfile, plotfile, Nresample, overwrite=overwrite)
 
