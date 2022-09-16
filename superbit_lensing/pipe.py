@@ -724,8 +724,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'run_name': run_name,
                     'outdir': outdir,
                     'vb': True,
-                    # 'ncores': 8,
-                    'ncores': 1,
+                    'ncores': 8,
                     'run_diagnostics': True,
                     'order': [
                         'galsim',
