@@ -38,6 +38,31 @@ The example configuration file is shown in `configs/pipe_test.yaml`. An example 
 
 The available config options for each submodule are defined in the various module classes in `superbit_lensing.pipe.py`, such as `GalSimModule`. The required & optional fields are given in `_req_fields` and `_opt_fields` respectively. The pipeline runner tells you if you fail to pass a required field or if you pass something that it doesn't understand.
 
+## To build a specific run environment
+Create env from yaml (e.g. `env_v1.3.9.yaml`):
+
+`conda env create --name sbmcal_139 --file env_v1.3.9.yaml`
+
+Activate new env:
+
+`conda activate sbmcal_139`
+
+cd to meds repo:
+
+`cd /path/to/repos/meds`
+
+Build it:
+
+`python setup.py install`
+
+cd to this repo:
+
+`cd /path/to/repos/superbit-metacal`
+
+pip install repo:
+
+`pip install -e /path/to/repos/superbit-metacal`
+
 ## For the experts
 
 If you want to add a new submodule to the pipeline, simply define a new subclass `MyCustomModule(SuperBITModule)` that implements the abstract `run()` function of the parent class and add it to `pipe.MODULE_TYPES` to register it with the rest of the pipeline. You should also implement the desired required & optional parameters that can be present in the module config with the class variables `_req_fields` and `_opt_fields`, which should be lists.
