@@ -93,14 +93,18 @@ class AnalysisRunner(object):
             self.logprint(f'No clusters found in {self.basedir}')
 
         for cluster in clusters:
-            cl = os.path.basename(os.path.abspath(cluster))
-            self.logprint(f'Starting cluster {cl}')
-            self.run_mean_shear_profile(
-                cluster, overwrite=overwrite, show=show
-                )
-            self.make_plots(
-                cluster, overwrite=overwrite, show=show
-                )
+            try:
+                cl = os.path.basename(os.path.abspath(cluster))
+                self.logprint(f'Starting cluster {cl}')
+                self.run_mean_shear_profile(
+                    cluster, overwrite=overwrite, show=show
+                    )
+                self.make_plots(
+                    cluster, overwrite=overwrite, show=show
+                    )
+            except Exception as e:
+                print(f'ERROR: Cluster {cl} failed with the following ' +\
+                      f'error:\n{e}')
 
         return
 
