@@ -106,9 +106,11 @@ class CatalogStacker():
             except KeyError:
                 pass
 
-        stacked_catalog = vstack(stack, metadata_conflicts='silent')
-        stacked_catalog.meta = collections.OrderedDict()
-
+        if (len(stack) > 0):
+            stacked_catalog = vstack(stack, metadata_conflicts='silent')
+            stacked_catalog.meta = collections.OrderedDict()
+        else:
+            stacked_catalog = []
         self.stacked_cat = stacked_catalog
 
         return

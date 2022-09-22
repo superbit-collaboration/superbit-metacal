@@ -22,7 +22,7 @@ import time
 import galsim
 import galsim.des
 import galsim.convolve
-import pdb, pudb
+import pdb
 from glob import glob
 import scipy
 import yaml
@@ -222,25 +222,30 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, 
     logprint.debug(f'galaxy z={gal_z} flux={gal_flux} hlr={half_light_radius} ' + \
                    f'sersic_index={n}')
 
-    # Sersic class requires index n >= 0.3
-    if (n < 0.3):
-        n = 0.3
+    ## InclinedSersic requires 0.3 < n < 6;
+    ## set galaxy's n to another value if it falls outside this range
+    if n<0.3:
+        n=0.3
+    elif n>6:
+        n=4
 
-    gal = galsim.Sersic(n = n,
-                        flux = gal_flux,
-                        half_light_radius = half_light_radius)
+    ## Very large HLRs will also make GalSim fail
+    ## Set to a default, ~large but physical value.
+    if half_light_radius > 2:
+            half_light_radius = 2
 
-    gal = gal.shear(q = q, beta = phi)
-    logprint.debug('created galaxy')
+    gal = galsim.InclinedSersic(n=n,
+                                flux=gal_flux,
+                                half_light_radius=half_light_radius,
+                                inclination=inclination,
+                                scale_h_over_r=q
+                                )
+
 
     ## Apply a random rotation
     theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
                             
-    ## Apply a random rotation
-    theta = ud()*2.0*np.pi*galsim.radians
-    gal = gal.rotate(theta)
-
     ## Get the reduced shears and magnification at this point
     try:
         nfw_shear, mu = nfw_lensing(nfw, uv_pos, gal_z)
