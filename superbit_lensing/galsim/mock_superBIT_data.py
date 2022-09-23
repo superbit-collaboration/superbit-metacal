@@ -237,7 +237,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, 
     gal = galsim.InclinedSersic(n=n,
                                 flux=gal_flux,
                                 half_light_radius=half_light_radius,
-                                inclination=inclination,
+                                inclination=phi,
                                 scale_h_over_r=q
                                 )
 
