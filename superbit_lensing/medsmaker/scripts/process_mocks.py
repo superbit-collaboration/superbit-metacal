@@ -23,7 +23,8 @@ def parse_args():
                         help='Basename of mock image files')
     parser.add_argument('-run_name', action='store', type=str, default=None,
                         help='Name of mock simulation run')
-    parser.add_argument('-psf_mode', action='store', choices=['piff', 'psfex'], default='piff',
+    parser.add_argument('-psf_mode', action='store', default='piff',
+                        choices=['piff', 'psfex', 'true'],
                         help='model exposure PSF using either piff or psfex')
     parser.add_argument('-psf_seed', type=int, default=None,
                         help='Seed for chosen PSF estimation mode')

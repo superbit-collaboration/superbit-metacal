@@ -6,7 +6,7 @@ import piff
 from astropy.io import fits
 import string
 from pathlib import Path
-import ipdb
+import cPickle as pickle
 from astropy import wcs
 import fitsio
 import esutil as eu
@@ -16,6 +16,8 @@ import astropy.coordinates
 from astroquery.gaia import Gaia
 import superbit_lensing.utils as utils
 import glob
+
+import ipdb
 
 '''
 Goals:
@@ -575,6 +577,10 @@ class BITMeasurement():
 
                 self.psf_models.append(psfex.PSFEx(psfex_model_file))
 
+            elif psf_mode == 'true':
+                true_model = self._make_true_psf_model()
+                self.psf_models.append(true_model)
+
         # TODO: temporary coadd PSF solution!
         # see issue #83
         self.psf_models[0] = self.psf_models[1]
@@ -694,6 +700,28 @@ class BITMeasurement():
         piff_extended = piff_extender(full_output_name)
 
         return piff_extended
+
+    def _make_true_psf_model(self):
+        '''
+        Construct a PSF image to populate a MEDS file using the actual
+        PSF used in the creation of single-epoch images
+
+        NOTE: For now, this function assumes a constant PSF for all images
+        NOTE: Should only be used for validation simulations!
+        '''
+
+        # there should only be one of these
+        true_psf_file = glob.glob(
+            os.path.join(self.data_dir, '*true_psf.pkl')
+            )[0]
+
+        with open(true_psf_file, 'rb') as fname:
+            true_psf = pickle.load(fname)
+
+            # now render PSF correctly...
+            pass
+
+        return
 
     def _select_stars_for_psf(self, sscat, truthfile=None, starkeys=None,
                               star_params=None):

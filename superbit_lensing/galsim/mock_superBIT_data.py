@@ -24,10 +24,12 @@ import galsim.des
 import galsim.convolve
 import pdb, pudb
 from glob import glob
+import cPickle as pickle
 import scipy
 import yaml
 import numpy as np
 import fitsio
+from astropy.io import fits
 from numpy.random import SeedSequence, default_rng
 from functools import reduce
 from astropy.table import Table
@@ -37,22 +39,25 @@ from multiprocessing import Pool
 
 import superbit_lensing.utils as utils
 
-parser = ArgumentParser()
+def parse_args():
+    parser = ArgumentParser()
 
-parser.add_argument('config_file', action='store', type=str,
-                    help='Configuration file for mock sims')
-parser.add_argument('-run_name', action='store', type=str, default='',
-                    help='Name of mock simulation run')
-parser.add_argument('-outdir', action='store', type=str,
-                    help='Output directory of simulated files')
-parser.add_argument('-ncores', action='store', type=int, default=1,
-                    help='Number of cores to use for multiproessing')
-parser.add_argument('--mpi', action='store_true', default=False,
-                    help='Use to turn on mpi')
-parser.add_argument('--clobber', action='store_true', default=False,
-                    help='Turn on to overwrite existing files')
-parser.add_argument('--vb', action='store_true', default=False,
-                    help='Turn on for verbose prints')
+    parser.add_argument('config_file', action='store', type=str,
+                        help='Configuration file for mock sims')
+    parser.add_argument('-run_name', action='store', type=str, default='',
+                        help='Name of mock simulation run')
+    parser.add_argument('-outdir', action='store', type=str,
+                        help='Output directory of simulated files')
+    parser.add_argument('-ncores', action='store', type=int, default=1,
+                        help='Number of cores to use for multiproessing')
+    parser.add_argument('--mpi', action='store_true', default=False,
+                        help='Use to turn on mpi')
+    parser.add_argument('--clobber', action='store_true', default=False,
+                        help='Turn on to overwrite existing files')
+    parser.add_argument('--vb', action='store_true', default=False,
+                        help='Turn on for verbose prints')
+
+    return parser.parse_args()
 
 class truth():
 
@@ -236,7 +241,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, 
     ## Apply a random rotation
     theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
-                            
+
     ## Apply a random rotation
     theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
@@ -770,11 +775,11 @@ class SuperBITParameters:
         # x and y are flipped in fits convention vs. np array
         mask = np.zeros((Ny, Nx), dtype='i4')
 
-        fits = fitsio.FITS(mask_outfile, 'rw')
+        mask_fits = fitsio.FITS(mask_outfile, 'rw')
 
         for ext in range(self.nexp):
             try:
-                fits.write(mask, ext=ext, clobber=clobber)
+                mask_fits.write(mask, ext=ext, clobber=clobber)
                 logprint(f'Wrote mask to {mask_outfile}')
             except OSError as e:
                 logprint(f'OSError: {e}')
@@ -801,11 +806,11 @@ class SuperBITParameters:
         # x and y are flipped in fits convention vs. np array
         weight = np.ones((Ny, Nx), dtype='f8')
 
-        fits = fitsio.FITS(weight_outfile, 'rw')
+        weight_fits = fitsio.FITS(weight_outfile, 'rw')
 
         for ext in range(self.nexp):
             try:
-                fits.write(weight, ext=ext, clobber=clobber)
+                weight_fits.write(weight, ext=ext, clobber=clobber)
                 logprint(f'Wrote weight to {weight_outfile}')
             except OSError as e:
                 logprint(f'OSError: {e}')
@@ -828,7 +833,7 @@ def combine_catalogs(t1, t2):
     t1.sort_keys.extend(t2.sort_keys)
     return t1
 
-def main():
+def main(args):
     """
     Make images using model PSFs and galaxy cluster shear:
       - The galaxies come from a processed COSMOS 2015 Catalog, scaled to match
@@ -837,13 +842,14 @@ def main():
         galaxy fluxes and redshifts to similar GalSim-COSMOS galaxies (see A. Gill+ 2023)
     """
 
-    args = parser.parse_args()
     config_file = args.config_file
     run_name = args.run_name
     mpi = args.mpi
     ncores = args.ncores
     clobber = args.clobber
     vb = args.vb
+
+    start_time = time.time()
 
     # If outdir is None, will need to move it later after it is set
     if args.outdir is None:
@@ -1269,6 +1275,23 @@ def main():
                 try:
                     truth_catalog.write(truth_file_name)
                     logprint(f'Wrote truth to {truth_file_name}')
+
+                    # It can be useful to load the true PSF into memory for
+                    # later tests. So we pickle it now and save the filename
+                    # into the truth catalog header
+                    jitter_psf = galsim.Gaussian(
+                        flux=1, fwhm=sbparams.jitter_fwhm
+                        )
+                    psf = galsim.Convolve([jitter_psf, optics])
+                    psf_outfile = os.path.join(
+                        self.outdir, 'true_psf.pkl'
+                        )
+                    with open(psf_outfile, 'wb') as psf_pfile:
+                    pickle.dump(psf, psf_pfile)
+
+                    with fits.open(truth_file_name, mode='update') as handle:
+                        handle[0].header['psf_objfile'] = psf_outfile
+
                 except OSError as e:
                     logprint(f'OSError: {e}')
                     raise e
@@ -1292,14 +1315,14 @@ def main():
         os.replace(oldfile, newfile)
 
     if (mpi is False) or (M.is_mpi_root()):
-        logprint('')
-        logprint('Done!')
-        logprint('')
+        logprint('\nDone!\n')
+
+    end_time = time.time()
+    logprint('\n\ngalsim execution time = {end_time - start_time}\n\n')
+
+    return
 
 if __name__ == "__main__":
-    import time
-    start_time = time.time()
-    main()
+    args = parse_args()
+    main(args)
 
-    end_time=time.time()
-    print("\n\ngalsim execution time = %fs\n\n" % (end_time - start_time))
