@@ -117,11 +117,11 @@ def main(args):
     obj_info = bm.make_object_info_struct()
 
     # Make the MEDS config file.
-    meds_config = bm.make_meds_config(use_coadd=use_coadd)
+    meds_config = bm.make_meds_config(use_coadd, psf_mode)
 
     # Create metadata for MEDS
     magzp = 30.
-    meta = bm._meds_metadata(magzp, use_coadd)
+    meta = bm.meds_metadata(magzp, use_coadd)
     # Finally, make and write the MEDS file.
 
     medsObj = meds.maker.MEDSMaker(

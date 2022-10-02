@@ -231,7 +231,9 @@ class SuperBITNgmixFitter():
 
     def _get_source_observations(self, iobj, weight_type='uberseg', logprint=None):
 
+        # TODO: TESTING
         obslist = self.medsObj.get_obslist(iobj, weight_type)
+        # obslist = self.medsObj.get_obslist(iobj)
 
         # We don't want to fit to the coadd, as its PSF is not
         # well defined
@@ -491,7 +493,8 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
     Tguess = 4*jaclist[0].get_scale()**2
     ntry = 4
     psf_model = 'gauss' # should come up with diagnostics for PSF quality
-    gal_model = 'exp'
+    # gal_model = 'exp'
+    gal_model = 'gauss'
 
     # Run the actual metacalibration fits on the observed galaxies
     mcb = ngmix.bootstrap.MaxMetacalBootstrapper(obslist)
@@ -761,6 +764,7 @@ def main():
         for i in range(index_start, index_end):
             mcal_res.append(mp_run_fit(
                             i,
+                            index_start,
                             setup_obj(i, BITfitter.medsObj[i]),
                             BITfitter._get_jacobians(i),
                             BITfitter._get_source_observations(

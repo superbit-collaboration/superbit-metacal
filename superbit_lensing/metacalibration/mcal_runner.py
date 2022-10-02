@@ -651,10 +651,6 @@ class MetacalRunner(object):
         NOTE: need to check what is best to put here!
         '''
 
-        if self.prior is None:
-            raise ValueError('prior must be setup before using the ' +\
-                             'default guesser!')
-
         # use simplest PSF guesser
         self.psf_guesser = ngmix.guessers.SimplePSFGuesser(self.rng)
 

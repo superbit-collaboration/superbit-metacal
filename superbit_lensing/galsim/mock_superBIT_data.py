@@ -24,7 +24,7 @@ import galsim.des
 import galsim.convolve
 import pdb, pudb
 from glob import glob
-import cPickle as pickle
+import pickle
 import scipy
 import yaml
 import numpy as np
@@ -192,7 +192,7 @@ def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
 
     return full_image, truth_catalog
 
-def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, obj_index=None):
+def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, psf, sbparams, logprint, obj_index=None):
     """
     Method to make a single galaxy object and return stamp for
     injecting into larger GalSim image
@@ -256,8 +256,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, 
         g1 = 0.0; g2 = 0.0
         mu = 1.0
 
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    final=galsim.Convolve([jitter_psf, optics, gal])
+    final = galsim.Convolve([psf, gal])
 
     logprint.debug('Convolved star and PSF at galaxy position')
 
@@ -293,7 +292,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, 
     logprint.debug('stamp made, moving to next galaxy')
     return stamp, galaxy_truth
 
-def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams, logprint, obj_index=None):
+def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, psf, sbparams, logprint, obj_index=None):
     """
     Method to make a single galaxy object and return stamp for
     injecting into larger GalSim image
@@ -340,8 +339,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     gal.magnify(2)
     logprint.debug(f'rescaled galaxy with scaling factor {sbparams.flux_scaling}')
 
-    jitter_psf = galsim.Gaussian(flux=1,fwhm=sbparams.jitter_fwhm)
-    final=galsim.Convolve([jitter_psf, optics, gal])
+    final = galsim.Convolve([psf, gal])
 
     logprint.debug('Convolved star and PSF at galaxy position')
 
@@ -381,7 +379,7 @@ def make_cluster_galaxy(ud, wcs,affine, centerpix, cluster_cat, optics, sbparams
     return cluster_stamp, cluster_galaxy_truth
 
 
-def make_a_star(ud, pud, k, wcs, affine, optics, sbparams, logprint, obj_index=None):
+def make_a_star(ud, pud, k, wcs, affine, psf, sbparams, logprint, obj_index=None):
     """
     makes a star-like object for injection into larger image.
     """
@@ -429,8 +427,7 @@ def make_a_star(ud, pud, k, wcs, affine, optics, sbparams, logprint, obj_index=N
 
     # Generate PSF at location of star, convolve with optical model to make a star
     deltastar = galsim.DeltaFunction(flux=star_flux)
-    jitter_psf = galsim.Gaussian(flux=1, fwhm=sbparams.jitter_fwhm)
-    star = galsim.Convolve([jitter_psf, optics, deltastar])
+    star = galsim.Convolve([psf, deltastar])
 
     star_stamp = star.drawImage(wcs=wcs.local(image_pos)) # before it was scale = 0.206, and that was bad!
     star_stamp.setCenter(image_pos.x, image_pos.y)
@@ -911,6 +908,9 @@ def main(args):
     aberrations[37] = 0.00000004
     logprint(f'Calculated lambda over diam = {lam_over_diam} arcsec')
 
+    # gaussian jitter component from gondola instabilities
+    jitter_psf = galsim.Gaussian(flux=1, fwhm=sbparams.jitter_fwhm)
+
     # due to how the config is structured...
     if hasattr(sbparams, 'use_optics'):
         use_optics = sbparams.use_optics
@@ -918,7 +918,8 @@ def main(args):
         use_optics = True
 
     if use_optics is False:
-        optics = galsim.DeltaFunction(flux=1)
+        optics = None
+        psf = jitter_psf
         logprint('\nuse_optics is False; using jitter-only PSF\n')
 
     elif use_optics is True:
@@ -927,6 +928,8 @@ def main(args):
                         obscuration=sbparams.obscuration, nstruts=sbparams.nstruts,
                         strut_angle=sbparams.strut_angle, strut_thick=sbparams.strut_thick,
                         aberrations=aberrations)
+
+        psf = galsim.Convolve([jitter_psf, optics])
 
         logprint('\n Use_optics is True; convolving telescope optics PSF profile\n')
 
@@ -991,14 +994,6 @@ def main(args):
         full_image.setOrigin(dither_offsets[0], dither_offsets[1])
         full_image.wcs = wcs
 
-        ##
-        ## Now let's read in the PSFEx PSF model, if using.
-        ## We read the image directly into an InterpolatedImage GSObject,
-        ## so we can manipulate it as needed
-        #psf_wcs=wcs
-        #psf = galsim.des.DES_PSFEx(psf_filen,wcs=psf_wcs)
-        #logprint('Constructed PSF object from PSFEx file')
-
         #####
         ## Loop over galaxy objects:
         #####
@@ -1021,7 +1016,7 @@ def main(args):
                           affine,
                           cosmos_cat,
                           nfw,
-                          optics,
+                          psf,
                           sbparams,
                           logprint
                           ] for k in range(ncores))
@@ -1049,7 +1044,7 @@ def main(args):
                                                 wcs=wcs,
                                                 affine=affine,
                                                 cosmos_cat=cosmos_cat,
-                                                optics=optics,
+                                                psf=psf,
                                                 nfw=nfw,
                                                 sbparams=sbparams,
                                                 logprint=logprint
@@ -1098,7 +1093,7 @@ def main(args):
                           affine,
                           centerpix,
                           cluster_cat,
-                          optics,
+                          psf,
                           sbparams,
                           logprint
                           ] for k in range(ncores))
@@ -1126,7 +1121,7 @@ def main(args):
                     cluster_stamp,truth = make_cluster_galaxy(ud=ud,wcs=wcs,affine=affine,
                                                             centerpix=centerpix,
                                                             cluster_cat=cluster_cat,
-                                                            optics=optics,
+                                                            psf=psf,
                                                             sbparams=sbparams,
                                                             logprint=logprint)
                     # Find the overlapping bounds:
@@ -1172,7 +1167,7 @@ def main(args):
                           batch_indices[k],
                           wcs,
                           affine,
-                          optics,
+                          psf,
                           sbparams,
                           logprint
                           ] for k in range(sbparams.ncores))
@@ -1197,7 +1192,7 @@ def main(args):
                                             index=k,
                                             wcs=wcs,
                                             affine=affine,
-                                            optics=optics,
+                                            psf=psf,
                                             sbparams=sbparams,
                                             logprint=logprint
                                             )
@@ -1279,18 +1274,14 @@ def main(args):
                     # It can be useful to load the true PSF into memory for
                     # later tests. So we pickle it now and save the filename
                     # into the truth catalog header
-                    jitter_psf = galsim.Gaussian(
-                        flux=1, fwhm=sbparams.jitter_fwhm
-                        )
-                    psf = galsim.Convolve([jitter_psf, optics])
                     psf_outfile = os.path.join(
-                        self.outdir, 'true_psf.pkl'
+                        sbparams.outdir, 'true_psf.pkl'
                         )
                     with open(psf_outfile, 'wb') as psf_pfile:
-                    pickle.dump(psf, psf_pfile)
+                        pickle.dump(psf, psf_pfile)
 
                     with fits.open(truth_file_name, mode='update') as handle:
-                        handle[0].header['psf_objfile'] = psf_outfile
+                        handle[0].header['psf_pkl'] = psf_outfile
 
                 except OSError as e:
                     logprint(f'OSError: {e}')
