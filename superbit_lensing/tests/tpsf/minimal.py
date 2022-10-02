@@ -385,7 +385,7 @@ class TpsfTestRunner(object):
 
         if self.plot_all is True:
             # Make per-object cutout plots
-            size = (9,4)
+            size = (10,4)
             for i, obs in enumerate(obs_list):
                 im = source_list[i]
                 psf = psf_list[i]
@@ -399,8 +399,9 @@ class TpsfTestRunner(object):
                 plt.imshow(psf)
                 plt.colorbar()
                 fwhm = self.fwhm
-                Tpsf = mcal['Tpsf_noshear']
-                plt.title(f'source psf\nFWHM={fwhm}; Tpsf={Tpsf}')
+                meas_Tpsf = mcal['Tpsf_noshear'][i]
+                meas_fwhm = ngmix.moments.T_to_fwhm(meas_Tpsf)
+                plt.title(f'source psf\nFWHM={fwhm}; meas_fwhm={meas_fwhm:.4f}')
 
                 plt.gcf().set_size_inches(size)
 
