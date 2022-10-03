@@ -28,7 +28,7 @@ def parse_args():
                         help='The number of galaxies to simulate')
     parser.add_argument('-ncores', type=int, default=8,
                         help='The number of CPU cores to use')
-    parser.add_argument('-fwhm', type=float, default=0.48,
+    parser.add_argument('-fwhm', type=float, default=0.24,
                         help='The PSF FWHM in arcsec')
     parser.add_argument('-sky_sigma', type=float, default=1e-1,
                         help='The background sky noise')
@@ -429,7 +429,7 @@ class TpsfTestRunner(object):
         fwhm = ngmix.moments.T_to_fwhm(mcal['Tpsf_noshear'])
         plt.hist(fwhm, ec='k', bins=20)
         plt.xlabel('ngmix.moments.T_to_fwhm(Tpsf_noshear)')
-        ref_fwhm = 0.48
+        ref_fwhm = 0.24
         plt.axvline(ref_fwhm, ls='--', c='k', lw=2, label='True PSF FWHM')
         plt.legend()
         plt.title('Fitted PSF fwhm')
