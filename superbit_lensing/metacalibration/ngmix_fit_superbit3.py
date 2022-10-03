@@ -231,9 +231,7 @@ class SuperBITNgmixFitter():
 
     def _get_source_observations(self, iobj, weight_type='uberseg', logprint=None):
 
-        # TODO: TESTING
         obslist = self.medsObj.get_obslist(iobj, weight_type)
-        # obslist = self.medsObj.get_obslist(iobj)
 
         # We don't want to fit to the coadd, as its PSF is not
         # well defined
@@ -244,6 +242,21 @@ class SuperBITNgmixFitter():
             for obs in obslist[1:]:
                 se_obslist.append(obs)
             obslist = se_obslist
+
+        # TODO: TESTING
+        # NOTE: The PSF jacobian isn't being saved correctly. Until we
+        # know how to do this correctly, we'll do a hack
+        obslist = self._fix_psf_jacobian(obslist)
+
+        return obslist
+
+    def _fix_psf_jacobian(self, obslist, psf_stamp_size=25, psf_pix_scale=0.141/2.):
+        psf_cen = (np.array((psf_stamp_size, psf_stamp_size))-1.0)/2.0
+        for i, obs in enumerate(obslist):
+            obs._psf._jacobian = ngmix.DiagonalJacobian(
+                row=psf_cen[0], col=psf_cen[1], scale=psf_pix_scale
+                )
+            obslist[i] = obs
 
         return obslist
 
