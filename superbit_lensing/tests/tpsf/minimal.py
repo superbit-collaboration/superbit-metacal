@@ -328,17 +328,25 @@ class TpsfTestRunner(object):
         self._setup_bootstrapper()
 
         print(f'Running on {self.ncores} cores')
-        with Pool(self.ncores) as pool:
-            mcal_table = vstack(pool.starmap(
-                self._fit_one,
-                [(i,
-                  self.boot,
-                  obs_list[i],
-                  Table(),
-                  self.mcal_shear
-                  ) for i in range(0, self.Nobjs)
-                  ])
-            )
+        if self.ncores > 1:
+            with Pool(self.ncores) as pool:
+                mcal_table = vstack(pool.starmap(
+                    self._fit_one,
+                    [(i,
+                    self.boot,
+                    obs_list[i],
+                    Table(),
+                    self.mcal_shear
+                    ) for i in range(0, self.Nobjs)
+                    ])
+                )
+        else:
+            mcal_table = vstack(
+                [self._fit_one(
+                    i, self.boot, obs_list[i], Table(), self.mcal_shear
+                    ) for i in range(0, self.Nobjs)
+                 ]
+                )
 
         Nfailed = self.Nobjs - len(obs_list)
         print(f'{Nfailed} objects failed metacalibration fitting ' +\
@@ -371,6 +379,8 @@ class TpsfTestRunner(object):
             # compute value-added cols such as gamma-only responsivity,
             # PSF size, "roundified" s2n, etc.
             _mcal.add_mcal_cols(res_dict, obs_dict, mcal_shear)
+
+            # ipdb.set_trace()
 
             return _mcal.mcal_dict2tab(res_dict, obs_dict, obj_info)
 
