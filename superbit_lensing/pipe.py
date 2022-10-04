@@ -370,7 +370,7 @@ class GalSimModule(SuperBITModule):
 
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
-    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_type', 'psf_seed']
+    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_mode', 'psf_seed']
     _flag_fields = ['meds_coadd', 'source_select', 'select_truth_stars',
                     'overwrite', 'vb']
 
@@ -751,14 +751,15 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'run_name': run_name,
                     'outdir': outdir,
                     'overwrite': overwrite,
-                    'meds_coadd': True
+                    'meds_coadd': True,
+                    'psf_mode': 'true'
                 },
                 'metacal': {
                 # 'metacal_v2': {
                     'meds_file': meds_file,
                     'outfile': mcal_file,
                     'outdir': outdir,
-                    'end': 1000,
+                    'end': 250,
                     'overwrite': overwrite
                 },
                 'ngmix_fit': {
