@@ -666,7 +666,7 @@ class BITMeasurement():
 
         return piff_extended
 
-    def _make_true_psf_model(self, stamp_size=51, psf_pix_scale=None):
+    def _make_true_psf_model(self, stamp_size=25, psf_pix_scale=None):
         '''
         Construct a PSF image to populate a MEDS file using the actual
         PSF used in the creation of single-epoch images
