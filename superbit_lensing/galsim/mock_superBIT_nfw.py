@@ -1239,15 +1239,15 @@ def main():
         behind_cluster = truth_tab['redshift'] > sbparams.nfw_z_halo
         foreground = truth_tab['redshift'] <= sbparams.nfw_z_halo
         wg = (truth_tab['redshift'] > sbparams.nfw_z_halo)
-
         truth_tab[wg].write(truth_file_name, format='fits', overwrite=True)
+
         print(f'\nSaved image center = {full_image.true_center} in truth table metadata')
         print(f'\nRemoved {len(truth_tab[foreground])}/{len(truth_tab)} foreground galaxies')
-
 
     except OSError as e:
         logprint(f'OSError: {e}')
         raise e
+        
     # Log file was created before outdir is setup in some cases
     # If so, move from temp location to there
     if temp_log is True:
