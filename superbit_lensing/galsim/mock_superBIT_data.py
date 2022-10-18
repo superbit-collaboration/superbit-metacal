@@ -22,7 +22,7 @@ import time
 import galsim
 import galsim.des
 import galsim.convolve
-import pdb, pudb
+import pdb
 from glob import glob
 import scipy
 import yaml
