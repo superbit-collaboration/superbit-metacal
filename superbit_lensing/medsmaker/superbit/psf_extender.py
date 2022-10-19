@@ -65,9 +65,14 @@ def _piff_extender(piff_file, stamp_size):
 
         def get_rec(self, row, col):
 
+            print('starting trace...')
+            ipdb.set_trace()
             fake_pex = self.psf.draw(
                 x=col, y=row, stamp_size=stamp_size
-                ).array
+                )
+                # ).array
+
+            fake_pex = fake_pex.array
 
             return fake_pex
 

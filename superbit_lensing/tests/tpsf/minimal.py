@@ -380,8 +380,6 @@ class TpsfTestRunner(object):
             # PSF size, "roundified" s2n, etc.
             _mcal.add_mcal_cols(res_dict, obs_dict, mcal_shear)
 
-            # ipdb.set_trace()
-
             return _mcal.mcal_dict2tab(res_dict, obs_dict, obj_info)
 
         except Exception as e:

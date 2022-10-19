@@ -752,7 +752,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'outdir': outdir,
                     'overwrite': overwrite,
                     'meds_coadd': True,
-                    'psf_mode': 'true'
+                    'psf_mode': 'piff'
                 },
                 'metacal': {
                 # 'metacal_v2': {
