@@ -737,7 +737,11 @@ def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
 
     return filename
 
-def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False):
+def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False,
+                     imsim='galsim'):
+    '''
+    can make imsim = 'grid_test' for other module
+    '''
     if outdir is not None:
         filename = os.path.join(outdir, config_file)
 
@@ -765,16 +769,15 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'ncores': 8,
                     'run_diagnostics': True,
                     'order': [
-                        # 'grid_test',
-                        'galsim',
-                        'medsmaker',
+                        # f'{imsim}',
+                        # 'medsmaker',
                         'metacal',
                         # 'metacal_v2',
                         'shear_profile',
                         # 'ngmix_fit'
                         ]
                     },
-                'grid_test': {
+                f'{imsim}': {
                     'config_file': 'pipe_test.yaml',
                     # 'config_file': 'superbit_parameters_forecast.yaml',
                     'config_dir': os.path.join(utils.MODULE_DIR,

@@ -223,7 +223,7 @@ class MetacalDiagnostics(TruthDiagnostics):
         outfile = os.path.join(outdir, self.config['outfile'])
 
         shear_file = self.config['outfile']
-        true_file = self.true_file
+        true_file = self.truth_file
         run_name = run_options['run_name']
         out_dir = self.plot_outdir
         vb = run_options['vb']
