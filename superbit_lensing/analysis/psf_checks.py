@@ -5,6 +5,8 @@ from astropy.table import Table
 import ngmix.moments as moments
 from argparse import ArgumentParser
 
+from superbit_lensing import utils
+
 def parse_args():
 
     parser = ArgumentParser
@@ -20,7 +22,7 @@ def main(args):
     run_name = args.run_name
     ref_fwhm = args.ref_fwhm
 
-    rundir = '/Users/sweveret/repos/superbit-metacal/runs/'
+    rundir = os.path.join(utils.get_module_dir(), 'runs')
     basedir = os.path.join(rundir, run_name)
 
     mass = '7.8e14'
