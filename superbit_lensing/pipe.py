@@ -775,7 +775,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                         ]
                     },
                 'grid_test': {
-                    'config_file': 'spencer_pipe_test.yaml',
+                    'config_file': 'pipe_test.yaml',
                     # 'config_file': 'superbit_parameters_forecast.yaml',
                     'config_dir': os.path.join(utils.MODULE_DIR,
                                                'galsim',
