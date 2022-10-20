@@ -765,8 +765,8 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'ncores': 8,
                     'run_diagnostics': True,
                     'order': [
-                        'grid_test',
-                        # 'galsim',
+                        # 'grid_test',
+                        'galsim',
                         'medsmaker',
                         'metacal',
                         # 'metacal_v2',
