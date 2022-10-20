@@ -20,6 +20,7 @@ class JobsManager(object):
         'realizations': 1,
         'ncores_per_job': 1,
         'memory_per_job': 32, # GB
+        'psf_mode': 'piff',
         'vb': True,
         'run_diagnostics': True,
         'master_seed': None
@@ -118,6 +119,8 @@ class JobsManager(object):
         run_name = config['run_name']
         nfw_dir = config['nfw_dir']
 
+        psf_mode = config['psf_mode']
+
         if os.path.exists(base_dir):
             if fresh is False:
                 raise Exception(f'{base_dir} already exists; set `fresh` ' +\
@@ -176,6 +179,7 @@ class JobsManager(object):
                         'mass_exp': exp,
                         'ncores': ncores,
                         'memory': memory,
+                        'psf_mode': psf_mode,
                         'run_diagnostics': run_diagnostics,
                         'vb': vb
                     }
@@ -263,7 +267,8 @@ class ClusterJob(object):
     _req_params = ['base_dir', 'run_name', 'mass', 'z', 'job_index',
                    'nfw_file', 'ncores', 'memory', 'realization']
 
-    _opt_params = ['gs_master_seed', 'gs_config', 'run_diagnostics', 'vb']
+    _opt_params = ['gs_master_seed', 'gs_config', 'psf_mode',
+                   'run_diagnostics', 'vb']
 
     def __init__(self, job_config):
         self._parse_job_config(job_config)
@@ -358,7 +363,7 @@ class ClusterJob(object):
         # config.make_run_config()
         same_keys = [
             'run_name', 'gs_config', 'nfw_file', 'ncores', 'vb',
-            'run_diagnostics'
+            'run_diagnostics', 'psf_mode'
             ]
         for key in same_keys:
             config_dict[key] = self._config[key]

@@ -368,9 +368,47 @@ class GalSimModule(SuperBITModule):
 
         return cmd
 
+class GridTestModule(GalSimModule):
+    def _setup_run_command(self, run_options):
+
+        galsim_dir = os.path.join(utils.MODULE_DIR, 'galsim')
+        filepath = os.path.join(galsim_dir, 'grid_test.py')
+
+        outdir = self._config['outdir']
+        base = f'python {filepath} {self.gs_config_path} -outdir={outdir}'
+
+        # multiple mpi flags breaks this func...
+        # options = self._setup_options(run_options)
+        options = ''
+
+        if 'run_name' not in self._config:
+            run_name = run_options['run_name']
+            options += f' -run_name={run_name}'
+
+        if 'clobber' in self._config:
+            options += ' --clobber'
+
+        if run_options['vb'] is True:
+            options += ' --vb'
+
+        cmd = base + options
+
+        ncores = run_options['ncores']
+        if ncores > 1:
+            if hasattr(self._config, 'use_mpi'):
+                if self._config['use_mpi'] is True:
+                    cmd = f'mpiexec -n {ncores} ' + cmd
+            if hasattr(self._config, 'use_srun'):
+                if self._config['use_srun'] is True:
+                    cmd = f'srun -mpi=pmix ' + cmd
+            else:
+                cmd = cmd + f' -ncores={ncores}'
+
+        return cmd
+
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
-    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_type', 'psf_seed']
+    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_mode', 'psf_seed']
     _flag_fields = ['meds_coadd', 'source_select', 'select_truth_stars',
                     'overwrite', 'vb']
 
@@ -699,7 +737,11 @@ def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
 
     return filename
 
-def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False):
+def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False,
+                     imsim='galsim'):
+    '''
+    can make imsim = 'grid_test' for other module
+    '''
     if outdir is not None:
         filename = os.path.join(outdir, config_file)
 
@@ -727,7 +769,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'ncores': 8,
                     'run_diagnostics': True,
                     'order': [
-                        'galsim',
+                        f'{imsim}',
                         'medsmaker',
                         'metacal',
                         # 'metacal_v2',
@@ -735,7 +777,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                         # 'ngmix_fit'
                         ]
                     },
-                'galsim': {
+                f'{imsim}': {
                     'config_file': 'pipe_test.yaml',
                     # 'config_file': 'superbit_parameters_forecast.yaml',
                     'config_dir': os.path.join(utils.MODULE_DIR,
@@ -751,14 +793,15 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'run_name': run_name,
                     'outdir': outdir,
                     'overwrite': overwrite,
-                    'meds_coadd': True
+                    'meds_coadd': True,
+                    'psf_mode': 'piff'
                 },
                 'metacal': {
                 # 'metacal_v2': {
                     'meds_file': meds_file,
                     'outfile': mcal_file,
                     'outdir': outdir,
-                    'end': 1000,
+                    'end': 250,
                     'overwrite': overwrite
                 },
                 'ngmix_fit': {
@@ -790,6 +833,7 @@ def get_module_types():
 # NOTE: This is where you must register a new module
 MODULE_TYPES = {
     'galsim': GalSimModule,
+    'grid_test': GridTestModule,
     'medsmaker': MedsmakerModule,
     'metacal': MetacalModule,
     'metacal_v2': MetacalModuleV2,

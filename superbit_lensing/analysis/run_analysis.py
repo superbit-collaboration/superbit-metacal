@@ -96,9 +96,11 @@ class AnalysisRunner(object):
             try:
                 cl = os.path.basename(os.path.abspath(cluster))
                 self.logprint(f'Starting cluster {cl}')
+                self.logprint(f'Computing mean shear profile...')
                 self.run_mean_shear_profile(
                     cluster, overwrite=overwrite, show=show
                     )
+                self.logprint(f'Making plots...')
                 self.make_plots(
                     cluster, overwrite=overwrite, show=show
                     )
@@ -179,14 +181,19 @@ class AnalysisRunner(object):
             )
 
         outfile = os.path.join(outdir, 'mean_shear_profile.png')
-        self._plot_mean_profile(
+        self.plot_mean_profile(
             mean_catfile, cluster, outfile=outfile, overwrite=overwrite,
             show=show
             )
 
+        outfile = os.path.join(outdir, 'stacked_shear_calibration_g1g2.png')
+        self.plot_stacked_shear_calibration_g1g2(
+            outfile=outfile, overwrite=overwrite
+            )
+
         return
 
-    def _plot_mean_profile(self, catfile, cluster, outfile=None, overwrite=None,
+    def plot_mean_profile(self, catfile, cluster, outfile=None, overwrite=None,
                            show=None, size=(12,9)):
 
         cl = os.path.basename(cluster)
@@ -202,6 +209,16 @@ class AnalysisRunner(object):
             title='Mean profile for cluster {cl}', outfile=outfile, show=show,
             size=size, shear_cut=shear_cut
             )
+
+        return
+
+    def plot_stacked_shear_calibration_g1g2(self, outfile=None, show=None,
+                                            overwrite=False):
+        stacked_cat_name = os.path.join(
+            self.outdir, 'all_source_gal_shears.fits'
+            )
+
+        # TODO ...
 
         return
 

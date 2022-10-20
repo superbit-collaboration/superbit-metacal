@@ -235,14 +235,11 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, psf, sbparams, logprint, obj
                         flux = gal_flux,
                         half_light_radius = half_light_radius)
 
-    gal = gal.shear(q = q, beta = phi)
+    # TURNED OFF: We don't add shapes for a grid test
+    # gal = gal.shear(q = q, beta = phi)
     logprint.debug('created galaxy')
 
-    ## Apply a random rotation
-    theta = ud()*2.0*np.pi*galsim.radians
-    gal = gal.rotate(theta)
-
-    ## Apply a random rotation
+    # Apply a random rotation
     theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
 

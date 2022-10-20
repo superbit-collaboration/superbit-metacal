@@ -2,11 +2,10 @@ import numpy as np
 import meds
 import os
 import psfex
-import piff
 from astropy.io import fits
 import string
 from pathlib import Path
-import ipdb
+import pickle
 from astropy import wcs
 import fitsio
 import esutil as eu
@@ -15,7 +14,10 @@ import astropy.units as u
 import astropy.coordinates
 from astroquery.gaia import Gaia
 import superbit_lensing.utils as utils
+from superbit_lensing.medsmaker.superbit.psf_extender import psf_extender
 import glob
+
+import ipdb
 
 '''
 Goals:
@@ -34,48 +36,6 @@ TO DO:
     - Actually do darks better: match exposure times, rather than collapsing them all down
     - Run medsmaker
 '''
-
-def piff_extender(piff_file, stamp_size=20):
-    """
-    Utility function to add the get_rec function expected
-    by the MEDS package
-
-    """
-    psf = piff.read(piff_file)
-
-    type_name = type(psf)
-
-    class PiffExtender(type_name):
-        '''
-        A helper class that adds functions expected by MEDS
-        '''
-
-        def __init__(self, type_name=None):
-
-            self.psf = None
-            self.single_psf = type_name
-
-            return
-
-        def get_rec(self,row,col):
-
-            fake_pex = self.psf.draw(x=col, y=row, stamp_size=stamp_size).array
-
-            return fake_pex
-
-        def get_center(self,row,col):
-
-            psf_shape = self.psf.draw(x=col,y=row,stamp_size=stamp_size).array.shape
-            cenpix_row = (psf_shape[0]-1)/2
-            cenpix_col = (psf_shape[1]-1)/2
-            cen = np.array([cenpix_row,cenpix_col])
-
-            return cen
-
-    psf_extended = PiffExtender(type_name)
-    psf_extended.psf = psf
-
-    return psf_extended
 
 class BITMeasurement():
     def __init__(self, image_files=None, flat_files=None, dark_files=None,
@@ -559,10 +519,10 @@ class BITMeasurement():
                     )
 
                 # create & move checkimages to psfex_output
-                psfex_plotdir = os.path.join(self.data_dir,'psfex-output')
+                psfex_plotdir = os.path.join(self.data_dir, 'psfex-output')
 
-                if not os.path.exists(psfex_checkplot_dir):
-                    os.mkdir(self.psf_path)
+                if not os.path.exists(psfex_plotdir):
+                    os.mkdir(psfex_plotdir)
 
                 cleanup_cmd = ' '.join(
                     ['mv chi* resi* samp* snap* proto* *.xml', psfex_plotdir]
@@ -574,6 +534,10 @@ class BITMeasurement():
                 os.system(cleanup_cmd2)
 
                 self.psf_models.append(psfex.PSFEx(psfex_model_file))
+
+            elif psf_mode == 'true':
+                true_model = self._make_true_psf_model()
+                self.psf_models.append(true_model)
 
         # TODO: temporary coadd PSF solution!
         # see issue #83
@@ -615,7 +579,7 @@ class BITMeasurement():
         # Now run PSFEx on that image and accompanying catalog
 
         psfex_config_arg = '-c '+config_path+'psfex.mock.config'
-        outcat_name = im_cat.replace('.fits','.psfex.star')
+        outcat_name = im_cat.replace('.ldac','.psfex.star')
         cmd = ' '.join(
             ['psfex', psfcat_name,psfex_config_arg,'-OUTCAT_NAME', outcat_name]
             )
@@ -623,7 +587,7 @@ class BITMeasurement():
         os.system(cmd)
         # utils.run_command(cmd, logprint=self.logprint)
 
-        psfex_model_file = imcat_ldac_name.replace('.ldac','.psf')
+        psfex_model_file = im_cat.replace('.ldac','.psf')
 
         # Just return name, the make_psf_models method reads it in
         # as a PSFEx object
@@ -659,6 +623,9 @@ class BITMeasurement():
         config['select']['seed'] = psf_seed
         utils.write_yaml(config, run_piff_config)
 
+        # use stamp size defined in config
+        psf_stamp_size = config['psf']['model']['size']
+
         imcat_ldac_name = imagefile.replace('.fits', '_cat.ldac')
 
         if select_truth_stars is True:
@@ -691,9 +658,44 @@ class BITMeasurement():
         self.logprint('piff cmd is ' + cmd)
         os.system(cmd)
 
-        piff_extended = piff_extender(full_output_name)
+        # Extend PIFF PSF to have needed PSFEx methods for MEDS
+        kwargs = {
+            'piff_file': full_output_name
+        }
+        piff_extended = psf_extender('piff', psf_stamp_size, **kwargs)
 
         return piff_extended
+
+    def _make_true_psf_model(self, stamp_size=25, psf_pix_scale=None):
+        '''
+        Construct a PSF image to populate a MEDS file using the actual
+        PSF used in the creation of single-epoch images
+
+        NOTE: For now, this function assumes a constant PSF for all images
+        NOTE: Should only be used for validation simulations!
+        '''
+
+        if psf_pix_scale is None:
+            # make it higher res
+            # psf_pix_scale = self.pix_scale / 4
+            psf_pix_scale = self.pix_scale
+
+        # there should only be one of these
+        true_psf_file = glob.glob(
+            os.path.join(self.data_dir, '*true_psf.pkl')
+            )[0]
+
+        with open(true_psf_file, 'rb') as fname:
+            true_psf = pickle.load(fname)
+
+        # Extend True GalSim PSF to have needed PSFEx methods for MEDS
+        kwargs = {
+            'psf': true_psf,
+            'psf_pix_scale': psf_pix_scale
+        }
+        true_extended = psf_extender('true', stamp_size, **kwargs)
+
+        return true_extended
 
     def _select_stars_for_psf(self, sscat, truthfile=None, starkeys=None,
                               star_params=None):
@@ -783,22 +785,26 @@ class BITMeasurement():
 
         return image_info
 
-    def make_meds_config(self, extra_parameters=None, use_coadd=False):
+    def make_meds_config(self, use_coadd, psf_mode, extra_parameters=None,
+                         use_joblib=False):
         '''
         :extra_parameters: dictionary of keys to be used to update the base MEDS configuration dict
 
         '''
         # sensible default config.
-        config = {'first_image_is_coadd': use_coadd,
-                  'cutout_types':['weight','seg','bmask'],
-                  'psf_type':'psfex'}
+        config = {
+            'first_image_is_coadd': use_coadd,
+            'cutout_types':['weight','seg','bmask'],
+            'psf_type': psf_mode,
+            'use_joblib': use_joblib
+            }
 
         if extra_parameters is not None:
             config.update(extra_parameters)
 
         return config
 
-    def _meds_metadata(self, magzp, use_coadd):
+    def meds_metadata(self, magzp, use_coadd):
         '''
         magzp: float
             The reference magnitude zeropoint
@@ -906,6 +912,8 @@ class BITMeasurement():
         magzp = 30.
         meta = self._meds_metadata(magzp, use_coadd)
         # Finally, make and write the MEDS file.
-        medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
-                                       psf_data=self.psf_models,meta_data=meta)
+        medsObj = meds.maker.MEDSMaker(
+            obj_info, image_info, config=meds_config, psf_data=self.psf_models,
+            meta_data=meta
+            )
         medsObj.write(outfile)

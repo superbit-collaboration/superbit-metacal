@@ -44,6 +44,12 @@ class Diagnostics(object):
 
         return
 
+    def run_cmd(cmd, logprint):
+        logprint(f'cmd = {cmd}')
+        os.system(cmd)
+
+        return
+
     def _setup_plot_dirs(self):
         '''
         Must be run after self.outdir is set
@@ -208,12 +214,24 @@ class MetacalDiagnostics(TruthDiagnostics):
 
         self._setup_matched_cat(outfile)
 
-        self.plot_compare_shear(run_options, logprint)
+        self.plot_shear_calibration_g1g2(run_options, logprint)
 
         return
 
-    def plot_compare_shear(self, run_options, logprint):
-        pass
+    def plot_shear_calibration_g1g2(self, run_options, logprint):
+        outdir = self.config['outdir']
+        outfile = os.path.join(outdir, self.config['outfile'])
+
+        shear_file = self.config['outfile']
+        true_file = self.truth_file
+        run_name = run_options['run_name']
+        out_dir = self.plot_outdir
+        vb = run_options['vb']
+
+        # TODO: finish! (on new PR)
+        # os.
+
+        return
 
 class MetacalV2Diagnostics(MetacalDiagnostics):
     pass
@@ -278,19 +296,16 @@ class ShearProfileDiagnostics(TruthDiagnostics):
     def _run_shear_calibration(self, run_options, logprint):
 
         run_name = run_options['run_name']
-        outdir = self.outdir
 
-        test_dir = os.path.join(utils.MODULE_DIR, 'tests')
-        shear_script = os.path.join(test_dir, 'shear_calibration.py')
-
+        shear_script = os.path.join(self.outdir, 'diagnostic_shear_calibration.py')
         annular_file = os.path.join(self.outdir, self.config['outfile'])
         truth_file = self.truth_file
+        outdir = self.plot_outdir
 
         cmd = f'python {shear_script} {annular_file} {truth_file} -outdir={outdir}'
 
         logprint('Running shear calibration diagnostics\n')
-        logprint(f'cmd = {cmd}')
-        os.system(cmd)
+        self.run_command(cmd, logprint)
 
         return
 

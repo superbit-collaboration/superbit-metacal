@@ -23,7 +23,8 @@ def parse_args():
                         help='Basename of mock image files')
     parser.add_argument('-run_name', action='store', type=str, default=None,
                         help='Name of mock simulation run')
-    parser.add_argument('-psf_mode', action='store', choices=['piff', 'psfex'], default='piff',
+    parser.add_argument('-psf_mode', action='store', default='piff',
+                        choices=['piff', 'psfex', 'true'],
                         help='model exposure PSF using either piff or psfex')
     parser.add_argument('-psf_seed', type=int, default=None,
                         help='Seed for chosen PSF estimation mode')
@@ -116,11 +117,11 @@ def main(args):
     obj_info = bm.make_object_info_struct()
 
     # Make the MEDS config file.
-    meds_config = bm.make_meds_config(use_coadd=use_coadd)
+    meds_config = bm.make_meds_config(use_coadd, psf_mode)
 
     # Create metadata for MEDS
     magzp = 30.
-    meta = bm._meds_metadata(magzp, use_coadd)
+    meta = bm.meds_metadata(magzp, use_coadd)
     # Finally, make and write the MEDS file.
 
     medsObj = meds.maker.MEDSMaker(
