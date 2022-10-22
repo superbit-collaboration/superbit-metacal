@@ -209,13 +209,25 @@ def check_req_fields(config, req, name=None):
 
     return
 
-def check_fields(config, req, opt, name=None):
+def parse_config(config, req, opt, name=None):
     '''
-    req: list of required field names
-    opt: list of optional field names
-    name: name of config type, for extra print info
+    config: dict
+        A configuration dictionary
+    req: list
+        A list of required field names
+    opt: dict
+        A dictionary of optional field names, with
+        optional values assigned
+    name: str
+        Name of config type, for extra print info
     '''
-    assert isinstance(config, dict)
+
+    if not isinstance(config, dict):
+        raise TypeError('config must be a dict!')
+    if not isinstance(req, list):
+        raise TypeError('req must be a list!')
+    if not isinstance(opt, dict):
+        raise TypeError('opt must be a dict!')
 
     if name is None:
         name = ''
@@ -225,7 +237,7 @@ def check_fields(config, req, opt, name=None):
     if req is None:
         req = []
     if opt is None:
-        opt = []
+        opt = {}
 
     # ensure all req fields are present
     check_req_fields(config, req, name=name)
@@ -235,7 +247,12 @@ def check_fields(config, req, opt, name=None):
         if (not field in req) and (not field in opt):
             raise ValueError(f'{field} not a valid field for {name}config!')
 
-    return
+    # set defaults for any optional field not present in config
+    for field, value in opt.items():
+        if field not in config:
+            config[field] = value
+
+    return config
 
 def sigma2fwhm(sigma):
     c = np.sqrt(8.*np.log(2))
@@ -351,21 +368,19 @@ def get_pixel_scale(image_filename):
     use astropy.wcs to obtain the pixel scale (a/k/a plate scale)
     for the input image. Returns pixel scale in arcsec/pixels.
 
-    Input:
-
-    :image_filename: FITS image for which pixel scale is desired
+    image_filename: str
+        FITS image for which pixel scale is desired
 
     Return:
-
-    :pix_scale: image pixel scale in arcsec/pixels
-
+    pix_scale: float
+        Image pixel scale in arcsec/pixel
     '''
 
     # Get coadd image header
     hdr = fits.getheader(image_filename)
 
     # Instantiate astropy.wcs.WCS header
-    w=wcs.WCS(hdr)
+    w = wcs.WCS(hdr)
 
     # Obtain pixel scale in degrees/pix & convert to arcsec/pix
     cd1_1 = wcs.utils.proj_plane_pixel_scales(w)[0]
