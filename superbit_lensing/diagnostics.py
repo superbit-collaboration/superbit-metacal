@@ -44,7 +44,7 @@ class Diagnostics(object):
 
         return
 
-    def run_cmd(cmd, logprint):
+    def run_command(cmd, logprint):
         logprint(f'cmd = {cmd}')
         os.system(cmd)
 
@@ -214,22 +214,7 @@ class MetacalDiagnostics(TruthDiagnostics):
 
         self._setup_matched_cat(outfile)
 
-        self.plot_shear_calibration_g1g2(run_options, logprint)
-
-        return
-
-    def plot_shear_calibration_g1g2(self, run_options, logprint):
-        outdir = self.config['outdir']
-        outfile = os.path.join(outdir, self.config['outfile'])
-
-        shear_file = self.config['outfile']
-        true_file = self.truth_file
-        run_name = run_options['run_name']
-        out_dir = self.plot_outdir
-        vb = run_options['vb']
-
-        # TODO: finish! (on new PR)
-        # os.
+        # ...
 
         return
 
@@ -298,7 +283,7 @@ class ShearProfileDiagnostics(TruthDiagnostics):
         run_name = run_options['run_name']
 
         shear_script = os.path.join(self.outdir, 'diagnostic_shear_calibration.py')
-        annular_file = os.path.join(self.outdir, self.config['outfile'])
+        annular_file = os.path.join(self.outdir, 'transformed_shear_tab.fits')
         truth_file = self.truth_file
         outdir = self.plot_outdir
 

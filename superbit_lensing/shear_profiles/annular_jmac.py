@@ -205,8 +205,16 @@ class Annular(object):
 
         newtab = Table()
         newtab.add_columns(
-            [x, y, self.r, self.gtan, self.gcross, self.weight],
-            names=['x', 'y', 'r', 'gtan', 'gcross', 'weight']
+            [x, y, self.r,
+             self.g1, self.g2,
+             self.gtan, self.gcross,
+             self.weight
+             ],
+            names=['x', 'y', 'r',
+                   'g1', 'g2',
+                   'gtan', 'gcross',
+                   'weight'
+                   ]
             )
 
         run_name = self.run_name
