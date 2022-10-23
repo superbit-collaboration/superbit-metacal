@@ -44,7 +44,7 @@ class Diagnostics(object):
 
         return
 
-    def run_command(cmd, logprint):
+    def run_command(self, cmd, logprint):
         logprint(f'cmd = {cmd}')
         os.system(cmd)
 
@@ -274,7 +274,7 @@ class ShearProfileDiagnostics(TruthDiagnostics):
         annular_file = os.path.join(self.outdir, self.config['outfile'])
         self._setup_matched_cat(annular_file)
 
-        self._run_shear_calibration(run_options, logprint)
+        # self._run_shear_calibration(run_options, logprint)
 
         return
 
