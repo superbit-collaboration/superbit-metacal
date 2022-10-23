@@ -1,41 +1,28 @@
-galsim:
-  clobber: true
-  config_dir: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/superbit_lensing/galsim/config_files
-  config_file: pipe_test.yaml
-  outdir: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test
-medsmaker:
-  fname_base: pipe_test
-  mock_dir: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test
-  outdir: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test
-  outfile: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test/pipe_test_meds.fits
-  run_name: pipe_test
-metacal:
-  end: 2500
-  meds_file: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test/pipe_test_meds.fits
-  outdir: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test
-  outfile: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test/pipe_test_mcal.fits
-ngmix_fit:
-  config: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test/ngmix_test.yaml
-  end: 100
-  meds_file: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test/pipe_test_meds.fits
-  outdir: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test
-  outfile: pipe_test_ngmix.fits
-run_options:
-  ncores: 8
-  order:
-  - galsim
-  - medsmaker
-  - metacal
-  - shear_profile
-  - ngmix_fit
-  outdir: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test
-  run_diagnostics: true
-  run_name: pipe_test
-  vb: true
-shear_profile:
-  mcal_file: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test/pipe_test_mcal.fits
-  outdir: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test
-  outfile: pipe_test_annular.fits
-  overwrite: true
-  run_name: pipe_test
-  se_file: /gpfs/data/idellant/jmcclear/superbit/superbit-metacal/tests/pipe_test/pipe_test_mock_coadd_cat.ldac
+# To run a pipe test, make a copy of this file and populate with
+# your local filepaths to each directory. The patterns suggested
+# below may be different depending on your env & installation setup.
+# Then simply run the following:
+#
+# python pipe_test.py -path_config={PATH_CONFIG} --fresh (for a clean run)
+#
+# Alternatively, you can specify your own full pipeline configuration & galsim
+# configuration files in correct format for more control over the pipe test.
+# You would then run
+#
+# python pipe_test.py -pipe_config={PIPE_CONFIG} -gs_config={GS_CONFIG} --fresh
+#
+# For downloading the required GalSim COSMOS catalogs, see:
+# https://galsim-developers.github.io/GalSim/_build/html/real_gal.html#downloading-the-cosmos-catalog
+
+# Path to SuperBIT-specific data files. Can be anywhere, but suggested here:
+datadir: '{PATH_TO_REPO}/superbit_lensing/galsim/data'
+
+# Path to GalSim COSMOS 25.2 sample directory for sources
+cosmosdir: '{PATH_TO_CONDA_ENV}/share/galsim/COSMOS_25.2_training_sample/'
+
+# Path to catalog for cluster member galaxies, in this case COSMOS 23.5
+cluster_dir: '{PATH_TO_CONDA_ENV}/share/galsim/COSMOS_23.5_training_sample/'
+cluster_cat_name:   'real_galaxy_catalog_23.5.fits'
+
+# Path to GAIA catalogs (one made for each intended SuperBIT target cluster)
+gaia_dir: '{PATH_TO_REPO}/superbit_lensing/galsim/data/gaia'
