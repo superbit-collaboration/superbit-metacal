@@ -77,7 +77,12 @@ To get around adding the repository to your `PATH` or `PYTHONPATH` directly or h
 
 ## Quickstart & Pipe Testing
 
-To test that your local installation worked or to validate that your code updates haven't broken the pipeline before pushing changes (but you would never do that, right?), you can run what we call a "pipe test". This test of the pipeline is optimized for speed and submodule/feature coverage, not scientifically useful outputs. The easiest way to get started is to make a copy of `configs/path_config.yaml` with the path templates edited to match your installation of this repo and the required `GalSim` COSMOS catalogs (but don't edit the file directly as it is tracked, while your local version is not). Then simply run
+To test that your local installation worked or to validate that your code updates haven't broken the pipeline before pushing changes (but you would never do that, right?), you can run what we call a "pipe test". This test of the pipeline is optimized for speed and submodule/feature coverage, not scientifically useful outputs. The easiest way to get started is to first make a copy of `configs/path_config.yaml` with the path templates edited to match your installation of this repo and the required `GalSim` COSMOS catalogs (but don't edit the file directly as it is tracked, while your local version is not). The second thing you need to do is unpack two provided tar files:
+
+- `tar -zxvf superbit_lensing/galsim/data/gaia/GAIAstars_2023filter.tar` (so you can sample GAIA stars for actual SuperBIT targets)
+- `tar -zxvf superbit_lensing/shear_profiles/truth/nfw_truth_files_sample.tar` (so you can compare your measured shear profile to a true NFW)
+
+Once both sets of tasks are done, simply run:
 
 `python superbit_lensing/pipe_test.py -path_config=configs/{my_path_config}.yaml --fresh`
 
