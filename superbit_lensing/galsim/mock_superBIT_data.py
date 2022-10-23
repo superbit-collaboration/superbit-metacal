@@ -938,7 +938,7 @@ def main(args):
 
         psf = galsim.Convolve([jitter_psf, optics])
 
-        logprint('\n Use_optics is True; convolving telescope optics PSF profile\n')
+        logprint('\nuse_optics is True; convolving telescope optics PSF profile\n')
 
     ###
     ### Make generic WCS

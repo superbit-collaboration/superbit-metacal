@@ -6,6 +6,8 @@ from argparse import ArgumentParser
 import utils
 from pipe import SuperBITPipeline
 
+import ipdb
+
 '''
 A "pipe test" is used to validate the current state of the pipeline code,
 not correctness. As such it optimizes configuration choices for speed and
@@ -30,6 +32,9 @@ configuration files in correct format for more control over the pipe test.
 You would then run
 
 python pipe_test.py -pipe_config={PIPE_CONFIG} -gs_config={GS_CONFIG} --fresh
+
+For convenience, I add this line to a short shell script and simply call
+`source ptest.sh` when I want to run a pipe test.
 
 If the test fails on the n-th module, you may want to edit `run_options['order']`
 in the saved pipe config in {TEST_DIR}/pipe_test/ so that you don't unnecessarily
@@ -106,10 +111,13 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
                                                    outdir=outdir,
                                                    run_name=run_name)
 
-        # dummy truth
-        # TODO: Generalize this!
         nfw_file = os.path.join(
-            utils.BASE_DIR, 'runs/truth/nfw_truth_files/nfw_cl_m2.2e15_z0.44.fits')
+            utils.MODULE_DIR, 'shear_profiles/truth/nfw_cl_m7.8e14_z0.25.fits'
+            )
+
+        if not os.path.exists(nfw_file):
+            raise OSError(f'Warning: pipe test nfw file {nfw_file} does not ' +
+                          'exist; have you unpacked the sample tar file?')
 
         test_config = {
             'run_options': {
@@ -128,10 +136,8 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
                     ]
                 },
             f'{imsim}': {
-                'config_file': 'pipe_test.yaml',
-                'config_dir': os.path.join(utils.MODULE_DIR,
-                                            'galsim',
-                                            'config_files'),
+                'config_file': 'pipe_test_gs.yaml',
+                'config_dir': os.path.join(utils.TEST_DIR, 'pipe_test'),
                 'outdir': outdir,
                 'overwrite': overwrite
             },
@@ -150,7 +156,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
                 'meds_file': meds_file,
                 'outfile': mcal_file,
                 'outdir': outdir,
-                'end': 1000,
+                'end': 2000,
                 'overwrite': overwrite
             },
             'ngmix_fit': {

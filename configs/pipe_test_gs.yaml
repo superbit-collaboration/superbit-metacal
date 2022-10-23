@@ -39,7 +39,12 @@ run_name:         'pipe_test'   # Root for exposure name creation           []
 # Simulated cluster parameters
 # ----------------------------
 lam:                475         # Fiducial wavelength for abberations       [nm]
+mass:               7.8e14      # Cluster mass                              [Msol / h]
+nfw_z_halo:         0.25        # redshift of the halo                      []
 nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
+
+# Cosmology parameters
+# ----------------------------
 omega_m:            0.3         # Omega matter for the background cosmology []
 omega_lam:          0.7         # Omega lambda for the background cosmology []
 

@@ -298,6 +298,10 @@ class SuperBITPipeline(SuperBITModule):
 
         return 0
 
+    @property
+    def config(self):
+        return self._config
+
 class GalSimModule(SuperBITModule):
     _req_fields = ['config_file', 'outdir']
     _opt_fields = ['config_dir']

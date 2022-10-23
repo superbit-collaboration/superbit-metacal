@@ -28,6 +28,7 @@ superbit_lensing/galsim/config_files/gs_cl_m2.2e15_z0.44.yaml
 superbit_lensing/galsim/config_files/gs_config_single_cat.yaml
 superbit_lensing/galsim/config_files/pipe_test_jmc.yaml
 superbit_lensing/galsim/data/cosmos2015_cam2021_filt2021.csv
+superbit_lensing/galsim/data/gaia/*.csv
 superbit_lensing/galsim/mock_superBIT_cosmosgal.py
 superbit_lensing/galsim/mock_superBIT_data_sersicgal.py
 superbit_lensing/galsim/mock_superGauss_SersicGal.py
