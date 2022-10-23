@@ -5,48 +5,110 @@ class ImSimConfig(object):
     # all parameter names identical to those used in standard
     # SuperBIT image sims
     # TODO: Would be nice to rename a few of these for clarity
-    _req_params = [
-        # telescope params
-        'tel_diam', 'nstruts', 'strut_thick', 'strut_theta', 'obscuration',
-        # filter params
-        'lam', 'bandpass',
-        # psf params (optical bits in telescope params)
-        'jitter_fwhm',
-        # image params
-        'image_xsize', 'image_ysize', 'pixel_scale',
-        # detector params
-        'gain',
-        # noise params
-        'read_noise', 'dark_current', 'dark_current_std',
-        # cluster params
-        'mass', 'nfw_conc', 'nfw_z_halo', 'center_ra', 'center_dec', 'nclustergal'
-        # NFW params
-        'nfw_conc', 'nfw_z_halo',
-        # survey strategy
-        'nexp', 'exp_time',
-        # cosmology params
-        'omega_m', 'omega_lam',
-        # dir params
-        'cosmosdir', 'datadir',
-        # file params
-        'cat_file_name', 'cluster_cat_name',
+    # TODO: Restructure for parent fields
+
+    # these are top-level config fields
+    _req_params = {
+        'telescope': [
+            'tel_diam',
+            'nstruts',
+            'strut_thick',
+            'strut_theta',
+            'obscuration'
+            ],
+
+        'filter': [
+            'lam',
+            'bandpass'
+            ],
+
+        'detector': [
+            'gain'
+            ],
+
+        'noise': [
+            'read_noise',
+            'dark_current',
+            'dark_current_std'
+            ],
+
+        'psf': [
+            'jitter_fwhm'
+            ],
+
+        'image': [
+            'image_xsize',
+            'image_ysize',
+            'pixel_scale'
+            ],
+
+        'cluster': [
+            'mass',
+            'nfw_conc',
+            'nfw_z_halo',
+            'center_ra',
+            'center_dec',
+            'nclustergal'
+            ],
+
+        'observation': [
+            'nexp',
+            'exp_time'
+        ],
+
+        'cosmology': [
+            'omega_m',
+            'omega_lam'
+        ],
+
+        'input': [
+            'cosmosdir',
+            'datadir',
+            'cat_file_name',
+            'cluster_cat_name'
         ]
+    }
+
+    # defaults are assigned
     _opt_params = {
-        # general params
-        'run_name':None, 'clobber':False, 'use_optics':True, 'vb':False,
-        # multiprocessing params
-        'mpi':False, 'ncores':1,
-        # file & dir params
-        'outdir':None,'star_cat_name':None,
-        # sources (nobj is foreground + background)
-        'nobj',
-        # source property params
-        'position_sampling':'random',
-        # star params
-        'nstars':None, 'sample_gaia_cats':True, 'gaia_dir':None,
-        # seed params
-        'master_seed':None, 'noise_seed':None, 'dithering_seed':None,
-        'cluster_seed':None, 'stars_seed':None, 'galobj_seed':None,
+        'run_options': {
+            'run_name': None,
+            'mpi': False,
+            'ncores': 1,
+            'clobber': False,
+            'vb': False
+            },
+
+        'psf': {
+            'use_optics': True
+        },
+
+        'output': {
+            'outdir': None
+        },
+
+        'stars': {
+            'nstars': None,
+            'sample_gaia_cats': True,
+            'gaia_dir': None,
+            'star_cat_name': None
+        },
+
+        'galaxies': {
+            'nobj': None
+        },
+
+        'position_sampling': {
+            type: 'random'
+        }
+
+        'seeds': {
+            'master_seed': None,
+            'noise_seed': None,
+            'dithering_seed': None,
+            'cluster_seed': None,
+            'stars_seed': None,
+            'galobj_seed': None
         }
 
     def __init__(self, config):
