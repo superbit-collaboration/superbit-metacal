@@ -1,14 +1,17 @@
 # superbit-metacal
-Contains a collection of routines used to perform ngmix fits, including metacalibration, on simulated SuperBIT images.
+Contains a collection of submodules and routines used build the SuperBIT measurement pipeline, as well as make realistic image simulations for validation.
 
-This repo has recently been significantly refactored into the new `superbit_lensing` module, which you can include in your desired environment by running `python setup.py install` without the need to add the various submodules to your `PYTHONPATH`. The module includes the following four submodules which can be used independently if desired:
+This repo has been significantly refactored into the new `superbit_lensing` module, which you can include in your desired environment by following the installation instructions below. The module includes a number of submodules which can be used independently if desired:
 
-  - `galsim`: Contains scripts that generate the simulated SuperBIT observations used for validation and forecasting analyses.
-  - `medsmaker`: Contains small modifications to the original superbit-ngmix scripts that make coadd images, runs SExtractor & PSFEx, and creates MEDS files.
-  - `metacalibration`: Contains scripts used to run the ngmix/metacalibration algorithms on the MEDS files produced by Medsmaker.
-  - `shear-profiles`: Contains scripts to compute the tangential/cross shear profiles and output to a file, as well as plots of the shear profiles.
+  - `galsim`: Contains scripts & classes that generate the simulated SuperBIT observations used for validation and forecasting analyses. Also includes simple simulations for validation testing such as a grid test.
+  - `medsmaker`: Contains small modifications to the original superbit-ngmix scripts that make coadd images with SWARP, runs SExtractor for source detection, PIFF or PSFEx for PSF estimation, and collates all outputs in a MEDS file.
+  - `metacalibration`: Contains scripts & classes used to run the ngmix implementation of metacalibration on the MEDS files produced by `medsmaker`.
+  - `shear-profiles`: Contains scripts & classes to compute the tangential/cross shear profiles and output to a file, as well as plots of the shear profiles.
+  - `analysis`: Contains scripts to produce standardized analysis plots on stacks of cluster realizations needed for shear calibration validation.
 
 More detailed descriptions for each stage are contained in their respective directories.
+
+## Pipeline running & automated diagnostics
 
 To run the full pipeine in sequence (or a particular subset), we have created the `SuperBITPipeline` class in `superbit_lensing/pipe.py` along with a subclass for each of the submodules. This is run by passing a single yaml configuration file that defines the run options for the pipeline run. The most important arguments are as follows:
 
@@ -30,16 +33,13 @@ rc = pipe.run()
 
 assert(rc == 0)
 ```
-An example of a pipeline run along with a test configuration is given in `pipe.main()`, which can be run with
+## Installation
 
-`python pipe_test.py`.
+Clone the repo in your desired local directory. The `utils.py` module will automatically sort out it's current location (`MODULE_DIR`) which anchors other useful paths (`BASE_DIR`, `TEST_DIR`, etc.)
 
-The example configuration file is shown in `configs/pipe_test.yaml`. An example wrapper script you can use to run the `SuperBITPipeline` is shown in `superbit-lensing/process_all.py`.
+# Conda environment
 
-The available config options for each submodule are defined in the various module classes in `superbit_lensing.pipe.py`, such as `GalSimModule`. The required & optional fields are given in `_req_fields` and `_opt_fields` respectively. The pipeline runner tells you if you fail to pass a required field or if you pass something that it doesn't understand.
-
-## To build a specific run environment
-Create env from yaml (e.g. `env_v1.3.9.yaml`):
+At the moment, we provide two different conda environments to run the pipeline, as we have modules for both `ngmix` metacal APIs (`v1.X` and `v2.X`). To build a specific run environment (e.g. `env_v1.3.9.yaml`):
 
 `conda env create --name sbmcal_139 --file env_v1.3.9.yaml`
 
@@ -47,7 +47,9 @@ Activate new env:
 
 `conda activate sbmcal_139`
 
-cd to meds repo:
+These env files are written with `--no-builds` and so hopefully are OS agnostic, but no guarantees.
+
+(**NOTE:** The following two steps may no longer be required) The `meds` package needs to be built from source. cd to th repo:
 
 `cd /path/to/repos/meds`
 
@@ -55,13 +57,27 @@ Build it:
 
 `python setup.py install`
 
-cd to this repo:
+cd back to this repo:
 
 `cd /path/to/repos/superbit-metacal`
 
-pip install repo:
+To get around adding the repository to your `PATH` or `PYTHONPATH` directly or having to rebuild the respository every time you make a change to the code, we can pip install with the `-e` flag which will overwrite the directory in site-packages with a symbolic link to the repository, meaning any changes to code in there will automatically be reflected when running the pipeline. So do it:
 
 `pip install -e /path/to/repos/superbit-metacal`
+
+## Quickstart & Pipe Testing
+
+To test that your local installation worked or to validate that your code updates haven't broken the pipeline before pushing changes (but you would never do that, right?), you can run what we call a "pipe test". This test of the pipeline is optimized for speed and submodule coverage, not scientifically useful outputs. The easiest way to get started is to make a copy of `configs/path_config.yaml` with the path templates edited to match your installation of this repo and `GalSim` (but don't edit the file directly as it is tracked, while your local version is not). Then simply run
+
+`python superbit_lensing/pipe_test.py -path_config=configs/{my_path_config}.yaml --fresh`
+
+You should mostly care about whether it succeeded or not, but you can look at `configs/pipe_test_gs.yaml` to see what kind of images you are producing. Take a look at the top of `superbit_lensing/pipe_test.py` for more details and alternative ways to run it with more control.
+
+The available config options for each submodule are defined in the various module classes in `superbit_lensing.pipe.py`, such as `GalSimModule`. The required & optional fields are given in `_req_fields` and `_opt_fields` respectively. The pipeline runner tells you if you fail to pass a required field or if you pass something that it doesn't understand.
+
+## Metaconfits and HPC jobs
+
+Under construction! Bug @sweverett if you are far enough along to care about this.
 
 ## For the experts
 
