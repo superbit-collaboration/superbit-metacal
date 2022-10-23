@@ -14,25 +14,31 @@ to the repository.
 
 The simplest way to run a pipe test is to make a copy of
 
-{REPO_DIR}/configs/pipe_test.yaml
+{REPO_DIR}/configs/path_config.yaml
 
 with your local filepaths added where indicated. The patterns suggested
 may be different depending on your env & installation setup.
 
 Then simply run the following:
 
-python pipe_test.py -path_config={PATH_CONFIG} --fresh
+python pipe_test.py -path_config={LOCAL_PATH_CONFIG} --fresh
 
-Where --fresh tells the test to reset the pipe_test output directory. If the
-test fails on the nth module, you may want to edit `run_options['order']` in
-the saved pipe config in {TEST_DIR}/pipe_test/ so that you don't unnecessarily
-rerun the previous n-1 modules. In this case you would not use the --fresh flag.
+where --fresh tells the test to reset the pipe_test output directory.
 
 Alternatively, you can specify your own full pipeline configuration & galsim
 configuration files in correct format for more control over the pipe test.
 You would then run
 
 python pipe_test.py -pipe_config={PIPE_CONFIG} -gs_config={GS_CONFIG} --fresh
+
+If the test fails on the n-th module, you may want to edit `run_options['order']`
+in the saved pipe config in {TEST_DIR}/pipe_test/ so that you don't unnecessarily
+rerun the previous n-1 modules. In this case you would now run
+
+python pipe_test.py -pipe_config={TEST_DIR/pipe_test/pipe_test.yaml}
+                    -gs_config={TEST_DIR/pipe_test/pipe_test_gs.yaml}
+
+where it is now important to not use the --fresh flag.
 
 For downloading the required GalSim COSMOS catalogs, see:
 https://galsim-developers.github.io/GalSim/_build/html/real_gal.html#downloading-the-cosmos-catalog
@@ -41,7 +47,7 @@ https://galsim-developers.github.io/GalSim/_build/html/real_gal.html#downloading
 def parse_args():
     parser = ArgumentParser()
 
-    parser.add_arguemnt('-pipe_config', type=str, default=None
+    parser.add_argument('-pipe_config', type=str, default=None,
                         help='A pipeline config to use for the pipe test, if ' +
                         'youd rather specify everything yourself')
 
@@ -51,7 +57,7 @@ def parse_args():
     group.add_argument('-path_config', type=str, default=None,
                         help='A yaml config file that defines the paths ' +
                         'needed to run a pipe test')
-    group.add_arguemnt('-gs_config', type=str, default=None
+    group.add_argument('-gs_config', type=str, default=None,
                         help='A galsim module config to use for the pipe ' +
                         'test, if youd rather specify everything yourself')
 
@@ -59,7 +65,7 @@ def parse_args():
                         help='Clean test directory of old outputs')
 
     # NOTE: As ngmix-fit needs some refactoring, this is currently unused
-    parser.add_arguemnt('-ngmix_config', type=str, default=None
+    parser.add_argument('-ngmix_config', type=str, default=None,
                         help='A ngmix-fit module config to use for the pipe ' +
                         'test, if youd rather specify everything yourself')
 
@@ -84,7 +90,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
     imsim: str
         The name of the image simulation module to use
     overwrite: bool
-        Set to True to clobber existing config file
+        Set to True to overwrite existing config file
     '''
 
     if outdir is not None:
@@ -127,7 +133,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
                                             'galsim',
                                             'config_files'),
                 'outdir': outdir,
-                'clobber': overwrite
+                'overwrite': overwrite
             },
             'medsmaker': {
                 'mock_dir': outdir,
@@ -166,13 +172,34 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
             },
         }
 
-        with open(filename, 'w') as f:
-            yaml.dump(test_config, f, default_flow_style=False)
+        utils.write_yaml(test_config, filename)
+
+    return filename
+
+def make_test_gs_config(path_config, outfile='pipe_test_gs.yaml', outdir=None,
+                        overwrite=False):
+
+    if outdir is not None:
+        filename = os.path.join(outdir, outfile)
+
+    if (overwrite is True) or (not os.path.exists(filename)):
+
+        # use REPO/configs/pipe_test_gs.yaml as base
+
+        test_config = utils.read_yaml(
+            os.path.join(utils.BASE_DIR, 'configs', 'pipe_test_gs.yaml')
+            )
+
+        # update with local filepaths
+        for name, path in path_config.items():
+            test_config[name] = path
+
+        utils.write_yaml(test_config, filename)
 
     return filename
 
 def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
-                           run_name=None, clobber=False):
+                           run_name=None, overwrite=False):
     '''
     NOTE: Not currently used, but could be incorporated to run the
     ngmix-fit module
@@ -184,36 +211,36 @@ def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
     if run_name is None:
         run_name = 'pipe_test'
 
-    if (clobber is True) or (not os.path.exists(filename)):
-        with open(filename, 'w') as f:
-            CONFIG = {
-                'gal': {
-                    'model': 'bdf',
-                },
-                'psf': {
-                    'model': 'gauss'
-                },
-                'priors': {
-                    'T_range': [-1., 1.e3],
-                    'F_range': [-100., 1.e9],
-                    'g_sigma': 0.1,
-                    'fracdev_mean': 0.5,
-                    'fracdev_sigma': 0.1
-                },
-                'fit_pars': {
-                    'method': 'lm',
-                    'lm_pars': {
-                        'maxfev':2000,
-                        'xtol':5.0e-5,
-                        'ftol':5.0e-5
-                        }
-                },
-                'pixel_scale': 0.144, # arcsec / pixel
-                'nbands': 1,
-                'seed': 172396,
-                'run_name': run_name
-            }
-            yaml.dump(CONFIG, f, default_flow_style=False)
+    if (overwrite is True) or (not os.path.exists(filename)):
+        test_config = {
+            'gal': {
+                'model': 'bdf',
+            },
+            'psf': {
+                'model': 'gauss'
+            },
+            'priors': {
+                'T_range': [-1., 1.e3],
+                'F_range': [-100., 1.e9],
+                'g_sigma': 0.1,
+                'fracdev_mean': 0.5,
+                'fracdev_sigma': 0.1
+            },
+            'fit_pars': {
+                'method': 'lm',
+                'lm_pars': {
+                    'maxfev':2000,
+                    'xtol':5.0e-5,
+                    'ftol':5.0e-5
+                    }
+            },
+            'pixel_scale': 0.144, # arcsec / pixel
+            'nbands': 1,
+            'seed': 172396,
+            'run_name': run_name
+        }
+
+        utils.write_yaml(test_config, filename)
 
     return filename
 
@@ -225,7 +252,7 @@ def main(args):
     fresh = args.fresh
 
     # NOTE: not currently used
-    ngmix_config_file = arngmix.ngmix_config
+    ngmix_config_file = args.ngmix_config
 
     testdir = utils.get_test_dir()
 
@@ -241,22 +268,27 @@ def main(args):
     # need to parse local paths before creating galsim config, unless
     # passed explicitly. Argparse makes sure only one is passed
     if path_config_file is not None:
+        print(f'Reading path config file {path_config_file}...')
         path_config = utils.read_yaml(path_config_file)
     else:
         path_config = None
 
     # parse galsim config file first, as it is needed for pipe config
     if gs_config_file is None:
+        print('Creating test gs config file...')
         gs_config_file = make_test_gs_config(
-            clobber=True, outdir=logdir
+            path_config, overwrite=True, outdir=logdir
             )
+        print(f'Using gs_config_file {gs_config_file}')
 
     # now we have everything we need to create a pipeline config
     if pipe_config_file is None:
         # generate a fast config
+        print('Creating test pipeline config file...')
         pipe_config_file = make_test_pipe_config(
-            gs_config_file, clobber=True, outdir=logdir
+            gs_config_file, overwrite=True, outdir=logdir
             )
+        print(f'Using pipe_config_file {pipe_config_file}')
 
     # we saved it to a file instead of returning a dict so that there is
     # a record in the pipe_test outdir
@@ -265,9 +297,9 @@ def main(args):
     vb = pipe_config['run_options']['vb']
 
     if vb:
-        print(f'config =\n{config}')
+        print(f'config =\n{pipe_config}')
 
-    pipe = SuperBITPipeline(config_file, log=log)
+    pipe = SuperBITPipeline(pipe_config_file, log=log)
 
     rc = pipe.run()
 

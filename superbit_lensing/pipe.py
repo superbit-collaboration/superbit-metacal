@@ -301,7 +301,7 @@ class SuperBITPipeline(SuperBITModule):
 class GalSimModule(SuperBITModule):
     _req_fields = ['config_file', 'outdir']
     _opt_fields = ['config_dir']
-    _flag_fields = ['use_mpi', 'use_srun', 'clobber', 'vb']
+    _flag_fields = ['use_mpi', 'use_srun', 'overwrite', 'vb']
 
     def __init__(self, name, config):
         super(GalSimModule, self).__init__(name, config)
@@ -347,8 +347,8 @@ class GalSimModule(SuperBITModule):
             run_name = run_options['run_name']
             options += f' -run_name={run_name}'
 
-        if 'clobber' in self._config:
-            options += ' --clobber'
+        if 'overwrite' in self._config:
+            options += ' --overwrite'
 
         if run_options['vb'] is True:
             options += ' --vb'
@@ -385,8 +385,8 @@ class GridTestModule(GalSimModule):
             run_name = run_options['run_name']
             options += f' -run_name={run_name}'
 
-        if 'clobber' in self._config:
-            options += ' --clobber'
+        if 'overwrite' in self._config:
+            options += ' --overwrite'
 
         if run_options['vb'] is True:
             options += ' --vb'
@@ -533,7 +533,7 @@ class MetacalModuleV2(MetacalModule):
 
 class NgmixFitModule(SuperBITModule):
     _req_fields = ['meds_file', 'outfile', 'config']
-    _opt_fields = ['outdir', 'start', 'end', 'n', 'clobber', 'vb']
+    _opt_fields = ['outdir', 'start', 'end', 'n', 'overwrite', 'vb']
 
     def __init__(self, name, config):
         super(NgmixFitModule, self).__init__(name, config)

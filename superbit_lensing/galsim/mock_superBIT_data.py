@@ -52,7 +52,7 @@ def parse_args():
                         help='Number of cores to use for multiproessing')
     parser.add_argument('--mpi', action='store_true', default=False,
                         help='Use to turn on mpi')
-    parser.add_argument('--clobber', action='store_true', default=False,
+    parser.add_argument('--overwrite', action='store_true', default=False,
                         help='Turn on to overwrite existing files')
     parser.add_argument('--vb', action='store_true', default=False,
                         help='Turn on for verbose prints')
@@ -582,6 +582,8 @@ class SuperBITParameters:
                 self.cat_file_name = str(value)
             elif option == "fit_file_name":
                 self.fit_file_name = str(value)
+            elif option == "cluster_cat_dir":
+                self.cluster_cat_dir= str(value)
             elif option == "cluster_cat_name":
                 self.cluster_cat_name = str(value)
             elif option == "star_cat_name":
@@ -616,8 +618,8 @@ class SuperBITParameters:
                 self.jitter_fwhm=float(value)
             elif option == "run_name":
                 self.run_name=str(value)
-            elif option == "clobber":
-                self.clobber=bool(value)
+            elif option == "overwrite":
+                self.overwrite=bool(value)
             elif option == "mpi":
                 self.mpi = bool(value)
             elif option == "ncores":
@@ -664,6 +666,11 @@ class SuperBITParameters:
         self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time
         if not hasattr(self,'jitter_fwhm'):
             self.jitter_fwhm = 0.1
+
+        if hasattr(self, 'cluster_cat_dir'):
+            self.cluster_cat_name = os.path.join(
+                self.cluster_cat_dir, self.cluster_cat_name
+                )
 
         return
 
@@ -843,7 +850,7 @@ def main(args):
     run_name = args.run_name
     mpi = args.mpi
     ncores = args.ncores
-    clobber = args.clobber
+    clobber = args.overwrite
     vb = args.vb
 
     start_time = time.time()

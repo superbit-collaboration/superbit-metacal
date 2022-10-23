@@ -1,0 +1,59 @@
+# This is the default base galsim configuration for a pipe test. See
+# superbit_lensing/pipe_test.py for more details. As this file is tracked
+# by git, do not edit it with your local filepaths; make a local copy of
+# configs/path_config.yaml instead!
+
+# SuperBIT parameters
+# -------------------
+pixel_scale:        0.141       # Pixel scale                               [arcsec/px]
+gain:               0.343       # Camera gain                               [e- / ADU]
+read_noise:         1.8         # Read noise                                [e-]
+dark_current:       0.0022      # mean dark current                         [ADU / px / s]
+dark_current_std:   0.001       # standard deviation dark current           [ADU /px / s]
+image_xsize:        9568        # Horizontal image size                     [px]
+image_ysize:        6380        # Vertical image size                       [px]
+exp_time:           600         # Exposure time per image                   [s]
+tel_diam:           0.5         # Telescope aperture diameter               [m]
+# Define strut parameters. BIT has four orthogonal struts that
+# are ~12mm wide, and the exit pupil diameter is 137.4549 mm (Zemax)
+nstruts:            4           # Number of M2 struts                       []
+strut_thick:        0.087       # Fraction of diameter strut thickness      [m/m]
+strut_theta:        90          # Angle between vertical and nearest        [deg]
+obscuration:        0.380       # Fraction of aperture obscured by M2       []
+
+# Simulated image parameters
+# --------------------------
+center_ra:          13.3        # Central Right Ascension                   [hrs]
+center_dec:         33.1        # Central Declination                       [deg]
+sky_bkg:            0.0519      # mean sky background from AG's paper       [ADU / s / px]
+sky_sigma:          0.06        # standard deviation of sky background      [ADU / s / px]
+nobj:               10000       # Number of galaxies (~1/3rd COSMOS 25.2 depth; 34300 for real run) []
+nexp:               3           # Number of exposures per PSF model (18 in real run) []
+nclustergal:        30          # Number of cluster galaxies (arbitrary)    []
+bandpass:     'crates_b'        # Catalog filter name for simulation        []
+jitter_fwhm:        0.24        # Kernel size of SuperBIT jitter            [arcsec]
+use_optics:         True        # Add optics model to PSF? (default: True)  [True/False]
+sample_gaia_cats: True          # Sample stars from GAIA catalogs           []
+run_name:         'pipe_test'   # Root for exposure name creation           []
+
+# Simulated cluster parameters
+# ----------------------------
+lam:                475         # Fiducial wavelength for abberations       [nm]
+nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
+omega_m:            0.3         # Omega matter for the background cosmology []
+omega_lam:          0.7         # Omega lambda for the background cosmology []
+
+# Run parameters
+# --------------
+# Define some paths and files
+
+# NOTE: The empty fields here are filled automatically in pipe_test.py when a path_config
+# is passed
+
+cat_file_name:    'cosmos15_superbit2023_phot_shapes.csv' # catalog file name for COSMOS (in cosmosdir)
+cluster_cat_name: 'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
+cosmosdir:         # Path to COSMOS data directory
+datadir:           # Path to repo/GalSim data directory
+outdir:            # directory where output images and truth catalogs are saved
+gaia_dir:          # Path to GAIA star catalog directory
+
