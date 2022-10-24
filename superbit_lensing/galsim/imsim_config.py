@@ -100,6 +100,12 @@ class ImSimConfig(object):
 
         'position_sampling': {
             type: 'random'
+            # TODO: fill in the rest of the fields!
+        }
+
+        'shear': {
+            type: 'nfw'
+            # TODO: fill in the rest of the fields!
         }
 
         'seeds': {
@@ -146,6 +152,10 @@ class ImSimConfig(object):
         return
 
     def __getitem__(self, key):
+        '''
+        TODO: For backwards compatibility, it may be nice to search
+        through all nested fields if a key is not found
+        '''
         return self.pars[key]
 
     def __setitem__(self, key, val):

@@ -1,65 +1,95 @@
-# SuperBIT parameters
-# -------------------
-pixel_scale:        0.141       # Pixel scale                               [arcsec/px]
-gain:               0.343       # Camera gain                               [e- / ADU]
-#read_noise:         1.8         # Read noise                                [e-]
-read_noise:         0.0         # Read noise                                [e-]
-dark_current:       0.000      # mean dark current                         [e- / px / s]
-dark_current_std:   0.000       # standard deviation dark current           [ADU /px / s]
-# dark_current:       0.0022      # mean dark current                         [e- / px / s]
-# dark_current_std:   0.001       # standard deviation dark current           [ADU /px / s]
-image_xsize:        9568        # Horizontal image size                     [px]
-image_ysize:        6380        # Vertical image size                       [px]
-exp_time:           600         # Exposure time per image                   [s]
-tel_diam:           0.5         # Telescope aperture diameter               [m]
-# Define strut parameters. BIT has four orthogonal struts that
-# are ~12mm wide, and the exit pupil diameter is 137.4549 mm (Zemax)
-nstruts:            4           # Number of M2 struts                       []
-strut_thick:        0.087       # Fraction of diameter strut thickness      [m/m]
-strut_theta:        90          # Angle between vertical and nearest        [deg]
-obscuration:        0.380       # Fraction of aperture obscured by M2       []
+# This config file is intended to be used for a validation grid test,
+# using the new config nested structure. See imsim_config.py for more
+# details on what fields are required vs. optional as well as defaults
 
-# Simulated image parameters
-# --------------------------
-center_ra:          13.3        # Central Right Ascension                   [hrs]
-center_dec:         33.1        # Central Declination                       [deg]
-# sky_bkg:            0.0519      # mean sky background from AG's paper       [e- / s / px]
-# sky_bkg:            0.000519      # mean sky background from AG's paper       [e- / s / px]
-nobj:               10000         # Number of galaxies (COSMOS 25.2 depth)    []
-nexp:               3          # Number of exposures per PSF model         []
-nclustergal:        50         # Number of cluster galaxies (arbitrary)    []
-bandpass:     'crates_b'        # Catalog filter name for simulation        []
-jitter_fwhm:        0.24         # Kernel size of SuperBIT jitter            [arcsec]
-run_name:         'pipe_test'   # Root for exposure name creation           []
+'run_options':
+  'run_name': 'grid_test',
+  'mpi': False,
+  'ncores': 8,
+  'clobber': False,
+  'vb': False
 
-# Simulated star parameters
-# ----------------------------
-#nstars:             300        # Number of stars in the field              []
-use_optics:         False       # Add optics model to PSF? (default: True)  [True/False]
-sample_gaia_cats: True
-gaia_dir: '/Users/sweveret/repos/superbit-metacal/superbit_lensing/galsim/data/gaia'
+'telescope':
+  'tel_diam': 0.5, # [m]
+  'nstruts': 4, # number of M2 struts
+  'strut_thick': 0.087, # fraction of diameter strut thickness [m/m]
+  'strut_theta': 90, # angle between verticle & nearest [deg]
+  'obscuration': 0.380 # fraction of aperture obscured by M2
 
-# Simulated cluster parameters
-# ----------------------------
-lam:                625         # Fiducial wavelength for abberations       [nm]
-mass:               7.0e14      # Cluster mass                              [Msol / h]
-nfw_z_halo:         0.3        # redshift of the halo                      []
-nfw_conc:           4           # Concentration parameter = virial radius / NFW scale radius
-omega_m:            0.3         # Omega matter for the background cosmology.
-omega_lam:          0.7         # Omega lambda for the background cosmology.
+'filter':
+  'lam': 475, # fiducial wavelength for abberations [nm]
+  'bandpass': 'crates_b' # catalog filter name for simulation
 
-# Run parameters
-# --------------
-# Define some paths and filenames
-cosmosdir:          '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_25.2_training_sample/' # Path to COSMOS data directory
-datadir:          '/Users/sweveret/repos/superbit-metacal/superbit_lensing/galsim/data' # Path to repo/galsim data directory
-cat_file_name:     'cosmos15_superbit2023_phot_shapes.csv' # catalog file name for COSMOS (in cosmosdir)
-# cat_file_name:      'cosmos2015_cam2021_filt2021.csv' # catalog file name for COSMOS (in cosmosdir; OLD)
-cluster_cat_name:   '/Users/sweveret/miniconda3/envs/sbmcal/share/galsim/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits' # path to cluster catalog
+'detector':
+  'gain': 0.343 # [e- / ADU]
 
-# Misc parameters
-# ---------------
-#noise_seed:         95967076    # Random number seed for image noise
-#galobj_seed:        76736018    # Random number seed for galaxy objects
-#cluster_seed:       44271963    # Random number seed fro cluster galaxies
-#stars_seed:         26342806    # Random number seed for stars
+'noise':
+  'read_noise': 1.8, # [e-]
+  'dark_current': 0.0022, # [ADU / pix / s]
+  'dark_current_std': 0.001 # [ADU / pix / s]
+
+'psf':
+  'jitter_fwhm': 0.24, # [arcsec]
+  'use_optics': False
+
+'image':
+  'image_xsize': 9568, # [pixels]
+  'image_ysize': 6380, # [pixels]
+  'pixel_scale': 0.141 # [arcsec / pixel]
+
+'observation':
+  'nexp': 3, # 18 is fiducial
+  'exp_time': 600 # [s]
+
+'cluster':
+  'mass': 7.8e14, # NFW halo mass [Msol / h]
+  'nfw_conc': 4, # concentration; virial radius / NFW scale radius
+  'nfw_z_halo': 0.25, # cluster redshift
+  'center_ra': 13.3, # example target RA [hours]
+  'center_dec': 33.1, # example target DEC [deg]
+  'nclustergal': 30 # number of cluster member galaxies
+
+'cosmology':
+  'omega_m': 0.3, # fiducial Omega matter
+  'omega_lam': 0.7, # fiducial Omega lambda
+  'h': 0.7 # dimensionless Hubble constant
+
+'input':
+  'cosmosdir': 'USE_PATH_CONFIG',
+  'datadir': 'USE_PATH_CONFIG',
+  'cat_file_name': 'cosmos15_superbit2023_phot_shapes.csv', # source catalog
+  'cluster_cat_dir': 'USE_PATH_CONFIG',
+  'cluster_cat_name':'real_galaxy_catalog_23.5.fits'
+
+'stars':
+  # 'nobjs'': None, # used if not using GAIA catalogs
+  # 'star_cat_name': None, # used if not using GAIA catalogs
+  'sample_gaia_cats': True,
+  'gaia_dir': 'USE_PATH_CONFIG',
+
+'galaxies':
+  # 'nobjs': None # used for random position sampling
+  'shapes': 'circular' # ignore object shape information
+
+'position_sampling':
+  type: 'MixedGrid',
+  # TODO: fill in the rest of the required fields!
+
+'shear':
+  'type': 'constant'
+  'g1': 0.2
+  'g2': -0.3
+  # TODO: fill in the rest of the required fields!
+
+'output':
+  'outdir': None # is set by test runner
+
+'seeds':
+  # we'll pick new seeds every time
+  'master_seed': None,
+  'noise_seed': None,
+  'dithering_seed': None,
+  'cluster_seed': None,
+  'stars_seed': None,
+  'galobj_seed': None
+
