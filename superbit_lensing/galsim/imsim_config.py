@@ -101,12 +101,12 @@ class ImSimConfig(object):
         'position_sampling': {
             type: 'random'
             # TODO: fill in the rest of the fields!
-        }
+        },
 
         'shear': {
             type: 'nfw'
             # TODO: fill in the rest of the fields!
-        }
+        },
 
         'seeds': {
             'master_seed': None,
@@ -116,6 +116,7 @@ class ImSimConfig(object):
             'stars_seed': None,
             'galobj_seed': None
         }
+    }
 
     def __init__(self, config):
         '''

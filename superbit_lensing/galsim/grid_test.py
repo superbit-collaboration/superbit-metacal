@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 
 from superbit_lensing import utils
 from superbit_lensing.galsim.imsim_config import ImSimConfig
-import superbit_lensing.galsim.grid
+import superbit_lensing.galsim.grid as grid
 
 import ipdb
 
@@ -108,6 +108,8 @@ class ImSimRunner(object):
         General parsing of the position_sampling config
         '''
 
+        ipdb.set_trace()
+
         ps = self.config['position_sampling'].copy()
 
         if isinstance(ps, str):
@@ -125,14 +127,14 @@ class ImSimRunner(object):
             bg = grid.BaseGrid()
             mixed_grid = None
 
-            for obj_type, obj_list self.objects.items():
+            for obj_type, obj_list in self.objects.items():
                 if name not in _allowed_objs:
                     raise ValueError('position_sampling fields must be ' +
                                      f'drawn from {_allowed_objs}!')
 
                 # position sampling config per object type:
                 ps_obj = ps[obj_type].copy()
-                pos_type = ps_obj.pop('type')
+                pos_type = ps_obj['type']
 
                 if pos_type == 'random':
                     obj_list.assign_random_positions(self.image)
@@ -143,58 +145,55 @@ class ImSimRunner(object):
                         )
 
                 elif pos_type in bg._valid_mixed_types:
-
-                # grid_type = ps.pop('type')
-                grid_type = ps['grid_type']
-                grid_kwargs = {
-                    'Npix_x': self.config['image_xsize'],
-                    'Npiy_y': self.config['image_ysize'],
-                }
-                # pos = grid.build_grid(ps, **kwargs)
-
                     if mixed_grid is None:
                         N_inj_types = 0
                         inj_frac = {}
                         gtypes = set()
                         gspacing = set()
 
-                        for inpt, opts in ps.items():
-                            for key, s in {'grid_type':gtypes, 'grid_spacing':gspacing}.items():
-                                try:
-                                    s.add(opts[key])
-                                except KeyError:
+                        # MixedGrids have to be built with info across all
+                        # simultaneously
+                        for name, config in ps.items():
+                            try:
+                                gtypes.add(config['grid_type'])
+                                gspacing.add(config['grid_spacing'])
+                            except KeyError:
                                     # Only has to be present for one input type
                                     pass
-
-                            if opts['type'] == 'MixedGrid':
+                            if config['type'] == 'MixedGrid':
                                 N_inj_types += 1
-                                inj_frac[inpt] = opts['inj_frac']
+                                inj_frac[inpt] = config['inj_frac']
                             else:
-                                raise ValueError('The mixed sampling type {}'.format(opts['type']) +
-                                                    ' is not yet implemented in `generate_objects()`.')
+                                raise KeyError(f'{config["type"]} is not a ' +
+                                               'registered mixed grid type!')
 
-                        for key, s in {'grid_type':gtypes, 'grid_spacing':gspacing}.items():
+                        # can only have 1 unique value of each
+                        unq = {
+                            'grid_type':gtypes,
+                            'grid_spacing':gspacing
+                            }
+                        for key, s in unq.items():
                             if len(s) != 1:
-                                raise ValueError('For now, only one `{}` is allowed '.format(key) +
-                                                    'for a mixed grid!')
-                            # if key not in ps:
-                            #     ps[key] = s.pop()
+                                raise ValueError('Only one {key} is allowed ' +
+                                                 'for a MixedGrid!')
 
                         gtype = gtypes.pop()
 
-                        mixed_grid = grid.MixedGrid(gtype, N_inj_types, inj_frac)
+                        mixed_grid = grid.MixedGrid(
+                            gtype, N_inj_types, inj_frac
+                            )
 
-                        grid_kwargs = self._build_grid_kwargs(pstype, ps)
+                        grid_kwargs = grid.build_grid_kwargs(
+                            gtype, ps_obj, image
+                            )
+
                         mixed_grid.build_grid(**grid_kwargs)
 
                         # Objects are assigned immediately since we set all injection
                         # fractions during construction. Otherwise would have to wait
                         self.pos[real] = mixed_grid.pos[input_type]
 
-                        # NOTE: We ignore the inputted nobjects and use the correct grid value
-                        # instead (user was already warned)
-                        inj_nobjs = mixed_grid.nobjects[input_type]
-                        self.nobjects[real] = inj_nobjs
+                        self.Nobjs = mixed_grid.nobjects[input_type]
 
                     else:
                         # NOTE: Below is what we would do if we hadn't already already
@@ -204,6 +203,7 @@ class ImSimRunner(object):
                         #     self.pos[real] = mixed_grid.pos[input_type]
                         # else:
                         #     mixed_grid.add_injection(input_type, ps[input_type]['inj_frac'])
+
                         obj_list.set_Nobjs(mixed_grid.nobjs[obj_type])
                         obj_list.set_positions(mixed_grid.pos[obj_type])
 
@@ -250,37 +250,16 @@ class SourceClass(object):
 
         # params to be set later on
         self.pos = None
+        self.im_pos = None
         self.shear = None
+        self.grid = None
 
         return
-
-    # def assign_positions(self, pos_type, pos_config, image):
-    #     '''
-    #     Assign source positions according to the run config
-
-    #     pos_config: dict
-    #         A position sampling config, taken from the main run config
-    #     image: galsim.Image
-    #         A galsim image object. Assigned positions are done relative
-    #         to this image (which has bounds, wcs, etc.)
-    #     '''
-
-    #     # config parsing has been done by this stage
-
-    #     pos_type = pos_config['type']
-
-    #     if pos_type == 'random':
-    #         self._assign_random_positions(image)
-    #     else:
-    #         self._assign_grid_positions(image)
-
-    #     return
 
     def assign_random_positions(self, image):
         '''
         TODO: Add in dec correction. For now, just doing the simplest
-        possible thing in image space. Long term we should make these
-        (ra,dec) and store the image WCS
+        possible thing in image space
 
         image: galsim.Image
             A galsim image object. Assigned positions are done relative
@@ -295,31 +274,42 @@ class SourceClass(object):
 
         shape = (2, self.Nobjs)
         self.pos = np.empty(shape)
+        self.pos_im = np.empty(shape)
 
         for i, Npix in enumerate(image.array.shape):
-            self.pos[i] = np.random.rand(self.Nobjs) * Npix
+            self.im_pos[i] = np.random.rand(self.Nobjs) * Npix
+
+        self.pos = image.wcs.wcs_pix2world(self.im_pos, 0) # 0 for numpy origin
 
         return
 
-    def assign_grid_positions(self, image, grid_type, grid_kwargs):
+    def assign_grid_positions(self, image, ps_type, grid_config):
         '''
         image: galsim.Image
             A galsim image object. Assigned positions are done relative
             to this image (which has bounds, wcs, etc.)
-        grid_type: str
-            The name of the grid type (see grid.py for options)
-        grid_kwargs: dict
-            A dictionary of kwargs needed to build the corresponding
-            grid type
+        ps_type: str
+            The position sampling type (either a single grid
+            or MixedGrid in this case)
+        grid_config: dict
+            The configuration dictionary for the grid of the given
+            object type
         '''
 
-        grid_kwargs = self._build_grid_kwargs(pstype, ps)
+        if ps_type == 'MixedGrid':
+            grid_type = grid_config['grid_type']
+        else:
+            # in this case a single grid
+            grid_type = ps_type
 
-        tile_grid = grid.build_grid(grid_type, **grid_kwargs)
+        grid_kwargs = grid.build_grid_kwargs(
+            grid_type, grid_config, image
+            )
+
+        self.grid = grid.build_grid(grid_type, **grid_kwargs)
         self.pos = tile_grid.pos
+        self.im_pos = tile_grid.im_pos
 
-        # NOTE: We ignore the inputted nobjects and use the correct grid value
-        # instead (user was already warned)
         inj_nobjs = np.shape(tile_grid.pos)[0]
 
         self.Nobjs = inj_nobjs
@@ -331,12 +321,13 @@ class SourceClass(object):
         Set source positions with an explicit list. Useful if source positions
         are coupled between source classes, such as with a MixedGrid
 
-        pos_list: list
-            A list of source positions
+        pos_list: np.ndarray (2xNobjs)
+            An array of object positions # TODO: image or physical?
         '''
-        pass
 
-    # ...
+        self.pos = pos_list
+
+        return
 
 class Galaxies(SourceClass):
     obj_type = 'galaxy'

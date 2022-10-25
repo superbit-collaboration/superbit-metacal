@@ -3,76 +3,76 @@
 # details on what fields are required vs. optional as well as defaults
 
 'run_options':
-  'run_name': 'grid_test',
-  'mpi': False,
-  'ncores': 8,
-  'clobber': False,
+  'run_name': 'grid_test'
+  'mpi': False
+  'ncores': 8
+  'clobber': False
   'vb': False
 
 'telescope':
-  'tel_diam': 0.5, # [m]
-  'nstruts': 4, # number of M2 struts
-  'strut_thick': 0.087, # fraction of diameter strut thickness [m/m]
-  'strut_theta': 90, # angle between verticle & nearest [deg]
+  'tel_diam': 0.5 # [m]
+  'nstruts': 4 # number of M2 struts
+  'strut_thick': 0.087 # fraction of diameter strut thickness [m/m]
+  'strut_theta': 90 # angle between verticle & nearest [deg]
   'obscuration': 0.380 # fraction of aperture obscured by M2
 
 'filter':
-  'lam': 475, # fiducial wavelength for abberations [nm]
+  'lam': 475 # fiducial wavelength for abberations [nm]
   'bandpass': 'crates_b' # catalog filter name for simulation
 
 'detector':
   'gain': 0.343 # [e- / ADU]
 
 'noise':
-  'read_noise': 1.8, # [e-]
-  'dark_current': 0.0022, # [ADU / pix / s]
+  'read_noise': 1.8 # [e-]
+  'dark_current': 0.0022 # [ADU / pix / s]
   'dark_current_std': 0.001 # [ADU / pix / s]
 
 'psf':
-  'jitter_fwhm': 0.24, # [arcsec]
+  'jitter_fwhm': 0.24 # [arcsec]
   'use_optics': False
 
 'image':
-  'image_xsize': 9568, # [pixels]
-  'image_ysize': 6380, # [pixels]
+  'image_xsize': 9568 # [pixels]
+  'image_ysize': 6380 # [pixels]
   'pixel_scale': 0.141 # [arcsec / pixel]
 
 'observation':
-  'nexp': 3, # 18 is fiducial
+  'nexp': 3 # 18 is fiducial
   'exp_time': 600 # [s]
 
 'cluster':
-  'mass': 7.8e14, # NFW halo mass [Msol / h]
-  'nfw_conc': 4, # concentration; virial radius / NFW scale radius
-  'nfw_z_halo': 0.25, # cluster redshift
-  'center_ra': 13.3, # example target RA [hours]
-  'center_dec': 33.1, # example target DEC [deg]
+  'mass': 7.8e14 # NFW halo mass [Msol / h]
+  'nfw_conc': 4 # concentration; virial radius / NFW scale radius
+  'nfw_z_halo': 0.25 # cluster redshift
+  'center_ra': 13.3 # example target RA [hours]
+  'center_dec': 33.1 # example target DEC [deg]
   'nclustergal': 30 # number of cluster member galaxies
 
 'cosmology':
-  'omega_m': 0.3, # fiducial Omega matter
-  'omega_lam': 0.7, # fiducial Omega lambda
+  'omega_m': 0.3 # fiducial Omega matter
+  'omega_lam': 0.7 # fiducial Omega lambda
   'h': 0.7 # dimensionless Hubble constant
 
 'input':
-  'cosmosdir': 'USE_PATH_CONFIG',
-  'datadir': 'USE_PATH_CONFIG',
-  'cat_file_name': 'cosmos15_superbit2023_phot_shapes.csv', # source catalog
-  'cluster_cat_dir': 'USE_PATH_CONFIG',
-  'cluster_cat_name':'real_galaxy_catalog_23.5.fits'
+  'cosmosdir': 'USE_PATH_CONFIG'
+  'datadir': 'USE_PATH_CONFIG'
+  'cat_file_name': 'cosmos15_superbit2023_phot_shapes.csv' # source catalog
+  'cluster_cat_dir': 'USE_PATH_CONFIG'
+  'cluster_cat_name': 'real_galaxy_catalog_23.5.fits'
 
 'stars':
-  # 'nobjs'': None, # used if not using GAIA catalogs
-  # 'star_cat_name': None, # used if not using GAIA catalogs
-  'sample_gaia_cats': True,
-  'gaia_dir': 'USE_PATH_CONFIG',
+  'sample_gaia_cats': True
+  'gaia_dir': 'USE_PATH_CONFIG'
+  # 'nobjs'': None # used if not using GAIA catalogs
+  # 'star_cat_name': None # used if not using GAIA catalogs
 
 'galaxies':
   # 'nobjs': None # used for random position sampling
   'shapes': 'circular' # ignore object shape information
 
 'position_sampling':
-  type: 'MixedGrid',
+  type: 'MixedGrid'
   # TODO: fill in the rest of the required fields!
 
 'shear':
@@ -86,10 +86,10 @@
 
 'seeds':
   # we'll pick new seeds every time
-  'master_seed': None,
-  'noise_seed': None,
-  'dithering_seed': None,
-  'cluster_seed': None,
-  'stars_seed': None,
+  'master_seed': None
+  'noise_seed': None
+  'dithering_seed': None
+  'cluster_seed': None
+  'stars_seed': None
   'galobj_seed': None
 

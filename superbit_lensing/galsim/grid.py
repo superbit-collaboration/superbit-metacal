@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+
 import ipdb
 
 '''
@@ -387,6 +388,91 @@ class MixedGrid(BaseGrid):
         self.assigned_objects = True
 
         return
+
+def build_grid_kwargs(grid_type, grid_config, image):
+    '''
+    Setup the kwargs needed to build the desired grid
+
+    grid_type: str
+        The name of the grid to build
+    grid_config: dict
+        The configuration dictionary for the grid of the given
+        object type
+    image: galsim.Image
+        A galsim Image instance on which we will draw the grid
+    '''
+
+    try:
+        gs = grid_config['grid_spacing']
+    except KeyError as e:
+        raise KeyError('Must provide a grid_spacing if using a grid!')
+
+    # Rotate grid if asked
+    try:
+        r = grid_config['rotate']
+        if (isinstance(r, str)) and (r.lower() == 'random'):
+            if grid_type == 'RectGrid':
+                grid_rot_angle = np.random.uniform(0., np.pi/2.)
+            elif grid_type == 'HexGrid':
+                grid_rot_angle = np.random.uniform(0., np.pi/3.)
+        else:
+            unit = grid_config['angle_unit']
+            if unit == 'deg':
+                if (r >= 0.0) and (r < 360.0):
+                    grid_rot_angle = float(r)
+                else:
+                    raise ValueError('Grid rotation of {} '.format(r) +
+                                    'deg is not valid!')
+            else:
+                if (r >= 0.0) and (r < 2*np.pi):
+                    grid_rot_angle = float(r)
+                else:
+                    raise ValueError('Grid rotation of {} '.format(r) +
+                                    'rad is not valid!')
+    except KeyError:
+        grid_rot_angle = 0.0
+
+    # Offset grid if asked
+    try:
+        o = grid_config['offset']
+        if (isinstance(o, str)) and (o.lower() == 'random'):
+            grid_offset = [np.random.uniform(-gs/2., gs/2.),
+                           np.random.uniform(-gs/2., gs/2.)]
+        else:
+            if isinstance(o, list):
+                grid_offset = list(o)
+            else:
+                raise ValueError('Grid offset of {} '.format(r) +
+                                'is not an array!')
+    except KeyError:
+        grid_offset = [0.0, 0.0]
+
+    try:
+        angle_unit = grid_config['angle_unit']
+    except KeyError:
+        # Default in radians
+        angle_unit = 'rad'
+
+    ipdb.set_trace()
+
+    wcs = image.wcs
+    Nx, Ny = image.array.shape
+    pixel_scale = image.scale
+
+    # Creates the grid given tile parameters and calculates the
+    # image / world positions for each object
+    grid_kwargs = {
+        'grid_spacing': gs,
+        'wcs': wcs,
+        'Npix_x': Nx,
+        'Npix_y': Ny,
+        'pixscale': pixel_scale,
+        'rot_angle': grid_rot_angle,
+        'angle_unit': angle_unit,
+        'pos_offset': grid_offset
+    }
+
+    return grid_kwargs
 
 def build_grid(grid_type, **kwargs):
     '''
