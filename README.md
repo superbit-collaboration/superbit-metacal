@@ -94,7 +94,17 @@ You should mostly care about whether it succeeded or not, but you can look at `c
 
 ## Meta-configs and HPC jobs
 
-Under construction! Bug @sweverett if you are far enough along to care about this.
+Under construction! Bug @sweverett if you are far enough along to care about this. For now, here is a quick outline for gattaca users:
+
+1. Make a copy of `configs/gauss-uberseg-meta.yaml` and call it whatever you want corresponding to some `run_name`, which you should also update in the config itself
+2. Update the paths in that meta config to run from your local gattaca repo
+3. Choose any subset of mass & redshift combinations already listed in the meta config (setting different values would require creating new truth files)
+4. Change any other optional settings in the meta config that you desire
+5. You can use the existing `configs/auss-uberseg-gs.yaml` as your GalSim config, though you'll have to update the path to it as your gattaca repo as outlined in (2). Optionally can change parameters in it or a copy of it
+6. Run `python superbit_lensing/prep_jobs.py {meta_config.yaml}`
+7. Inspect the subdirectories created by the script, located in the `base_dir` you set in the meta config. You can see the configs it automatically generated for each mass/redshfit/realization
+8. Ask a team member for the truth catalogs for each (m,z) pair you want to run and store them wherever the `nfw_dir` is set in your meta config
+9. When ready, edit job_scripts/gattaca_run_pipe.sh with your desired `RUN_NAME`, `MASS`, `Z`, etc. and run it
 
 ## For the experts
 
