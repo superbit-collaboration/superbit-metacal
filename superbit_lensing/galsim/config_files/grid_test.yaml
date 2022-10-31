@@ -2,94 +2,105 @@
 # using the new config nested structure. See imsim_config.py for more
 # details on what fields are required vs. optional as well as defaults
 
-'run_options':
-  'run_name': 'grid_test'
-  'mpi': False
-  'ncores': 8
-  'clobber': False
-  'vb': False
+run_options:
+  run_name: grid_test
+  mpi: False
+  ncores: 8
+  overwrite: False
+  vb: False
 
-'telescope':
-  'tel_diam': 0.5 # [m]
-  'nstruts': 4 # number of M2 struts
-  'strut_thick': 0.087 # fraction of diameter strut thickness [m/m]
-  'strut_theta': 90 # angle between verticle & nearest [deg]
-  'obscuration': 0.380 # fraction of aperture obscured by M2
+telescope:
+  tel_diam: 0.5 # [m]
+  nstruts: 4 # number of M2 struts
+  strut_thick: 0.087 # fraction of diameter strut thickness [m/m]
+  strut_theta: 90 # angle between verticle & nearest [deg]
+  obscuration: 0.380 # fraction of aperture obscured by M2
 
-'filter':
-  'lam': 475 # fiducial wavelength for abberations [nm]
-  'bandpass': 'crates_b' # catalog filter name for simulation
+filter:
+  lam: 475 # fiducial wavelength for abberations [nm]
+  bandpass: crates_b # catalog filter name for simulation
 
-'detector':
-  'gain': 0.343 # [e- / ADU]
+detector:
+  gain: 0.343 # [e- / ADU]
 
-'noise':
-  'read_noise': 1.8 # [e-]
-  'dark_current': 0.0022 # [ADU / pix / s]
-  'dark_current_std': 0.001 # [ADU / pix / s]
+noise:
+  read_noise: 1.8 # [e-]
+  dark_current: 0.0022 # [ADU / pix / s]
+  dark_current_std: 0.001 # [ADU / pix / s]
 
-'psf':
-  'jitter_fwhm': 0.24 # [arcsec]
-  'use_optics': False
+psf:
+  jitter_fwhm: 0.24 # [arcsec]
+  use_optics: False
 
-'image':
-  'image_xsize': 9568 # [pixels]
-  'image_ysize': 6380 # [pixels]
-  'pixel_scale': 0.141 # [arcsec / pixel]
+image:
+  image_xsize: 9568 # [pixels]
+  image_ysize: 6380 # [pixels]
+  pixel_scale: 0.141 # [arcsec / pixel]
 
-'observation':
-  'nexp': 3 # 18 is fiducial
-  'exp_time': 600 # [s]
+observation:
+  nexp: 3 # 18 is fiducial
+  exp_time: 600 # [s]
 
-'cluster':
-  'mass': 7.8e14 # NFW halo mass [Msol / h]
-  'nfw_conc': 4 # concentration; virial radius / NFW scale radius
-  'nfw_z_halo': 0.25 # cluster redshift
-  'center_ra': 13.3 # example target RA [hours]
-  'center_dec': 33.1 # example target DEC [deg]
-  'nclustergal': 30 # number of cluster member galaxies
+cluster:
+  type: nfw
+  mass: 7.8e14 # NFW halo mass [Msol / h]
+  nfw_conc: 4 # concentration; virial radius / NFW scale radius
+  nfw_z_halo: 0.25 # cluster redshift
+  center_ra: 13.3 # example target RA [hours]
+  center_dec: 33.1 # example target DEC [deg]
 
-'cosmology':
-  'omega_m': 0.3 # fiducial Omega matter
-  'omega_lam': 0.7 # fiducial Omega lambda
-  'h': 0.7 # dimensionless Hubble constant
+# cluster_galaxies:
+#   type: default
+#   Nobjs: 0 # number of cluster member galaxies
 
-'input':
-  'cosmosdir': 'USE_PATH_CONFIG'
-  'datadir': 'USE_PATH_CONFIG'
-  'cat_file_name': 'cosmos15_superbit2023_phot_shapes.csv' # source catalog
-  'cluster_cat_dir': 'USE_PATH_CONFIG'
-  'cluster_cat_name': 'real_galaxy_catalog_23.5.fits'
+cosmology:
+  omega_m: 0.3 # fiducial Omega matter
+  omega_lam: 0.7 # fiducial Omega lambda
+  h: 0.7 # dimensionless Hubble constant
 
-'stars':
-  'sample_gaia_cats': True
-  'gaia_dir': 'USE_PATH_CONFIG'
-  # 'nobjs'': None # used if not using GAIA catalogs
-  # 'star_cat_name': None # used if not using GAIA catalogs
+input:
+  cosmosdir: USE_PATH_CONFIG
+  datadir: USE_PATH_CONFIG
+  cat_file_name: cosmos15_superbit2023_phot_shapes.csv # source catalog
+  cluster_cat_dir: USE_PATH_CONFIG
+  cluster_cat_name: real_galaxy_catalog_23.5.fits
 
-'galaxies':
-  # 'nobjs': None # used for random position sampling
-  'shapes': 'circular' # ignore object shape information
+stars:
+  type: default
+  #sample_gaia_cats: True
+  #gaia_dir: USE_PATH_CONFIG
+  # nobjs: None # used if not using GAIA catalogs
+  # star_cat_name: None # used if not using GAIA catalogs
 
-'position_sampling':
-  type: 'MixedGrid'
+galaxies:
+  # nobjs: None # used for random position sampling
+  type: 'circle'
+
+position_sampling:
+  galaxies:
+    type: MixedGrid
+    grid_type: HexGrid
+    grid_spacing: 10 # arcsec
+    fraction: 0.8
+  stars:
+    type: MixedGrid
+    fraction: 0.2
   # TODO: fill in the rest of the required fields!
 
-'shear':
-  'type': 'constant'
-  'g1': 0.2
-  'g2': -0.3
-  # TODO: fill in the rest of the required fields!
+shear:
+  type: constant
+  g1: 0.2
+  g2: -0.3
 
-'output':
-  'outdir': None # is set by test runner
+output:
+  outdir: None # is set by test runner
 
-'seeds':
-  # we'll pick new seeds every time
-  'master_seed': None
-  'noise_seed': None
-  'dithering_seed': None
-  'cluster_seed': None
-  'stars_seed': None
-  'galobj_seed': None
+seeds:
+  # well pick new seeds every time
+  master_seed: None
+  noise_seed: None
+  dithering_seed: None
+  cluster_seed: None
+  stars_seed: None
+  galobj_seed: None
 

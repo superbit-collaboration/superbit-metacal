@@ -1,5 +1,9 @@
+import galsim
+
 from superbit_lensing import utils
 from copy import deepcopy
+
+import ipdb
 
 class ImSimConfig(object):
     # all parameter names identical to those used in standard
@@ -43,12 +47,12 @@ class ImSimConfig(object):
             ],
 
         'cluster': [
+            'type',
             'mass',
             'nfw_conc',
             'nfw_z_halo',
-            'center_ra',
-            'center_dec',
-            'nclustergal'
+            'center_ra', # NOTE: units set in opt param
+            'center_dec', # NOTE: units set in opt param
             ],
 
         'observation': [
@@ -58,14 +62,16 @@ class ImSimConfig(object):
 
         'cosmology': [
             'omega_m',
-            'omega_lam'
+            'omega_lam',
+            'h'
         ],
 
         'input': [
             'cosmosdir',
             'datadir',
             'cat_file_name',
-            'cluster_cat_name'
+            'cluster_cat_name',
+            'cluster_cat_dir'
         ]
     }
 
@@ -75,7 +81,7 @@ class ImSimConfig(object):
             'run_name': None,
             'mpi': False,
             'ncores': 1,
-            'clobber': False,
+            'overwrite': False,
             'vb': False
             },
 
@@ -88,6 +94,7 @@ class ImSimConfig(object):
         },
 
         'stars': {
+            'type': 'default',
             'nstars': None,
             'sample_gaia_cats': True,
             'gaia_dir': None,
@@ -95,17 +102,28 @@ class ImSimConfig(object):
         },
 
         'galaxies': {
-            'nobj': None
+            'type': 'cosmos',
+            'nobj': None,
+        },
+
+        'cluster': {
+            # NOTE: We follow the conventions of the old imsim module
+            'center_ra_unit': galsim.hours,
+            'center_dec_unit': galsim.degrees,
         },
 
         'position_sampling': {
-            type: 'random'
-            # TODO: fill in the rest of the fields!
+            'galaxies': {'type': 'random'},
+            'stars': {'type': 'random'},
+            'cluster': {'type': 'random'},
         },
 
         'shear': {
-            type: 'nfw'
-            # TODO: fill in the rest of the fields!
+            'type': 'nfw', # default cluster lensing by a NFW halo
+            'g1': None,
+            'g2': None,
+            'e1': None,
+            'e2': None
         },
 
         'seeds': {
@@ -146,9 +164,31 @@ class ImSimConfig(object):
         return
 
     def parse_config(self):
-        self.config = utils.parse_config(
-            self.config, self._req_params, self._opt_params, 'ImSim'
-            )
+
+        # loop over root fields
+        for field in self._req_params:
+            req = self._req_params[field]
+            try:
+                opt = self._opt_params[field]
+
+            except KeyError:
+                opt = {}
+
+            self.config[field] = utils.parse_config(
+                self.config[field], req, opt, 'ImSim'
+                )
+
+        # check for any root fields that only exist in _opt_params
+        for field in self._opt_params:
+            if field not in self._req_params:
+                req = []
+            else:
+                req = self._req_params[field]
+            opt = self._opt_params[field]
+
+            self.config[field] = utils.parse_config(
+                self.config[field], req, opt, f'ImSim[\'{field}\']'
+                )
 
         return
 
@@ -157,7 +197,7 @@ class ImSimConfig(object):
         TODO: For backwards compatibility, it may be nice to search
         through all nested fields if a key is not found
         '''
-        return self.pars[key]
+        return self.config[key]
 
     def __setitem__(self, key, val):
         self.config[key] = val

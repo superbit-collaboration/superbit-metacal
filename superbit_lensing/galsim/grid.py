@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import galsim
 import matplotlib.pyplot as plt
 
 import ipdb
@@ -23,7 +24,7 @@ class Grid(BaseGrid):
         grid_spacing: float
             Distance between "core" grid points in arcsec. May not be
             constant for all edges depending on the grid type
-        wcs: astropy.WCS instance
+        wcs: galsim.wcs instance
             The world coordinate system of the image to set the grid on
         Npix_x: int
             The number of pixels along the image x-axis
@@ -92,7 +93,7 @@ class Grid(BaseGrid):
         R = np.array(((c,-s), (s, c)))
 
         offset_grid = np.array(
-            [self.im_ra - offset[0], self.im_dec - offset[1]]
+            [self.im_x - offset[0], self.im_y - offset[1]]
             )
         translate = np.empty_like(offset_grid)
         translate[0,:] = offset[0]
@@ -101,7 +102,7 @@ class Grid(BaseGrid):
         rotated_grid = np.dot(R, offset_grid) + translate
 
         self.im_pos = rotated_grid.T
-        self.im_ra, self.im_dec = self.im_pos[0,:], self.im_pos[1,:]
+        self.im_x, self.im_y = self.im_pos[0,:], self.im_pos[1,:]
 
         return
 
@@ -120,11 +121,20 @@ class Grid(BaseGrid):
                               )
 
         self.im_pos = self.im_pos[in_region]
-        self.im_ra = self.im_pos[:,0]
-        self.im_dec = self.im_pos[:,1]
+        self.im_x = self.im_pos[:,0]
+        self.im_y = self.im_pos[:,1]
 
-        # Get all image coordinate pairs
-        self.pos = self.wcs.wcs_pix2world(self.im_pos, 1)
+        # use WCS to get world coords for the grid positions
+        # NOTE: galsim WCS's are more annoying than astropy for
+        # lists of coords...
+        self.pos = np.zeros(self.im_pos.shape)
+        self.pos_unit = 'rad'
+        for i, im_pos in enumerate(self.im_pos):
+            self.pos[i] = self.wcs.toWorld(
+                galsim.PositionD(im_pos)
+                ).rad
+
+        # # for convenience:
         self.ra = self.pos[:,0]
         self.dec = self.pos[:,1]
 
@@ -153,16 +163,16 @@ class RectGrid(Grid):
 
         po = self.pos_offset
         im_po = po / self.pix_scale
-        self.im_ra  = np.arange(self.startx, self.endx, im_gs)
-        self.im_dec = np.arange(self.starty, self.endy, im_gs)
+        self.im_x  = np.arange(self.startx, self.endx, im_gs)
+        self.im_y = np.arange(self.starty, self.endy, im_gs)
 
         # Get all image coordinate pairs
         self.im_pos = np.array(
-            np.meshgrid(self.im_ra, self.im_dec)
+            np.meshgrid(self.im_x, self.im_y)
             ).T.reshape(-1, 2)
 
-        self.im_ra  = self.im_pos[:,0]
-        self.im_dec = self.im_pos[:,1]
+        self.im_x  = self.im_pos[:,0]
+        self.im_y = self.im_pos[:,1]
 
         if self.rot_angle:
             self.rotate_grid(
@@ -201,8 +211,8 @@ class HexGrid(Grid):
             self.startx, self.starty, self.endx, self.endy, im_gs
             )
 
-        self.im_ra  = self.im_pos[:,0]
-        self.im_dec = self.im_pos[:,1]
+        self.im_x  = self.im_pos[:,0]
+        self.im_y = self.im_pos[:,1]
 
         if self.rot_angle:
             self.rotate_grid(
@@ -263,7 +273,7 @@ class HexGrid(Grid):
         s = np.shape(p)
         L = s[0]*s[1]
         pp = np.array(p).reshape(L,2)
-        c = np.vstack({tuple(row) for row in pp})
+        c = np.vstack([tuple(row) for row in pp])
         # Some of the redundant coordinates are offset by ~1e-10 pixels
         return np.unique(c.round(decimals=6), axis=0)
 
@@ -389,7 +399,7 @@ class MixedGrid(BaseGrid):
 
         return
 
-def build_grid_kwargs(grid_type, grid_config, image):
+def build_grid_kwargs(grid_type, grid_config, image, pixel_scale):
     '''
     Setup the kwargs needed to build the desired grid
 
@@ -400,6 +410,13 @@ def build_grid_kwargs(grid_type, grid_config, image):
         object type
     image: galsim.Image
         A galsim Image instance on which we will draw the grid
+        NOTE: While this can be the actual image to draw onto,
+        In many cases it will be a "base image" which defines a base
+        WCS to be used, even if actual observations are dithered
+        with respect to the base
+    pixel_scale: float
+        The image pixel scale (NOTE: not always image.scale, for
+        non-trivial WCS)
     '''
 
     try:
@@ -453,11 +470,8 @@ def build_grid_kwargs(grid_type, grid_config, image):
         # Default in radians
         angle_unit = 'rad'
 
-    ipdb.set_trace()
-
     wcs = image.wcs
     Nx, Ny = image.array.shape
-    pixel_scale = image.scale
 
     # Creates the grid given tile parameters and calculates the
     # image / world positions for each object
@@ -466,7 +480,7 @@ def build_grid_kwargs(grid_type, grid_config, image):
         'wcs': wcs,
         'Npix_x': Nx,
         'Npix_y': Ny,
-        'pixscale': pixel_scale,
+        'pix_scale': pixel_scale,
         'rot_angle': grid_rot_angle,
         'angle_unit': angle_unit,
         'pos_offset': grid_offset
@@ -488,8 +502,11 @@ def build_grid(grid_type, **kwargs):
     else:
         raise ValueError(f'{grid_type} is not a valid grid type!')
 
+# allow for a few different conventions
 GRID_TYPES = {
     'default': HexGrid,
     'rect_grid' : RectGrid,
-    'hex_grid' : HexGrid
+    'RectGrid' : RectGrid,
+    'hex_grid' : HexGrid,
+    'HexGrid' : HexGrid
     }

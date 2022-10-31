@@ -213,7 +213,7 @@ def parse_config(config, req, opt, name=None):
     '''
     config: dict
         A configuration dictionary
-    req: list
+    req: list, dict
         A list of required field names
     opt: dict
         A dictionary of optional field names, with
@@ -222,11 +222,11 @@ def parse_config(config, req, opt, name=None):
         Name of config type, for extra print info
     '''
 
-    if not isinstance(config, dict):
+    if (config is not None) and (not isinstance(config, dict)):
         raise TypeError('config must be a dict!')
-    if not isinstance(req, list):
-        raise TypeError('req must be a list!')
-    if not isinstance(opt, dict):
+    if (req is not None) and (not isinstance(req, list)):
+        raise TypeError('req must be a list or dict!')
+    if (opt is not None) and (not isinstance(opt, dict)):
         raise TypeError('opt must be a dict!')
 
     if name is None:
