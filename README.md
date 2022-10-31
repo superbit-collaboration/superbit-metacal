@@ -59,9 +59,11 @@ Activate new env:
 
 These env files are written with `--no-builds` and so hopefully are OS agnostic, but no guarantees.
 
-(**NOTE:** The following two steps may no longer be required) The `meds` package needs to be built from source. cd to the repo:
+## Extra dependencies
 
-`cd /path/to/repos/meds`
+The [meds](https://github.com/esheldon/meds) and [psfex](https://github.com/esheldon/psfex) packages need to be built from source. Clone each and cd to their respective repos:
+
+`cd /path/to/repos/{meds/psfex}`
 
 Build it:
 
