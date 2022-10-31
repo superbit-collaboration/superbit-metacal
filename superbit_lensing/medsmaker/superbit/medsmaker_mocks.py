@@ -1,7 +1,6 @@
 import numpy as np
 import meds
 import os
-import psfex
 from astropy.io import fits
 import string
 from pathlib import Path
@@ -555,6 +554,8 @@ class BITMeasurement():
 
         TODO: Implement psf_seed for PSFEx!
         '''
+
+        import psfex
 
         if config_path is None:
             config_path = os.path.join(

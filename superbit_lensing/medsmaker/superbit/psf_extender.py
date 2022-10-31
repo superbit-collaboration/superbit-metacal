@@ -1,5 +1,4 @@
 import numpy as np
-import piff
 import galsim
 
 import ipdb
@@ -47,6 +46,8 @@ def _piff_extender(piff_file, stamp_size):
     stamp_size: int
         The size of the piff PSF cutout
     '''
+
+    import piff
 
     psf = piff.read(piff_file)
     type_name = type(psf)
