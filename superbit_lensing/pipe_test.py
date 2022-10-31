@@ -265,7 +265,10 @@ def main(args):
     if fresh is True:
         outdir = os.path.join(testdir, 'pipe_test')
         print(f'Deleting old test directory {outdir}...')
-        shutil.rmtree(outdir)
+        try:
+            shutil.rmtree(outdir)
+        except FileNotFoundError as e:
+            print('Test directory does not exist. Ignoring --fresh flag')
 
     logfile = 'pipe_test.log'
     logdir = os.path.join(testdir, 'pipe_test')
