@@ -82,6 +82,8 @@ To test that your local installation worked or to validate that your code update
 - `tar -zxvf superbit_lensing/galsim/data/gaia/GAIAstars_2023filter.tar` (so you can sample GAIA stars for actual SuperBIT targets)
 - `tar -zxvf superbit_lensing/shear_profiles/truth/nfw_truth_files_sample.tar` (so you can compare your measured shear profile to a true NFW)
 
+**NOTE:** Since we are currently not including the source input catalog `cosmos15_superbit2023_phot_shapes.csv` in the repo, we have added a 1000-row subset `sample_cosmos15_superbit2023_phot_shapes.csv` in the `galsim/data/` directory that you can use to try a pipe test before you are sent the file by a current SuperBIT team member.
+
 Once both sets of tasks are done, simply run:
 
 `python superbit_lensing/pipe_test.py -path_config=configs/{my_path_config}.yaml --fresh`
