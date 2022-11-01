@@ -94,15 +94,14 @@ shear:
   g2: -0.3
 
 output:
-  base_name: grid_test
-  outdir: /Users/sweveret/repos/superbit-metacal/tests/grid_test/
+ outdir: /Users/sweveret/repos/superbit-metacal/tests/grid_test/
 
 seeds:
   # well pick new seeds every time
-  master_seed: None
-  noise_seed: None
-  dithering_seed: None
-  cluster_seed: None
-  stars_seed: None
-  galobj_seed: None
+  master: None
+  noise: None
+  dithering: None
+  cluster_galaxies: None
+  stars: None
+  galaxies: None
 

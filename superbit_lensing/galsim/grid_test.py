@@ -261,11 +261,11 @@ class ImSimRunner(object):
             self.psf = galsim.Convolve([jitter_psf, optics])
 
             self.logprint(f'Calculated lambda over diam = {lam_over_diam} arcsec')
-            logprint('\nuse_optics is True; convolving telescope optics PSF profile\n')
+            self.logprint('\nuse_optics is True; convolving telescope optics PSF profile\n')
 
         else:
             self.psf = jitter
-            logprint('\nuse_optics is False; using jitter-only PSF\n')
+            self.logprint('\nuse_optics is False; using jitter-only PSF\n')
 
         return
 
@@ -285,7 +285,10 @@ class ImSimRunner(object):
         self.assign_positions()
 
         for obj_type in self.objects:
-            self.objects[obj_type].generate_objects(ncores=self.ncores)
+            seed = self.config['seeds'][obj_type]
+            self.objects[obj_type].generate_objects(
+                ncores=self.ncores
+                )
 
             # TODO: check that this alters the obj attributes in-place!
 
@@ -479,7 +482,11 @@ class ImSimRunner(object):
         read_nosie = self.config['noise']['read_noise']
         dark_current = self.config['noise']['dark_current']
 
+
         Nim = len(self.images)
+        noise_seed = self.config['seeds']['noise']
+        noise_seeds = utils.generate_seeds(Nim, master_seed=noise_seed)
+
         for i, image, seed in enumerate(zip(self.images, noise_seeds)):
             self.logprint(f'Adding noise for image {i+1} of {Nim}')
 
@@ -675,7 +682,7 @@ class SourceClass(object):
 
         return
 
-    def generate_objects(self, ncores=1):
+    def generate_objects(self, obj_seed=None, ncores=1):
         '''
         TODO
 
@@ -683,7 +690,8 @@ class SourceClass(object):
             The number of processes to use when batching jobs
         '''
 
-        seeds = self.config['seeds']
+        if obj_seed is None:
+            obj_seed = utils.generate_seeds(1)
 
         start = time.time()
 
@@ -713,7 +721,7 @@ class SourceClass(object):
                             self.pos,
                             self.shear,
                             galsim.UniformDeviate(
-                                seeds['galobj_seed']+k+1
+                                seeds[obj_seed]+k+1
                                 ),
                             logprint,
                         ] for k in range(ncores))

@@ -14,7 +14,7 @@ class ImSimConfig(object):
     # these are top-level config fields
     _req_params = {
         'telescope': [
-            'tel_diam',
+            'diameter',
             'nstruts',
             'strut_thick',
             'strut_theta',
@@ -33,7 +33,8 @@ class ImSimConfig(object):
         'noise': [
             'read_noise',
             'dark_current',
-            'dark_current_std'
+            'dark_current_std',
+            'sky_bkg'
             ],
 
         'psf': [
@@ -127,12 +128,12 @@ class ImSimConfig(object):
         },
 
         'seeds': {
-            'master_seed': None,
-            'noise_seed': None,
-            'dithering_seed': None,
-            'cluster_seed': None,
-            'stars_seed': None,
-            'galobj_seed': None
+            'master': None,
+            'noise': None,
+            'dithering': None,
+            'cluster_galaxies': None,
+            'stars': None,
+            'galaxies': None
         }
     }
 
