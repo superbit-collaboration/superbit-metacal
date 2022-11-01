@@ -93,6 +93,8 @@ class ImSimRunner(object):
         self.nexp = self.config['observation']['nexp']
 
         self.images = None
+        self.weights = None
+        self.masks = None
 
         # TODO: We may want to make this different for each
         # exp in the future
@@ -106,7 +108,7 @@ class ImSimRunner(object):
         # for exp in range(self.nexp):
         # self.logprint(f'Starting exp {exp}')
 
-        self.logprint('Setting up image...')
+        self.logprint('Setting up images...')
         self.setup_images()
 
         self.logprint('Setting up PSF...')
@@ -118,17 +120,20 @@ class ImSimRunner(object):
         self.logprint('Generating objects...')
         self.generate_objects()
 
+        self.logprint('Adding objects to images...')
+        self.fill_images()
+
         self.logprint('Adding noise...')
         self.add_noise()
 
-        self.logprint('Adding weights...')
+        # self.logprint('Adding weights...')
         # self.add_weights()
 
-        self.logprint('Adding masks...')
+        # self.logprint('Adding masks...')
         # self.add_weights()
 
-        self.logprint('Writing out image...')
-        # self.write()
+        self.logprint('Writing out images...')
+        self.write_images()
 
         return
 
@@ -210,10 +215,57 @@ class ImSimRunner(object):
 
     def setup_psf(self):
         '''
-        TODO: Implement different PSF options in config first
+        TODO: Implement different PSF options in config & psf.py
+        For now, we just do what is done in the original imsims
         '''
 
-        self.psf = galsim.Gaussian(fwhm=0.24)
+        jitter_fwhm = self.config['psf']['jitter_fwhm']
+        use_optics = self.config['psf']['use_optics']
+
+        # first the jitter component from gondola instabilities
+        jitter = galsim.Gaussian(flux=1, fwhm=jitter_fwhm)
+
+        if use_optics is True:
+            # next, define Zernicke polynomial component for the optics
+            lam = self.config['filter']['lam']
+            diam = self.config['telescope']['diameter']
+            obscuration = self.config['telescope']['obscuration']
+            nstruts = self.config['telescope']['nstruts']
+            strut_angle = self.config['telescope']['strut_angle']
+            strut_thick = self.config['telescope']['strut_thick']
+
+            # NOTE: aberrations were definined for lam = 550, and close to the
+            # center of the camera. The PSF degrades at the edge of the FOV
+            lam_over_diam = lam * 1.e-9 / diam    # radians
+            lam_over_diam *= 206265.
+
+            aberrations = np.zeros(38)             # Set the initial size.
+            aberrations[0] = 0.                       # First entry must be zero
+            aberrations[1] = -0.00305127
+            aberrations[4] = -0.02474205              # Noll index 4 = Defocus
+            aberrations[11] = -0.01544329             # Noll index 11 = Spherical
+            aberrations[22] = 0.00199235
+            aberrations[26] = 0.00000017
+            aberrations[37] = 0.00000004
+
+            optics = galsim.OpticalPSF(
+                lam=lam,
+                diam=diam,
+                obscuration=obscuration,
+                nstruts=nstruts,
+                strut_angle=strut_angle,
+                strut_thick=strut_thick,
+                aberrations=aberrations
+                )
+
+            self.psf = galsim.Convolve([jitter_psf, optics])
+
+            self.logprint(f'Calculated lambda over diam = {lam_over_diam} arcsec')
+            logprint('\nuse_optics is True; convolving telescope optics PSF profile\n')
+
+        else:
+            self.psf = jitter
+            logprint('\nuse_optics is False; using jitter-only PSF\n')
 
         return
 
@@ -232,8 +284,8 @@ class ImSimRunner(object):
         # assigning positions
         self.assign_positions()
 
-        for obj_type, obj_list in self.objects.items():
-            obj_list.generate_objects(ncores=self.ncores)
+        for obj_type in self.objects:
+            self.objects[obj_type].generate_objects(ncores=self.ncores)
 
             # TODO: check that this alters the obj attributes in-place!
 
@@ -348,14 +400,139 @@ class ImSimRunner(object):
 
         return
 
-    def add_noise(self):
+    def fill_images(self):
+        '''
+        Fill each exposure with the generated objects
+
+        NOTE: This will only work for a static PSF as written, can
+        generalize in the future
+        '''
+
+        N = len(self.images)
+        for i, image in enumerate(self.images):
+            self.logprint(f'Filling image {i+1} of {N}')
+            for obj_type, obj in self.objects:
+                self.logprint(f'Adding {obj_type}...')
+                image += self._fill_image(
+                    image, obj.obj_list, self.logprint
+                    )
+            self.images[i] = image
+
         return
 
-    def shear_objects(self):
-        pass
+    @staticmethod
+    def _fill_image(image, obj_list, logprint):
+        '''
+        NOTE: This version is for a non-static PSF. Not currently used
 
-    def _shear_objects(self):
-        pass
+        Fill the passed image with objects from the object list.
+        Multiprocessing-friendly.
+
+        image: galsim.Image
+            The GalSim image to add objects to
+        obj_list: list of tuples
+            The collated make_obj_runner outputs (i, stamp, truth)
+        logprint: utils.LogPrint
+            A LogPrint instance
+        '''
+
+        for i, stamp, truth in obj_stamps:
+
+            if (stamp is None) or (truth is None):
+                continue
+
+            # Find the overlapping bounds:
+            bounds = stamp.bounds & image.bounds
+
+            # Finally, add the stamp to the full image.
+            try:
+                image[bounds] += stamp[bounds]
+            except galsim.errors.GalSimBoundsError as e:
+                logprint(e)
+
+            # this_flux = np.sum(stamp.array)
+
+            # if exp_num == 1:
+            #     row = [i, truth.cosmos_index, truth.x, truth.y,
+            #         truth.ra, truth.dec,
+            #         truth.g1, truth.g2,
+            #         truth.mu,truth.z,
+            #         this_flux, truth.fwhm, truth.mom_size,
+            #         truth.n, truth.hlr, truth.scale_h_over_r,
+            #         truth.obj_class
+            #         ]
+            #     truth_catalog.addRow(row)
+
+        return image
+
+    def add_noise(self):
+        '''
+        TODO: Generalize a bit! For now, we do the same thing as
+        the original imsim generation
+        '''
+
+        exp_time = self.config['observation']['exp_time']
+
+        gain = self.config['detector']['gain']
+
+        sky_bkg = self.config['noise']['sky_bkg']
+        read_nosie = self.config['noise']['read_noise']
+        dark_current = self.config['noise']['dark_current']
+
+        Nim = len(self.images)
+        for i, image, seed in enumerate(zip(self.images, noise_seeds)):
+            self.logprint(f'Adding noise for image {i+1} of {Nim}')
+
+            dark_noise = dark_current * exp_time
+            image += dark_noise
+
+            noise = galsim.CCDNoise(
+                sky_level=sky_bkg,
+                gain=gain,
+                read_noise=read_noise,
+                rng=galsim.BaseDeviate(seed)
+                )
+
+            self.image[i] = image.addNoise(noise)
+
+        return
+
+    def write_images(self):
+        '''
+        At this stage, images are ready for writing. Any additional
+        extensions such as weights or masks are expected to have been
+        run by this stage
+
+        TODO: more work needed for masks & weights
+        '''
+
+        # extensions = zip(self.images, self.weights, self.masks)
+
+        outdir = self.config['output']
+        run_name = self.config['run_options']['run_name']
+        overwrite = self.config['run_options']['overwrite']
+
+        for i, image in self.images:
+            # to match the old imsim convention:
+            outnum = str(i).zfill(3)
+            fname = f'{run_name}_{outnum}.fits'
+            outfile = os.path.join(outdir, fname)
+
+            with fitsio.FITS(outfile, 'rw') as out:
+                out.write(image, ext=0, clobber=overwrite)
+
+                try:
+                    weight = self.weights[i]
+                    out.write(weight, ext=1, clobber=overwrite)
+                except:
+                    logprint(f'Weight writing failed for image {i}; skipping')
+                try:
+                    mask = self.masks[i]
+                    out.write(mask, ext=2, clobber=overwrite)
+                except:
+                    logprint(f'Mask writing failed for image {i}; skipping')
+
+        return
 
     #---------------------------------
     # a few handy quick access funcs
@@ -498,12 +675,10 @@ class SourceClass(object):
 
         return
 
-    def generate_objects(self, image, ncores=1):
+    def generate_objects(self, ncores=1):
         '''
         TODO
 
-        image: galsim.Image
-            The GalSim image to add objects to
         ncores: int
             The number of processes to use when batching jobs
         '''
@@ -525,13 +700,15 @@ class SourceClass(object):
                 # TODO: implement truth cats!
                 # filled_image, truth_catalog = self.combine_objs(
                 # filled_image = self.combine_objs(
-                self.obj_stamps = self.collate_objs(
+
+                # NOTE: Since we are using a static PSF, we only generate the
+                # object stamps once. Can generalize in the future if needed
+                self.collate_objs(
                     pool.starmap(
                         self.make_obj_runner,
                         ([
                             batch_indices[k],
                             self.config,
-                            image,
                             self.psf,
                             self.pos,
                             self.shear,
@@ -546,8 +723,10 @@ class SourceClass(object):
         dt = time.time() - start
         logprint(f'Total time for {self.obj_type} injections: {dt:.1f}s')
 
+        return
+
         # TODO: implement truth cats!
-        return filled_image#, truth_catalog
+        # return filled_image#, truth_catalog
 
     # def get_make_obj_args(self, batch_indices, k):
     #     '''
@@ -575,56 +754,6 @@ class SourceClass(object):
 
         return
 
-    # TODO: rework this to work off of self.obj_stamps
-    @staticmethod
-    def combine_objs(obj_list, filled_image, truth_catalog, exp_num):
-        '''
-        Fill the passed image with objects from the object list.
-        Multiprocessing-friendly.
-
-        image: galsim.Image
-            The GalSim image to add objects to
-        obj_list: list of tuples
-            The collated make_obj_runner outputs (i, stamp, truth)
-
-        exp_num: int
-            The exposure number. Only add to truth table if equal to 1
-        '''
-
-        # flatten outputs into 1 list
-        make_obj_outputs = [item for sublist in make_obj_outputs
-                            for item in sublist]
-
-        for i, stamp, truth in make_obj_outputs:
-
-            if (stamp is None) or (truth is None):
-                continue
-
-            # Find the overlapping bounds:
-            bounds = stamp.bounds & filled_image.bounds
-
-            # Finally, add the stamp to the full image.
-            try:
-                filled_image[bounds] += stamp[bounds]
-            except galsim.errors.GalSimBoundsError as e:
-                print(e)
-
-            this_flux = np.sum(stamp.array)
-
-            if exp_num == 1:
-                row = [i, truth.cosmos_index, truth.x, truth.y,
-                    truth.ra, truth.dec,
-                    truth.g1, truth.g2,
-                    truth.mu,truth.z,
-                    this_flux, truth.fwhm, truth.mom_size,
-                    truth.n, truth.hlr, truth.scale_h_over_r,
-                    truth.obj_class
-                    ]
-                truth_catalog.addRow(row)
-
-        return filled_image, truth_catalog
-
-    @staticmethod
     def make_obj_runner(batch_indices, config, logprint, **kwargs):
         '''
         Handles the batch running of make_obj() over multiple cores

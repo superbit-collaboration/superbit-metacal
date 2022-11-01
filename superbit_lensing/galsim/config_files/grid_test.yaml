@@ -10,20 +10,21 @@ run_options:
   vb: False
 
 telescope:
-  tel_diam: 0.5 # [m]
+  diameter: 0.5 # [m]
   nstruts: 4 # number of M2 struts
   strut_thick: 0.087 # fraction of diameter strut thickness [m/m]
   strut_theta: 90 # angle between verticle & nearest [deg]
   obscuration: 0.380 # fraction of aperture obscured by M2
 
 filter:
-  lam: 475 # fiducial wavelength for abberations [nm]
+  lam: 475 # central wavelength (used for PSF abberations) [nm]
   bandpass: crates_b # catalog filter name for simulation
 
 detector:
   gain: 0.343 # [e- / ADU]
 
 noise:
+  sky_bkg: 0 # [e- / s / pixel]
   read_noise: 1.8 # [e-]
   dark_current: 0.0022 # [ADU / pix / s]
   dark_current_std: 0.001 # [ADU / pix / s]
@@ -93,7 +94,8 @@ shear:
   g2: -0.3
 
 output:
-  outdir: None # is set by test runner
+  base_name: grid_test
+  outdir: /Users/sweveret/repos/superbit-metacal/tests/grid_test/
 
 seeds:
   # well pick new seeds every time
