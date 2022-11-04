@@ -21,9 +21,9 @@ class ImSimConfig(object):
             'obscuration'
             ],
 
-        'filter': [
+        'bandpass': [
             'lam',
-            'bandpass'
+            'name'
             ],
 
         'detector': [
@@ -95,22 +95,30 @@ class ImSimConfig(object):
         },
 
         'stars': {
+            # plus any fields required by the galaxy class type
             'type': 'default',
-            'nstars': None,
-            'sample_gaia_cats': True,
+            'Nobjs': None,
             'gaia_dir': None,
-            'star_cat_name': None
+            'cat_file': None
+            # plus any fields required by the galaxy class type
         },
 
         'galaxies': {
             'type': 'cosmos',
-            'nobj': None,
+            'Nobjs': None,
+            # plus any fields required by the galaxy class type
         },
 
         'cluster': {
             # NOTE: We follow the conventions of the old imsim module
             'center_ra_unit': galsim.hours,
             'center_dec_unit': galsim.degrees,
+        },
+
+        'cluster_galaxies': {
+            'type': 'default',
+            'Nobjs': None
+            # plus any fields required by the galaxy class type
         },
 
         'position_sampling': {
@@ -176,7 +184,8 @@ class ImSimConfig(object):
                 opt = {}
 
             self.config[field] = utils.parse_config(
-                self.config[field], req, opt, 'ImSim'
+                self.config[field], req, opt, 'ImSim',
+                allow_unregistered=True
                 )
 
         # check for any root fields that only exist in _opt_params
@@ -187,9 +196,15 @@ class ImSimConfig(object):
                 req = self._req_params[field]
             opt = self._opt_params[field]
 
-            self.config[field] = utils.parse_config(
-                self.config[field], req, opt, f'ImSim[\'{field}\']'
-                )
+            try:
+                config = self.config[field]
+                self.config[field] = utils.parse_config(
+                    config, req, opt, f'ImSim[\'{field}\']',
+                    allow_unregistered=True
+                    )
+            except KeyError:
+                # don't fill an optional field that wasn't passed
+                pass
 
         return
 

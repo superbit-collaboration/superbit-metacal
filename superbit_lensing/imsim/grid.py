@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 import ipdb
 
 '''
-This file is an evolution of grid classes in sweverett/Balrog-GalSim
+NOTE: This file is an evolution of grid classes in sweverett/Balrog-GalSim
+Complain to me circa 2017 if you think it's confusing
 '''
 
 # The following base class is useful for accessing allowed parameter values
@@ -42,7 +43,8 @@ class Grid(BaseGrid):
 
         self.grid_spacing = grid_spacing  # arcsec
         self.im_gs = grid_spacing * (1.0 / pix_scale)  # pixels
-        self.Npix_x, self.Npix_y = Npix_x, Npix_y
+        self.Npix_x = Npix_x
+        self.Npix_y = Npix_y
         self.pix_scale = pix_scale  # arcsec / pixel
         self.wcs = wcs
         self.rot_angle = rot_angle # rotation angle, in rad
@@ -66,8 +68,8 @@ class Grid(BaseGrid):
             self.starty = (0.-dx) * np.cos(theta) + (0.-dy) * np.sin(theta) + dx
             self.endy = (Npix_x-dx) * np.cos(theta) + (Npix_y-dy) * np.sin(theta) + dx
         else:
-            self.startx, self.endx= 0., Npix_x
-            self.starty, self.endy= 0., Npix_y
+            self.startx, self.endx = 0, Npix_x
+            self.starty, self.endy = 0, Npix_y
 
         return
 
@@ -128,7 +130,7 @@ class Grid(BaseGrid):
         # NOTE: galsim WCS's are more annoying than astropy for
         # lists of coords...
         self.pos = np.zeros(self.im_pos.shape)
-        self.pos_unit = 'rad'
+        self.pos_unit = galsim.radians
         for i, im_pos in enumerate(self.im_pos):
             self.pos[i] = self.wcs.toWorld(
                 galsim.PositionD(im_pos)
@@ -168,6 +170,7 @@ class RectGrid(Grid):
 
         # Get all image coordinate pairs
         self.im_pos = np.array(
+            # TODO: Does this need to be indexing='ij'?
             np.meshgrid(self.im_x, self.im_y)
             ).T.reshape(-1, 2)
 
@@ -312,8 +315,11 @@ class MixedGrid(BaseGrid):
         self._check_inj_frac()
 
         self.pos = {}
+        self.im_pos = {}
         self.indx = {}
         self.nobjects = {}
+
+        self.pos_unit = None
 
         self.assigned_objects = False
 
@@ -353,6 +359,8 @@ class MixedGrid(BaseGrid):
         if self.curr_N_types == self.N_inj_types:
             self._assign_objects()
 
+        self.pos_unit = self.grid.pos_unit
+
         return
 
     def _assign_objects(self):
@@ -388,9 +396,9 @@ class MixedGrid(BaseGrid):
             i = np.random.choice(indx, nobjs, replace=False)
             self.indx[inj_type] = i
             self.pos[inj_type] = self.grid.pos[i]
+            self.im_pos[inj_type] = self.grid.im_pos[i]
 
             indx = np.setdiff1d(indx, i)
-
 
         assert(np.sum(list(self.nobjects.values())) == N) #MEGAN added list()
         assert(len(indx) == 0)
@@ -471,7 +479,10 @@ def build_grid_kwargs(grid_type, grid_config, image, pixel_scale):
         angle_unit = 'rad'
 
     wcs = image.wcs
-    Nx, Ny = image.array.shape
+    # NOTE: image.array.shape is the transpose of FITS convention, so
+    # we use ncol/nrow explicitly
+    Nx = image.ncol
+    Ny = image.nrow
 
     # Creates the grid given tile parameters and calculates the
     # image / world positions for each object

@@ -5,9 +5,9 @@
 run_options:
   run_name: grid_test
   mpi: False
-  ncores: 8
+  ncores: 1
   overwrite: False
-  vb: False
+  vb: True
 
 telescope:
   diameter: 0.5 # [m]
@@ -16,16 +16,17 @@ telescope:
   strut_theta: 90 # angle between verticle & nearest [deg]
   obscuration: 0.380 # fraction of aperture obscured by M2
 
-filter:
+bandpass:
   lam: 475 # central wavelength (used for PSF abberations) [nm]
-  bandpass: crates_b # catalog filter name for simulation
+  name: crates_b # catalog filter name for simulation
 
 detector:
   gain: 0.343 # [e- / ADU]
 
 noise:
   sky_bkg: 0 # [e- / s / pixel]
-  read_noise: 1.8 # [e-]
+  #read_noise: 1.8 # [e-]
+  read_noise: .025 # [e-]
   dark_current: 0.0022 # [ADU / pix / s]
   dark_current_std: 0.001 # [ADU / pix / s]
 
@@ -67,21 +68,21 @@ input:
   cluster_cat_name: real_galaxy_catalog_23.5.fits
 
 stars:
-  type: default
+  type: gaia
   #sample_gaia_cats: True
+  gaia_dir: /Users/sweveret/repos/superbit-metacal/superbit_lensing/galsim/data/gaia/
   #gaia_dir: USE_PATH_CONFIG
   # nobjs: None # used if not using GAIA catalogs
-  # star_cat_name: None # used if not using GAIA catalogs
 
 galaxies:
-  # nobjs: None # used for random position sampling
   type: 'circle'
+  # nobjs: None # used for random position sampling
 
 position_sampling:
   galaxies:
     type: MixedGrid
     grid_type: HexGrid
-    grid_spacing: 10 # arcsec
+    grid_spacing: 30 # arcsec
     fraction: 0.8
   stars:
     type: MixedGrid

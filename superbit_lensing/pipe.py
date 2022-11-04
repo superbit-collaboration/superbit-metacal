@@ -372,41 +372,31 @@ class GalSimModule(SuperBITModule):
 
         return cmd
 
-class GridTestModule(GalSimModule):
+class ImSimModule(SuperBITModule):
+    _req_fields = ['config_file']
+    _opt_fields = ['run_name', 'outdir', 'ncores']
+    _flag_fields = ['overwrite', 'vb']
+
+    def __init__(self, name, config):
+        super(ImSimModule, self).__init__(name, config)
+
+        # ...
+
+        return
+
     def _setup_run_command(self, run_options):
 
-        galsim_dir = os.path.join(utils.MODULE_DIR, 'galsim')
-        filepath = os.path.join(galsim_dir, 'grid_test.py')
+        galsim_dir = os.path.join(utils.MODULE_DIR, 'imsim')
+        filepath = os.path.join(galsim_dir, 'run_imsim.py')
 
         outdir = self._config['outdir']
-        base = f'python {filepath} {self.gs_config_path} -outdir={outdir}'
+        base = f'python {filepath} {self.gs_config_path}'
 
-        # multiple mpi flags breaks this func...
-        # options = self._setup_options(run_options)
-        options = ''
-
-        if 'run_name' not in self._config:
-            run_name = run_options['run_name']
-            options += f' -run_name={run_name}'
-
-        if 'overwrite' in self._config:
-            options += ' --overwrite'
-
-        if run_options['vb'] is True:
-            options += ' --vb'
+        options = self._setup_options(run_options)
 
         cmd = base + options
 
-        ncores = run_options['ncores']
-        if ncores > 1:
-            if hasattr(self._config, 'use_mpi'):
-                if self._config['use_mpi'] is True:
-                    cmd = f'mpiexec -n {ncores} ' + cmd
-            if hasattr(self._config, 'use_srun'):
-                if self._config['use_srun'] is True:
-                    cmd = f'srun -mpi=pmix ' + cmd
-            else:
-                cmd = cmd + f' -ncores={ncores}'
+        ipdb.set_trace()
 
         return cmd
 
@@ -706,7 +696,7 @@ def get_module_types():
 # NOTE: This is where you must register a new module
 MODULE_TYPES = {
     'galsim': GalSimModule,
-    'grid_test': GridTestModule,
+    'imsim': ImSimModule,
     'medsmaker': MedsmakerModule,
     'metacal': MetacalModule,
     'metacal_v2': MetacalModuleV2,

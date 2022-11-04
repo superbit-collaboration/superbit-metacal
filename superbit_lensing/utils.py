@@ -209,7 +209,7 @@ def check_req_fields(config, req, name=None):
 
     return
 
-def parse_config(config, req, opt, name=None):
+def parse_config(config, req, opt, name=None, allow_unregistered=False):
     '''
     config: dict
         A configuration dictionary
@@ -220,6 +220,8 @@ def parse_config(config, req, opt, name=None):
         optional values assigned
     name: str
         Name of config type, for extra print info
+    allow_unregistered: bool
+        Set to allow fields not registered as a req or optional field
     '''
 
     if (config is not None) and (not isinstance(config, dict)):
@@ -243,9 +245,10 @@ def parse_config(config, req, opt, name=None):
     check_req_fields(config, req, name=name)
 
     # now check for fields not in either
-    for field in config:
-        if (not field in req) and (not field in opt):
-            raise ValueError(f'{field} not a valid field for {name}config!')
+    if allow_unregistered is False:
+        for field in config:
+            if (not field in req) and (not field in opt):
+                raise ValueError(f'{field} not a valid field for {name}config!')
 
     # set defaults for any optional field not present in config
     for field, value in opt.items():
@@ -349,7 +352,10 @@ def setup_batches(nobjs, ncores):
     Create list of batch indices for each core
     '''
 
-    batch_len = [nobjs//ncores]*(ncores-1)
+    if ncores >= 1:
+        batch_len = [nobjs//ncores]*(ncores-1)
+    else:
+        raise ValueError('ncores must be >= 1')
 
     s = int(np.sum(batch_len))
     batch_len.append(nobjs-s)

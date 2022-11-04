@@ -55,7 +55,7 @@ class StaticPSF(BasePSF):
     _opt_params = {}
 
     _name = 'static'
-    _is_static = True
+    is_static = True
 
     def __init__(self, config):
         '''

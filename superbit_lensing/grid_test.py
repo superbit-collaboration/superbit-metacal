@@ -9,44 +9,10 @@ from pipe import SuperBITPipeline
 import ipdb
 
 '''
-A "pipe test" is used to validate the current state of the pipeline code,
-not correctness. As such it optimizes configuration choices for speed and
-not accuracy. Please run a full end-to-end pipe test before commiting code
-to the repository.
-
-The simplest way to run a pipe test is to make a copy of
-
-{REPO_DIR}/configs/path_config.yaml
-
-with your local filepaths added where indicated. The patterns suggested
-may be different depending on your env & installation setup.
-
-Then simply run the following:
-
-python pipe_test.py -path_config={LOCAL_PATH_CONFIG} --fresh
-
-where --fresh tells the test to reset the pipe_test output directory.
-
-Alternatively, you can specify your own full pipeline configuration & galsim
-configuration files in correct format for more control over the pipe test.
-You would then run
-
-python pipe_test.py -pipe_config={PIPE_CONFIG} -gs_config={GS_CONFIG} --fresh
-
-For convenience, I add this line to a short shell script and simply call
-`source ptest.sh` when I want to run a pipe test.
-
-If the test fails on the n-th module, you may want to edit `run_options['order']`
-in the saved pipe config in {TEST_DIR}/pipe_test/ so that you don't unnecessarily
-rerun the previous n-1 modules. In this case you would now run
-
-python pipe_test.py -pipe_config={TEST_DIR/pipe_test/pipe_test.yaml}
-                    -gs_config={TEST_DIR/pipe_test/pipe_test_gs.yaml}
-
-where it is now important to not use the --fresh flag.
-
-For downloading the required GalSim COSMOS catalogs, see:
-https://galsim-developers.github.io/GalSim/_build/html/real_gal.html#downloading-the-cosmos-catalog
+A "grid test" is like a "pipe test", but instead of validating the current
+state of the pipeline code, it generates a simplistic set of images to test
+the shear calibration in a simple setting. See grid_test.py & the README for
+instructions on how to run such a test (just change "pipe" -> "grid")
 '''
 
 def parse_args():
@@ -61,9 +27,9 @@ def parse_args():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-path_config', type=str, default=None,
                         help='A yaml config file that defines the paths ' +
-                        'needed to run a pipe test')
+                        'needed to run a grid test')
     group.add_argument('-gs_config', type=str, default=None,
-                        help='A galsim module config to use for the pipe ' +
+                        help='A galsim module config to use for the grid' +
                         'test, if youd rather specify everything yourself')
 
     parser.add_argument('--fresh', action='store_true', default=False,
@@ -71,7 +37,7 @@ def parse_args():
 
     # NOTE: As ngmix-fit needs some refactoring, this is currently unused
     parser.add_argument('-ngmix_config', type=str, default=None,
-                        help='A ngmix-fit module config to use for the pipe ' +
+                        help='A ngmix-fit module config to use for the grid' +
                         'test, if youd rather specify everything yourself')
 
     return parser.parse_args()
@@ -79,12 +45,11 @@ def parse_args():
 # The following helper functions create dummy config files for their corresponding
 # categories. You can always provide your own if you prefer.
 
-def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
+def make_test_pipe_config(gs_config_file, outfile='grid_test.yaml',
                           imsim='imsim', outdir=None, overwrite=False):
     '''
-    Create a basic yaml config file that tests whether the pipeline
-    succeeds in running end-to-end. Prioritizes speed over scientific
-    value
+    Create a basic yaml config file that tests whether the shear calibration
+    succeeds in a simplified setting (low noise, objects on a grid, etc.)
 
     gs_config_file: str
         The filename of the galsim config file to use
@@ -102,7 +67,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
         filename = os.path.join(outdir, outfile)
 
     if (overwrite is True) or (not os.path.exists(filename)):
-        run_name = 'pipe_test'
+        run_name = 'grid_test'
         outdir = os.path.join(utils.TEST_DIR, run_name)
         se_file = os.path.join(outdir, f'{run_name}_mock_coadd_cat.ldac')
         meds_file = os.path.join(outdir, f'{run_name}_meds.fits')
@@ -116,7 +81,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
             )
 
         if not os.path.exists(nfw_file):
-            raise OSError(f'Warning: pipe test nfw file {nfw_file} does not ' +
+            raise OSError(f'Warning: grid test nfw file {nfw_file} does not ' +
                           'exist; have you unpacked the sample tar file?')
 
         test_config = {
@@ -136,8 +101,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
                     ]
                 },
             f'{imsim}': {
-                'config_file': 'pipe_test_gs.yaml',
-                'config_dir': os.path.join(utils.TEST_DIR, 'pipe_test'),
+                'config_file': os.path.join(utils.TEST_DIR, 'grid_test_gs.yaml'),
                 'run_name': run_name,
                 'outdir': outdir,
                 'overwrite': overwrite
@@ -183,7 +147,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
 
     return filename
 
-def make_test_gs_config(path_config, outfile='pipe_test_gs.yaml', outdir=None,
+def make_test_gs_config(path_config, outfile='grid_test_gs.yaml', outdir=None,
                         overwrite=False):
 
     if outdir is not None:
@@ -191,15 +155,27 @@ def make_test_gs_config(path_config, outfile='pipe_test_gs.yaml', outdir=None,
 
     if (overwrite is True) or (not os.path.exists(filename)):
 
-        # use REPO/configs/pipe_test_gs.yaml as base
+        # use REPO/configs/grid_test_gs.yaml as base
 
         test_config = utils.read_yaml(
-            os.path.join(utils.BASE_DIR, 'configs', 'pipe_test_gs.yaml')
+            os.path.join(utils.BASE_DIR, 'configs', 'grid_test_gs.yaml')
             )
 
         # update with local filepaths
+        root_fields: {
+            'datadir': None,
+            'cosmosdir': 'galaxies',
+            'cluster_dir': 'cluster_galaxies',
+            'cluster_cat_name': 'cluster_galaxies',
+            'gaia_dir': 'stars'
+        }
         for name, path in path_config.items():
-            test_config[name] = path
+            root = root_fields[name]
+            try:
+                test_config[root][name] = path
+            except KeyError:
+                # might not be used
+                pass
 
         utils.write_yaml(test_config, filename)
 
@@ -216,7 +192,7 @@ def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
         filename = os.path.join(outdir, config_file)
 
     if run_name is None:
-        run_name = 'pipe_test'
+        run_name = 'grid_test'
 
     if (overwrite is True) or (not os.path.exists(filename)):
         test_config = {
@@ -264,15 +240,15 @@ def main(args):
     testdir = utils.get_test_dir()
 
     if fresh is True:
-        outdir = os.path.join(testdir, 'pipe_test')
+        outdir = os.path.join(testdir, 'grid_test')
         print(f'Deleting old test directory {outdir}...')
         try:
             shutil.rmtree(outdir)
         except FileNotFoundError as e:
             print('Test directory does not exist. Ignoring --fresh flag')
 
-    logfile = 'pipe_test.log'
-    logdir = os.path.join(testdir, 'pipe_test')
+    logfile = 'grid_test.log'
+    logdir = os.path.join(testdir, 'grid_test')
     log = utils.setup_logger(logfile, logdir=logdir)
 
     # need to parse local paths before creating galsim config, unless
@@ -301,7 +277,7 @@ def main(args):
         print(f'Using pipe_config_file {pipe_config_file}')
 
     # we saved it to a file instead of returning a dict so that there is
-    # a record in the pipe_test outdir
+    # a record in the grid_test outdir
     pipe_config = utils.read_yaml(pipe_config_file)
 
     vb = pipe_config['run_options']['vb']
