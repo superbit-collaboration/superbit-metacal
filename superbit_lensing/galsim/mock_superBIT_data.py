@@ -22,7 +22,6 @@ import time
 import galsim
 import galsim.des
 import galsim.convolve
-import pdb, pudb
 from glob import glob
 import pickle
 import scipy
@@ -38,6 +37,8 @@ from mpi_helper import MPIHelper
 from multiprocessing import Pool
 
 import superbit_lensing.utils as utils
+
+import ipdb
 
 def parse_args():
     parser = ArgumentParser()
