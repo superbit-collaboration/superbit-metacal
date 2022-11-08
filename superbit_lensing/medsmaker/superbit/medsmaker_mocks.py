@@ -472,6 +472,8 @@ class BITMeasurement():
 
         if psf_seed is None:
             psf_seed = utils.generate_seeds(1)
+            self.logprint('No PSF seed passed')
+            self.logprint(f'Using psf_seed={psf_seed}')
 
         self.psf_models = []
 
@@ -620,7 +622,7 @@ class BITMeasurement():
         # update piff config w/ psf_seed
         config = utils.read_yaml(base_piff_config)
         if psf_seed is None:
-            psf_seed = utils.generate_seeds(1)
+            psf_seed = utils.generate_seeds(1)[0]
         config['select']['seed'] = psf_seed
         utils.write_yaml(config, run_piff_config)
 
@@ -706,10 +708,12 @@ class BITMeasurement():
             truthcat : the simulation truth catalog written out by GalSim
         '''
 
-        try:
-            ss = Table.read(sscat,hdu=2)
-        except:
-            ss = Table.read(sscat,hdu=1)
+        # TODO: what is going on here?
+        ss = Table.read(sscat, hdu=1)
+        # try:
+        #     ss = Table.read(sscat,hdu=2)
+        # except:
+        #     ss = Table.read(sscat,hdu=1)
 
         if truthfile is not None:
             # Read in truthfile, obtain stars with redshift cut
@@ -732,6 +736,7 @@ class BITMeasurement():
             ss[wg_stars].write(outname,format='fits',overwrite=True)
 
         else:
+            ipdb.set_trace()
             # Do more standard stellar locus matching
             # Would be great to have stellar_locus_params be more customizable...
             outname = sscat.replace('.ldac','stars.ldac')
@@ -767,12 +772,13 @@ class BITMeasurement():
             bkgsub_name = image_file.replace('.fits','.sub.fits')
             segmap_name = image_file.replace('.fits','.sgm.fits')
 
+            # TODO: generalize!
             image_info[i]['image_path']  =  bkgsub_name
             image_info[i]['image_ext']   =  0
-            image_info[i]['weight_path'] =  self.weight_file
-            image_info[i]['weight_ext']  =  0
-            image_info[i]['bmask_path']  =  self.mask_file
-            image_info[i]['bmask_ext']   =  0
+            image_info[i]['weight_path'] =  bkgsub_name
+            image_info[i]['weight_ext']  =  1
+            image_info[i]['bmask_path']  =  bkgsub_name
+            image_info[i]['bmask_ext']   =  2
             image_info[i]['seg_path']    =  segmap_name
             image_info[i]['seg_ext']     =  0
 

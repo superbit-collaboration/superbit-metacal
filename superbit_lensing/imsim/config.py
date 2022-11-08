@@ -33,7 +33,6 @@ class ImSimConfig(object):
         'noise': [
             'read_noise',
             'dark_current',
-            'dark_current_std',
             'sky_bkg'
             ],
 

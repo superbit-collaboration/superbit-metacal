@@ -1,6 +1,7 @@
 import numpy as np
 import galsim
 import fitsio
+import os
 from astropy.table import Table, vstack
 from argparse import ArgumentParser
 
@@ -52,6 +53,8 @@ class ImSimRunner(object):
                         # in this case, use the config value
                         setattr(self, key, config_val)
 
+        self.config = ImSimConfig(config)
+
         self.setup_outdir()
 
         # setup logger
@@ -59,7 +62,6 @@ class ImSimRunner(object):
         log = utils.setup_logger(logfile, logdir=self.outdir)
         logprint = utils.LogPrint(log, self.vb)
 
-        self.config = ImSimConfig(config)
         self.logprint = logprint
 
         self.setup_seeds()
@@ -145,21 +147,26 @@ class ImSimRunner(object):
 
         try:
             basedir = self.config['run_options']['basedir']
+            if basedir == 'None':
+                basedir = None
         except KeyError:
             basedir = None
 
         try:
             outdir = self.config['output']['outdir']
+            if outdir == 'None':
+                outdir = None
         except KeyError:
             outdir = None
 
+        # can't setup logprint until outdir is setup
         if (basedir is not None) and (outdir is not None):
-            self.logprint('Both basedir and outdir are set; prioritizing ' +
+            print('Both basedir and outdir are set; prioritizing ' +
                           'outdir for ImSim running')
             self.outdir = outdir
 
         elif (basedir is None) and (outdir is None):
-            self.logprint('No outdir set; using current working directory')
+            print('No outdir set; using current working directory')
             self.outdir = os.getcwd()
 
         # now for two unambiguous cases
@@ -167,6 +174,10 @@ class ImSimRunner(object):
             self.outdir = basedir
         else:
             self.outdir = outdir
+
+        # shouldn't happen, but just in case
+        if self.outdir == 'None':
+            self.outdir = None
 
         utils.make_dir(self.outdir)
 
@@ -204,7 +215,8 @@ class ImSimRunner(object):
         self.logprint('Building truth catalog...')
         self.build_truth_cat()
 
-        self.logprint('Writing')
+        self.logprint('Writing truth catalog...')
+        self.write_truth_cat()
 
         return
 
@@ -736,8 +748,7 @@ class ImSimRunner(object):
                 os.remove(outfile)
 
         try:
-            with fitsio.FITS(outfile, 'rw') as out:
-                out.write(self.truth_cat, ext=0, clobber=overwrite)
+            self.truth_cat.write(outfile, overwrite=overwrite)
 
         except OSError as e:
             self.logprint(e)

@@ -246,16 +246,6 @@ class SourceClass(object):
                 *self.get_make_obj_args(
                     batch_indices, run_config, image, psf, shear, logprint, 0
                     )
-                # batch_indices[0],
-                # run_config,
-                # self.config,
-                # image,
-                # self.pos,
-                # self.pos_unit,
-                # psf,
-                # shear,
-                # galsim.UniformDeviate(self.seed),
-                # logprint
                 )
 
         else:
@@ -353,9 +343,10 @@ class SourceClass(object):
 
             try:
                 stamp.setCenter(image_pos.x, image_pos.y)
-            except Exception:
-                ipdb.set_trace()
-            # TODO: check that in-place alteration was done!
+            except Exception as e:
+                self.logprint(e)
+                self.logprint('skipping')
+                # TODO: check that in-place alteration was done!
 
         return
 
@@ -470,7 +461,7 @@ class CircleGalaxies(SourceClass):
         'flux_min': 5e2,
         'flux_max': 1e5,
         'hlr_min': 0.1, # arcsec
-        'hlr_max': 5, # arcsec
+        'hlr_max': 3, # arcsec
         'n_min': 0.3, # sersic index
         'n_max': 6.2, # sersic index
         'z_min': 0.0,
@@ -577,7 +568,8 @@ class CircleGalaxies(SourceClass):
         truth['hlr'] = hlr,
         truth['g1'] = 0,
         truth['g2'] = 0,
-        truth['theta'] = theta,
+        truth['theta'] = theta.deg,
+        truth['theta_unit'] = 'deg',
         truth['n'] = n,
         truth['g1'] = g1,
         truth['g2'] = g2,
@@ -842,12 +834,16 @@ class GAIAStars(SourceClass):
             obj, psf, image, pos
             )
 
+        # fwhm = obj_stamp.calculateFWHM()
+        # mom = obj_stamp.FindAdaptiveMom().moments_sigma
+
         # Create corresponding row in truth table
         truth = Table()
         truth['obj_index'] = obj_index,
         truth['ra'] = pos[0].deg,
         truth['dec'] = pos[1].deg,
         truth['flux'] = flux,
+        # truth['fwhm'] = fwhm,
         truth['obj_class'] = 'star'
 
         return obj_stamp, truth

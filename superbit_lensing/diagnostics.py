@@ -196,6 +196,24 @@ class GalSimDiagnostics(TruthDiagnostics):
 
         return
 
+class ImSimDiagnostics(TruthDiagnostics):
+
+    def __init__(self, name, config):
+        super(ImSimDiagnostics, self).__init__(name, config)
+
+        # ...
+
+        return
+
+    def run(self, run_options, logprint):
+
+        super(ImSimDiagnostics, self).run(run_options, logprint)
+
+        # ...
+
+        return
+
+
 class MedsmakerDiagnostics(Diagnostics):
     pass
 
@@ -301,6 +319,7 @@ def get_diagnostics_types():
 DIAGNOSTICS_TYPES = {
     'pipeline': Diagnostics,
     'galsim': GalSimDiagnostics,
+    'imsim': ImSimDiagnostics,
     'medsmaker': MedsmakerDiagnostics,
     'metacal': MetacalDiagnostics,
     'metacal_v2': MetacalV2Diagnostics,

@@ -4,7 +4,7 @@ import shutil
 from argparse import ArgumentParser
 
 import utils
-from pipe import SuperBITPipeline, make_test_config
+from pipe import SuperBITPipeline
 
 parser = ArgumentParser()
 

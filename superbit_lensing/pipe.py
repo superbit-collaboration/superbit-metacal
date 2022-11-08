@@ -389,16 +389,31 @@ class ImSimModule(SuperBITModule):
         galsim_dir = os.path.join(utils.MODULE_DIR, 'imsim')
         filepath = os.path.join(galsim_dir, 'run_imsim.py')
 
+        gs_config_path = self._config['config_file']
+
         outdir = self._config['outdir']
-        base = f'python {filepath} {self.gs_config_path}'
+        base = f'python {filepath} {gs_config_path}'
 
         options = self._setup_options(run_options)
 
         cmd = base + options
 
-        ipdb.set_trace()
-
         return cmd
+
+    def run(self, run_options, logprint):
+        '''
+        Relevant type checks and param init's have already
+        taken place
+        '''
+
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
+
+        cmd = self._setup_run_command(run_options)
+
+        rc = self._run_command(cmd, logprint)
+
+        return rc
 
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']

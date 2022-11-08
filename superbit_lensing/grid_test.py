@@ -101,7 +101,9 @@ def make_test_pipe_config(gs_config_file, outfile='grid_test.yaml',
                     ]
                 },
             f'{imsim}': {
-                'config_file': os.path.join(utils.TEST_DIR, 'grid_test_gs.yaml'),
+                'config_file': os.path.join(
+                    utils.TEST_DIR, run_name, 'grid_test_gs.yaml'
+                    ),
                 'run_name': run_name,
                 'outdir': outdir,
                 'overwrite': overwrite
@@ -162,12 +164,12 @@ def make_test_gs_config(path_config, outfile='grid_test_gs.yaml', outdir=None,
             )
 
         # update with local filepaths
-        root_fields: {
-            'datadir': None,
+        root_fields = {
+            'datadir': 'input',
             'cosmosdir': 'galaxies',
             'cluster_dir': 'cluster_galaxies',
             'cluster_cat_name': 'cluster_galaxies',
-            'gaia_dir': 'stars'
+            'gaia_dir': 'stars',
         }
         for name, path in path_config.items():
             root = root_fields[name]
@@ -176,6 +178,8 @@ def make_test_gs_config(path_config, outfile='grid_test_gs.yaml', outdir=None,
             except KeyError:
                 # might not be used
                 pass
+
+        test_config['output']['outdir'] = outdir
 
         utils.write_yaml(test_config, filename)
 
