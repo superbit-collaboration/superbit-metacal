@@ -21,7 +21,7 @@ import multiprocessing
 
 import superbit_lensing.utils as utils
 
-import ipdb
+import ipdb, pdb
 
 parser = ArgumentParser()
 
@@ -241,25 +241,32 @@ class SuperBITNgmixFitter():
             for i in range(len(image_cutouts)):
                 jj = jaclist[i]
                 jj_psf = jj
-                # Apparently it likes to add noise to the psf.
-                psf_noise = 1e-6
-                this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
-                this_psf_weight = np.zeros_like(this_psf) + 1./psf_noise**2
 
-                sky_sigma = 4.77 #SIGMA = 4.7ish for Blue, 4.7**2 for shape
                 this_image = image_cutouts[i]
-                this_weight = np.zeros_like(this_image)+ 1./sky_sigma
+                this_weight = weight_cutouts[i]
 
-                psfObs = ngmix.observation.Observation(this_psf,
-                                                          weight=this_psf_weight,
-                                                          jacobian=jj_psf)
+                try:
+                    # Apparently it likes to add noise to the psf.
+                    psf_noise = 1e-6
+                    this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
+                    this_psf_weight = np.zeros_like(this_psf) + 1./psf_noise**2
 
-                imageObs = ngmix.observation.Observation(this_image,
+
+                    psfObs = ngmix.observation.Observation(this_psf,
+                                                            weight=this_psf_weight,
+                                                            jacobian=jj_psf)
+
+                    imageObs = ngmix.observation.Observation(this_image,
                                                             weight=this_weight,
                                                             jacobian=jj,
                                                             psf=psfObs)
-                #imageObs.psf_nopix = imageObs.psf
-                obslist.append(imageObs)
+
+                    obslist.append(imageObs)
+
+                except ngmix.gexceptions.GMixFatalError:
+                    if (np.max(this_weight) == 0):
+                        zero_wt_warn = f'Object {iobj} has zero-weight'
+                        logprint(zero_wt_warn)
 
             # We don't want to fit to the coadd, as its PSF is not
             # well defined
