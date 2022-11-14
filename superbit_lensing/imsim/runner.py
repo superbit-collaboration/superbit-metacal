@@ -683,27 +683,42 @@ class ImSimRunner(object):
                     continue
 
             try:
-                with fitsio.FITS(outfile, 'rw') as out:
+                # this way automatically saves the WCS to the header
+                # image.write(outfile)
+
+                # fitsio.write(outfile, image.array)
+                # with fitsio.FITS(outfile, 'rw') as out:
                     # no longer can pass an extension explicitly. We instead
                     # create each extension in order, with the following def:
                     # ext0: image
                     # ext1: weight
                     # ext2: mask
 
-                    out.write(image.array)
+                    # out.write(image.array)
 
-                    try:
-                        weight = self.weights[i]
-                        out.write(weight)
-                    except Exception:
-                        logprint(f'Weight writing failed for image {i}; ' +
-                                 'skipping')
-                    try:
-                        mask = self.masks[i]
-                        out.write(mask)
-                    except Exception:
-                        logprint(f'Mask writing failed for image {i}; ' +
-                                 'skipping')
+                images = [image]
+
+                try:
+                    # weight = self.weights[i]
+                    weight = galsim.Image(self.weights[i])
+                    weight.wcs = image.wcs
+                    # fitsio.write(outfile, weight)
+                    images.append(weight)
+                    # out.write(weight)
+                except Exception:
+                    self.logprint(f'Weight writing failed for image {i}; ' +
+                                  'skipping')
+                try:
+                    # mask = self.masks[i]
+                    mask = galsim.Image(self.masks[i])
+                    mask.wcs = image.wcs
+                    images.append(mask)
+                    # fitsio.write(outfile, mask)
+                    # out.write(mask)
+                except Exception:
+                    self.logprint(f'Mask writing failed for image {i}; ' +
+                                  'skipping')
+                galsim.fits.writeMulti(images, outfile)
             except OSError as e:
                 self.logprint(e)
                 self.logprint(f'Skipping writing for image {i}')

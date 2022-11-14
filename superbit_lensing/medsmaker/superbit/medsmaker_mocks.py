@@ -736,7 +736,6 @@ class BITMeasurement():
             ss[wg_stars].write(outname,format='fits',overwrite=True)
 
         else:
-            ipdb.set_trace()
             # Do more standard stellar locus matching
             # Would be great to have stellar_locus_params be more customizable...
             outname = sscat.replace('.ldac','stars.ldac')
