@@ -314,9 +314,14 @@ class BITMeasurement():
         '''
         ### Code to run SWARP
 
-        image_args = ' '.join(self.image_files)
+
+        image_args = ''
+        for imfile in self.image_files:
+            image_args += f'{imfile}[0] '
         detection_file = os.path.join(self.work_path, outfile_name) # This is coadd
         weight_file = os.path.join(self.work_path, weightout_name) # This is coadd weight
+        maskout_name = weightout_name.replace('weight', 'mask')
+        mask_file = os.path.join(self.work_path, maskout_name) # This is coadd mask
         config_arg = '-c ' + os.path.join(self.base_dir, 'superbit/astro_config/swarp.config')
         #weight_arg = '-WEIGHT_IMAGE '+self.mask_file
         resamp_arg = '-RESAMPLE_DIR ' + self.work_path
@@ -334,6 +339,12 @@ class BITMeasurement():
             # rc = utils.run_command(cmd, logprint=self.logprint)
             os.system(cmd)
             self.logprint('\n')
+
+        # we have to create a coadd mask file by hand (will need for MEDS)
+        weight = fitsio.read(weight_file)
+        mask = np.zeros(weight.shape, dtype='i4')
+        mask[weight == 0] = 1
+        fitsio.write(mask_file, mask)
 
         return detection_file, weight_file
 
@@ -390,7 +401,7 @@ class BITMeasurement():
         checkname_arg = f'-CHECKIMAGE_NAME  {bkg_name},{seg_name}'
 
         cmd = ' '.join([
-            'sex', detection_file, name_arg,  checkname_arg,  param_arg, nnw_arg,
+            'sex', detection_file+'[0]', name_arg,  checkname_arg,  param_arg, nnw_arg,
             filter_arg, '-c', config_arg
             ])
         if weight_file is not None:
@@ -758,36 +769,48 @@ class BITMeasurement():
 
         image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
 
-        i=0
-        for image_file in range(Nim):
+        for i in range(Nim):
             if (i == 0) and (use_coadd is True):
-                image_file = self.coadd_file
+                img_file = self.coadd_file
+                img_ext = 0
+                wgt_file = self.coadd_file.replace('.fits', '.weight.fits')
+                wgt_ext = 0
+                msk_file = self.coadd_file.replace('.fits', '.mask.fits')
+                msk_ext = 0
             else:
                 if use_coadd is True:
-                    image_file = self.image_files[i-1]
+                    img_file = self.image_files[i-1]
                 else:
-                    image_file = self.image_files[i]
+                    img_file = self.image_files[i]
+                # wgt & sci frames now saved as multi-extension fits files
+                img_ext = 0
+                wgt_file = img_file
+                wgt_ext = 1
+                msk_file = img_file
+                msk_ext = 2
 
-            bkgsub_name = image_file.replace('.fits','.sub.fits')
-            segmap_name = image_file.replace('.fits','.sgm.fits')
+            # these are the same regardless
+            bkg_file = img_file.replace('.fits','.sub.fits')
+            bkg_ext = 0
+            seg_file = img_file.replace('.fits','.sgm.fits')
+            seg_ext = 0
 
-            # TODO: generalize!
-            image_info[i]['image_path']  =  bkgsub_name
-            image_info[i]['image_ext']   =  0
-            image_info[i]['weight_path'] =  bkgsub_name
-            image_info[i]['weight_ext']  =  1
-            image_info[i]['bmask_path']  =  bkgsub_name
-            image_info[i]['bmask_ext']   =  2
-            image_info[i]['seg_path']    =  segmap_name
-            image_info[i]['seg_ext']     =  0
+            # NOTE: The way we call SWARP, the wgt & msk extensions
+            # are not copied over to the bkg-subtracted file
+            image_info[i]['image_path']  =  bkg_file
+            image_info[i]['image_ext']   =  bkg_ext
+            image_info[i]['weight_path'] =  wgt_file
+            image_info[i]['weight_ext']  =  wgt_ext
+            image_info[i]['bmask_path']  =  msk_file
+            image_info[i]['bmask_ext']   =  msk_ext
+            image_info[i]['seg_path']    =  seg_file
+            image_info[i]['seg_ext']     =  seg_ext
 
             # The default is for 0 offset between the internal numpy arrays
             # and the images, but we use the FITS standard of a (1,1) origin.
             # In principle we could probably set this automatically by checking
             # the images
             image_info[i]['position_offset'] = 1
-
-            i+=1
 
         return image_info
 

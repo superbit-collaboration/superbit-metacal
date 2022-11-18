@@ -696,6 +696,7 @@ class ImSimRunner(object):
 
                     # out.write(image.array)
 
+                # image.write(outfile)
                 images = [image]
 
                 try:
@@ -719,6 +720,7 @@ class ImSimRunner(object):
                     self.logprint(f'Mask writing failed for image {i}; ' +
                                   'skipping')
                 galsim.fits.writeMulti(images, outfile)
+
             except OSError as e:
                 self.logprint(e)
                 self.logprint(f'Skipping writing for image {i}')

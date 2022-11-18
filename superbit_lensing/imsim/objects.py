@@ -458,10 +458,10 @@ class CircleGalaxies(SourceClass):
 
     _req_fields = []
     _opt_fields = {
-        'flux_min': 5e2,
+        'flux_min': 5e1,
         'flux_max': 1e5,
         'hlr_min': 0.1, # arcsec
-        'hlr_max': 3, # arcsec
+        'hlr_max': 2, # arcsec
         'n_min': 0.3, # sersic index
         'n_max': 6.2, # sersic index
         'z_min': 0.0,

@@ -19,7 +19,10 @@ def parse_args():
     parser = ArgumentParser()
 
     parser.add_argument('-pipe_config', type=str, default=None,
-                        help='A pipeline config to use for the pipe test, if ' +
+                        help='A pipeline config to use for the grid test, if ' +
+                        'youd rather specify everything yourself')
+    parser.add_argument('-selection_config', type=str, default=None,
+                        help='A selection config to use for the grid test, if ' +
                         'youd rather specify everything yourself')
 
     # NOTE: Can either pass a path_config file to specify the minimal needed
@@ -45,14 +48,16 @@ def parse_args():
 # The following helper functions create dummy config files for their corresponding
 # categories. You can always provide your own if you prefer.
 
-def make_test_pipe_config(gs_config_file, outfile='grid_test.yaml',
+def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
                           imsim='imsim', outdir=None, overwrite=False):
     '''
     Create a basic yaml config file that tests whether the shear calibration
     succeeds in a simplified setting (low noise, objects on a grid, etc.)
 
-    gs_config_file: str
+    gs_config: str
         The filename of the galsim config file to use
+    select_config: str
+        The filename of the selection config file to use
     outfile: str
         The output filename of the generated pipe config
     outdir: str
@@ -92,11 +97,12 @@ def make_test_pipe_config(gs_config_file, outfile='grid_test.yaml',
                 'ncores': 8,
                 'run_diagnostics': True,
                 'order': [
-                    f'{imsim}',
-                    'medsmaker',
-                    'metacal',
+                    # f'{imsim}',
+                    # 'medsmaker',
+                    # 'metacal',
+                    'selection',
                     # 'metacal_v2', # turn on for ngmix v2.X metacal
-                    'shear_profile',
+                    # 'shear_profile',
                     # 'ngmix_fit', # turn on for ngmix photometry (needs updating)
                     ]
                 },
@@ -126,23 +132,28 @@ def make_test_pipe_config(gs_config_file, outfile='grid_test.yaml',
                 'end': 2000,
                 'overwrite': overwrite
             },
-            'ngmix_fit': {
-                'meds_file': meds_file,
-                'outfile': f'{run_name}_ngmix.fits',
-                'config': ngmix_test_config,
-                'outdir': outdir,
-                'end': 100
-            },
-            'shear_profile': {
-                'se_file': se_file,
+            'selection': {
+                'config_file': select_config,
                 'mcal_file': mcal_file,
-                'outfile': f'{run_name}_annular.fits',
-                'nfw_file': nfw_file,
-                'outdir': outdir,
-                'run_name': run_name,
-                'Nresample': 1, # to run much faster
                 'overwrite': overwrite,
             },
+            # 'ngmix_fit': {
+            #     'meds_file': meds_file,
+            #     'outfile': f'{run_name}_ngmix.fits',
+            #     'config': ngmix_test_config,
+            #     'outdir': outdir,
+            #     'end': 100
+            # },
+            # 'shear_profile': {
+            #     'se_file': se_file,
+            #     'mcal_file': mcal_file,
+            #     'outfile': f'{run_name}_annular.fits',
+            #     'nfw_file': nfw_file,
+            #     'outdir': outdir,
+            #     'run_name': run_name,
+            #     'Nresample': 1, # to run much faster
+            #     'overwrite': overwrite,
+            # },
         }
 
         utils.write_yaml(test_config, filename)
@@ -231,10 +242,30 @@ def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
 
     return filename
 
+def make_test_selection_config(outfile='grid_test_select.yaml',
+                               outdir=None, overwrite=False):
+
+    if outdir is not None:
+        filename = os.path.join(outdir, outfile)
+
+    if (overwrite is True) or (not os.path.exists(filename)):
+
+        # use REPO/configs/select.yaml as base
+
+        test_config = utils.read_yaml(
+            os.path.join(utils.BASE_DIR, 'configs', 'select.yaml')
+            )
+
+        # for now, we just use this as-is
+        utils.write_yaml(test_config, filename)
+
+    return filename
+
 def main(args):
 
     pipe_config_file = args.pipe_config
     path_config_file = args.path_config
+    selection_config_file = args.selection_config
     gs_config_file = args.gs_config
     fresh = args.fresh
 
@@ -267,18 +298,25 @@ def main(args):
     if gs_config_file is None:
         print('Creating test gs config file...')
         gs_config_file = make_test_gs_config(
-            path_config, overwrite=True, outdir=logdir
+            path_config, overwrite=True, outdir=logdir,
             )
-        print(f'Using gs_config_file {gs_config_file}')
+        print(f'Using gs config file {gs_config_file}')
+
+    # same thing with a selection config
+    if selection_config_file is None:
+        selection_config_file = make_test_selection_config(
+            overwrite=True, outdir=logdir
+            )
+        print(f'Using selection config file {selection_config_file}')
 
     # now we have everything we need to create a pipeline config
     if pipe_config_file is None:
         # generate a fast config
         print('Creating test pipeline config file...')
         pipe_config_file = make_test_pipe_config(
-            gs_config_file, overwrite=True, outdir=logdir
+            gs_config_file, selection_config_file, overwrite=True, outdir=logdir
             )
-        print(f'Using pipe_config_file {pipe_config_file}')
+        print(f'Using pipe config file {pipe_config_file}')
 
     # we saved it to a file instead of returning a dict so that there is
     # a record in the grid_test outdir
