@@ -1,0 +1,13 @@
+metacal:
+ - type: inequality
+   col: T_r_noshear
+   min: 0
+   max: 10
+ - type: inequality
+   col: s2n_r_noshear
+   min: 10
+   max: 1000
+ - type: inequality
+   derived: True
+   col: 'catalog["T_r_noshear"] / catalog["Tpsf_noshear"]'
+   min: 0.5

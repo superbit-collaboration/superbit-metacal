@@ -386,13 +386,13 @@ class ImSimModule(SuperBITModule):
 
     def _setup_run_command(self, run_options):
 
-        galsim_dir = os.path.join(utils.MODULE_DIR, 'imsim')
-        filepath = os.path.join(galsim_dir, 'run_imsim.py')
+        imsim_dir = os.path.join(utils.MODULE_DIR, 'imsim')
+        filepath = os.path.join(imsim_dir, 'run_imsim.py')
 
-        gs_config_path = self._config['config_file']
+        config_path = self._config['config_file']
 
         outdir = self._config['outdir']
-        base = f'python {filepath} {gs_config_path}'
+        base = f'python {filepath} {config_path}'
 
         options = self._setup_options(run_options)
 
@@ -589,6 +589,48 @@ class NgmixFitModule(SuperBITModule):
 
         return cmd
 
+class SelectionModule(SuperBITModule):
+    _req_fields = ['config_file', 'mcal_file']
+    _flag_fields = ['overwrite', 'vb']
+
+    def __init__(self, name, config):
+        super(SelectionModule, self).__init__(name, config)
+
+        # ...
+
+        return
+
+    def _setup_run_command(self, run_options):
+
+        select_dir = os.path.join(utils.MODULE_DIR, 'selection')
+        filepath = os.path.join(select_dir, 'run_selection.py')
+
+        config_file = self._config['config_file']
+        mcal_file = self._config['mcal_file']
+
+        base = f'python {filepath} {config_file} {mcal_file}'
+
+        options = self._setup_options(run_options)
+
+        cmd = base + options
+
+        return cmd
+
+    def run(self, run_options, logprint):
+        '''
+        Relevant type checks and param init's have already
+        taken place
+        '''
+
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
+
+        cmd = self._setup_run_command(run_options)
+
+        rc = self._run_command(cmd, logprint)
+
+        return rc
+
 class ShearProfileModule(SuperBITModule):
     _req_fields = ['se_file', 'mcal_file', 'outfile']
     _opt_fields = ['outdir', 'run_name', 'truth_file', 'nfw_file', 'Nresample',
@@ -716,6 +758,7 @@ MODULE_TYPES = {
     'metacal': MetacalModule,
     'metacal_v2': MetacalModuleV2,
     'ngmix_fit': NgmixFitModule,
+    'selection': SelectionModule,
     'shear_profile': ShearProfileModule,
     'analysis': AnalysisModule,
     }
