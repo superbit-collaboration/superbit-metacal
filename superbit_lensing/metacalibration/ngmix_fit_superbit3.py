@@ -476,9 +476,6 @@ def mp_fit_one(source_id, obslist, prior, logprint, pars=None):
 
     mcal_res = add_mcal_responsivities(mcal_res, mcal_shear)
 
-    r11 = mcal_res['MC']['r11']
-    r22 = mcal_res['MC']['r22']
-
     # To generate a model image, these calls do need to be here
     mcb.fit_psfs(psf_model, 1.)
     mcb.fit_max(gal_model, max_pars, prior=prior)
@@ -489,25 +486,25 @@ def mp_fit_one(source_id, obslist, prior, logprint, pars=None):
 
 def add_mcal_responsivities(mcal_res, mcal_shear=0.01):
     '''
-    Compute and add the mcal responsivity values to the output
+    Compute and add the mcal (gamma) responsivity values to the output
     result dict from get_metacal_result()
     '''
 
     # Define full responsivity matrix, take inner product with shear moments
-    r11 = (mcal_res['1p']['g'][0] - mcal_res['1m']['g'][0]) / (2*mcal_shear)
-    r12 = (mcal_res['2p']['g'][0] - mcal_res['2m']['g'][0]) / (2*mcal_shear)
-    r21 = (mcal_res['1p']['g'][1] - mcal_res['1m']['g'][1]) / (2*mcal_shear)
-    r22 = (mcal_res['2p']['g'][1] - mcal_res['2m']['g'][1]) / (2*mcal_shear)
+    r11_g = (mcal_res['1p']['g'][0] - mcal_res['1m']['g'][0]) / (2*mcal_shear)
+    r12_g = (mcal_res['2p']['g'][0] - mcal_res['2m']['g'][0]) / (2*mcal_shear)
+    r21_g = (mcal_res['1p']['g'][1] - mcal_res['1m']['g'][1]) / (2*mcal_shear)
+    r22_g = (mcal_res['2p']['g'][1] - mcal_res['2m']['g'][1]) / (2*mcal_shear)
 
-    R = [ [r11, r12], [r21, r22] ]
+    R = [ [r11_g, r12_g], [r21_g, r22_g] ]
     Rinv = np.linalg.inv(R)
     gMC = np.dot(Rinv,
                  mcal_res['noshear']['g']
                  )
 
     MC = {
-        'r11':r11, 'r12':r12,
-        'r21':r21, 'r22':r22,
+        'r11_g':r11_g, 'r12_g':r12_g,
+        'r21_g':r21_g, 'r22_g':r22_g,
         'g1_MC':gMC[0], 'g2_MC':gMC[1]
         }
 
@@ -633,7 +630,7 @@ def main():
 
     args = parser.parse_args()
 
-    vb = args.vb # if True, prints out values of R11/R22 for every galaxy
+    vb = args.vb
     medsfile = args.medsfile
     outfilename = args.outfile
     outdir = args.outdir

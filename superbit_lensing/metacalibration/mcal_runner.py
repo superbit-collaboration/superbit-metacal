@@ -835,26 +835,26 @@ def _compute_obs_s2n_r(result, obs):
 
 def add_mcal_responsivities(res_dict, mcal_shear):
     '''
-    Compute and add the mcal responsivity values to the output
+    Compute and add the mcal (gamma) responsivity values to the output
     result dict from get_metacal_result()
     NOTE: These are only for the selection-independent component!
     '''
 
     # Define full responsivity matrix, take inner product with shear moments
-    r11 = (res_dict['1p']['g'][0] - res_dict['1m']['g'][0]) / (2*mcal_shear)
-    r12 = (res_dict['2p']['g'][0] - res_dict['2m']['g'][0]) / (2*mcal_shear)
-    r21 = (res_dict['1p']['g'][1] - res_dict['1m']['g'][1]) / (2*mcal_shear)
-    r22 = (res_dict['2p']['g'][1] - res_dict['2m']['g'][1]) / (2*mcal_shear)
+    r11_g = (res_dict['1p']['g'][0] - res_dict['1m']['g'][0]) / (2*mcal_shear)
+    r12_g = (res_dict['2p']['g'][0] - res_dict['2m']['g'][0]) / (2*mcal_shear)
+    r21_g = (res_dict['1p']['g'][1] - res_dict['1m']['g'][1]) / (2*mcal_shear)
+    r22_g = (res_dict['2p']['g'][1] - res_dict['2m']['g'][1]) / (2*mcal_shear)
 
-    R = [ [r11, r12], [r21, r22] ]
+    R = [ [r11_g, r12_g], [r21_g, r22_g] ]
     Rinv = np.linalg.inv(R)
     gMC = np.dot(Rinv,
                  res_dict['noshear']['g']
                  )
 
     MC = {
-        'r11':r11, 'r12':r12,
-        'r21':r21, 'r22':r22,
+        'r11_g':r11_g, 'r12_g':r12_g,
+        'r21_g':r21_g, 'r22_g':r22_g,
         'g1_MC':gMC[0], 'g2_MC':gMC[1]
     }
 
