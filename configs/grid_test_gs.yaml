@@ -75,13 +75,16 @@ stars:
 
 galaxies:
   type: 'circle'
+  hlr_max: 0.5
+  hlr_min: .01
+  flux_max: 5e2
   # nobjs: None # used for random position sampling
 
 position_sampling:
   galaxies:
     type: MixedGrid
     grid_type: HexGrid
-    grid_spacing: 20 # arcsec
+    grid_spacing: 10 # arcsec
     fraction: 0.8
   stars:
     type: MixedGrid
