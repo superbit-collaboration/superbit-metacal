@@ -39,7 +39,7 @@ def main(args):
 
     selector = Selector(config_file, catalogs)
 
-    selector.run()
+    selector.run(logprint)
     selector.write(overwrite=overwrite)
 
     return 0
