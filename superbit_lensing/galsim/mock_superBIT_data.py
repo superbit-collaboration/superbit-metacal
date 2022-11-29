@@ -22,7 +22,7 @@ import time
 import galsim
 import galsim.des
 import galsim.convolve
-import pdb, pudb
+import pdb
 from glob import glob
 import pickle
 import scipy
@@ -402,7 +402,7 @@ def make_a_star(ud, pud, k, wcs, affine, psf, sbparams, logprint, obj_index=None
     index = obj_index - 1
 
     if sbparams.star_cat is not None:
-        if sbparams.bandpass=='crates_lum':
+        if sbparams.bandpass in ['crates_lum', 'crates_shape']:
             star_flux = sbparams.star_cat['bitflux_electrons_lum'][index]
 
         elif sbparams.bandpass=='crates_b':
