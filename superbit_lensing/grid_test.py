@@ -74,6 +74,8 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
     if (overwrite is True) or (not os.path.exists(filename)):
         run_name = 'grid_test'
         outdir = os.path.join(utils.TEST_DIR, run_name)
+        bands = 'b,lum' # test at least 2 bands
+        swarp_config = os.path.join(utils.MODULE_DIR, 'coadd', 'swarp.config')
         se_file = os.path.join(outdir, f'{run_name}_mock_coadd_cat.ldac')
         meds_file = os.path.join(outdir, f'{run_name}_meds.fits')
         mcal_file = os.path.join(outdir, f'{run_name}_mcal.fits')
@@ -93,14 +95,16 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
             'run_options': {
                 'run_name': run_name,
                 'outdir': outdir,
+                'bands': bands,
                 'vb': True,
                 'ncores': 8,
                 'run_diagnostics': True,
                 'order': [
-                    # f'{imsim}',
+                    f'{imsim}',
+                    'swarp',
                     # 'medsmaker',
                     # 'metacal',
-                    'selection',
+                    # 'selection',
                     # 'metacal_v2', # turn on for ngmix v2.X metacal
                     # 'shear_profile',
                     # 'ngmix_fit', # turn on for ngmix photometry (needs updating)
@@ -111,32 +115,41 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
                     utils.TEST_DIR, run_name, 'grid_test_gs.yaml'
                     ),
                 'run_name': run_name,
+                'bands': bands,
                 'outdir': outdir,
                 'overwrite': overwrite
             },
-            'medsmaker': {
-                'mock_dir': outdir,
-                'outfile': meds_file,
-                'fname_base': run_name,
+            'swarp': {
+                'config_file': swarp_config,
                 'run_name': run_name,
-                'outdir': outdir,
+                'basedir': outdir,
+                'bands': bands,
+                'outdir': outdir
                 'overwrite': overwrite,
-                'meds_coadd': True,
-                'psf_mode': 'piff'
-            },
-            'metacal': {
+            }
+            # 'medsmaker': {
+            #     'mock_dir': outdir,
+            #     'outfile': meds_file,
+            #     'fname_base': run_name,
+            #     'run_name': run_name,
+            #     'outdir': outdir,
+            #     'overwrite': overwrite,
+            #     'meds_coadd': True,
+            #     'psf_mode': 'piff'
+            # },
+            # 'metacal': {
             # 'metacal_v2': {
-                'meds_file': meds_file,
-                'outfile': mcal_file,
-                'outdir': outdir,
-                'end': 2000,
-                'overwrite': overwrite
-            },
-            'selection': {
-                'config_file': select_config,
-                'mcal_file': mcal_file,
-                'overwrite': overwrite,
-            },
+            #     'meds_file': meds_file,
+            #     'outfile': mcal_file,
+            #     'outdir': outdir,
+            #     'end': 2000,
+            #     'overwrite': overwrite
+            # },
+            # 'selection': {
+            #     'config_file': select_config,
+            #     'mcal_file': mcal_file,
+            #     'overwrite': overwrite,
+            # },
             # 'ngmix_fit': {
             #     'meds_file': meds_file,
             #     'outfile': f'{run_name}_ngmix.fits',

@@ -212,7 +212,8 @@ class SuperBITPipeline(SuperBITModule):
 
     # _opt_fields = {get_module_types().keys()}
     _opt_fields = [] # Gets setup in constructor
-    _opt_run_options_fields = ['ncores', 'run_diagnostics']
+    # TODO: eventually move `bands` to req_fields!
+    _opt_run_options_fields = ['ncores', 'run_diagnostics', 'bands']
 
     def __init__(self, config_file, log=None):
 
@@ -393,6 +394,52 @@ class ImSimModule(SuperBITModule):
 
         outdir = self._config['outdir']
         base = f'python {filepath} {config_path}'
+
+        options = self._setup_options(run_options)
+
+        cmd = base + options
+
+        return cmd
+
+    def run(self, run_options, logprint):
+        '''
+        Relevant type checks and param init's have already
+        taken place
+        '''
+
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
+
+        cmd = self._setup_run_command(run_options)
+
+        rc = self._run_command(cmd, logprint)
+
+        return rc
+
+class SWarpModule(SuperBITModule):
+    _req_fields = ['config_file', 'run_name', 'basedir', 'bands']
+    _opt_fields = ['outfile_base', 'outdir', 'fname_base']
+    _flag_fields = ['overwrite', 'vb']
+
+    def __init__(self, name, config):
+        super(SWarpModule, self).__init__(name, config)
+
+        # ...
+
+        return
+
+    def _setup_run_command(self, run_options):
+
+        swarp_dir = os.path.join(utils.MODULE_DIR, 'coadd')
+        filepath = os.path.join(select_dir, 'run_swarp.py')
+
+        config_file = self._config['config_file']
+
+        run_name = run_options['run_name']
+        basedir = run_options['outdir']
+        bands = run_options['bands']
+
+        base = f'python {filepath} {config_file} {run_name} {basedir} {bands}'
 
         options = self._setup_options(run_options)
 
@@ -754,6 +801,7 @@ def get_module_types():
 MODULE_TYPES = {
     'galsim': GalSimModule,
     'imsim': ImSimModule,
+    'swarp': SWarpModule
     'medsmaker': MedsmakerModule,
     'metacal': MetacalModule,
     'metacal_v2': MetacalModuleV2,
