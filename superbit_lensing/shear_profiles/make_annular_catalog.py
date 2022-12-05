@@ -258,7 +258,7 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 0.5
+        min_Tpsf = 1.2
         max_sn = 1000
         min_sn = 10
         min_T = 0.0
