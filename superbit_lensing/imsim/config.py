@@ -21,9 +21,14 @@ class ImSimConfig(object):
             'obscuration'
             ],
 
-        'bandpass': [
-            'lam',
-            'name'
+        'bandpasses': [
+            # NOTE: each entry needs a name and central wavelength,
+            # like the following:
+            # - b1_name:
+            #   lam: 475
+            # - b2_name:
+            #   lam: 650
+            # ...
             ],
 
         'detector': [

@@ -208,11 +208,13 @@ class SourceClass(object):
 
         return
 
-    def generate_objects(self, exp, run_config, image, psf, shear, logprint,
-                         ncores=1):
+    def generate_objects(self, exp, band, run_config, image, psf, shear,
+                         logprint, ncores=1):
         '''
         exp: int
             Internal exposure number
+        band: str
+            Name of bandpass filter to use for generated objects
         run_config: dict
             The configuration dictionary for the whole ImSim run
         image: galsim.Image
@@ -234,6 +236,11 @@ class SourceClass(object):
             self.set_seed(obj_seed)
             logprint(f'Generated {self.obj_type}_seed={obj_seed}')
 
+        # if the object list already has an entry for the current band,
+        # something has gone awry!
+        assert band not in self.obj_list
+        self.obj_list[band] = {}
+
         start = time.time()
 
         batch_indices = utils.setup_batches(self.Nobjs, ncores)
@@ -241,10 +248,10 @@ class SourceClass(object):
         if ncores == 1:
             logprint('Generating objects in serial')
             # Only one batch, and don't need to collate
-            self.obj_list[exp] = self.make_obj_runner(
-                # TODO: something like:
+            self.obj_list[band][exp] = self.make_obj_runner(
                 *self.get_make_obj_args(
-                    batch_indices, run_config, image, psf, shear, logprint, 0
+                    batch_indices, band, run_config, image, psf, shear,
+                    logprint, 0
                     )
                 )
 
@@ -257,12 +264,13 @@ class SourceClass(object):
 
                 self.collate_objs(
                     exp,
+                    band,
                     pool.starmap(
                         self.make_obj_runner,
                         ([
                             self.get_make_obj_args(
-                                batch_indices, run_config, image, psf, shear,
-                                logprint, k
+                                batch_indices, band, run_config, image, psf,
+                                shear, logprint, k
                                 ) for k in range(ncores)
                         ])
                     )
@@ -274,11 +282,13 @@ class SourceClass(object):
 
         return
 
-    def get_make_obj_args(self, batch_indices, run_config, image, psf, shear,
-                          logprint, k):
+    def get_make_obj_args(self, batch_indices, band, run_config, image, psf,
+                          shear, logprint, k):
         '''
         batch_indices: list
             A list of batch obj indices
+        band: str
+            Name of bandpass filter to use for generated objects
         run_config: dict
             The main ImSim run configuration dictionary
         image: galsim.Image
@@ -299,6 +309,7 @@ class SourceClass(object):
 
         args = [
             batch_indices[k],
+            band,
             run_config,
             self.config,
             image,
@@ -312,7 +323,7 @@ class SourceClass(object):
 
         return args
 
-    def generate_objects_from_exp(self, base_exp, new_exp, image):
+    def generate_objects_from_exp(self, base_exp, new_exp, band, image):
         '''
         Instead of running the full generate_objects() method for new_exp,
         use the object stamps created in base_exp but update the stamp
@@ -324,18 +335,22 @@ class SourceClass(object):
             The index of the exposure whose stamps you want to grab
         new_exp: int
             The index of the new exposure we're assigning object stamps to
+        band: str
+            Name of bandpass filter to use for generated objects
         image: galsim.Image
             The GalSim image corresponding to new_exp that we will draw the
             stamps onto
         '''
 
         # a tuple of (i, stamp_i, truth_i) for all objects i
-        self.obj_list[new_exp] = deepcopy(self.obj_list[base_exp])
+        self.obj_list[band][new_exp] = deepcopy(
+            self.obj_list[band][base_exp]
+            )
 
         # update the stamp centers using new image WCS
         unit = self.pos_unit
-        for i, stamp, truth in self.obj_list[new_exp]:
-            if (stamp is None):
+        for i, stamp, truth in self.obj_list[band][new_exp]:
+            if (stamp is None) or (truth is None):
                 continue
             ra, dec = self.pos[i]
             world_pos = galsim.CelestialCoord(ra*unit, dec*unit)
@@ -350,18 +365,22 @@ class SourceClass(object):
 
         return
 
-    def collate_objs(self, exp, make_obj_outputs):
+    def collate_objs(self, exp, band, make_obj_outputs):
         '''
         Process the multiprocessing returns of make_obj_runner()
 
+        exp: int
+            Internal exposure number
+        band: str
+            Name of bandpass filter to use for generated objects
         make_obj_outputs: list
             A list of len==ncores, each filled with (i, stamp_i, truth_i)
             tuples for each object
         '''
 
         # flatten N=Ncore outputs into 1 list
-        self.obj_list[exp] = [item for sublist in make_obj_outputs
-                              for item in sublist]
+        self.obj_list[band][exp] = [item for sublist in make_obj_outputs
+                                    for item in sublist]
 
         return
 
@@ -373,7 +392,8 @@ class SourceClass(object):
         batch_indices: list, np.ndarray
             The list or array of batch indices (ints)
         args: list
-            The positional args to pass to make_obj()
+            The positional args to pass to make_obj(). Setup in
+            get_make_obj_args()
         '''
 
         res = []
@@ -476,14 +496,16 @@ class CircleGalaxies(SourceClass):
         return
 
     @classmethod
-    def _make_obj(cls, obj_index, run_config, obj_config, image, pos, pos_unit,
-                  psf, shear, ud, logprint):
+    def _make_obj(cls, obj_index, band, run_config, obj_config, image, pos,
+                  pos_unit, psf, shear, ud, logprint):
         '''
         Static method that plays well with multiprocessing & does
         no config parsing or type checking
 
         obj_index: int
             Object index
+        band: str
+            Name of bandpass filter to use for generated objects
         run_config: dict
             The ImSim run config
         config: dict
@@ -530,10 +552,10 @@ class CircleGalaxies(SourceClass):
             logprint.debug(f'n_max of {n_max} is too large; ' +
                            'setting to 6.2')
 
-        flux = np.random.uniform(flux_min, flux_max)
-        hlr = np.random.uniform(hlr_min, hlr_max)
-        n = np.random.uniform(n_min, n_max)
-        z = np.random.uniform(z_min, z_max)
+        flux = (flux_max - flux_min) * ud() + flux_min
+        hlr = (hlr_max - hlr_min) * ud() + hlr_min
+        n = (n_max - n_min) * ud() + n_min
+        z = (z_max - z_min) * ud() + z_min
 
         obj = galsim.Sersic(
             n=n, flux=flux, half_light_radius=hlr
@@ -564,7 +586,7 @@ class CircleGalaxies(SourceClass):
         truth['obj_index'] = obj_index,
         truth['ra'] = pos[0].deg,
         truth['dec'] = pos[1].deg,
-        truth['flux'] = flux,
+        truth[f'flux_{band}'] = flux,
         truth['hlr'] = hlr,
         truth['g1'] = 0,
         truth['g2'] = 0,
@@ -598,12 +620,14 @@ class COSMOSGalaxies(SourceClass):
         return
 
     @staticmethod
-    def _make_obj(run_config, config, image, pos, catalog, ud):
+    def _make_obj(run_config, band, config, image, pos, catalog, ud):
         '''
         TODO: Update!
 
         run_config: dict
             The ImSim run config
+        band: str
+            Name of bandpass filter to use for generated objects
         config: dict
             The main ImSim configuration dictionary for
             this run
@@ -774,14 +798,16 @@ class GAIAStars(SourceClass):
         return new_args
 
     @classmethod
-    def _make_obj(cls, obj_index, run_config, obj_config, image, pos, pos_unit,
-                  psf, shear, ud, catalog, logprint):
+    def _make_obj(cls, obj_index, band, run_config, obj_config, image, pos,
+                  pos_unit, psf, shear, ud, catalog, logprint):
         '''
         Static method that plays well with multiprocessing & does
         no config parsing or type checking
 
         obj_index: int
             Object index
+        band: str
+            Name of bandpass filter to use for generated objects
         run_config: dict
             The ImSim run config
         config: dict
@@ -809,16 +835,14 @@ class GAIAStars(SourceClass):
         # NOTE: see docstring above
         pos = pos[obj_index]
 
-        bandpass = run_config['bandpass']['name']
-
         # to fit some old conventions
-        if 'crates' in bandpass:
-            bandpass = bandpass.replace('crates_', '')
+        if 'crates' in band:
+            band = band.replace('crates_', '')
 
         # randomly sample catalog
         gaia_index = int(ud() * len(catalog))
 
-        flux = catalog[f'bitflux_electrons_{bandpass}'][gaia_index]
+        flux = catalog[f'bitflux_electrons_{band}'][gaia_index]
 
         exp_time = run_config['observation']['exp_time']
         gain = run_config['detector']['gain']
@@ -842,7 +866,7 @@ class GAIAStars(SourceClass):
         truth['obj_index'] = obj_index,
         truth['ra'] = pos[0].deg,
         truth['dec'] = pos[1].deg,
-        truth['flux'] = flux,
+        truth[f'flux_{band}'] = flux,
         # truth['fwhm'] = fwhm,
         truth['obj_class'] = 'star'
 

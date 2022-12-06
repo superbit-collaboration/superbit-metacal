@@ -2,7 +2,7 @@ import numpy as np
 import galsim
 import fitsio
 import os
-from astropy.table import Table, vstack
+from astropy.table import Table, vstack, hstack, join
 from argparse import ArgumentParser
 
 from superbit_lensing import utils
@@ -64,6 +64,7 @@ class ImSimRunner(object):
 
         self.logprint = logprint
 
+        self.setup_bands()
         self.setup_seeds()
 
         # simulated properties for each class of objects will be stored in
@@ -85,6 +86,55 @@ class ImSimRunner(object):
         self.masks = None
 
         self.psfs = None
+
+        return
+
+    def setup_bands(self):
+        '''
+        The config may specify either a single band implicitly or a
+        dictionary of band names and corresponding central wavelengths
+        '''
+
+        bands = self.config['bandpasses']
+
+        self.band_indx = {}
+
+        bindx = 0
+        for b, bdict in bands.items():
+            if not isinstance(b, str):
+                raise TypeError('Band names must be strings!')
+            if not isinstance(bdict, dict):
+                raise TypeError('The bandpasses field must have a dict for '
+                                'each band entry!')
+            if 'lam' not in bdict:
+                raise ValueError('Each bandpass field must have `lam`!')
+
+            lam = bdict['lam']
+            if (not isinstance(lam, (int, float))) or (lam <= 0):
+                raise ValueError('Central wavelength lam must be positive!')
+
+            bands[b]['index'] = bindx
+            self.band_indx[b] = bindx
+            bindx += 1
+
+        self.bands = bands
+        self.Nbands = len(bands)
+
+        bnames = list(self.bands.keys())
+        p = 's' if self.Nbands > 1 else ''
+        self.logprint(f'Registered {self.Nbands} band{p}: {bnames}')
+
+        self.logprint('Checking for band consistency throughout config...')
+
+        sky_bkg = self.config['noise']['sky_bkg']
+        if len(sky_bkg) != self.Nbands:
+            raise ValueError('There must be the same number of entries for '
+                             'bandpasses and sky backgrounds!')
+        for b, val in sky_bkg.items():
+            if b not in self.bands:
+                raise ValueError(f'{b} in sky_bkg not a registed band!')
+            if not isinstance(val, (int, float)):
+                raise TypeError('Sky backgroudn values must be floats!')
 
         return
 
@@ -136,6 +186,23 @@ class ImSimRunner(object):
         for name, seed in self.seeds.items():
             self.logprint(f'{name}: {seed}')
 
+        if self.Nbands > 1:
+            # need to create independent seeds for noise & dithering
+            noise_seeds = utils.generate_seeds(self.Nbands)
+            dither_seeds = utils.generate_seeds(self.Nbands)
+
+            self.logprint('As Nbands > 1, generating independent noise '
+                          'and dithering seeds for each:')
+            self.logprint(f'noise: {noise_seeds}')
+            self.logprint(f'dithering: {dither_seeds}')
+            self.seeds['noise'] = noise_seeds
+            self.seeds['dithering'] = dither_seeds
+        else:
+            # store the noise & dither seeds as a list anyway to match
+            # formatting for multi-band case
+            self.seeds['noise'] = [self.seeds['noise']]
+            self.seeds['dithering'] = [self.seeds['dithering']]
+
         return
 
     def setup_outdir(self):
@@ -184,6 +251,10 @@ class ImSimRunner(object):
         return
 
     def go(self):
+        '''
+        Main simulation runner. Will setup all necessary components across
+        all bands, but will call fill_images() separately
+        '''
 
         self.logprint('Setting up images...')
         self.setup_images()
@@ -209,10 +280,13 @@ class ImSimRunner(object):
         self.logprint('Adding masks...')
         self.add_masks()
 
+        # self.logprint('Wr')
+
         self.logprint('Writing out images...')
         self.write_images()
 
         self.logprint('Building truth catalog...')
+        # TODO: current multi-band refactor point!
         self.build_truth_cat()
 
         self.logprint('Writing truth catalog...')
@@ -235,13 +309,16 @@ class ImSimRunner(object):
         # Most properties will be set later on, but we will need at least
         # the image size for WCS initialization
 
-        self.images = []
+        # we will keep a list of images for each band
+        self.images = {}
 
         # TODO: add dithers!
-        for i in range(self.config['observation']['nexp']):
-            self.images.append(
-                galsim.Image(self.Nx, self.Ny)
-                )
+        for b in self.bands:
+            self.images[b] = []
+            for i in range(self.config['observation']['nexp']):
+                self.images[b].append(
+                    galsim.Image(self.Nx, self.Ny)
+                    )
 
         # WCS is added to image in the method
         self.setup_wcs()
@@ -276,14 +353,15 @@ class ImSimRunner(object):
         dvdx =  np.sin(theta) * pixel_scale
         dvdy =  np.cos(theta) * pixel_scale
 
-        for i, image in enumerate(self.images):
-            affine = galsim.AffineTransform(
-                dudx, dudy, dvdx, dvdy, origin=image.true_center
-                )
+        for b in self.bands:
+            for i, image in enumerate(self.images[b]):
+                affine = galsim.AffineTransform(
+                    dudx, dudy, dvdx, dvdy, origin=image.true_center
+                    )
 
-            self.images[i].wcs = galsim.TanWCS(
-                affine, sky_center, units=galsim.arcsec
-                )
+                self.images[b][i].wcs = galsim.TanWCS(
+                    affine, sky_center, units=galsim.arcsec
+                    )
 
         # now do the same for the base image
         base_affine = galsim.AffineTransform(
@@ -306,6 +384,9 @@ class ImSimRunner(object):
         i.e. Gaussian jitter from gondola + optics
         '''
 
+        # NOTE: We are just making a static PSF (per band) for now
+        self.psfs = {}
+
         jitter_fwhm = self.config['psf']['jitter_fwhm']
         use_optics = self.config['psf']['use_optics']
 
@@ -313,8 +394,9 @@ class ImSimRunner(object):
         jitter = galsim.Gaussian(flux=1, fwhm=jitter_fwhm)
 
         if use_optics is True:
+            self.logprint('use_optics is True; convolving telescope optics PSF profile')
+
             # next, define Zernicke polynomial component for the optics
-            lam = self.config['filter']['lam']
             diam = self.config['telescope']['diameter']
             obscuration = self.config['telescope']['obscuration']
             nstruts = self.config['telescope']['nstruts']
@@ -323,9 +405,8 @@ class ImSimRunner(object):
 
             # NOTE: aberrations were definined for lam = 550, and close to the
             # center of the camera. The PSF degrades at the edge of the FOV
-            lam_over_diam = lam * 1.e-9 / diam    # radians
-            lam_over_diam *= 206265.
-
+            # TODO: generalize once we have computed this for all filters;
+            # see issue #103
             aberrations = np.zeros(38)             # Set the initial size.
             aberrations[0] = 0.                       # First entry must be zero
             aberrations[1] = -0.00305127
@@ -335,29 +416,40 @@ class ImSimRunner(object):
             aberrations[26] = 0.00000017
             aberrations[37] = 0.00000004
 
-            optics = galsim.OpticalPSF(
-                lam=lam,
-                diam=diam,
-                obscuration=obscuration,
-                nstruts=nstruts,
-                strut_angle=strut_angle,
-                strut_thick=strut_thick,
-                aberrations=aberrations
-                )
+            for band in self.bands:
+                self.psfs[band] = []
 
-            psf = galsim.Convolve([jitter_psf, optics])
+                lam = self.config['bandpass']['lam']
+                lam_over_diam = lam * 1.e-9 / diam    # radians
+                lam_over_diam *= 206265.
 
-            self.logprint(f'Calculated lambda over diam = {lam_over_diam} arcsec')
-            self.logprint('use_optics is True; convolving telescope optics PSF profile')
+                self.logprint(f'Calculated lambda over diam = '
+                              f'{lam_over_diam} arcsec for band {band}')
+
+                optics = galsim.OpticalPSF(
+                    lam=lam,
+                    diam=diam,
+                    obscuration=obscuration,
+                    nstruts=nstruts,
+                    strut_angle=strut_angle,
+                    strut_thick=strut_thick,
+                    aberrations=aberrations
+                    )
+
+                psf = galsim.Convolve([jitter_psf, optics])
+
+                # NOTE: as stated above, static per band for now
+                for i in range(len(self.images)):
+                    self.psfs[band].append(psf)
 
         else:
-            psf = jitter
             self.logprint('use_optics is False; using jitter-only PSF')
+            psf = jitter
 
-        # NOTE: As stated above, we are just making a static PSF for now
-        self.psfs = []
-        for i in range(len(self.images)):
-            self.psfs.append(psf)
+            for band in self.bands:
+                self.psfs[band] = []
+                for i in range(len(self.images)):
+                    self.psfs[band].append(psf)
 
         self.static_psf = True
 
@@ -373,36 +465,49 @@ class ImSimRunner(object):
         return
 
     def generate_objects(self):
+        '''
+        Generate a list of object stamps for all registered bands
+
+        TODO: Now that we are multiband, it would make more sense to
+        generate a list of GSObjects instead of stamps, particularly for
+        truth catalog generation. However, this will require a fairly
+        significant refactor
+        '''
 
         # for grids, won't know Nobjs until we finish
         # assigning positions
         self.assign_positions()
 
         Nexp = self.config['observation']['nexp']
-        for exp in range(Nexp):
-            self.logprint(f'Generating stamps for exposure {exp+1} of {Nexp}')
-            if ((self.static_psf is False) and (self.static_wcs is False)) or \
-               (exp == 0):
-                for obj_type in self.objects:
-                    self.objects[obj_type].generate_objects(
-                        exp,
-                        self.config,
-                        self.images[exp],
-                        self.psfs[exp],
-                        self.shear,
-                        self.logprint,
-                        ncores=self.ncores,
-                        )
-            else:
-                # In this case, a static PSF means we can just
-                # use the same stamps, after we've accounted for
-                # the new image's WCS
-                self.logprint('PSF & WCS are static; updating existing ' +
-                              'stamps with new image positions')
-                for obj_type in self.objects:
-                    self.objects[obj_type].generate_objects_from_exp(
-                        0, exp, self.images[exp]
-                        )
+        for band in self.bands:
+            self.logprint(f'Starting band {band}')
+            for exp in range(Nexp):
+                self.logprint(f'Generating stamps for exposure {exp+1} ' +
+                              f'of {Nexp}')
+                if ((self.static_psf is False) and \
+                    (self.static_wcs is False)) or \
+                    (exp == 0):
+                    for obj_type in self.objects:
+                        self.objects[obj_type].generate_objects(
+                            exp,
+                            band,
+                            self.config,
+                            self.images[band][exp],
+                            self.psfs[band][exp],
+                            self.shear,
+                            self.logprint,
+                            ncores=self.ncores,
+                            )
+                else:
+                    # In this case, a static PSF means we can just
+                    # use the same stamps, after we've accounted for
+                    # the new image's WCS
+                    self.logprint('PSF & WCS are static; updating existing ' +
+                                  'stamps with new image positions')
+                    for obj_type in self.objects:
+                        self.objects[obj_type].generate_objects_from_exp(
+                            0, exp, band, self.images[band][exp]
+                            )
 
         return
 
@@ -523,15 +628,18 @@ class ImSimRunner(object):
         generalize in the future
         '''
 
-        N = len(self.images)
-        for i, image in enumerate(self.images):
-            self.logprint(f'Filling image {i+1} of {N}')
-            for obj_type, obj in self.objects.items():
-                self.logprint(f'Adding {obj_type}...')
-                image = self._fill_image(
-                    image, obj.obj_list[i], self.logprint
-                    )
-            self.images[i] = image
+        for band in self.bands:
+            self.logprint(f'Starting band {band}')
+
+            N = len(self.images[band])
+            for i, image in enumerate(self.images[band]):
+                self.logprint(f'Filling image {i+1} of {N}')
+                for obj_type, obj in self.objects.items():
+                    self.logprint(f'Adding {obj_type}...')
+                    image = self._fill_image(
+                        image, obj.obj_list[band][i], self.logprint
+                        )
+                self.images[band][i] = image
 
         return
 
@@ -577,30 +685,36 @@ class ImSimRunner(object):
 
         gain = self.config['detector']['gain']
 
-        sky_bkg = self.config['noise']['sky_bkg']
         read_noise = self.config['noise']['read_noise']
         dark_current = self.config['noise']['dark_current']
 
-        Nim = len(self.images)
-        noise_seed = self.seeds['noise']
-        noise_seeds = utils.generate_seeds(Nim, master_seed=noise_seed)
+        for band in self.bands:
+            self.logprint(f'Starting band {band}')
 
-        for i, z in enumerate(zip(self.images, noise_seeds)):
-            self.logprint(f'Adding noise for image {i+1} of {Nim}')
+            Nim = len(self.images[band])
+            noise_seed = self.seeds['noise'][self.band_indx[band]]
+            noise_seeds = utils.generate_seeds(Nim, master_seed=noise_seed)
+            self.logprint(f'Using master noise seed of {noise_seed}')
 
-            image, seed = z[0], z[1]
+            sky_bkg = self.config['noise']['sky_bkg'][band]
+            self.logprint(f'Using sky background of {sky_bkg}')
 
-            dark_noise = dark_current * exp_time
-            image += dark_noise
+            for i, z in enumerate(zip(self.images[band], noise_seeds)):
+                self.logprint(f'Adding noise for image {i+1} of {Nim}')
 
-            noise = galsim.CCDNoise(
-                sky_level=sky_bkg,
-                gain=gain,
-                read_noise=read_noise,
-                rng=galsim.BaseDeviate(seed)
-                )
+                image, seed = z[0], z[1]
 
-            image.addNoise(noise)
+                dark_noise = dark_current * exp_time
+                image += dark_noise
+
+                noise = galsim.CCDNoise(
+                    sky_level=sky_bkg,
+                    gain=gain,
+                    read_noise=read_noise,
+                    rng=galsim.BaseDeviate(seed)
+                    )
+
+                image.addNoise(noise)
 
         return
 
@@ -646,13 +760,19 @@ class ImSimRunner(object):
             A numpy dtype to set, if desired
         '''
 
-        ext = []
-        for i, image in enumerate(self.images):
-            ext_array = np.empty(image.array.shape, dtype=dtype)
-            ext_array.fill(default_val)
-            ext.append(ext_array)
+        all_ext = {}
+        for band in self.bands:
+            self.logprint(f'Starting band {band}')
 
-        setattr(self, ext_name, ext)
+            ext = []
+            for i, image in enumerate(self.images[band]):
+                ext_array = np.empty(image.array.shape, dtype=dtype)
+                ext_array.fill(default_val)
+                ext.append(ext_array)
+
+            all_ext[band] = ext
+
+        setattr(self, ext_name, all_ext)
 
         return
 
@@ -667,84 +787,163 @@ class ImSimRunner(object):
         run_name = self.run_name
         overwrite = self.overwrite
 
-        for i, image in enumerate(self.images):
-            # to match the old imsim convention:
-            outnum = str(i).zfill(3)
-            fname = f'{run_name}_{outnum}.fits'
-            outfile = os.path.join(outdir, fname)
+        for band in self.bands:
+            self.logprint(f'Starting band {band}')
 
-            if os.path.exists(outfile):
-                self.logprint(f'{outfile} already exists')
-                if overwrite is True:
-                    self.logprint('Deleting as overwrite=True...')
-                    os.remove(outfile)
-                else:
-                    self.logprint('Skipping as overwrite=False...')
-                    continue
+            Nim = len(self.images[band])
+            for i, image in enumerate(self.images[band]):
+                # to match the old imsim convention:
+                outnum = str(i).zfill(3)
+                fname = f'{run_name}_{outnum}_{band}.fits'
+                outfile = os.path.join(outdir, fname)
 
-            try:
-                # this way automatically saves the WCS to the header
-                # image.write(outfile)
+                self.logprint(f'Writing image {i+1} of {Nim} to {outfile}')
 
-                # fitsio.write(outfile, image.array)
-                # with fitsio.FITS(outfile, 'rw') as out:
-                    # no longer can pass an extension explicitly. We instead
-                    # create each extension in order, with the following def:
-                    # ext0: image
-                    # ext1: weight
-                    # ext2: mask
-
-                    # out.write(image.array)
-
-                # image.write(outfile)
-                images = [image]
+                if os.path.exists(outfile):
+                    self.logprint(f'{outfile} already exists')
+                    if overwrite is True:
+                        self.logprint('Deleting as overwrite=True...')
+                        os.remove(outfile)
+                    else:
+                        self.logprint('Skipping as overwrite=False...')
+                        continue
 
                 try:
-                    # weight = self.weights[i]
-                    weight = galsim.Image(self.weights[i])
-                    weight.wcs = image.wcs
-                    # fitsio.write(outfile, weight)
-                    images.append(weight)
-                    # out.write(weight)
-                except Exception:
-                    self.logprint(f'Weight writing failed for image {i}; ' +
-                                  'skipping')
-                try:
-                    # mask = self.masks[i]
-                    mask = galsim.Image(self.masks[i])
-                    mask.wcs = image.wcs
-                    images.append(mask)
-                    # fitsio.write(outfile, mask)
-                    # out.write(mask)
-                except Exception:
-                    self.logprint(f'Mask writing failed for image {i}; ' +
-                                  'skipping')
-                galsim.fits.writeMulti(images, outfile)
+                    # NOTE: we do this in a somewhat strange way to
+                    # automatically save the WCS to the header
+                    images = [image]
 
-            except OSError as e:
-                self.logprint(e)
-                self.logprint(f'Skipping writing for image {i}')
+                    try:
+                        weight = galsim.Image(self.weights[band][i])
+                        weight.wcs = image.wcs
+                        images.append(weight)
+
+                    except Exception:
+                        self.logprint(f'Weight writing failed for image {i}; ' +
+                                      'skipping')
+                    try:
+                        mask = galsim.Image(self.masks[band][i])
+                        mask.wcs = image.wcs
+                        images.append(mask)
+
+                    except Exception:
+                        self.logprint(f'Mask writing failed for image {i}; ' +
+                                      'skipping')
+
+                    galsim.fits.writeMulti(images, outfile)
+
+                    # add a few header extras
+                    ipdb.set_trace()
+                    self.extend_header(outfile)
+
+                except OSError as e:
+                    self.logprint(e)
+                    self.logprint(f'Skipping writing for image {i}')
 
         return
 
+    def extend_header(self, outfile):
+        '''
+        Add a few extra expected keys to the simulated header
+        '''
+
+        fits = fitsio.FITS(outfile, 'rw')
+
+        self._extend_sci_header(fits)
+        self._extend_wgt_header(fits)
+        self._extend_msk_header(fits)
+
+        h = fitsio.read_header(outfile)
+        print(h)
+        ipdb.set_trace()
+
+        return
+
+    def _extend_sci_header(self, fits):
+        fits[0].write_key(
+            'GAIN', self.config['detector']['gain'], comment='e-/ADU'
+            )
+
+        return
+
+    def _extend_wgt_header(self, fits):
+        # fits[1] = ...
+        pass
+
+    def _extend_msk_header(self, fits):
+        # fits[2] = ...
+        pass
+
     def build_truth_cat(self):
+        '''
+        Build a table of truth values for all rendered objects
 
-        Nprocessed = 0
+        NOTE: the truth values are the same across all exposures,
+        but there can be slight differences across bands (e.g. flux).
+        This makes the following process messy to handle cases where
+        a GalSim rendering failure happens for only a subset of bands
+        '''
 
-        truth_cats = []
-        for obj_type, obj in self.objects.items():
-            # NOTE: the truth val is the same across all exposures
-            for i, stamp, truth in obj.obj_list[0]:
-                # add a unique ID to each obj
-                if (stamp is None) or (truth is None):
-                    continue
+        joined_truth_cats = None
 
-                truth['id'] = truth[f'obj_index'] + Nprocessed
-                truth_cats.append(truth)
+        # not all object types will have the same truth cols, and
+        # i can't seem to get
+        mask_val = -1000
 
-            Nprocessed += obj.Nobjs
+        for band in self.bands:
+            self.logprint(f'Starting band {band}')
 
-        self.truth_cat = vstack(truth_cats)
+            truth_cats = []
+            for obj_type, obj in self.objects.items():
+                self.logprint(f'Building truth catalog for {obj_type}...')
+
+                # NOTE: we don't worry about rendering failures messing up the
+                # indexing here, as (for now) the only stamp changes between
+                # exposures is centering offsets to account for dithering.
+                # TODO: generalize when needed!
+                if (self.static_psf is False) or (self.static_wcs is False):
+                    raise Exception('Truth catalog generation for non-' +
+                                    'static WCS or PSF is not yet implemented!')
+
+                # truth values are the same across exposures for a given band
+                for i, stamp, truth in obj.obj_list[band][0]:
+                    if (stamp is None) or (truth is None):
+                        truth = None
+                        continue
+
+                    truth_cats.append(truth)
+
+            # TODO: Would really like to have masked Tables merge
+            # correctly, but having trouble getting the masking to
+            # work...
+            truth_cats = vstack(truth_cats).filled(mask_val)
+
+            if joined_truth_cats is None:
+                joined_truth_cats = truth_cats
+            else:
+                # the following is complex as it seems to fail to
+                # do outer merges for masked tables...
+                # left_mask = joined_truth_cats.mask.as_array()
+                # d = [(dtype[0], dtype[1]) for dtype in left_mask.dtype]
+                # print(d)
+                # left_mask.dtype = [(col, bool) for col in joined_truth_cats.columns]
+                # left_mask.dtype = [(col, bool) for col in left_mask.columns]
+                # right_mask = truth_cats.mask.as_array()
+                # right_mask.dtype = bool
+                joined_truth_cats = join(
+                    joined_truth_cats,
+                    truth_cats,
+                    join_type='outer',
+                    )
+
+        # add a unique ID to each obj
+        joined_truth_cats['id'] = np.arange(len(joined_truth_cats))
+
+        assert len(joined_truth_cats) == len(
+            np.unique(joined_truth_cats['id'])
+            )
+
+        self.truth_cat = joined_truth_cats
 
         return
 
