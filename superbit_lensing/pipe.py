@@ -418,7 +418,8 @@ class ImSimModule(SuperBITModule):
 
 class SWarpModule(SuperBITModule):
     _req_fields = ['config_file', 'run_name', 'basedir', 'bands']
-    _opt_fields = ['outfile_base', 'outdir', 'fname_base']
+    _opt_fields = ['outfile_base', 'outdir', 'fname_base', 'config_dir',
+                   'det_bands']
     _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
@@ -431,7 +432,7 @@ class SWarpModule(SuperBITModule):
     def _setup_run_command(self, run_options):
 
         swarp_dir = os.path.join(utils.MODULE_DIR, 'coadd')
-        filepath = os.path.join(select_dir, 'run_swarp.py')
+        filepath = os.path.join(swarp_dir, 'run_swarp.py')
 
         config_file = self._config['config_file']
 
@@ -801,7 +802,7 @@ def get_module_types():
 MODULE_TYPES = {
     'galsim': GalSimModule,
     'imsim': ImSimModule,
-    'swarp': SWarpModule
+    'swarp': SWarpModule,
     'medsmaker': MedsmakerModule,
     'metacal': MetacalModule,
     'metacal_v2': MetacalModuleV2,

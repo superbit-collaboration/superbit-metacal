@@ -11,17 +11,20 @@ class SWarpRunner(object):
     common value-adds needed for downstream modules.
     '''
 
-    def __init__(self, config_file, run_name, basedir, bands, config_dir=None,
-                 fname_base=None, outdir=None, logprint=None):
+    def __init__(self, config_file, run_name, basedir, bands, det_bands,
+                 config_dir=None, fname_base=None, outdir=None,
+                 sci_ext=0, wgt_ext=1, logprint=None):
         '''
         config_file: str
-            The filename of the SWarp config
+            The filename of the base SWarp config
         run_name: str
             The name of the current processing run
         basedir: str
             The base directory path for the set of single-exposure images
         bands: list of str's
             A list of band names to make coadds for
+        det_bands: list of str's
+            A list of band names to use for the detection coadd
         config_dir: str
             A directory where the SWarp config file is located. Defaults to
             current working directory
@@ -29,6 +32,10 @@ class SWarpRunner(object):
             Base name of the input sci files to coadd
         outdir: str
             The output directory for produced coadd files. Defaults to basedir
+        sci_ext: int
+            The science frame fits extension
+        wgt_ext: int
+            The weight frame fits extension
         logprint: utils.LogPrint
             A LogPrint instance. Will default to standard print
         '''
@@ -66,43 +73,84 @@ class SWarpRunner(object):
             else:
                 raise TypeError('config_dir must be a str!')
 
-        if not isinstance(bands, list):
-            raise TypeError('bands must be a list of strings!')
-        else:
-            for band in bands:
-                if not isinstance(band, str):
-                    raise TypeError('Band names must be a str!')
+        for name, bnds in {'bands':bands, 'det_bands':det_bands}.items():
+            if not isinstance(bnds, list):
+                raise TypeError(f'{name} must be a list of strings!')
+            else:
+                for band in bnds:
+                    if not isinstance(band, str):
+                        raise TypeError('Band names must be a str!')
         self.bands = bands
+        self.det_bands = bands
+
+        for name, ext in {'sci_ext':sci_ext, 'wgt_ext':wgt_ext}.items():
+            if not isinstance(ext, int):
+                raise TypeError(f'{name} must be an int!')
+
+        self.sci_ext = sci_ext
+        self.wgt_ext = wgt_ext
 
         self.get_sci_images()
+        self.get_wgt_images()
 
         # will be set during go() method
+        self.coadds = {}
         self.det_image = None
-        self.coadds = None
 
         return
 
     def get_sci_images(self):
         '''
-        Grab all available science images for requested bands given the basedir
+        Grab all available science & weight images for requested bands given
+        the basedir
+
+        NOTE: For now, we follow the multi-extention fits convention
         '''
+
+        ext = self.sci_ext
 
         # we'll save the images for each band separately
         self.sci_images = {}
 
         for band in self.bands:
-
             # get single exposures, but ignore any pre-existing truth, mcal, etc.
             sci_names = os.path.join(
                 self.basedir, self.fname_base
                 ) + f'*[!truth,meds,mcal,sub,wgt,mask,sgm,coadd]_{band}.fits'
 
-            sci = glob(sci_names)
+            sci_list = glob(sci_names)
 
-            # TODO: loop through and check the files?
+            sci_list = [
+                sci.replace('.fits', f'.fits[{ext}]') for sci in sci_list
+                ]
 
-            self.sci_images[band] = sci
-            self.logprint(f'Science frames for band {band}: {sci}')
+            self.sci_images[band] = sci_list
+            self.logprint(f'Science frames for band {band}: {sci_list}')
+
+        return
+
+    def get_wgt_images(self):
+        '''
+        Can implement more options in the future. For now, we're using
+        ext=1 of the sci images
+        '''
+
+        if len(self.sci_images) == 0:
+            raise ValueError('There are no science images registered yet!')
+
+        sci_ext = self.sci_ext
+        wgt_ext = self.wgt_ext
+
+        # we'll save the images for each band separately
+        self.wgt_images = {}
+
+        for band in self.bands:
+            sci_list = self.sci_images[band]
+            wgt_list = [
+                sci.replace(f'[{sci_ext}]', f'[{wgt_ext}]') for sci in sci_list
+                ]
+
+            self.wgt_images[band] = wgt_list
 
         return
 
@@ -132,6 +180,7 @@ class SWarpRunner(object):
             self.logprint('Skipping detection image as `make_det_image` ' +
                           'is False')
 
+        # TODO: Is this needed? I think NO
         self.logprint('Writing coadds to disk...')
         self.write_coadds()
 
@@ -166,7 +215,8 @@ class SWarpRunner(object):
             outfile = self.outfile_base.replace('.fits', f'_{b}.fits')
             self._run_swarp(b, outfile)
 
-            self.coadds[b] = outfile
+            self.coadds[b]['sci'] = outfile
+            self.coadds[b]['wgt'] = outfile.replace('.fits', '.wgt.fits')
 
         if len(self.coadds) != len(self.bands):
             self.logprint('WARNING: The number of produced coadds does not ' +
@@ -176,6 +226,17 @@ class SWarpRunner(object):
         return
 
     def make_detection_image(self):
+        '''
+        Once all single-band coadds are made, create the
+        detection image
+        '''
+
+        for band in self.det_bands:
+            if band not in self.coadds:
+                raise ValueError('Cannot make detection image until all '
+                                 'following single-band coadds are done: '
+                                 f'{self.det_bands}')
+
         band = 'det'
 
         outfile = os.path.join(
@@ -183,7 +244,8 @@ class SWarpRunner(object):
             )
         self._run_swarp(band, outfile, detection=True)
 
-        self.coadds[band] = outfile
+        self.coadds[band]['sci'] = outfile
+        self.coadds[band]['wgt'] = outfile.replace('.fits', '.wgt.fits')
 
         return
 
@@ -203,44 +265,72 @@ class SWarpRunner(object):
             if detection is False:
                 raise ValueError(f'{band} is not a registered band!')
 
-        swarp_cmd = self._setup_swarp_cmd(band, outfile)
-        os.sys(cmd)
+        swarp_cmd = self._setup_swarp_cmd(
+            band, outfile, detection=detection
+            )
+
+        self.logprint()
+        self.logprint(f'SWarp cmd: {swarp_cmd}')
+        os.system(swarp_cmd)
+        self.logprint(f'SWarp completed for band {band}')
         self.logprint()
 
         # move any extra created files if needed
         if os.getcwd() != self.outdir:
+            self.logprint('Cleaning up local directory...')
             cmd = f'mv *.xml *.fits {self.outdir}'
+            self.logprint()
             self.logprint(cmd)
-            # rc = utils.run_command(cmd, logprint=self.logprint)
             os.system(cmd)
             self.logprint()
 
         return
 
-    def _setup_swarp_cmd(self, band, outfile):
+    def _setup_swarp_cmd(self, band, outfile, detection=False):
         '''
         band: str
             The band to make a coadd of
         outfile: str
             The name of the output coadd file
+        detection: bool
+            Set to True to indicate you are making a detection image
         '''
 
-        ipdb.set_trace()
-        image_args = ' '.join(self.sci_images[band])
-
-        weight_outfile = outfile.replace('.fits', '.weight.fits')
+        # a few common cmd args
         config_arg = '-c ' + self.config_file
+        weight_outfile = outfile.replace('.fits', '.wgt.fits')
         resamp_arg = '-RESAMPLE_DIR ' + self.outdir
         outfile_arg = '-IMAGEOUT_NAME '+ outfile + ' ' +\
                       '-WEIGHTOUT_NAME ' + weight_outfile
+
+        ipdb.set_trace()
+        if detection is False:
+            # normal coadds are made from resampling from all single-epoch
+            # exposures (& weights) for a given band & target
+            sci_im_args = ' '.join(self.sci_images[band])
+            wgt_im_args = ','.join(self.wgt_images[band])
+
+            image_args = f'{sci_im_args} -WEIGHT_IMAGE {wgt_im_args}'
+
+        else:
+            # detection coadds resample from the single-band coadds
+            sci_im_list = [self.coadds[b]['sci'] for b in self.det_bands]
+            wgt_im_list = [self.coadds[b]['wgt'] for b in self.det_bands]
+
+            sci_im_args = ' '.join(sci_im_list)
+            wgt_im_args = ','.join(wgt_im_list)
+
+            image_args = f'{sci_im_args} -WEIGHT_IMAGE {wgt_im_args}'
+
+            # TODO: Current refactor spot!
+            # TODO: Change COMBINE_TYPE!
+            # ...
 
         cmd = ' '.join([
             'swarp ', image_args, resamp_arg, outfile_arg, config_arg
             ])
 
-        self.logprint('SWarp cmd: {cmd}')
-
-        return cmd
+        return cmd, coadd
 
     def write_coadds(self):
         pass

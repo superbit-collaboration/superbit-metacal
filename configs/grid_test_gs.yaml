@@ -15,15 +15,24 @@ telescope:
   strut_theta: 90 # angle between verticle & nearest [deg]
   obscuration: 0.380 # fraction of aperture obscured by M2
 
-bandpass:
-  lam: 475 # central wavelength (used for PSF abberations) [nm]
-  name: crates_b # catalog filter name for simulation
+bandpasses:
+  # NOTE: a list of bandpass dictionaries. For now, just need name
+  # ("crates_" will be appended) and central wavelength
+  b: # catalog filter name for simulation
+    lam: 475 # central wavelength (used for PSF abberations) [nm]
+  lum: # catalog filter name for simulation
+    lam: 600 # central wavelength (used for PSF abberations) [nm]
 
 detector:
   gain: 0.343 # [e- / ADU]
 
 noise:
-  sky_bkg: 0.0519 # [e- / s / pixel]
+  # NOTE: a list of sky bakcground that must match both the names and
+  # the len of bandpasses!
+  sky_bkg:
+    # b: 0.0519 # [e- / s / pixel] # actual value!
+    b: 0.00519 # [e- / s / pixel]
+    lum: 0.1 # [e- / s / pixel] TODO: find real value!
   read_noise: 1.8 # [e-]
   # read_noise: .0025 # [e-]
   # dark_current: 0.000022 # [ADU / pix / s]
@@ -75,16 +84,17 @@ stars:
 
 galaxies:
   type: 'circle'
-  hlr_max: 0.5
-  hlr_min: .01
-  flux_max: 5e2
+  hlr_max: 1
+  hlr_min: .3
+  flux_min: 1e1
+  flux_max: 1e3
   # nobjs: None # used for random position sampling
 
 position_sampling:
   galaxies:
     type: MixedGrid
     grid_type: HexGrid
-    grid_spacing: 10 # arcsec
+    grid_spacing: 40 # arcsec
     fraction: 0.8
   stars:
     type: MixedGrid

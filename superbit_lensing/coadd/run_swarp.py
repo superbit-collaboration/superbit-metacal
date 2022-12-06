@@ -18,6 +18,11 @@ def parse_args():
                         help='Directory containing imaging data')
     parser.add_argument('bands', type=str,
                         help='List of band names separated by commas (no space)')
+    parser.add_argument('-config_dir', type=str, default=None,
+                        help='Directory of SWarp config file')
+    parser.add_argument('-det_bands', type=str, default=None,
+                        help='List of band names separated by commas ' +
+                        '(no space) to use for the detection image')
     parser.add_argument('-outfile_base', type=str,
                         help='Base name for the output coadd files')
     parser.add_argument('-outdir', type=str, default=None,
@@ -37,13 +42,20 @@ def main(args):
     basedir = args.basedir
     run_name = args.run_name
     bands = args.bands
+    config_dir = args.config_dir
+    det_bands = args.det_bands
     outfile_base = args.outfile_base
     outdir = args.outdir
     fname_base = args.fname_base
     vb = args.vb
 
+    # default is to use all bands for detection image
+    if det_bands is None:
+        det_bands = bands
+
     # convert bands into a list of strings
     bands = bands.split(',')
+    det_bands = det_bands.split(',')
 
     #-----------------------------------------------------------------
     # Initial setup
@@ -59,11 +71,23 @@ def main(args):
     log = utils.setup_logger(logfile, logdir=logdir)
     logprint = utils.LogPrint(log, vb)
 
+    if config_dir is not None:
+        config_file = os.path.join(config_dir, config_file)
+
+    logprint(f'Using config file {config_file}')
+    if not os.path.exists(config_file):
+        raise ValueError(f'SWarp config file not found!')
+
     #-----------------------------------------------------------------
     # Create & setup SWarp runner
 
     runner = SWarpRunner(
-        config_file, run_name, basedir, bands, fname_base=fname_base
+        config_file,
+        run_name,
+        basedir,
+        bands,
+        det_bands=det_bands,
+        fname_base=fname_base,
         )
 
     # Do the SWarping!
