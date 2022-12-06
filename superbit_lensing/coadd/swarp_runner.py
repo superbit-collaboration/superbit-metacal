@@ -95,7 +95,6 @@ class SWarpRunner(object):
 
         # will be set during go() method
         self.coadds = {}
-        self.det_image = None
 
         return
 
@@ -180,10 +179,6 @@ class SWarpRunner(object):
             self.logprint('Skipping detection image as `make_det_image` ' +
                           'is False')
 
-        # TODO: Is this needed? I think NO
-        self.logprint('Writing coadds to disk...')
-        self.write_coadds()
-
         return
 
     def set_outfile_base(self, outfile_base, outdir=None):
@@ -207,10 +202,9 @@ class SWarpRunner(object):
         Make a coadd image using SWarp for each band
         '''
 
-        self.coadds = {}
-
         for b in self.bands:
             self.logprint(f'Starting band {b}')
+            self.coadds[b] = {}
 
             outfile = self.outfile_base.replace('.fits', f'_{b}.fits')
             self._run_swarp(b, outfile)
@@ -231,6 +225,7 @@ class SWarpRunner(object):
         detection image
         '''
 
+
         for band in self.det_bands:
             if band not in self.coadds:
                 raise ValueError('Cannot make detection image until all '
@@ -238,6 +233,7 @@ class SWarpRunner(object):
                                  f'{self.det_bands}')
 
         band = 'det'
+        self.coadds[band] = {}
 
         outfile = os.path.join(
             self.basedir, f'{self.run_name}_coadd_{band}.fits'
@@ -303,7 +299,6 @@ class SWarpRunner(object):
         outfile_arg = '-IMAGEOUT_NAME '+ outfile + ' ' +\
                       '-WEIGHTOUT_NAME ' + weight_outfile
 
-        ipdb.set_trace()
         if detection is False:
             # normal coadds are made from resampling from all single-epoch
             # exposures (& weights) for a given band & target
@@ -311,6 +306,9 @@ class SWarpRunner(object):
             wgt_im_args = ','.join(self.wgt_images[band])
 
             image_args = f'{sci_im_args} -WEIGHT_IMAGE {wgt_im_args}'
+
+            # use config value for single-band
+            ctype_arg = ''
 
         else:
             # detection coadds resample from the single-band coadds
@@ -322,16 +320,11 @@ class SWarpRunner(object):
 
             image_args = f'{sci_im_args} -WEIGHT_IMAGE {wgt_im_args}'
 
-            # TODO: Current refactor spot!
-            # TODO: Change COMBINE_TYPE!
-            # ...
+            # DES suggests using AVERAGE instead of CHI2 or WEIGHTED
+            ctype_arg = '-COMBINE_TYPE AVERAGE'
 
         cmd = ' '.join([
-            'swarp ', image_args, resamp_arg, outfile_arg, config_arg
+            'swarp ', image_args, resamp_arg, outfile_arg, config_arg, ctype_arg
             ])
 
-        return cmd, coadd
-
-    def write_coadds(self):
-        pass
-
+        return cmd
