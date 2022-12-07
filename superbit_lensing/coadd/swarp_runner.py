@@ -1,4 +1,5 @@
 import os
+import fitsio
 from glob import glob
 
 from superbit_lensing import utils
@@ -153,7 +154,8 @@ class SWarpRunner(object):
 
         return
 
-    def go(self, outfile_base=None, outdir=None, make_det_image=True):
+    def go(self, outfile_base=None, outdir=None, make_det_image=True,
+           overwrite=False):
         '''
         outfile_base: str
             The base of the output coadd filenames. Defaults to
@@ -163,6 +165,8 @@ class SWarpRunner(object):
         make_det_image: bool
             Set to create a composite detection image in addition to the
             single-band coadds. Default is True
+        overwrite: bool
+            Set to overwrite any existing files
         '''
 
         self.logprint('Setting outfile_base...')
@@ -170,7 +174,7 @@ class SWarpRunner(object):
         self.logprint(f'outfile_base={self.outfile_base}')
 
         self.logprint('Making coadds...')
-        self.make_coadds()
+        self.make_coadds(overwrite=overwrite)
 
         if make_det_image is True:
             self.logprint('Making detection image...')
@@ -178,6 +182,11 @@ class SWarpRunner(object):
         else:
             self.logprint('Skipping detection image as `make_det_image` ' +
                           'is False')
+
+        # TODO: Eventually unify wgt & mask extensions for single-epoch &
+        # coadd images?
+        self.logprint('Collating coadd extensions...')
+        self.collate_extensions()
 
         return
 
@@ -197,9 +206,12 @@ class SWarpRunner(object):
 
         return
 
-    def make_coadds(self):
+    def make_coadds(self, overwrite=False):
         '''
         Make a coadd image using SWarp for each band
+
+        overwrite: bool
+            Set to True to overwrite existing coadd files
         '''
 
         for b in self.bands:
@@ -207,6 +219,16 @@ class SWarpRunner(object):
             self.coadds[b] = {}
 
             outfile = self.outfile_base.replace('.fits', f'_{b}.fits')
+
+            if os.path.exists(outfile):
+                if (overwrite is False):
+                    raise OSError(f'{outfile} already exists and '
+                                  'overwrite is False!')
+                else:
+                    self.logprint(f'{outfile} exists; deleting as ' +
+                                  'overwrite is True')
+                    os.remove(outfile)
+
             self._run_swarp(b, outfile)
 
             self.coadds[b]['sci'] = outfile
@@ -328,3 +350,30 @@ class SWarpRunner(object):
             ])
 
         return cmd
+
+    def collate_extensions(self):
+        '''
+        Collate all single-extension coadd images into a multi-extension
+        FITS file per band
+
+        TODO: Should we add in a mask ext here? Seg has to come after
+        source extraction
+        '''
+
+        for band, coadds in self.coadds.items():
+            self.logprint(f'Collating coadd extensions for {band} band')
+            sci_file = coadds['sci']
+            wgt_file = coadds['wgt']
+
+            # sci, sci_hdr = fitsio.read(sci_file)
+            wgt, wgt_hdr = fitsio.read(wgt_file, header=True)
+
+            with fitsio.FITS(sci_file, 'rw') as fits:
+                # adds 1 to the extension number, so do it in order
+                # (sci, wgt, msk, seg)
+                fits.write(wgt, header=wgt_hdr)
+
+            # now cleanup old wgt files
+            os.remove(wgt_file)
+
+        return

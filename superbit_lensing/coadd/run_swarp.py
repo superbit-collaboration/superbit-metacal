@@ -47,6 +47,7 @@ def main(args):
     outfile_base = args.outfile_base
     outdir = args.outdir
     fname_base = args.fname_base
+    overwrite = args.overwrite
     vb = args.vb
 
     # default is to use all bands for detection image
@@ -92,7 +93,7 @@ def main(args):
 
     # Do the SWarping!
     runner.go(
-        outfile_base=outfile_base, outdir=outdir
+        outfile_base=outfile_base, outdir=outdir, overwrite=overwrite
         )
 
     logprint('Done!')
@@ -104,6 +105,6 @@ if __name__ == '__main__':
     rc = main(args)
 
     if rc == 0:
-        print('\nrun_meds_builder completed without error\n')
+        print('\nrun_swarp completed without error\n')
     else:
-        print(f'\nrun_meds_builder failed with rc={rc}\n')
+        print(f'\nrun_swarp failed with rc={rc}\n')
