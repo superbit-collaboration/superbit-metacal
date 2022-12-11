@@ -101,7 +101,7 @@ class SWarpRunner(object):
 
     def get_sci_images(self):
         '''
-        Grab all available science & weight images for requested bands given
+        Grab all available science images for requested bands given
         the basedir
 
         NOTE: For now, we follow the multi-extention fits convention
@@ -132,7 +132,7 @@ class SWarpRunner(object):
     def get_wgt_images(self):
         '''
         Can implement more options in the future. For now, we're using
-        ext=1 of the sci images
+        the provided ext of the sci images
         '''
 
         if len(self.sci_images) == 0:

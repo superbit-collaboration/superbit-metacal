@@ -79,6 +79,9 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
         swarp_config = os.path.join(
             utils.MODULE_DIR, 'coadd/configs/', 'swarp.config'
             )
+        se_config = os.path.join(
+            utils.MODULE_DIR, 'detection/configs/', 'se_configs.yaml'
+            )
         se_file = os.path.join(outdir, f'{run_name}_mock_coadd_cat.ldac')
         meds_file = os.path.join(outdir, f'{run_name}_meds.fits')
         mcal_file = os.path.join(outdir, f'{run_name}_mcal.fits')
@@ -103,8 +106,9 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
                 'ncores': 8,
                 'run_diagnostics': True,
                 'order': [
-                    # f'{imsim}',
+                    f'{imsim}',
                     'swarp',
+                    'sextractor',
                     # 'medsmaker',
                     # 'metacal',
                     # 'selection',
@@ -129,7 +133,15 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
                 'det_bands': det_bands,
                 'outdir': outdir,
                 'overwrite': overwrite,
-            }
+            },
+            'sextractor': {
+                'config_file': se_config,
+                'run_name': run_name,
+                'basedir': outdir,
+                'bands': bands,
+                'outdir': outdir,
+                'overwrite': overwrite,
+            },
             # 'medsmaker': {
             #     'mock_dir': outdir,
             #     'outfile': meds_file,
@@ -140,19 +152,19 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
             #     'meds_coadd': True,
             #     'psf_mode': 'piff'
             # },
-            # 'metacal': {
+            'metacal': {
             # 'metacal_v2': {
-            #     'meds_file': meds_file,
-            #     'outfile': mcal_file,
-            #     'outdir': outdir,
-            #     'end': 2000,
-            #     'overwrite': overwrite
-            # },
-            # 'selection': {
-            #     'config_file': select_config,
-            #     'mcal_file': mcal_file,
-            #     'overwrite': overwrite,
-            # },
+                'meds_file': meds_file,
+                'outfile': mcal_file,
+                'outdir': outdir,
+                'end': 2000,
+                'overwrite': overwrite
+            },
+            'selection': {
+                'config_file': select_config,
+                'mcal_file': mcal_file,
+                'overwrite': overwrite,
+            },
             # 'ngmix_fit': {
             #     'meds_file': meds_file,
             #     'outfile': f'{run_name}_ngmix.fits',
