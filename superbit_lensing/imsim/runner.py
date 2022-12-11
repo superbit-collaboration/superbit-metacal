@@ -833,7 +833,6 @@ class ImSimRunner(object):
                     galsim.fits.writeMulti(images, outfile)
 
                     # add a few header extras
-                    ipdb.set_trace()
                     self.extend_header(outfile)
 
                 except OSError as e:
@@ -854,8 +853,6 @@ class ImSimRunner(object):
         self._extend_msk_header(fits)
 
         h = fitsio.read_header(outfile)
-        print(h)
-        ipdb.set_trace()
 
         return
 
