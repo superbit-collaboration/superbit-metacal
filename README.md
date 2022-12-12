@@ -68,7 +68,7 @@ The [meds](https://github.com/esheldon/meds) and [psfex](https://github.com/eshe
 
 `cd /path/to/repos/{meds/psfex}`
 
-Build it:
+Build it (in your desired environment!):
 
 `python setup.py install`
 
