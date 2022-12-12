@@ -1,0 +1,123 @@
+# This config file is intended to be used for a validation grid test,
+# using the new config nested structure. See imsim_config.py for more
+# details on what fields are required vs. optional as well as defaults
+
+run_options:
+  run_name: grid_test
+  ncores: 8
+  overwrite: True
+  vb: True
+
+telescope:
+  diameter: 0.5 # [m]
+  nstruts: 4 # number of M2 struts
+  strut_thick: 0.087 # fraction of diameter strut thickness [m/m]
+  strut_theta: 90 # angle between verticle & nearest [deg]
+  obscuration: 0.380 # fraction of aperture obscured by M2
+
+bandpasses:
+  # NOTE: a list of bandpass dictionaries. For now, just need name
+  # ("crates_" will be appended) and central wavelength
+  b: # catalog filter name for simulation
+    lam: 475 # central wavelength (used for PSF abberations) [nm]
+  lum: # catalog filter name for simulation
+    lam: 600 # central wavelength (used for PSF abberations) [nm]
+
+detector:
+  gain: 0.343 # [e- / ADU]
+
+noise:
+  # NOTE: a list of sky bakcground that must match both the names and
+  # the len of bandpasses!
+  sky_bkg:
+    # b: 0.0519 # [e- / s / pixel] # actual value!
+    b: 0.00519 # [e- / s / pixel]
+    lum: 0.1 # [e- / s / pixel] TODO: find real value!
+  read_noise: 1.8 # [e-]
+  # read_noise: .0025 # [e-]
+  # dark_current: 0.000022 # [ADU / pix / s]
+  dark_current: 0.0022 # [ADU / pix / s]
+  # dark_current_std: 0.001 # [ADU / pix / s]
+
+psf:
+  jitter_fwhm: 0.24 # [arcsec]
+  use_optics: False
+
+image:
+  image_xsize: 9568 # [pixels]
+  image_ysize: 6380 # [pixels]
+  pixel_scale: 0.141 # [arcsec / pixel]
+
+observation:
+  nexp: 2 # 18 is fiducial
+  exp_time: 600 # [s] # 600 is fiducial
+
+cluster:
+  type: nfw
+  mass: 7.8e14 # NFW halo mass [Msol / h]
+  nfw_conc: 4 # concentration; virial radius / NFW scale radius
+  nfw_z_halo: 0.25 # cluster redshift
+  center_ra: 13.3 # example target RA [hours]
+  center_dec: 33.1 # example target DEC [deg]
+
+# cluster_galaxies:
+#   type: default
+#   Nobjs: 0 # number of cluster member galaxies
+
+cosmology:
+  omega_m: 0.3 # fiducial Omega matter
+  omega_lam: 0.7 # fiducial Omega lambda
+  h: 0.7 # dimensionless Hubble constant
+
+input:
+  cosmosdir: USE_PATH_CONFIG
+  datadir: USE_PATH_CONFIG
+  cat_file_name: cosmos15_superbit2023_phot_shapes.csv # source catalog
+  cluster_cat_dir: USE_PATH_CONFIG
+  cluster_cat_name: real_galaxy_catalog_23.5.fits
+
+stars:
+  type: gaia
+  # set by path config
+  gaia_dir: None
+  # nobjs: None # used if not using GAIA catalogs
+
+galaxies:
+  type: 'circle'
+  hlr_max: 1
+  hlr_min: .3
+  flux_min: 1e1
+  flux_max: 1e3
+  # nobjs: None # used for random position sampling
+
+position_sampling:
+  galaxies:
+    type: MixedGrid
+    grid_type: HexGrid
+    grid_spacing: 30 # arcsec
+    fraction: 0.8
+  stars:
+    type: MixedGrid
+    fraction: 0.2
+  # TODO: fill in the rest of the required fields!
+
+shear:
+  type: constant
+  #g1: 0.0
+  #g2: 0.0
+  g1: 0.015
+  g2: -0.025
+
+output:
+  # will be set to TEST_DIR/grid_test/
+  outdir: None
+
+seeds:
+  # well pick new seeds every time
+  master: None
+  noise: None
+  dithering: None
+  cluster_galaxies: None
+  stars: None
+  galaxies: None
+

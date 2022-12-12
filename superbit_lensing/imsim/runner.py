@@ -24,12 +24,18 @@ class ImSimRunner(object):
 
         # check for inconsistencies between command line options & config
         cmd_line_pars = {
+            'config_dir': self.config_dir,
             'run_name': self.run_name,
             'outdir': self.outdir,
             'ncores': self.ncores,
             'overwrite': self.overwrite,
             'vb': self.vb
             }
+
+        if self.config_dir is not None:
+            self.config_file = os.path.join(
+                self.config_dir, self.config_file
+                )
 
         config = utils.read_yaml(self.config_file)
         try:

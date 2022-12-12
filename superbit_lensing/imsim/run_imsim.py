@@ -16,6 +16,8 @@ def parse_args():
 
     parser.add_argument('config_file', type=str,
                         help='Configuration file for mock sims')
+    parser.add_argument('-config_dir', type=str, default=None,
+                        help='Directory location of the config file')
     parser.add_argument('-run_name', type=str, default=None,
                         help='Name of mock simulation run')
     parser.add_argument('-outdir', type=str,

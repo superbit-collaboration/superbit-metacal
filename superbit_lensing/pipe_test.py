@@ -55,6 +55,8 @@ def parse_args():
     parser.add_argument('-pipe_config', type=str, default=None,
                         help='A pipeline config to use for the pipe test, if ' +
                         'youd rather specify everything yourself')
+    parser.add_argument('-sim_module', type=str, default='imsim',
+                        help='The name of the image simulation module to use')
 
     # NOTE: Can either pass a path_config file to specify the minimal needed
     # path information to generate galsim config, or pass a gs config explicitly
@@ -80,7 +82,7 @@ def parse_args():
 # categories. You can always provide your own if you prefer.
 
 def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
-                          imsim='imsim', outdir=None, overwrite=False):
+                          sim_module='imsim', outdir=None, overwrite=False):
     '''
     Create a basic yaml config file that tests whether the pipeline
     succeeds in running end-to-end. Prioritizes speed over scientific
@@ -92,8 +94,9 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
         The output filename of the generated pipe config
     outdir: str
         The directory to save the config file to
-    imsim: str
-        The name of the image simulation module to use
+    sim_module: str
+        The name of the image simulation module to use.
+        For now, options are `galsim` and `imsim`
     overwrite: bool
         Set to True to overwrite existing config file
     '''
@@ -127,7 +130,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
                 'ncores': 8,
                 'run_diagnostics': True,
                 'order': [
-                    f'{imsim}',
+                    f'{sim_module}',
                     'medsmaker',
                     'metacal',
                     # 'metacal_v2', # turn on for ngmix v2.X metacal
@@ -135,7 +138,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
                     # 'ngmix_fit', # turn on for ngmix photometry (needs updating)
                     ]
                 },
-            f'{imsim}': {
+            f'{sim_module}': {
                 'config_file': 'pipe_test_gs.yaml',
                 'config_dir': os.path.join(utils.TEST_DIR, 'pipe_test'),
                 'run_name': run_name,
@@ -157,7 +160,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
                 'meds_file': meds_file,
                 'outfile': mcal_file,
                 'outdir': outdir,
-                'end': 2000,
+                'end': 200,
                 'overwrite': overwrite
             },
             'ngmix_fit': {
@@ -183,8 +186,13 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
 
     return filename
 
-def make_test_gs_config(path_config, outfile='pipe_test_gs.yaml', outdir=None,
+def make_test_gs_config(path_config, sim_module, outfile='pipe_test_gs.yaml', outdir=None,
                         overwrite=False):
+    '''
+    sim_module: str
+        The name of the image simulation module to use
+    '''
+
 
     if outdir is not None:
         filename = os.path.join(outdir, outfile)
@@ -194,12 +202,26 @@ def make_test_gs_config(path_config, outfile='pipe_test_gs.yaml', outdir=None,
         # use REPO/configs/pipe_test_gs.yaml as base
 
         test_config = utils.read_yaml(
-            os.path.join(utils.BASE_DIR, 'configs', 'pipe_test_gs.yaml')
+            os.path.join(
+                utils.BASE_DIR, 'configs', f'pipe_test_gs_{sim_module}.yaml'
+                )
             )
 
         # update with local filepaths
+        root_fields = {
+            'datadir': 'input',
+            'cosmosdir': 'galaxies',
+            'cluster_dir': 'cluster_galaxies',
+            'cluster_cat_name': 'cluster_galaxies',
+            'gaia_dir': 'stars',
+        }
         for name, path in path_config.items():
-            test_config[name] = path
+            root = root_fields[name]
+            try:
+                test_config[root][name] = path
+            except KeyError:
+                # might not be used
+                pass
 
         utils.write_yaml(test_config, filename)
 
@@ -254,6 +276,7 @@ def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
 def main(args):
 
     pipe_config_file = args.pipe_config
+    sim_module = args.sim_module
     path_config_file = args.path_config
     gs_config_file = args.gs_config
     fresh = args.fresh
@@ -287,7 +310,7 @@ def main(args):
     if gs_config_file is None:
         print('Creating test gs config file...')
         gs_config_file = make_test_gs_config(
-            path_config, overwrite=True, outdir=logdir
+            path_config, sim_module, overwrite=True, outdir=logdir
             )
         print(f'Using gs_config_file {gs_config_file}')
 

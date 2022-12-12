@@ -375,7 +375,7 @@ class GalSimModule(SuperBITModule):
 
 class ImSimModule(SuperBITModule):
     _req_fields = ['config_file']
-    _opt_fields = ['run_name', 'outdir', 'ncores']
+    _opt_fields = ['run_name', 'outdir', 'ncores', 'config_dir']
     _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):
