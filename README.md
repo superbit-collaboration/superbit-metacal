@@ -1,10 +1,13 @@
 # superbit-metacal
-Contains a collection of submodules and routines used build the SuperBIT measurement pipeline, as well as make realistic image simulations for validation.
+Contains a collection of modules and routines used build the SuperBIT measurement pipeline, as well as make realistic image simulations for validation.
 
-This repo has been significantly refactored into the new `superbit_lensing` module, which you can include in your desired environment by following the installation instructions below. The module includes a number of submodules which can be used independently if desired:
+This repo has been significantly refactored into the new `superbit_lensing` module, which you can include in your desired environment by following the installation instructions below. The module includes a number of modules which can be used independently if desired:
 
-  - `galsim`: Contains scripts & classes that generate the simulated SuperBIT observations used for validation and forecasting analyses. Also includes simple simulations for validation testing such as a grid test.
-  - `medsmaker`: Contains small modifications to the original superbit-ngmix scripts that make coadd images with SWARP, runs SExtractor for source detection, PIFF or PSFEx for PSF estimation, and collates all outputs in a MEDS file.
+  - `galsim`: Contains scripts & classes that generate the simulated SuperBIT observations used for validation and forecasting analyses. Uses a flat config
+  - `imsim`: A new image simulation module that aims to handle science and validation simulations using the same framework through regristration of various object, psf, shear, etc. types. Uses a hierarchial config and handles multi-band observations.
+  - `medsmaker`: Contains small modifications to the original superbit-ngmix scripts that make coadd images with SWARP, runs SExtractor for source detection, PIFF or PSFEx for PSF estimation, and collates all outputs in a MEDS file. Older style that does coaddition, detection, and MEDS-making in one step.
+  - `coadd`: A new coaddition module that runs SWarp independently. Handles multi-band observations and can create a detection image.
+  - `detection`: A new detection module that runs SExtractor independently. Handles multi-band observations and can run in dual-mode using a detection image.
   - `metacalibration`: Contains scripts & classes used to run the ngmix implementation of metacalibration on the MEDS files produced by `medsmaker`.
   - `shear-profiles`: Contains scripts & classes to compute the tangential/cross shear profiles and output to a file, as well as plots of the shear profiles.
   - `analysis`: Contains scripts to produce standardized analysis plots on stacks of cluster realizations needed for shear calibration validation.
@@ -65,7 +68,7 @@ The [meds](https://github.com/esheldon/meds) and [psfex](https://github.com/eshe
 
 `cd /path/to/repos/{meds/psfex}`
 
-Build it:
+Build it (in your desired environment!):
 
 `python setup.py install`
 
