@@ -5,8 +5,8 @@ gain:               0.343       # Camera gain                               [e- 
 read_noise:         1.8         # Read noise                                [e-]
 dark_current:       0.0022      # mean dark current                         [e- / px / s]
 dark_current_std:   0.001       # standard deviation dark current           [ADU /px / s]
-image_xsize:        9568        # Horizontal image size                     [px]
-image_ysize:        6380        # Vertical image size                       [px]
+image_xsize:        9600        # Horizontal image size                     [px]
+image_ysize:        6422        # Vertical image size                       [px]
 exp_time:           600         # Exposure time per image                   [s]
 tel_diam:           0.5         # Telescope aperture diameter               [m]
 # Define strut parameters. BIT has four orthogonal struts that
@@ -28,7 +28,7 @@ nstars:                        # Number of stars in the field              []
 nexp:               3          # Number of exposures per PSF model         []
 nclustergal:        50         # Number of cluster galaxies (arbitrary)    []
 bandpass:     'crates_b'        # Catalog filter name for simulation        []
-jitter_fwhm:        0.24         # Kernel size of SuperBIT jitter            [arcsec]
+jitter_fwhm:        0.315         # Kernel size of SuperBIT jitter            [arcsec]
 use_optics:         False       # Add optics model to PSF? (default: True)  [True/False]
 run_name:         'pipe_test'   # Root for exposure name creation           []
 
@@ -47,6 +47,7 @@ omega_lam:          0.7         # Omega lambda for the background cosmology []
 cosmosdir:         '/Users/j.mccleary/Research/SuperBIT/mock-data-forecasting/mock-catalogs/galsim-cosmos' # Path to COSMOS data directory
 datadir:           '/Users/j.mccleary/Research/SuperBIT/mock-data-forecasting/mock-catalogs' # Path to repo/galsim data directory
 cat_file_name:     'cosmos15_superbit2023_phot_shapes.csv' #'cosmos2015_cam2021_filt2021.csv' catalog file name for COSMOS (in cosmosdir)
+dark_image_name:   '/Users/j.mccleary/Research/SuperBIT/mock-data-forecasting/dark-images/D300_1665043562.fits'
 cluster_cat_name:  'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
 gaia_dir:          '/Users/j.mccleary/Research/SuperBIT/superbit-metacal/superbit_lensing/galsim/data/GAIA' # Path to GAIA star catalog directory
 sample_gaia_cats:  True

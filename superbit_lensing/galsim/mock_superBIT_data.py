@@ -236,7 +236,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, optics, sbparams, logprint, 
     ## Apply a random rotation
     theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
-                            
+
     ## Apply a random rotation
     theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
@@ -624,6 +624,8 @@ class SuperBITParameters:
                 self.use_optics = bool(value)
             elif option == "sample_gaia_cats":
                 self.sample_gaia_cats = bool(value)
+            elif option == "dark_image_name":
+                self.dark_image_name = str(value)
             elif option == "gaia_dir":
                 self.gaia_dir = str(value)
             elif option == "noise_seed":
@@ -929,7 +931,10 @@ def main():
     ###
 
     # If you wanted to make a non-trivial WCS system, could set theta to a non-zero number
-    fiducial_full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
+    fiducial_full_image = galsim.Image(sbparams.image_xsize,
+                                        sbparams.image_ysize,
+                                        dtype=np.uint16
+                                        )
 
     theta = 0.0 * galsim.degrees
     dudx = np.cos(theta) * sbparams.pixel_scale
@@ -975,7 +980,11 @@ def main():
             truth_catalog = galsim.OutputCatalog(names, types)
 
         # Set up the image:
-        full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
+        full_image = galsim.Image(sbparams.image_xsize,
+                                    sbparams.image_ysize,
+                                    dtype=np.uint16
+                                    )
+
         sky_level = sbparams.exp_time * sbparams.sky_bkg / sbparams.gain
         full_image.fill(sky_level)
 
@@ -1233,14 +1242,7 @@ def main():
                     # root and the rest meet again at barrier at start of loop
                     continue
 
-        # The first thing to do is to make the Gaussian noise uniform across the whole image.
-
         if (mpi is False) or (M.is_mpi_root()):
-
-            # Add dark current
-            logprint('Adding Dark current')
-            dark_noise = sbparams.dark_current * sbparams.exp_time
-            full_image += dark_noise
 
             # Add ccd noise
             logprint('Adding CCD noise')
@@ -1250,10 +1252,15 @@ def main():
                 read_noise=sbparams.read_noise,
                 rng=galsim.BaseDeviate(sbparams.noise_seed)
                 )
-
             full_image.addNoise(noise)
-
             logprint.debug('Added noise to final output image')
+
+            # Add dark current
+            logprint('Adding 300 s dark current frame')
+            dark_image = fitsio.read(sbparams.dark_image_name)
+            #dark_noise = sbparams.dark_image * sbparams.exp_time
+            full_image += dark_image
+
             if not os.path.exists(os.path.dirname(file_name)):
                 os.makedirs(os.path.dirname(file_name))
 
