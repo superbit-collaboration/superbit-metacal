@@ -476,6 +476,9 @@ class SuperBITParameters:
         # Setup stellar injection
         self._setup_stars()
 
+        # Setup stellar injection
+        self._setup_darks()
+
         return
 
     def _load_config_file(self, config_file):
@@ -624,10 +627,14 @@ class SuperBITParameters:
                 self.use_optics = bool(value)
             elif option == "sample_gaia_cats":
                 self.sample_gaia_cats = bool(value)
-            elif option == "dark_image_name":
-                self.dark_image_name = str(value)
             elif option == "gaia_dir":
                 self.gaia_dir = str(value)
+            elif option == "sample_darks":
+                self.sample_darks = bool(value)
+            elif option == "dark_dir":
+                self.dark_dir = str(value)
+            elif option == "dark_image_name":
+                self.dark_image_name = str(value)
             elif option == "noise_seed":
                 try:
                     self.noise_seed = int(value)
@@ -699,6 +706,53 @@ class SuperBITParameters:
 
         if self.nstars is None:
             self.nstars = len(self.star_cat)
+
+        return
+
+    def _setup_darks(self):
+        '''
+        Grab darks
+        '''
+        valid_args = ['dark_image_name', 'sample_darks', 'dark_dir']
+
+        for arg in valid_args:
+            if not hasattr(self, arg):
+                setattr(self, arg, None)
+
+        assert (self.dark_image_name is not None) or \
+               (self.sample_darks is not None) or \
+               (self.dark_dir is not None)
+
+        if (self.dark_image_name is not None) and (self.sample_darks is not None):
+            raise AttributeError('Cannot set both `dark_image_name` and ' +\
+                                 '`sample_darks`!')
+
+        # if using a specific dark image, try that first
+        if self.dark_image_name is not None:
+            print(f'Using dark {self.dark_image_name}')
+
+        elif self.sample_darks is True:
+            if self.dark_dir is None:
+                raise AttributeError('Must set `dark_dir` if sampling dark images!')
+
+            # Note that this is assuming a file naming structure like
+            # D{exptime}_*.fits, will fail otherwise
+            # This will also fail for non-integer exposure times, like 0.5
+            dark_im_basename = f'{self.dark_dir}/D{int(self.exp_time)}_*.fits'
+            dark_images = glob(dark_im_basename)
+
+            if len(dark_images) == 0:
+                err = f'Found no dark images like {dark_im_basename}'
+                self.logprint(err)
+                raise OSError(err)
+
+            sample_dark_rng = np.random.default_rng(self.stars_seed)
+            self.dark_image_name = sample_dark_rng.choice(dark_images)
+        else:
+            self.dark_image_name = None
+
+        #self.logprint(f'Using dark {self.dark_image_name}')
+        print(f'Using dark {self.dark_image_name}')
 
         return
 
@@ -1243,6 +1297,8 @@ def main():
                     continue
 
         if (mpi is False) or (M.is_mpi_root()):
+            if sbparams.dark_image_name is not None:
+                sbparams.read_noise = 0
 
             # Add ccd noise
             logprint('Adding CCD noise')
@@ -1256,10 +1312,16 @@ def main():
             logprint.debug('Added noise to final output image')
 
             # Add dark current
-            logprint('Adding 300 s dark current frame')
-            dark_image = fitsio.read(sbparams.dark_image_name)
-            #dark_noise = sbparams.dark_image * sbparams.exp_time
-            full_image += dark_image
+            if sbparams.dark_image_name is not None:
+                logprint('Adding dark current frame')
+                dark_image = fitsio.read(sbparams.dark_image_name)
+                full_image += dark_image
+                
+            else:
+                # Add dark current
+                logprint('Adding Dark current')
+                dark_noise = sbparams.dark_current * sbparams.exp_time
+                full_image += dark_noise
 
             if not os.path.exists(os.path.dirname(file_name)):
                 os.makedirs(os.path.dirname(file_name))

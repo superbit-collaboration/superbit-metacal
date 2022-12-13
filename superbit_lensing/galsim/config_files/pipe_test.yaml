@@ -7,7 +7,7 @@ dark_current:       0.0022      # mean dark current                         [e- 
 dark_current_std:   0.001       # standard deviation dark current           [ADU /px / s]
 image_xsize:        9600        # Horizontal image size                     [px]
 image_ysize:        6422        # Vertical image size                       [px]
-exp_time:           600         # Exposure time per image                   [s]
+exp_time:           300         # Exposure time per image                   [s]
 tel_diam:           0.5         # Telescope aperture diameter               [m]
 # Define strut parameters. BIT has four orthogonal struts that
 # are ~12mm wide, and the exit pupil diameter is 137.4549 mm (Zemax)
@@ -44,12 +44,15 @@ omega_lam:          0.7         # Omega lambda for the background cosmology []
 # Run parameters
 # --------------
 # Define some paths and filenames
-cosmosdir:         '/Users/j.mccleary/Research/SuperBIT/mock-data-forecasting/mock-catalogs/galsim-cosmos' # Path to COSMOS data directory
-datadir:           '/Users/j.mccleary/Research/SuperBIT/mock-data-forecasting/mock-catalogs' # Path to repo/galsim data directory
+cosmosdir:         '/path/to/cosmos-data/' # Path to COSMOS data directory
+datadir:           '/path/to/mock-galaxy-catalogs/' # Path to repo/galsim data directory
 cat_file_name:     'cosmos15_superbit2023_phot_shapes.csv' #'cosmos2015_cam2021_filt2021.csv' catalog file name for COSMOS (in cosmosdir)
-dark_image_name:   '/Users/j.mccleary/Research/SuperBIT/mock-data-forecasting/dark-images/D300_1665043562.fits'
 cluster_cat_name:  'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
-gaia_dir:          '/Users/j.mccleary/Research/SuperBIT/superbit-metacal/superbit_lensing/galsim/data/GAIA' # Path to GAIA star catalog directory
+sample_darks:      True
+dark_dir:          '/path/to/dark-images/'
+#dark_image_name:   '/path/to/dark-images/D300_1665043562.fits'
+
+gaia_dir:          '/path/to/superbit-metacal/superbit_lensing/galsim/data/GAIA' # Path to GAIA star catalog directory
 sample_gaia_cats:  True
 outdir:            './forecasting/pipe_test' # directory where output images and truth catalogs are saved
 
