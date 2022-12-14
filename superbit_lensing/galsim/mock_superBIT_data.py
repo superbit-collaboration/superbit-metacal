@@ -473,10 +473,10 @@ class SuperBITParameters:
 
         self._set_seeds()
 
-        # Setup stellar injection
+        # Set up stellar injection
         self._setup_stars()
 
-        # Setup stellar injection
+        # Set up dark frame
         self._setup_darks()
 
         return
@@ -737,22 +737,10 @@ class SuperBITParameters:
 
             # Note that this is assuming a file naming structure like
             # D{exptime}_*.fits, will fail otherwise
-            # This will also fail for non-integer exposure times, like 0.5
-            dark_im_basename = f'{self.dark_dir}/D{int(self.exp_time)}_*.fits'
-            dark_images = glob(dark_im_basename)
 
-            if len(dark_images) == 0:
-                err = f'Found no dark images like {dark_im_basename}'
-                self.logprint(err)
-                raise OSError(err)
-
-            sample_dark_rng = np.random.default_rng(self.stars_seed)
-            self.dark_image_name = sample_dark_rng.choice(dark_images)
+        # Guess we aren't using a dark!
         else:
             self.dark_image_name = None
-
-        #self.logprint(f'Using dark {self.dark_image_name}')
-        print(f'Using dark {self.dark_image_name}')
 
         return
 
@@ -1005,6 +993,24 @@ def main():
     ##
     rng = np.random.default_rng(sbparams.dithering_seed)
 
+    ##
+    ## If we are sampling, grab all the darks we need
+    ## There is a little trickery here: if sample_darks is true, then
+    ## self.dark_image_name is an array!
+    if sbparams.sample_darks is True:
+        dark_im_basename = f'{sbparams.dark_dir}/D{int(sbparams.exp_time)}_*.fits'
+        all_dark_images = glob(dark_im_basename)
+
+        if len(all_dark_images) == 0:
+            err = f'Found no dark images like {dark_im_basename}'
+            logprint(err)
+            raise OSError(err)
+
+        else:
+            dark_rng = np.random.default_rng(sbparams.noise_seed+1)
+            dark_images = dark_rng.choice(all_dark_images,
+                                    replace=False, size=sbparams.nexp)
+            logprint(f'Using darks {dark_images}')
     ###
     ### MAKE SIMULATED OBSERVATIONS
     ### ITERATE n TIMES TO MAKE n SEPARATE IMAGES
@@ -1297,6 +1303,10 @@ def main():
                     continue
 
         if (mpi is False) or (M.is_mpi_root()):
+
+            if sbparams.sample_darks is True:
+                sbparams.dark_image_name = dark_images[i-1]
+
             if sbparams.dark_image_name is not None:
                 sbparams.read_noise = 0
 
@@ -1313,10 +1323,10 @@ def main():
 
             # Add dark current
             if sbparams.dark_image_name is not None:
-                logprint('Adding dark current frame')
+                logprint(f'Adding dark current frame {sbparams.dark_image_name}')
                 dark_image = fitsio.read(sbparams.dark_image_name)
                 full_image += dark_image
-                
+
             else:
                 # Add dark current
                 logprint('Adding Dark current')
