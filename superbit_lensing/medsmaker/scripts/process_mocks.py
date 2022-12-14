@@ -27,6 +27,8 @@ def parse_args():
                         help='model exposure PSF using either piff or psfex')
     parser.add_argument('-psf_seed', type=int, default=None,
                         help='Seed for chosen PSF estimation mode')
+    parser.add_argument('-master_dark', type=str, default=None,
+                        help='Name of master dark file to subtract')
     parser.add_argument('--meds_coadd', action='store_true', default=False,
                         help='Set to keep coadd cutout in MEDS file')
     parser.add_argument('--overwrite', action='store_true', default=False,
@@ -47,6 +49,7 @@ def main(args):
     run_name = args.run_name
     psf_mode = args.psf_mode
     psf_seed = args.psf_seed
+    master_dark = args.master_dark
     use_coadd = args.meds_coadd
     overwrite = args.overwrite
     source_selection = args.source_select
@@ -88,6 +91,8 @@ def main(args):
     bm.set_weight(
         weight_name='forecast_weight.fits', weight_dir=weight_dir
         )
+
+    bm.quick_reduce(master_dark=master_dark)
 
     # Combine images, make a catalog.
     logprint('Making coadd & its catalog...')

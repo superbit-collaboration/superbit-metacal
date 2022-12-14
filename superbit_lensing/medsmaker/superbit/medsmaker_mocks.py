@@ -78,19 +78,20 @@ def piff_extender(piff_file, stamp_size=20):
     return psf_extended
 
 class BITMeasurement():
-    def __init__(self, image_files=None, flat_files=None, dark_files=None,
+    def __init__(self, image_files=None, flat_files=None, master_darks=None,
                  bias_files=None, data_dir=None, run_name=None, log=None, vb=False):
         '''
         :image_files: Python List of image filenames; must be complete relative or absolute path.
         :flat_files: Python List of image filenames; must be complete relative or absolute path.
-        :dark_files: Python List of image filenames; must be complete relative or absolute path.
+        :master_darks: Python List of image filenames; must be complete relative or absolute path.
         :catalog: Object that stores FITS array of catalog
         :coadd: Set to true if the first image file is a coadd image (must be first)
         '''
 
         self.image_files = image_files
+        self.reduced_images = None
         self.flat_files = flat_files
-        self.dark_files = dark_files
+        self.master_darks = master_darks
         self.bias_files = bias_files
         self.run_name = run_name
         self.vb = vb
@@ -248,10 +249,10 @@ class BITMeasurement():
         dname = os.path.join(self.mask_path,'master_dark_median.fits')
         if (not os.path.exists(dname) or (overwrite==True)):
             dark_array=[]
-            for idark_file in self.dark_files:
-                hdr = fitsio.read_header(idark_file)
+            for imaster_dark in self.master_darks:
+                hdr = fitsio.read_header(imaster_dark)
                 time = hdr['EXPTIME'] / 1000. # exopsure time, seconds
-                dark_frame = ((fitsio.read(idark_file)) - master_bias) * 1./time
+                dark_frame = ((fitsio.read(imaster_dark)) - master_bias) * 1./time
                 dark_array.append(dark_frame)
                 master_dark = np.median(dark_array,axis=0)
                 fitsio.write(os.path.join(self.mask_path,'master_dark_median.fits'),master_dark,overwrite=True)
@@ -294,6 +295,35 @@ class BITMeasurement():
         else:
             pass
 
+    def quick_reduce(self, master_dark):
+        '''
+        Just subtract the darks for now, could be extended with others
+        '''
+
+        reduced_images = []
+
+        if master_dark is not None:
+            self.logprint('\n Entering quick_reduce \n')
+
+            self.logprint(f'Using dark file {master_dark}')
+
+            dark_image = fits.getdata(master_dark)
+
+            for image in self.image_files:
+                imfits = fits.open(image)
+                raw = imfits[0].data; hdr = imfits[0].header
+                dark_sub = raw - dark_image
+                dsub_card = ('DARK_SUB', 'master_dark.fits','dark image subtracted')
+                hdr.append(dsub_card)
+
+                outname = image.replace('.fits', '.reduced.fits')
+                fits.writeto(outname, data=dark_sub.astype(np.float32),
+                                header=hdr, overwrite=True)
+                reduced_images.append(outname)
+
+        self.reduced_images = reduced_images
+
+        return
 
     def make_mask(self, mask_name='mask.fits', global_dark_thresh=10,
                   global_flat_thresh=0.85, overwrite=False):
@@ -320,7 +350,7 @@ class BITMeasurement():
             sum_dark = np.sum(med_dark_array,axis=0)
             # This transforms our bpm=1 array to a bpm=0 array
             darkmask=np.ones(sum_dark.size)
-            #darkmask[sum_dark==(len(dark_files))]=0
+            #darkmask[sum_dark==(len(master_darks))]=0
             darkmask[sum_dark==1]=0
             outfile = fits.PrimaryHDU(darkmask.reshape(np.shape(mdark)))
             outfile.writeto(os.path.join(self.mask_path,'darkmask.fits'),overwrite=True)
@@ -334,7 +364,7 @@ class BITMeasurement():
             sum_flat = np.sum(med_flat_array,axis=0)
             # This transforms our bpm=1 array to a bpm=0 array
             flatmask=np.ones(sum_flat.size)
-            #darkmask[sum_dark==(len(dark_files))]=0
+            #darkmask[sum_dark==(len(master_darks))]=0
             flatmask[sum_flat==1]=0
             outfile = fits.PrimaryHDU(flatmask.reshape(np.shape(mflat)))
             outfile.writeto(os.path.join(self.mask_path,'flatmask.fits'),overwrite=True)
@@ -354,8 +384,13 @@ class BITMeasurement():
         for SEX and PSFEx detection.
         '''
         ### Code to run SWARP
+        if self.reduced_images is not None:
+            self.logprint('Running on dark-subtracted images')
+            image_files = self.reduced_images
+        else:
+            image_files = self.image_files
 
-        image_args = ' '.join(self.image_files)
+        image_args = ' '.join(image_files)
         detection_file = os.path.join(self.work_path, outfile_name) # This is coadd
         weight_file = os.path.join(self.work_path, weightout_name) # This is coadd weight
         config_arg = '-c ' + os.path.join(self.base_dir, 'superbit/astro_config/swarp.config')
@@ -491,7 +526,13 @@ class BITMeasurement():
 
         sexcat_names = []
 
-        for imagefile in self.image_files:
+        if self.reduced_images is not None:
+            self.logprint('Running on dark-subtracted images')
+            image_files = self.reduced_images
+        else:
+            image_files = self.image_files
+
+        for imagefile in image_files:
             sexcat = self._run_sextractor(imagefile, weight_file=weight_file, sextractor_config_path=sextractor_config_path)
             sexcat_names.append(sexcat)
 
@@ -516,7 +557,12 @@ class BITMeasurement():
 
         self.psf_models = []
 
-        Nim = len(self.image_files)
+        if self.reduced_images is not None:
+            image_files = self.reduced_images
+        else:
+            image_files = self.image_files
+
+        Nim = len(image_files)
 
         assert(len(im_cats)==Nim)
 
@@ -533,9 +579,9 @@ class BITMeasurement():
                 continue
             else:
                 if use_coadd is True:
-                    imagefile = self.image_files[i-1]
+                    imagefile = image_files[i-1]
                 else:
-                    imagefile = self.image_files[i]
+                    imagefile = image_files[i]
 
             # TODO: update as necessary
             weightfile = self.mask_file.replace('mask', 'weight')
@@ -869,8 +915,8 @@ class BITMeasurement():
         return obj_str
 
     def run(self,outfile='mock_superbit.meds', overwrite=False,
-            source_selection=False, select_truth_stars=False, psf_mode='piff',
-            use_coadd=True):
+            source_selection=False, master_dark=None, select_truth_stars=False,
+            psf_mode='piff', use_coadd=True):
         # Make a MEDS, overwriteing if needed
 
         #### ONLY FOR DEBUG
@@ -890,6 +936,7 @@ class BITMeasurement():
 
         # Combine images, make a catalog.
         config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
+        self.quick_reduce(master_dark=master_dark)
         self.make_coadd_catalog(sextractor_config_path=config_path,
                           source_selection=source_selection)
         # Make catalogs for individual exposures

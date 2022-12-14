@@ -370,7 +370,8 @@ class GalSimModule(SuperBITModule):
 
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
-    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_type', 'psf_seed']
+    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_type',
+                    'psf_seed', 'master_dark']
     _flag_fields = ['meds_coadd', 'source_select', 'select_truth_stars',
                     'overwrite', 'vb']
 
@@ -737,7 +738,6 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     },
                 'galsim': {
                     'config_file': 'pipe_test.yaml',
-                    # 'config_file': 'superbit_parameters_forecast.yaml',
                     'config_dir': os.path.join(utils.MODULE_DIR,
                                                'galsim',
                                                'config_files'),
@@ -751,7 +751,10 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'run_name': run_name,
                     'outdir': outdir,
                     'overwrite': overwrite,
-                    'meds_coadd': True
+                    'meds_coadd': True,
+                    'master_dark': os.path.join(utils.MODULE_DIR,
+                                               'medsmaker/superbit/',
+                                               'master_dark.fits')
                 },
                 'metacal': {
                 # 'metacal_v2': {
