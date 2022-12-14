@@ -1,0 +1,11 @@
+# Example master SExtractor config file
+
+# NOTE: all filenames & paths are done relative to `config_dir` if provided
+#config_dir: None
+
+bands: [b, lum]
+b: sb_blue.config
+lum: sb_lum.config
+
+# SExtractor paramters to compute
+parameters: sb_params.config  

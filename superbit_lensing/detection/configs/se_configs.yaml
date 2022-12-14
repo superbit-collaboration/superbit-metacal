@@ -1,0 +1,18 @@
+# Example master SExtractor config file
+
+# NOTE: all filenames & paths are done relative to `config_dir` if provided
+config_dir: /Users/sweveret/repos/superbit-metacal/superbit_lensing/detection/configs/
+
+bands: [b, lum]
+b: sb_sextractor_b.config
+lum: sb_sextractor_lum.config
+det: sb_sextractor_det.config
+
+# SExtractor paramters to compute (uses SE default it not set)
+parameters: sb_sextractor.param
+
+# Which convolutional filter to use (uses SE default if not set)
+filter: default.conv
+
+# Which stellar classifier neural network to use (uses SE default if not set)
+nnw: default.nnw
