@@ -22,9 +22,6 @@ def parse_args():
                         '(no space). Defaults to bands defined in config_file')
     parser.add_argument('-config_dir', type=str, default=None,
                         help='Directory of SExtractor config file')
-    parser.add_argument('-det_image', type=str, default=None,
-                        help='Filename of detection image (if running) ' +
-                        'in dual mode)')
     parser.add_argument('-outfile_base', type=str,
                         help='Base name for the output coadd files')
     parser.add_argument('-outdir', type=str, default=None,
@@ -43,7 +40,6 @@ def main(args):
     run_name = args.run_name
     bands = args.bands
     config_dir = args.config_dir
-    det_image = args.det_image
     outfile_base = args.outfile_base
     outdir = args.outdir
     vb = args.vb
@@ -73,16 +69,6 @@ def main(args):
     if not os.path.exists(config_file):
         raise ValueError(f'SExtractor master config file not found!')
 
-
-    # NOTE: To fully generalize, we could add parsing around
-    # dual-mode running. For now, we will use the det image
-    # in dual mode in almost all cases
-    dual_mode = True
-    if dual_mode is True:
-        logprint(f'Running in dual-mode with a detection image')
-    else:
-        logprint('Running in single-image mode')
-
     #-----------------------------------------------------------------
     # Create & setup SExtractor runner
 
@@ -97,7 +83,6 @@ def main(args):
     runner.go(
         outfile_base=outfile_base,
         outdir=outdir,
-        dual_mode=dual_mode
         )
 
     logprint('Done!')

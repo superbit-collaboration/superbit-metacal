@@ -32,6 +32,8 @@ class SExtractorRunner(object):
     # I have only figured out how to generate the parameters config...
     _opt_fields = {
         'config_dir': None, # directory of *single-band* configs for run
+        'dual_mode': True, # run SE in dual-mode using det image if True
+        'cat_types': ['det', 'coadd', 'exp']
         }
 
     def __init__(self, config_file, run_name, basedir, bands=None,
@@ -182,6 +184,10 @@ class SExtractorRunner(object):
                             cdir, self.config[field]
                             )
 
+        # for convenience
+        self.cat_types = self.config['cat_types']
+        self.dual_mode = self.config['dual_mode']
+
         return
 
     def get_default_fname_base(self, run_name):
@@ -315,40 +321,56 @@ class SExtractorRunner(object):
 
         return
 
-    def go(self, outfile_base=None, outdir=None, dual_mode=False):
+    def go(self, outfile_base=None, outdir=None):
         '''
-        Handle all needed SExtractor runs, which come in 3 catagories:
+        Handle all needed SExtractor runs, which come in 3 possible catagories:
 
-        1) Run SE on detection image for fiducial detections & positions
-        2) Run SE in dual-image mode for every single-band coadd using (1)
-        3) Run SE on all single-epoch-exposures for PSF estimation
+        1) 'det': Run SE on detection image for fiducial detections & positions
+        2) 'coadd': Run SE in dual-image mode for every single-band coadd using (1)
+        3) 'exp': Run SE on all single-epoch-exposures for PSF & bkg estimation
+
+        Can choose a subset of these in the master SE config using `cat_types`
+
+        If `dual_mode` in the config is False, then will only run (2) & (3)
+        in single image mode
 
         outfile_base: str
             The base of the output coadd filenames. Defaults to
             {run_name}_coadd_{band}.fits
         outdir: str
             The output directory for the coadd images. Defaults to basedir
-        dual_mode: bool
-            Set to True to run SExtractor in dual mode; extract sources
-            in image1 using detections in image2
         '''
 
         self.logprint('Setting outfile_base...')
         self.set_outfile_base(outfile_base, outdir=outdir)
         self.logprint(f'outfile_base={self.outfile_base}')
 
+        cat_types = self.cat_types
+        dual_mode = self.dual_mode
+
         if dual_mode is True:
+            self.logprint(f'Running in dual-mode')
+            if 'det' not in cat_types:
+                raise AttributeError('You have requested dual-mode but ' +
+                                     '`det` image is not in catalog_types!')
+        else:
+            self.logprint('Running in single-image mode')
+
+        if 'det' in cat_types:
             self.logprint('Running on detection image...')
             self.run_on_det_image()
+
         else:
             self.logprint('Skipping detection image as `dual_mode` ' +
                           'is False')
 
-        self.logprint('Running on single-band coadds...')
-        self.run_on_coadds(dual_mode=dual_mode)
+        if 'coadd' in cat_types:
+            self.logprint('Running on single-band coadds...')
+            self.run_on_coadds(dual_mode=dual_mode)
 
-        self.logprint('Running on single-epoch exposures...')
-        self.run_on_exposures(dual_mode=dual_mode)
+        if 'exp' in cat_types:
+            self.logprint('Running on single-epoch exposures...')
+            self.run_on_exposures(dual_mode=dual_mode)
 
         # TODO: Refactor point!!
         self.logprint('Collating files...')

@@ -466,7 +466,7 @@ class SWarpModule(SuperBITModule):
 class SExtractorModule(SuperBITModule):
     _req_fields = ['config_file', 'run_name', 'basedir',]
     _opt_fields = ['outfile_base', 'outdir', 'fname_base', 'config_dir',
-                   'det_image', 'bands']
+                   'bands']
     _flag_fields = ['overwrite', 'vb']
 
     def __init__(self, name, config):

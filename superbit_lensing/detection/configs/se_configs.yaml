@@ -1,5 +1,24 @@
 # Example master SExtractor config file
 
+# Define the (unordered) list of SExtractor run types. The various options are:
+# 
+# 'det': Run SE on detection image for fiducial detections & positions
+# 'coadd': Run SE on the single-band coadds
+# 'exp': Run SE on all single-epoch exposures 
+#
+# If 'dual_mode' is True, then the 'coadd' and 'exp' runs will use the det
+# coadd in dual-mode for detections
+#
+# defaults to running all three
+# cat_types:
+#   - det
+#   - coadd
+#   - exp
+
+# set to True to have all detections be based upon a detection image
+# (field 'det') and run SExtractor in dual mode
+dual_mode: True
+
 # NOTE: all filenames & paths are done relative to `config_dir` if provided
 config_dir: /Users/sweveret/repos/superbit-metacal/superbit_lensing/detection/configs/
 
