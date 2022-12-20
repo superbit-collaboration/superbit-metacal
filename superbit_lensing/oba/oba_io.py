@@ -16,6 +16,16 @@ class IOManager(object):
     QCC dir structure:
 
     ----------------------------------------------------------------------
+    Calibration data
+    CAL_DATA: /data/bit/calibrations/
+
+    Darks (one master per day):
+    CAL_DATA/darks/{date}/
+
+    Flats (for now, one master flat):
+    CAL_DATA/flats/
+
+    ----------------------------------------------------------------------
     Raw data
 
     Root data dir:
@@ -86,6 +96,7 @@ class IOManager(object):
     # Will update
 
     _registered_dir_names = [
+        'CAL_DATA',
         'RAW_DATA',
         'RAW_CLUSTERS',
         'OBA_DIR',
@@ -126,6 +137,7 @@ class IOManager(object):
 
         # defaults for qcc (root / added later)
         _registered_defaults = {
+            'CAl_DATA': 'data/bit/calibrations/'
             'RAW_DATA': 'data/bit/science_images/',
             'RAW_CLUSTERS': 'data/bit/science/images/clusters/',
             'OBA_DIR': 'home/bit/oba_temp/',
@@ -145,6 +157,11 @@ class IOManager(object):
         if name not in self.registered_dirs:
             raise ValueError(f'{name} is not registered yet!')
         return self.registered_dirs[name]
+
+    @property
+    def CAL_DATA(self):
+        name = 'CAL_DATA'
+        return self._check_dir(name)
 
     @property
     def RAW_DATA(self):

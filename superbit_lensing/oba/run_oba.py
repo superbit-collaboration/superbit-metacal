@@ -21,8 +21,7 @@ def parse_args():
     # on-board analysis on
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-config_file', type=str, default=None,
-                       help='Filename of the top-level on-board analysis ' +
-                       'pipeline config file')
+                       help='Filename for the on-board analysis configuration')
     group.add_argument('-path_config', type=str, default=None,
                        help='A yaml config file that defines the paths ' +
                        'needed to run an on-board analysis test')
@@ -124,7 +123,7 @@ def main(args):
     # Run pipeline
 
     runner = OBARunner(
-        config_file, logprint
+        config_file, io_manager, logprint
         )
 
     runner.go()
