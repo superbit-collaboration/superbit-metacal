@@ -3,6 +3,7 @@ import os
 import sys
 import yaml
 import re
+from pathlib import Path
 from astropy.table import Table
 from numpy.random import SeedSequence, default_rng
 import time
@@ -257,6 +258,28 @@ def parse_config(config, req, opt, name=None, allow_unregistered=False):
 
     return config
 
+def check_type(name, arg, allowed_types):
+    '''
+    Check if the passed arg is of the allowed types
+
+    name: str
+        Name of the arg
+    arg: any
+        The arg in question
+    allowed_types: type; tuple of types
+        The required type or tuple of allowed types
+    '''
+
+    if isinstance(allowed_types, tuple):
+        err_msg = f'{name} must be one of {allowed_types}!'
+    else:
+        err_msg = f'{name} must be a {allowed_types}!'
+
+    if not isinstance(arg, allowed_types):
+        raise TypeError(err_msg)
+
+    return
+
 def sigma2fwhm(sigma):
     c = np.sqrt(8.*np.log(2))
     return c * sigma
@@ -397,7 +420,12 @@ def get_pixel_scale(image_filename):
 def make_dir(d):
     '''
     Makes dir if it does not already exist
+
+    d: str, pathlib.Path
     '''
+
+    if isinstance(d, Path):
+        d = str(d.resolve())
 
     if not os.path.exists(d):
         os.makedirs(d)
