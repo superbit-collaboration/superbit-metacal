@@ -137,7 +137,7 @@ class IOManager(object):
 
         # defaults for qcc (root / added later)
         _registered_defaults = {
-            'CAl_DATA': 'data/bit/calibrations/'
+            'CAl_DATA': 'data/bit/calibrations/',
             'RAW_DATA': 'data/bit/science_images/',
             'RAW_CLUSTERS': 'data/bit/science/images/clusters/',
             'OBA_DIR': 'home/bit/oba_temp/',
