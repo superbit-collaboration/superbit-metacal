@@ -24,11 +24,11 @@ center_dec:         33.1        # Central Declination                       [deg
 sky_bkg:            0.0519      # mean sky background from AG's paper       [e- / s / px]
 sky_sigma:          0.02        # standard deviation of sky background      [e- / s / px]
 nobj:               9000        # Number of galaxies (COSMOS 25.2 depth)    []
-nstars:                        # Number of stars in the field              []
-nexp:               3          # Number of exposures per PSF model         []
-nclustergal:        50         # Number of cluster galaxies (arbitrary)    []
+nstars:                         # Number of stars in the field              []
+nexp:               3           # Number of exposures per PSF model         []
+nclustergal:        50          # Number of cluster galaxies (arbitrary)    []
 bandpass:     'crates_b'        # Catalog filter name for simulation        []
-jitter_fwhm:        0.315         # Kernel size of SuperBIT jitter            [arcsec]
+jitter_fwhm:        0.315       # Kernel size of SuperBIT jitter            [arcsec]
 use_optics:         False       # Add optics model to PSF? (default: True)  [True/False]
 run_name:         'pipe_test'   # Root for exposure name creation           []
 
@@ -44,15 +44,15 @@ omega_lam:          0.7         # Omega lambda for the background cosmology []
 # Run parameters
 # --------------
 # Define some paths and filenames
-cosmosdir:         '/path/to/cosmos-data/' # Path to COSMOS data directory
-datadir:           '/path/to/mock-galaxy-catalogs/' # Path to repo/galsim data directory
+cosmosdir:         '/Users/j.mccleary/Research/SuperBIT/mock-data-forecasting/mock-catalogs/galsim-cosmos' # Path to COSMOS data directory
+datadir:           '/Users/j.mccleary/Research/SuperBIT/mock-data-forecasting/mock-catalogs' # Path to repo/galsim data directory
 cat_file_name:     'cosmos15_superbit2023_phot_shapes.csv' #'cosmos2015_cam2021_filt2021.csv' catalog file name for COSMOS (in cosmosdir)
 cluster_cat_name:  'real_galaxy_catalog_23.5_example.fits' # path to cluster catalog
-sample_darks:      True
-dark_dir:          '/path/to/dark-images/'
-#dark_image_name:   '/path/to/dark-images/D300_1665043562.fits'
+sample_darks: True
+dark_dir: '/Users/j.mccleary/Research/SuperBIT/mock-data-forecasting/dark-images/'
+#dark_image_name:   '/Users/j.mccleary/Research/SuperBIT/mock-data-forecasting/dark-images/D300_1665043562.fits'
 
-gaia_dir:          '/path/to/superbit-metacal/superbit_lensing/galsim/data/GAIA' # Path to GAIA star catalog directory
+gaia_dir:          '/Users/j.mccleary/Research/SuperBIT/superbit-metacal/superbit_lensing/galsim/data/GAIA' # Path to GAIA star catalog directory
 sample_gaia_cats:  True
 outdir:            './forecasting/pipe_test' # directory where output images and truth catalogs are saved
 

@@ -754,7 +754,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False)
                     'meds_coadd': True,
                     'master_dark': os.path.join(utils.MODULE_DIR,
                                                'medsmaker/superbit/',
-                                               'master_dark.fits')
+                                               'master_dark_clipped.fits')
                 },
                 'metacal': {
                 # 'metacal_v2': {
