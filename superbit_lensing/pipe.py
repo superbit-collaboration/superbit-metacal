@@ -305,7 +305,7 @@ class SuperBITPipeline(SuperBITModule):
 
 class GalSimModule(SuperBITModule):
     _req_fields = ['config_file', 'outdir']
-    _opt_fields = ['config_dir']
+    _opt_fields = ['config_dir', 'run_name']
     _flag_fields = ['use_mpi', 'use_srun', 'overwrite', 'vb']
 
     def __init__(self, name, config):
@@ -337,6 +337,10 @@ class GalSimModule(SuperBITModule):
         return rc
 
     def _setup_run_command(self, run_options):
+        '''
+        The galsim cmd setup is more complicated than other modules do to mpi
+        running on different HPC setups
+        '''
 
         galsim_dir = os.path.join(utils.MODULE_DIR, 'galsim')
         galsim_filepath = os.path.join(galsim_dir, 'mock_superBIT_data.py')
@@ -350,7 +354,9 @@ class GalSimModule(SuperBITModule):
 
         if 'run_name' not in self._config:
             run_name = run_options['run_name']
-            options += f' -run_name={run_name}'
+        else:
+            run_name = self._config['run_name']
+        options += f' -run_name={run_name}'
 
         if 'overwrite' in self._config:
             options += ' --overwrite'
@@ -782,6 +788,92 @@ class ShearProfileModule(SuperBITModule):
 
         return cmd
 
+class OBAModule(SuperBITModule):
+    '''
+    A module that runs the SuperBIT onboard analysis (OBA)
+    for a given target
+    '''
+
+    _req_fields = ['target_name']
+    _opt_fields = ['config_file', 'config_dir', 'root_dir',
+                   'bands', 'det_bands']
+    _flag_fields = ['overwrite', 'vb']
+
+    def run(self, run_options, logprint):
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
+
+        cmd = self._setup_run_command(run_options)
+
+        rc = self._run_command(cmd, logprint)
+
+        return rc
+
+    def _setup_run_command(self, run_options):
+
+        oba_dir = os.path.join(utils.MODULE_DIR, 'oba')
+        filepath = os.path.join(
+            oba_dir, 'run_oba.py'
+            )
+
+        target_name = self._config['target_name']
+
+        base = f'python {filepath} {target_name}'
+
+        options = self._setup_options(run_options)
+
+        if 'overwrite' not in options:
+            if 'overwrite' in run_options:
+                if run_options['overwrite'] is True:
+                    options += ' --overwrite'
+
+        cmd = base + options
+
+        return cmd
+
+class AnalysisModule(SuperBITModule):
+    _req_fields = ['basedir']
+    _opt_fields = ['shear_cut', 'outdir']
+    _flag_fields = ['overwrite', 'vb']
+
+    def __init__(self, name, config):
+        super(AnalysisModule, self).__init__(name, config)
+
+        #...
+
+        return
+
+    def run(self, run_options, logprint):
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
+
+        cmd = self._setup_run_command(run_options)
+
+        rc = self._run_command(cmd, logprint)
+
+        return rc
+
+    def _setup_run_command(self, run_options):
+
+        basedir = run_options['outdir']
+
+        analysis_dir = os.path.join(utils.MODULE_DIR, 'analysis')
+        filepath = os.path.join(
+            analysis_dir, 'run_analysis.py'
+            )
+
+        base = f'python {filepath} {basedir}'
+
+        options = self._setup_options(run_options)
+
+        if 'overwrite' not in options:
+            if 'overwrite' in run_options:
+                if run_options['overwrite'] is True:
+                    options += ' --overwrite'
+
+        cmd = base + options
+
+        return cmd
 class AnalysisModule(SuperBITModule):
     _req_fields = ['basedir']
     _opt_fields = ['shear_cut', 'outdir']
@@ -857,5 +949,6 @@ MODULE_TYPES = {
     'ngmix_fit': NgmixFitModule,
     'selection': SelectionModule,
     'shear_profile': ShearProfileModule,
+    'oba': OBAModule,
     'analysis': AnalysisModule,
     }
