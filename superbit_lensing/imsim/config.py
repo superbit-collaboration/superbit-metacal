@@ -95,7 +95,8 @@ class ImSimConfig(object):
         },
 
         'output': {
-            'outdir': None
+            'outdir': None,
+            'format': 'exp_num'
         },
 
         'stars': {

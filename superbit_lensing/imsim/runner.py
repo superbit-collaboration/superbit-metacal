@@ -2,6 +2,7 @@ import numpy as np
 import galsim
 import fitsio
 import os
+from datetime import datetime, timezone
 from astropy.table import Table, vstack, hstack, join
 from argparse import ArgumentParser
 
@@ -796,11 +797,34 @@ class ImSimRunner(object):
         for band in self.bands:
             self.logprint(f'Starting band {band}')
 
+            # used to determine output fname format
+            fmt = self.config['output']['format']
+            if fmt not in ['exp_num', 'utc', 'oba']:
+                self.logprint(f'WARNING: fmt={fmt} is not currently ' +
+                              'registered; using fmt=exp_num for now ' +
+                              'so the images are at least written for ' +
+                              'you to check...')
+                fmt = 'exp_num'
+
             Nim = len(self.images[band])
             for i, image in enumerate(self.images[band]):
-                # to match the old imsim convention:
-                outnum = str(i).zfill(3)
-                fname = f'{run_name}_{outnum}_{band}.fits'
+                if fmt == 'exp_num':
+                    # match old jmac imsim convention
+                    outnum = str(i).zfill(3)
+                    fname = f'{run_name}_{outnum}_{band}.fits'
+                elif fmt == 'utc':
+                    # matches SuperBIT flight fname conventions
+                    time = int(datetime.now(timezone.utc).timestamp())
+                    fname = f'{run_name}_{time}_{band}.fits'
+                elif fmt == 'oba':
+                    # use SuperBIT onboard analysis format
+                    time = int(datetime.now(timezone.utc).timestamp())
+                    exp_time = self.config['observation']['exp_time']
+                    fname = f'{run_name}_{exp_time}_{band}_{time}.fits'
+                else:
+                    # shouldn't happen, but a reminder for later
+                    raise ValueError(f'fmt={fmt} is unregistered!')
+
                 outfile = os.path.join(outdir, fname)
 
                 self.logprint(f'Writing image {i+1} of {Nim} to {outfile}')
