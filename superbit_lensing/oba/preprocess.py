@@ -1,5 +1,10 @@
 from pathlib import Path
 from glob import glob
+import os
+
+from superbit_lensing import utils
+
+import ipdb
 
 class PreprocessRunner(object):
     '''
@@ -120,21 +125,30 @@ class PreprocessRunner(object):
             logprint(f'Starting band {band}')
             self.images[band] = []
 
-            orig = (self.raw_dir / band).resolve()
+            # orig = (self.raw_dir / band).resolve()
+            # NOTE: For now, the plan is for all raw files to be in
+            # the same dir, regardless of band
+            orig = self.raw_dir
             dest = (self.run_dir / band).resolve()
 
-            # TODO: Make this more specific once filename
-            # conventions are fixed!
+            # NOTE: This glob is safe as OBA files have a fixed convention
             raw_files = glob(
-                os.path.join(str(orig), '*.fits')
+                os.path.join(str(orig), f'*_{band}_*.fits')
                 )
 
-            logprint(f'Found the following raw files for band {band}:')
-            logprint(raw_files)
+            Nraw = len(raw_files)
+            if Nraw == 0:
+                logprint(f'WARNING: found zero raw files for band {band}')
+                logprint('Skipping')
+                continue
+
+            logprint(f'Found the following {Nraw} raw files for band {band}:')
+            for i, raw in enumerate(raw_files):
+                logprint(f'{i}: {raw}')
 
             for raw_file in raw_files:
                 logprint(f'Copying {raw_file} to {str(dest)}:')
-                self._copy_raw_files(
+                self._copy_file(
                     raw_file, str(dest), logprint=logprint
                     )
 
@@ -172,7 +186,7 @@ class PreprocessRunner(object):
         if logprint is not None:
             logprint(f'cmd = {cmd}')
 
-        utils.run_cmd(cmd)
+        utils.run_command(cmd, logprint=logprint)
 
         return
 
@@ -188,6 +202,6 @@ class PreprocessRunner(object):
         if logprint is not None:
             logprint(f'cmd = {cmd}')
 
-        utils.run_cmd(cmd)
+        utils.run_command(cmd, logprint=logprint)
 
         return

@@ -17,30 +17,53 @@ class OBARunner(object):
     _req_fields = []
     _opt_fields = {}
 
-    def __init__(self, config_file, io_manager, logprint):
+    # The QCC uses ints for the band when writing out the
+    # exposure filenames
+    _bindx = {
+        'u': 0,
+        'b': 1,
+        'g': 2,
+        'dark': 3,
+        'r': 4,
+        'nir': 2,
+        'lum': 3
+    }
+
+    _allowed_bands = _bindx.keys()
+
+    def __init__(self, config_file, io_manager, target_name,
+                 bands, det_bands, logprint):
         '''
         config_file: str
             The OBA configuration file
         io_manager: oba_io.IOManager
             An IOManager instance that defines all relevant OBA
             path information
+        target_name: str
+            The name of the target to run the OBA on
+        bands: list of str's
+            A list of band names to process
+        det_bands: list of str's
+            A list of band names to use when creating detection image
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
         '''
 
+        inputs = {
+            # 'config_file' TODO: add if needed later!
+            'io_manager': (io_manager, IOManager),
+            'target_name': (target_name, str),
+            'bands': (bands, list),
+            'det_bands': (det_bands, list),
+            'logprint': (logprint, utils.LogPrint),
+        }
+        for name, tup in inputs.items():
+            var, cls = tup
+            utils.check_type(name, var, cls)
+            setattr(self, name, var)
+
         self.parse_config()
         self.parse_bands()
-
-        if not isinstance(io_manager, IOManager):
-            raise TypeError('io_manager must be a IOManager instance!')
-        self.io_manager = io_manager
-
-        if not isinstance(logprint, utils.LogPrint):
-            raise TypeError('logprint must be a LogPrint instance!')
-        self.logprint = logprint
-
-        # TODO: something about target name...
-        self.target_name = None
 
         # set relevant dirs for the oba of the given target
         self.set_dirs()
@@ -51,7 +74,25 @@ class OBARunner(object):
         pass
 
     def parse_bands(self):
-        pass
+        '''
+        Band variables already passed initial type checks
+        '''
+
+        if len(self.bands) == 0:
+            raise ValueError('Must pass at least one band!')
+        if len(self.det_bands) == 0:
+            raise ValueError('Must pass at least one det band!')
+
+        inputs = {
+            'bands': self.bands,
+            'det_bands': self.det_bands
+        }
+        for name, bnds in inputs.items():
+            for b in bnds:
+                if not isinstance(b, str):
+                    raise TypeError(f'{name} must be filled with str\'s!')
+
+        return
 
     def set_dirs(self):
 
@@ -98,7 +139,7 @@ class OBARunner(object):
 
         return
 
-    def go(self):
+    def go(self, overwrite=False):
         '''
         Run all of the required on-board analysis steps in the following order:
 
@@ -112,15 +153,19 @@ class OBARunner(object):
         7) MEDS-maker
         8) Compression & cleanup
 
-        TODO: ...
+        overwrite: bool
+            Set to overwrite existing files
         '''
 
         target = self.target_name
 
-        self.logprint('Starting onboard analysis for target {target}')
+        self.logprint(f'Starting onboard analysis for target {target}')
 
         self.logprint('Starting preprocessing...')
         self.run_preprocessing()
+
+        self.logprint('Applying image calibrations...')
+        self.run_calibrations()
 
         self.logprint('Onboard analysis completed for target {target}')
 
@@ -140,5 +185,10 @@ class OBARunner(object):
             target_name=self.target_name
             )
 
+        runner.go(self.logprint)
+
         return
+
+    def run_calibrations(self):
+        pass
 

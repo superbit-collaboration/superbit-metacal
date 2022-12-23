@@ -11,10 +11,13 @@ run such a test (just change "pipe/grid" -> "oba")
 '''
 
 import os
+import shutil
 from pathlib import Path
 from argparse import ArgumentParser
 
-from superbit_lensing import utils
+import utils
+from pipe import SuperBITPipeline
+from oba.oba_io import IOManager
 
 import ipdb
 
@@ -32,8 +35,9 @@ def parse_args():
                         help='A yaml config file that defines the paths ' +
                         'needed to run an oba test')
     group.add_argument('-gs_config', type=str, default=None,
-                        help='An imsim module config to use for the oba ' +
-                        'test, if youd rather specify everything yourself')
+                        help='An image simulation module config to use for ' +
+                        'the oba test, if youd rather specify everything ' +
+                        'yourself')
 
     parser.add_argument('--fresh', action='store_true', default=False,
                         help='Clean test directory of old outputs')
@@ -87,6 +91,7 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
         bands = 'b,lum' # test at least 2 bands
         det_bands = 'b,lum'
 
+        test_dir = Path(utils.TEST_DIR) / 'oba_test/'
         config_dir = Path(utils.MODULE_DIR) / 'oba/configs/'
         gs_config = (outdir / gs_config).resolve()
         swarp_config = (config_dir / 'swarp.config').resolve()
@@ -104,7 +109,7 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
                 'ncores': ncores,
                 'run_diagnostics': True,
                 'order': [
-                    'imsim',
+                    # 'imsim',
                     'oba',
                     ]
                 },
@@ -115,7 +120,8 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
                 'overwrite': overwrite
             },
             'oba': {
-                # TODO: ...
+                'target_name': run_name,
+                'root_dir': str(test_dir)
             }
         }
 
@@ -135,7 +141,7 @@ def make_test_gs_config(path_config, outdir, outfile='oba_test_gs.yaml',
             str(
                 (Path(utils.BASE_DIR) /
                  'configs' /
-                 'grid_test_gs.yaml').resolve()
+                 'oba_test_gs.yaml').resolve()
                 )
             )
 
@@ -161,7 +167,35 @@ def make_test_gs_config(path_config, outdir, outfile='oba_test_gs.yaml',
 
     return outfile
 
+def setup_oba_dirs(root_dir, target_name):
+    '''
+    Setup the expected OBA dir for raw science frames, as defined
+    in oba_io.py
+
+    root_dir: pathlib.Path
+        The local root location that all required QCC paths are
+        defined relative to
+    target_name: str
+        The target name which is used to setup the final directory
+
+    Returns the path to the cluster target raw science frames
+    '''
+
+    utils.make_dir(root_dir)
+
+    io_manager = IOManager(root_dir=root_dir)
+
+    raw_clusters_dir = io_manager.RAW_CLUSTERS
+    utils.make_dir(raw_clusters_dir)
+
+    target_dir = raw_clusters_dir / target_name
+    utils.make_dir(target_dir)
+
+    return target_dir
+
 def main(args):
+
+    print('Starting OBA test')
 
     pipe_config_file = args.pipe_config
     path_config_file = args.path_config
@@ -178,7 +212,11 @@ def main(args):
             argfiles[name] = Path(fname).resolve()
 
     test_dir = Path(utils.get_test_dir()).resolve()
-    outdir = test_dir / 'oba_test/'
+
+    # we want it to match the QCC paths, relative to a local root dir
+    root_dir = test_dir / 'oba_test/'
+    target_name = 'test_target'
+    outdir = setup_oba_dirs(root_dir, target_name)
 
     if fresh is True:
         print(f'Deleting old test directory {str(outdir)}...')
@@ -189,6 +227,10 @@ def main(args):
 
     # only makes it if it does not currently exist
     utils.make_dir(str(outdir))
+
+    logfile = 'oba_test.log'
+    logdir = os.path.join(outdir)
+    log = utils.setup_logger(logfile, logdir=logdir)
 
     # need to parse local paths before creating galsim config, unless
     # passed explicitly. Argparse makes sure only one is passed
@@ -218,6 +260,19 @@ def main(args):
             )
         print(f'Generated pipe config file {pipe_config_file}')
 
+    # we saved it to a file instead of returning a dict so that there is
+    # a record in the oba_test outdir
+    pipe_config = utils.read_yaml(pipe_config_file)
+
+    vb = pipe_config['run_options']['vb']
+
+    if vb:
+        print(f'config =\n{pipe_config}')
+
+    pipe = SuperBITPipeline(pipe_config_file, log=log)
+
+    rc = pipe.run()
+
     print('Done!')
 
     return 0
@@ -227,6 +282,6 @@ if __name__ == '__main__':
     rc = main(args)
 
     if rc == 0:
-        print('\nsetup_test.py have completed without errors')
+        print('\noba_test.py have completed without errors')
     else:
-        print(f'\nsetup_test.py failed with rc={rc}')
+        print(f'\noba_test.py failed with rc={rc}')

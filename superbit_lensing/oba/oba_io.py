@@ -139,7 +139,7 @@ class IOManager(object):
         _registered_defaults = {
             'CAl_DATA': 'data/bit/calibrations/',
             'RAW_DATA': 'data/bit/science_images/',
-            'RAW_CLUSTERS': 'data/bit/science/images/clusters/',
+            'RAW_CLUSTERS': 'data/bit/science_images/clusters/',
             'OBA_DIR': 'home/bit/oba_temp/',
             'OBA_CLUSTERS': 'home/bit/oba_temp/clusters/',
             'OBA_RESULTS': 'data/bit/oba_results/',
