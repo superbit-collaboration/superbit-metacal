@@ -244,25 +244,29 @@ class BITMeasurement():
 
         self.image_files = fixed_image_files
 
-    def _set_all_paths_debug(self, outdir=None, psf_mode='piff'):
+    def _set_all_paths_debug(self, run_name, psf_mode='piff', use_coadd=True):
         '''
         Helper function to set/load all medsmaker files for any debugging
         '''
-        if outdir is None:
-            outdir = self.outdir
+        outdir = self.outdir
         psf_path = self._set_path_to_psf()
+
         if self.combined_mask is None:
             combined_mask_file = 'combined_mask.fits'
             mask = os.path.join(outdir,combined_mask_file)
         else:
             mask = self.combined_mask.filename()
 
-        ims = glob.glob(os.path.join(outdir,'pipe_test_00?.fits')); ims.sort()
-        weights = glob.glob(os.path.join(outdir,'pipe_test_00?_cal.weight.fits')); weights.sort()
-        reduced = glob.glob(os.path.join(outdir,'pipe_test_00?_cal.fits')); reduced.sort()
-        psfs = glob.glob(os.path.join(psf_path, 'pipe_test_00?_cal.piff')); psfs.sort()
-        coadd_file = os.path.join(outdir, 'pipe_test_mock_coadd.fits')
-        catalog = os.path.join(outdir, 'pipe_test_mock_coadd_cat.ldac')
+        ims = glob.glob(os.path.join(outdir, f'{run_name}_00?.fits')); ims.sort()
+        weights = glob.glob(os.path.join(outdir, f'{run_name}_00?_cal.weight.fits')); weights.sort()
+        reduced = glob.glob(os.path.join(outdir, f'{run_name}_00?_cal.fits')); reduced.sort()
+        psfs = glob.glob(os.path.join(psf_path,f'{run_name}_00?_cal.piff')); psfs.sort()
+        coadd_file = os.path.join(outdir, f'{run_name}_mock_coadd.fits')
+        catalog = os.path.join(outdir, f'{run_name}_mock_coadd_cat.ldac')
+
+        if  use_coadd is True:
+            coadd_psf = os.path.join(psf_path, f'{run_name}_mock_coadd.piff')
+            psfs.insert(0, coadd_psf)
 
         # sanity checker
         for files in [ims, weights, reduced, psfs]:
@@ -270,7 +274,6 @@ class BITMeasurement():
                 if os.path.exists(files[l]) is False:
                     print(f'Error: file {files[l]} not found; This will cause you problems')
                     ipdb.set_trace()
-
         # sanity checker
         for file in [coadd_file, catalog, mask]:
             if os.path.exists(file) is False:
@@ -300,7 +303,6 @@ class BITMeasurement():
         self.coadd_file = coadd_file
         self.coadd_catalog = Table.read(catalog)
         self.pix_scale = pix_scale
-
         self.psf_models = psf_models
 
     def reduce(self,overwrite=False,skip_sci_reduce=False):
@@ -688,18 +690,18 @@ class BITMeasurement():
             wgt_file = weight_files[i]
 
             if psf_mode == 'piff':
-                try:
-                    piff_model = self._make_piff_model(
-                        img_file, img_cat,
-                        select_truth_stars=select_truth_stars,
-                        star_params=star_params,
-                        psf_seed=psf_seed
-                        )
-                except:
-                    piff_model = None
+
+                # This actually returns a PSFEx-type format
+                piff_model = self._make_piff_model(
+                    img_file, img_cat,
+                    select_truth_stars=select_truth_stars,
+                    star_params=star_params,
+                    psf_seed=psf_seed
+                    )
                 self.psf_models.append(piff_model)
 
             elif psf_mode == 'psfex':
+
                 psfex_model_file = self._make_psfex_model(
                     img_cat,
                     weightfile=wgt_file,
@@ -829,7 +831,7 @@ class BITMeasurement():
         output_name = imagefile.split('/')[-1].replace('.fits', '.piff')
         full_output_name = os.path.join(output_dir, output_name)
         output_arg = f'output.file_name={output_name} output.dir={output_dir}'
-        cmd = f'piffify {run_piff_config} {image_arg} {psfcat_arg} {output_arg}'
+        cmd = f'piffify {run_piff_config} {image_arg} {psfcat_arg} {output_arg} -v 1'
 
         self.logprint('piff cmd is ' + cmd)
         os.system(cmd)
@@ -881,38 +883,36 @@ class BITMeasurement():
         return outname
 
     def make_image_info_struct(self, use_cal=True, mask_file=None,
-                                max_len_of_filepath=200, use_coadd=False):
-        # max_len_of_filepath may cause issues down the line if the file path
-        # is particularly long
+                                max_len_of_filepath=500, use_coadd=False):
 
+        # Get images
         if use_cal is True:
             image_files = self.reduced_images
         else:
             image_files = self.image_files
 
-        # If coadd used, will be put first
-        Nim = len(image_files)
-        if use_coadd is True:
-            Nim += 1
+        # Get weights
+        weight_files = self.weight_files
 
-        image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
-        i=0
+        # Set bad pixel mask path to the combined mask (not combined weight)
         bmask_path = self.combined_mask.filename()
 
-        for image_file in range(Nim):
-            if (i == 0) and (use_coadd is True):
-                image_file = self.coadd_file
-                weight_file = self.coadd_file.replace('.fits', '.weight.fits')
-                coadd_psf_model = self.psf_models[0]
-                self.psf_models.insert(0, coadd_psf_model)
-            else:
-                if use_coadd is True:
-                    image_file = image_files[i-1]
-                    weight_file = self.weight_files[i-1]
-                else:
-                    image_file = image_files[i]
-                    weight_file = self.weight_files[i]
+        # If coadd used, will be put first
+        if use_coadd is True:
+            coadd_im = self.coadd_file #.replace('.fits', '.sub.fits')
+            image_files.insert(0, coadd_im)
+            coadd_weight = self.coadd_file.replace('.fits', '.weight.fits')
+            weight_files.insert(0, coadd_weight)
 
+        Nim = len(image_files)
+        image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
+
+        ipdb.set_trace()
+
+        for i in range(Nim):
+
+            image_file = image_files[i]
+            weight_file = weight_files[i]
             bkgsub_name = image_file.replace('.fits','.sub.fits')
             segmap_name = self._get_segmap_name(image_file, use_cal)
 
@@ -931,14 +931,17 @@ class BITMeasurement():
             # the images
             image_info[i]['position_offset'] = 1
 
-            i+=1
+            #i+=1
 
         return image_info
 
     def _get_segmap_name(self, image_file, use_cal):
         '''
         Utility method to get segmap name within the medsmaker functions
+        Only calibrated images have segmaps since we do detection on calibrated
+        images. So, use calibrated images to get segmap if use_cal == False
         '''
+        
         if use_cal not in [True, False]:
             raise AssertionError('use_cal must be either True or False')
 
