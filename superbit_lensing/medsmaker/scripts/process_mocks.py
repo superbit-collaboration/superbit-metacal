@@ -93,8 +93,11 @@ def main(args):
     logprint('Loading calibration data...')
     bm.setup_calib_data(master_dark=master_dark,
                         master_flat=master_flat,
-                        bpm=bpm
+                        bpm=bpm,
+                        combined_mask=combined_mask_file
                         )
+
+    #bm._set_all_paths_debug(psf_mode=psf_mode)
 
     # Do a minimal data reduction
     logprint('Quick-reducing single-exposures...')
@@ -119,6 +122,10 @@ def main(args):
 
     # Build a PSF model for each image.
     logprint('Making PSF models...')
+
+    #im_cats = glob.glob(os.path.join(outdir, 'pipe_test_00?_cat.ldac'))
+    #im_cats.sort()
+
     bm.make_psf_models(
         select_truth_stars=select_truth_stars,
         im_cats=im_cats,
@@ -127,10 +134,12 @@ def main(args):
         psf_seed=psf_seed
         )
 
+
     logprint('Making MEDS...')
 
+
     # Make the image_info struct.
-    image_info = bm.make_image_info_struct(use_coadd=use_coadd)
+    image_info = bm.make_image_info_struct(use_cal=False, use_coadd=use_coadd)
 
     # Make the object_info struct.
     obj_info = bm.make_object_info_struct()

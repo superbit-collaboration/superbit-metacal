@@ -103,11 +103,11 @@ class BITMeasurement():
         self.master_dark = None
         self.reduced_images = None
         self.coadd_file = None
-        self.catalog = None
+        self.coadd_catalog = None
         self.psf_path = None
-        self.weight_files = None
+        self.psf_models = None
         self.combined_mask = None
-        self.combined_weight_files = None
+        self.weight_files = None
         self.pix_scale = None
 
         self._setup_dirs()
@@ -130,12 +130,26 @@ class BITMeasurement():
             if not os.path.exists(directory):
                 os.mkdir(directory)
 
-    def set_path_to_psf(self,path=None):
-        self.psf_path = path
-        if self.psf_path is None:
-            self.psf_path = os.cwd()+'psf-outputs'
-        if not os.path.exists(self.psf_path):
-            os.mkdir(self.psf_path)
+    def _get_image_files(self, vb=False):
+        '''
+        returns reduced files if they exist, otherwise raw
+        '''
+        if self.reduced_images is not None:
+            if vb is True: print('Using dark-subtracted images')
+            return self.reduced_images
+        else:
+            if vb is True: print('Using uncalibrated images')
+            return self.image_files
+
+    def _set_path_to_psf(self, path=None, psf_dir=None):
+        psf_path = path
+        if psf_path is None:
+            psf_path = os.path.join(self.outdir, 'piff-output')
+            self.psf_path = psf_path
+        if not os.path.isdir(psf_path):
+            #os.mkdir(psf_path)
+            print(f'\n PSF path {psf_path} not found; this will cause you problems')
+        return psf_path
 
     def _setup_mask(self, mask_name, mask_dir=None, ext=0):
         if mask_name is None:
@@ -146,7 +160,7 @@ class BITMeasurement():
             mask_file = os.path.join(mask_dir, mask_name)
             return fits.getdata(mask_name)
 
-    def setup_calib_data(self, bpm=None, master_dark=None, master_flat=None):
+    def setup_calib_data(self, bpm=None, master_dark=None, master_flat=None, combined_mask=None):
         if bpm is not None:
             #self.bpm = fits.getdata(bpm)
             self.bpm = self._setup_mask(mask_name=bpm)
@@ -154,11 +168,13 @@ class BITMeasurement():
             self.master_flat = fits.getdata(master_flat)
         if master_dark is not None:
             self.master_dark = fits.getdata(master_dark)
+        if combined_mask is not None:
+            self.combined_mask = fits.open(combined_mask)
 
     def get_weight(self, weight_name, weight_dir=None):
         if weight_dir is None:
             weight_dir = os.path.join(self.outdir,'weight_files')
-        self.weight_file = os.path.join(weight_dir, weight_name)
+        self.weight_file = glob.glob(os.path.join(weight_dir, weight_name))
 
     def set_path_to_science_data(self,path=None):
         if path is None:
@@ -227,6 +243,65 @@ class BITMeasurement():
                 fixed_image_files.append(fixed_image_file)
 
         self.image_files = fixed_image_files
+
+    def _set_all_paths_debug(self, outdir=None, psf_mode='piff'):
+        '''
+        Helper function to set/load all medsmaker files for any debugging
+        '''
+        if outdir is None:
+            outdir = self.outdir
+        psf_path = self._set_path_to_psf()
+        if self.combined_mask is None:
+            combined_mask_file = 'combined_mask.fits'
+            mask = os.path.join(outdir,combined_mask_file)
+        else:
+            mask = self.combined_mask.filename()
+
+        ims = glob.glob(os.path.join(outdir,'pipe_test_00?.fits')); ims.sort()
+        weights = glob.glob(os.path.join(outdir,'pipe_test_00?_cal.weight.fits')); weights.sort()
+        reduced = glob.glob(os.path.join(outdir,'pipe_test_00?_cal.fits')); reduced.sort()
+        psfs = glob.glob(os.path.join(psf_path, 'pipe_test_00?_cal.piff')); psfs.sort()
+        coadd_file = os.path.join(outdir, 'pipe_test_mock_coadd.fits')
+        catalog = os.path.join(outdir, 'pipe_test_mock_coadd_cat.ldac')
+
+        # sanity checker
+        for files in [ims, weights, reduced, psfs]:
+            for l in range(len(files)):
+                if os.path.exists(files[l]) is False:
+                    print(f'Error: file {files[l]} not found; This will cause you problems')
+                    ipdb.set_trace()
+
+        # sanity checker
+        for file in [coadd_file, catalog, mask]:
+            if os.path.exists(file) is False:
+                print(f'Error: file {file} not found; This will cause you problems')
+                ipdb.set_trace()
+
+        # If coadd_file exists, load up pixel scale
+        pix_scale = utils.get_pixel_scale(coadd_file)
+
+        # Have to be cleverer for PSFs
+        psf_models = []
+        if psf_mode == 'piff':
+            for p in psfs:
+                #psf_model = piff.PSF.read(p)
+                piff_extended = piff_extender(p)
+                psf_models.append(piff_extended)
+        else:
+            for p in psfs:
+                psf_model = psfex.PSFEx(p)
+                psf_models.append(psf_model)
+
+        # populate BitMeasurement object with these values
+        self.image_files = ims
+        self.weight_files = weights
+        self.reduced_images = reduced
+        self.psf_models = psf_models
+        self.coadd_file = coadd_file
+        self.coadd_catalog = Table.read(catalog)
+        self.pix_scale = pix_scale
+
+        self.psf_models = psf_models
 
     def reduce(self,overwrite=False,skip_sci_reduce=False):
         # Read in and average together the bias, dark, and flat frames.
@@ -337,11 +412,10 @@ class BITMeasurement():
         When ready, we should put this in the "quick reduce" function as that
         naturally loops over images, weights, and masks.
         '''
-
+        overwrite = self.overwrite
         bpm = self.bpm
         master_dark = self.master_dark
         master_flat = self.master_flat
-        overwrite = self.overwrite
 
         try:
             combined_mask_file
@@ -350,10 +424,10 @@ class BITMeasurement():
 
         if os.path.exists(combined_mask_file) and overwrite is False:
             self.logprint(f"\n Loading {combined_mask_file}\n")
-            self.combined_mask = fits.getdata(combined_mask_file)
+            self.combined_mask = fits.open(combined_mask_file)
 
         else:
-            master_dark_mask = np.ones_like(master_dark)*master_dark
+            master_dark_mask = np.ones_like(master_dark)
             clip = master_dark > (dark_sigma_thresh*np.median(master_dark))
             master_dark_mask[clip] = 0 # setting it to 1e-6 might reduce interpolation/dark pixel issues
             combined_mask = np.ones_like(master_dark_mask)*master_dark_mask
@@ -362,9 +436,8 @@ class BITMeasurement():
             combined_mask *= bpm_inverse
 
             fits.writeto(combined_mask_file, data=combined_mask, overwrite=overwrite)
+            self.combined_mask = fits.open(combined_mask_file)
 
-            self.combined_mask = combined_mask
-            pdb.set_trace()
             '''
             # Start with dark
             med_dark_array=[]
@@ -404,16 +477,32 @@ class BITMeasurement():
 
         return
 
-    def make_combined_weight(self, name, outdir=None, bpm=None,
-                                master_dark=None, dark_sigma_thresh=2.0,
-                                master_flat=None, flat_thresh=0.85):
+    def make_combined_weight(self, mask_file=None, ext=0):
+        '''
+        Turn SExtractor BACKGROUND_RMS images into weight maps, and then
+        combine them with the combined master_dark/BPM. Save result to file.
+        '''
 
-        combined_weight_name = os.path.join(outdir, name)
+        image_files = self._get_image_files()
+        weight_files = []
 
-        if (not os.path.exists(combined_weight_name)) or (self.overwrite is True):
+        if mask_file is not None:
+            mask_file = fits.getdata(mask_file)
+        else:
+            mask_file = self.combined_mask[0].data
 
-            # This will fail for the new MEF images/non-trivial weights and bpm
-            weight = fits.getdata(self.weight_file, ext=0)
+        for i, im_file in enumerate(image_files):
+
+            bkg_rms_file = im_file.replace('.fits', '.bkg_rms.fits')
+            weight_files.append(im_file.replace('.fits', '.weight.fits'))
+
+            bkg_rms = fits.getdata(bkg_rms_file, ext=ext)
+            weight_map = 1./(bkg_rms**2)
+            weight_map *= mask_file
+            fits.writeto(weight_files[i], data=weight_map,
+                            overwrite=self.overwrite)
+
+        self.weight_files = weight_files
 
         return
 
@@ -424,18 +513,19 @@ class BITMeasurement():
         Runs SWarp on provided (reduced!) image files to make a coadd image
         for SEX and PSFEx detection.
         '''
-        ### Code to run SWARP
-        if self.reduced_images is not None:
-            self.logprint('Running on dark-subtracted images')
-            image_files = self.reduced_images
-        else:
-            image_files = self.image_files
+        # Grab reduced if you got'em
+        image_files = self._get_image_files(vb=True)
+        bkg_sub_images = []
+        for im in image_files:
+            bkg_sub_images.append(im.replace('.fits', '.sub.fits'))
 
-        image_args = ' '.join(image_files)
+        weight_files = self.weight_files
+
+        image_args = ' '.join(bkg_sub_images)
         detection_file = os.path.join(self.outdir, outfile_name) # This is coadd
         weight_file = os.path.join(self.outdir, weightout_name) # This is coadd weight
         config_arg = '-c ' + os.path.join(self.base_dir, 'superbit/astro_config/swarp.config')
-        weight_arg = f'-WEIGHT_IMAGE {self.combined_weight} -WEIGHT_TYPE MAP_WEIGHT'
+        weight_arg = f'-WEIGHT_IMAGE {",".join(weight_files)} -WEIGHT_TYPE MAP_WEIGHT'
         resamp_arg = f'-RESAMPLE_DIR {self.outdir}'
         outfile_arg = f'-IMAGEOUT_NAME {detection_file} -WEIGHTOUT_NAME {weight_file}'
 
@@ -521,7 +611,7 @@ class BITMeasurement():
         outfile_name = f'{p}mock_coadd.fits'
         weightout_name = outfile_name.replace('.fits', '.weight.fits')
 
-        detection_file,weight_file = \
+        detection_file, weight_file = \
                                 self._make_detection_image(outfile_name=outfile_name,
                                                             weightout_name=weightout_name
                                                             )
@@ -531,30 +621,23 @@ class BITMeasurement():
         self.pix_scale = utils.get_pixel_scale(self.coadd_file)
 
         # Run SExtractor on coadd
-        cat_name = self._run_sextractor(detection_filepath,
-                                        weight_filepath,
+        cat_name = self._run_sextractor(detection_file,
+                                        weight_file,
                                         sextractor_config_path)
 
         try:
-            self.catalog = Table.read(cat_name)
-
-            if source_selection is True:
-                self.logprint("selecting sources")
-                self._select_sources_from_catalog(fullcat=self.catalog, catname=cat_name)
+            self.coadd_catalog = Table.read(cat_name)
 
         except Exception as e:
             self.logprint("coadd catalog could not be loaded; check name?")
             raise(e)
 
+        return
+
     def make_exposure_catalogs(self, weight_file=None, sextractor_config_path=None):
 
         sexcat_names = []
-
-        if self.reduced_images is not None:
-            self.logprint('Running on dark-subtracted images')
-            image_files = self.reduced_images
-        else:
-            image_files = self.image_files
+        image_files = self._get_image_files(vb=True)
 
         for image_file in image_files:
             sexcat = self._run_sextractor(image_file,
@@ -584,52 +667,47 @@ class BITMeasurement():
 
         self.psf_models = []
 
-        if self.reduced_images is not None:
-            image_files = self.reduced_images
-        else:
-            image_files = self.image_files
-
-        Nim = len(image_files)
-
-        assert(len(im_cats)==Nim)
+        image_files = self._get_image_files()
+        weight_files = self.weight_files
 
         # Will be placed first
         if use_coadd is True:
-            Nim += 1
+            coadd_im = self.coadd_file #.replace('.fits', '.sub.fits')
+            image_files.insert(0, coadd_im)
+            coadd_cat = self.coadd_file.replace('.fits', '_cat.ldac')
+            im_cats.insert(0, coadd_cat)
+            coadd_weight = self.coadd_file.replace('.fits', '.weight.fits')
+            weight_files.insert(0, coadd_weight)
 
-        k = 0
+        Nim = len(image_files)
+        assert(len(im_cats)==Nim)
+
         for i in range(Nim):
-            if (i == 0) and (use_coadd is True):
-                # TODO: temporary coadd PSF solution!
-                # see issue #83
-                self.psf_models.append(None)
-                continue
-            else:
-                if use_coadd is True:
-                    imagefile = image_files[i-1]
-                else:
-                    imagefile = image_files[i]
-
-            # TODO: update as necessary
-            weightfile = self.mask_file.replace('mask', 'weight')
+            img_file = image_files[i]
+            img_cat  = im_cats[i]
+            wgt_file = weight_files[i]
 
             if psf_mode == 'piff':
-                piff_model = self._make_piff_model(
-                    imagefile,
-                    select_truth_stars=select_truth_stars,
-                    star_params=star_params,
-                    psf_seed=psf_seed
-                    )
+                try:
+                    piff_model = self._make_piff_model(
+                        img_file, img_cat,
+                        select_truth_stars=select_truth_stars,
+                        star_params=star_params,
+                        psf_seed=psf_seed
+                        )
+                except:
+                    piff_model = None
                 self.psf_models.append(piff_model)
 
             elif psf_mode == 'psfex':
                 psfex_model_file = self._make_psfex_model(
-                    im_cats[i],
-                    weightfile=weightfile,
+                    img_cat,
+                    weightfile=wgt_file,
                     select_truth_stars=select_truth_stars,
                     star_params=star_params,
                     psf_seed=psf_seed
                     )
+                self.psf_models.append(psfex.PSFEx(psfex_model_file))
 
                 # create & move checkimages to psfex_output
                 psfex_outdir = os.path.join(self.data_dir,'psfex-output')
@@ -645,12 +723,6 @@ class BITMeasurement():
                     )
                 os.system(cleanup_cmd)
                 os.system(cleanup_cmd2)
-
-                self.psf_models.append(psfex.PSFEx(psfex_model_file))
-
-        # TODO: temporary coadd PSF solution!
-        # see issue #83
-        self.psf_models[0] = self.psf_models[1]
 
         return
 
@@ -702,7 +774,7 @@ class BITMeasurement():
         # as a PSFEx object
         return psfex_model_file
 
-    def _make_piff_model(self, imagefile, weightfile='weight.fits',
+    def _make_piff_model(self, imagefile, img_cat, weightfile='weight.fits',
                          config_path=None, psfex_outdir='./tmp/',
                          select_truth_stars=False, star_params=None,
                          psf_seed=None):
@@ -732,8 +804,6 @@ class BITMeasurement():
         config['select']['seed'] = psf_seed
         utils.write_yaml(config, run_piff_config)
 
-        imcat_ldac_name = imagefile.replace('.fits', '_cat.ldac')
-
         if select_truth_stars is True:
             # This will break for any truth file nomenclature that
             # isn't pipeline default
@@ -748,7 +818,7 @@ class BITMeasurement():
             self.logprint('using truth catalog %s' % truthfilen)
 
         psfcat_name = self._select_stars_for_psf(
-            sscat=imcat_ldac_name,
+            sscat=img_cat,
             star_params=star_params
             )
 
@@ -776,10 +846,8 @@ class BITMeasurement():
             truthcat : the simulation truth catalog written out by GalSim
         '''
 
-        try:
-            ss = Table.read(sscat,hdu=2)
-        except:
-            ss = Table.read(sscat,hdu=1)
+
+        ss = Table.read(sscat,hdu=1)
 
         if truthfile is not None:
             # Read in truthfile, obtain stars with redshift cut
@@ -812,11 +880,12 @@ class BITMeasurement():
 
         return outname
 
-    def make_image_info_struct(self, max_len_of_filepath=200, use_coadd=False):
+    def make_image_info_struct(self, use_cal=True, mask_file=None,
+                                max_len_of_filepath=200, use_coadd=False):
         # max_len_of_filepath may cause issues down the line if the file path
         # is particularly long
 
-        if self.reduced_images is not None:
+        if use_cal is True:
             image_files = self.reduced_images
         else:
             image_files = self.image_files
@@ -827,25 +896,31 @@ class BITMeasurement():
             Nim += 1
 
         image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
-
         i=0
+        bmask_path = self.combined_mask.filename()
+
         for image_file in range(Nim):
             if (i == 0) and (use_coadd is True):
                 image_file = self.coadd_file
+                weight_file = self.coadd_file.replace('.fits', '.weight.fits')
+                coadd_psf_model = self.psf_models[0]
+                self.psf_models.insert(0, coadd_psf_model)
             else:
                 if use_coadd is True:
                     image_file = image_files[i-1]
+                    weight_file = self.weight_files[i-1]
                 else:
                     image_file = image_files[i]
+                    weight_file = self.weight_files[i]
 
-            #bkgsub_name = reduced_file.replace('.fits','.sub.fits')
-            segmap_name = image_file.replace('.fits','.sgm.fits')
+            bkgsub_name = image_file.replace('.fits','.sub.fits')
+            segmap_name = self._get_segmap_name(image_file, use_cal)
 
             image_info[i]['image_path']  =  image_file
             image_info[i]['image_ext']   =  0
-            image_info[i]['weight_path'] =  self.combined_weight
+            image_info[i]['weight_path'] =  weight_file
             image_info[i]['weight_ext']  =  0
-            image_info[i]['bmask_path']  =  self.mask_file
+            image_info[i]['bmask_path']  =  bmask_path
             image_info[i]['bmask_ext']   =  0
             image_info[i]['seg_path']    =  segmap_name
             image_info[i]['seg_ext']     =  0
@@ -860,10 +935,29 @@ class BITMeasurement():
 
         return image_info
 
+    def _get_segmap_name(self, image_file, use_cal):
+        '''
+        Utility method to get segmap name within the medsmaker functions
+        '''
+        if use_cal not in [True, False]:
+            raise AssertionError('use_cal must be either True or False')
+
+        if use_cal is True:
+            segmap_name = image_file.replace('.fits','.sgm.fits')
+        elif (use_cal is False) and (image_file == self.coadd_file):
+            segmap_name = image_file.replace('.fits','.sgm.fits')
+        else:
+            calibr_file = image_file.replace('.fits', '_cal.fits')
+            segmap_name = calibr_file.replace('.fits', '.sgm.fits')
+
+        if os.path.exists(segmap_name) is False:
+            raise OSError(f'Segmap {segmap_name} not found for image {image_file}')
+        else:
+            return segmap_name
+
     def make_meds_config(self, extra_parameters=None, use_coadd=False):
         '''
         :extra_parameters: dictionary of keys to be used to update the base MEDS configuration dict
-
         '''
         # sensible default config.
         config = {'first_image_is_coadd': use_coadd,
@@ -926,7 +1020,7 @@ class BITMeasurement():
     def make_object_info_struct(self, catalog=None):
 
         if catalog is None:
-            catalog = self.catalog
+            catalog = self.coadd_catalog
 
         obj_str = meds.util.get_meds_input_struct(len(catalog),\
                                                   extra_fields = [('KRON_RADIUS',np.float),('number',np.int),\
