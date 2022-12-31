@@ -6,6 +6,7 @@ import piff
 from astropy.io import fits
 import string
 from pathlib import Path
+from copy import deepcopy
 import ipdb
 from astropy import wcs
 import fitsio
@@ -136,10 +137,10 @@ class BITMeasurement():
         '''
         if self.reduced_images is not None:
             if vb is True: print('Using dark-subtracted images')
-            return self.reduced_images
+            return deepcopy(self.reduced_images)
         else:
             if vb is True: print('Using uncalibrated images')
-            return self.image_files
+            return deepcopy(self.image_files)
 
     def _set_path_to_psf(self, path=None, psf_dir=None):
         psf_path = path
@@ -671,12 +672,12 @@ class BITMeasurement():
             psf_seed = utils.generate_seeds(1)
 
         self.psf_models = []
-
         image_files = self._get_image_files()
-        weight_files = self.weight_files
+        weight_files = deepcopy(self.weight_files)
 
         # Will be placed first
         if use_coadd is True:
+
             coadd_im = self.coadd_file #.replace('.fits', '.sub.fits')
             image_files.insert(0, coadd_im)
             coadd_cat = self.coadd_file.replace('.fits', '_cat.ldac')
@@ -693,7 +694,6 @@ class BITMeasurement():
             wgt_file = weight_files[i]
 
             if psf_mode == 'piff':
-
                 # This actually returns a PSFEx-type format
                 piff_model = self._make_piff_model(
                     img_file, img_cat,
@@ -704,7 +704,6 @@ class BITMeasurement():
                 self.psf_models.append(piff_model)
 
             elif psf_mode == 'psfex':
-
                 psfex_model_file = self._make_psfex_model(
                     img_cat,
                     weightfile=wgt_file,
@@ -748,6 +747,7 @@ class BITMeasurement():
                 )
 
         # If flagged, get a "clean" star catalog for PSFEx input
+        #
         if select_truth_stars==True:
             # This will break for any truth file nomenclature that
             # isn't pipeline default
@@ -755,15 +755,13 @@ class BITMeasurement():
             truthcat = glob.glob(''.join([truthdir,'*truth*.fits']))[0]
             truthfilen = os.path.join(truthdir,truthcat)
             self.logprint("using truth catalog %s" % truthfilen)
-            psfcat_name = self._select_stars_for_psf(
-                sscat=im_cat,truthfile=truthfilen
-                )
-
+            psfcat_name = self._select_stars_for_psf(sscat=im_cat,
+                                                        truthfile=truthfilen
+                                                        )
         else:
             psfcat_name = im_cat
 
         # Now run PSFEx on that image and accompanying catalog
-
         psfex_config_arg = '-c '+config_path+'psfex.mock.config'
         outcat_name = im_cat.replace('.fits','.psfex.star')
         cmd = ' '.join(
@@ -896,28 +894,34 @@ class BITMeasurement():
         # propagate background-subtracted images into MEDS
         #
         if use_cal is True:
+
             image_files = []
+
             for img in self.reduced_images:
                 bkgsub_name = img.replace('.fits','.sub.fits')
                 image_files.append(bkgsub_name)
         else:
-            image_files = self.image_files
+            image_files = deepcopy(self.image_files)
 
         # Get weights
-        weight_files = self.weight_files
+        weight_files = deepcopy(self.weight_files)
 
         # Set bad pixel mask path to the combined mask
         bmask_path = self.combined_mask.filename()
 
         # If coadd used, will be put first in MEDS entries
         if use_coadd is True:
-            coadd_im = self.coadd_file #.replace('.fits', '.sub.fits')
+
+            coadd_im = self.coadd_file
             image_files.insert(0, coadd_im)
             coadd_weight = self.coadd_file.replace('.fits', '.weight.fits')
             weight_files.insert(0, coadd_weight)
 
         Nim = len(image_files)
+
         image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
+
+        #ipdb.set_trace()
 
         for i in range(Nim):
 
@@ -1055,7 +1059,7 @@ class BITMeasurement():
             psf_mode='piff', use_coadd=True, use_cal=True, magzp=30):
         '''
         Do everything needed to make a MEDS file for observation.
-        
+
         NOTE: right now, setup_calib_data() method is not called in run().
         setup_calib_data() should be run first if reducing data or make a combined mask
         '''

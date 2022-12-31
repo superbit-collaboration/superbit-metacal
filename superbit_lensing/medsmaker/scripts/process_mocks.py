@@ -97,9 +97,10 @@ def main(args):
                         combined_mask=combined_mask_file
                         )
 
-    bm._set_all_paths_debug(run_name, psf_mode=psf_mode)
 
-    '''
+    # bm._set_all_paths_debug(run_name, psf_mode=psf_mode)
+
+
     # Do a minimal data reduction
     logprint('Quick-reducing single-exposures...')
     bm.quick_reduce()
@@ -123,9 +124,6 @@ def main(args):
     # Build a PSF model for each image.
     logprint('Making PSF models...')
 
-    #im_cats = glob.glob(os.path.join(outdir, 'pipe_test_00?_cat.ldac'))
-    #im_cats.sort()
-
     bm.make_psf_models(
         select_truth_stars=select_truth_stars,
         im_cats=im_cats,
@@ -133,10 +131,9 @@ def main(args):
         psf_mode=psf_mode,
         psf_seed=psf_seed
         )
-    '''
+
 
     logprint('Making MEDS...')
-
 
     # Make the image_info struct.
     image_info = bm.make_image_info_struct(use_cal=True, use_coadd=use_coadd)
