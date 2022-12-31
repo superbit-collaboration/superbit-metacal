@@ -372,7 +372,7 @@ class BITMeasurement():
         else:
             pass
 
-    def quick_reduce(self, darkname=None):
+    def quick_reduce(self):
         '''
         Just subtract the darks for now, could be extended with others
         '''
@@ -380,6 +380,9 @@ class BITMeasurement():
         bpm = self.bpm
         master_dark = self.master_dark
         master_flat = self.master_flat
+
+        if (master_dark is None) and (master_flat is None) :
+            raise  AssertionError('No calibration or mask files specified, cannot reduce data')
 
         reduced_images = []
 
@@ -422,7 +425,7 @@ class BITMeasurement():
         try:
             combined_mask_file
         except NameError:
-            print('No combined_mask filename specified')
+            raise('No combined_mask output filename specified, cannot make one')
 
         if os.path.exists(combined_mask_file) and overwrite is False:
             self.logprint(f"\n Loading {combined_mask_file}\n")
@@ -882,22 +885,31 @@ class BITMeasurement():
 
         return outname
 
-    def make_image_info_struct(self, use_cal=True, mask_file=None,
+    def make_image_info_struct(self, use_cal=None, mask_file=None,
                                 max_len_of_filepath=500, use_coadd=False):
 
-        # Get images
+        # Make sure that use_cal is specified in invocation
+        if use_cal not in [True, False]:
+                raise AssertionError('use_cal must be either True or False')
+
+        # If you are using calibrated images, you probably want to
+        # propagate background-subtracted images into MEDS
+        #
         if use_cal is True:
-            image_files = self.reduced_images
+            image_files = []
+            for img in self.reduced_images:
+                bkgsub_name = img.replace('.fits','.sub.fits')
+                image_files.append(bkgsub_name)
         else:
             image_files = self.image_files
 
         # Get weights
         weight_files = self.weight_files
 
-        # Set bad pixel mask path to the combined mask (not combined weight)
+        # Set bad pixel mask path to the combined mask
         bmask_path = self.combined_mask.filename()
 
-        # If coadd used, will be put first
+        # If coadd used, will be put first in MEDS entries
         if use_coadd is True:
             coadd_im = self.coadd_file #.replace('.fits', '.sub.fits')
             image_files.insert(0, coadd_im)
@@ -907,13 +919,11 @@ class BITMeasurement():
         Nim = len(image_files)
         image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
 
-        ipdb.set_trace()
-
         for i in range(Nim):
 
             image_file = image_files[i]
             weight_file = weight_files[i]
-            bkgsub_name = image_file.replace('.fits','.sub.fits')
+
             segmap_name = self._get_segmap_name(image_file, use_cal)
 
             image_info[i]['image_path']  =  image_file
@@ -931,24 +941,23 @@ class BITMeasurement():
             # the images
             image_info[i]['position_offset'] = 1
 
-            #i+=1
-
         return image_info
 
     def _get_segmap_name(self, image_file, use_cal):
         '''
-        Utility method to get segmap name within the medsmaker functions
+        Utility function to access segmap name within the medsmaker functions
         Only calibrated images have segmaps since we do detection on calibrated
         images. So, use calibrated images to get segmap if use_cal == False
+        If use_cal==True,
         '''
-        
-        if use_cal not in [True, False]:
-            raise AssertionError('use_cal must be either True or False')
 
+        # In this case, image_file has the format "_cal.sub.fits"
         if use_cal is True:
-            segmap_name = image_file.replace('.fits','.sgm.fits')
+            segmap_name = image_file.replace('.sub.fits','.sgm.fits')
+
         elif (use_cal is False) and (image_file == self.coadd_file):
             segmap_name = image_file.replace('.fits','.sgm.fits')
+
         else:
             calibr_file = image_file.replace('.fits', '_cal.fits')
             segmap_name = calibr_file.replace('.fits', '.sgm.fits')
@@ -960,8 +969,10 @@ class BITMeasurement():
 
     def make_meds_config(self, extra_parameters=None, use_coadd=False):
         '''
-        :extra_parameters: dictionary of keys to be used to update the base MEDS configuration dict
+        extra_parameters: dictionary of keys to be used to update the
+                          base MEDS configuration dict
         '''
+
         # sensible default config.
         config = {'first_image_is_coadd': use_coadd,
                   'cutout_types':['weight','seg','bmask'],
@@ -972,7 +983,7 @@ class BITMeasurement():
 
         return config
 
-    def _meds_metadata(self, magzp, use_coadd):
+    def meds_metadata(self, magzp, use_coadd):
         '''
         magzp: float
             The reference magnitude zeropoint
@@ -1041,8 +1052,14 @@ class BITMeasurement():
 
     def run(self,outfile='mock_superbit.meds', overwrite=False,
             source_selection=False, master_dark=None, select_truth_stars=False,
-            psf_mode='piff', use_coadd=True):
-        # Make a MEDS, overwriteing if needed
+            psf_mode='piff', use_coadd=True, use_cal=True, magzp=30):
+        '''
+        Do everything needed to make a MEDS file for observation.
+        
+        NOTE: right now, setup_calib_data() method is not called in run().
+        setup_calib_data() should be run first if reducing data or make a combined mask
+        '''
+
 
         #### ONLY FOR DEBUG
         #### Set up the paths to the science and calibration data
@@ -1053,31 +1070,70 @@ class BITMeasurement():
         #self.add_wcs_to_science_frames()
         ####################
 
-        # Reduce the data.
-        # self.reduce(overwrite=overwrite,skip_sci_reduce=True)
-        # Make a mask.
-        # NB: can also read in a pre-existing mask by setting self.mask_file
-        #self.make_mask(mask_name='mask.fits',overwrite=overwrite)
+        ###
+        ###
+        ###
+        ###
 
-        # Combine images, make a catalog.
-        config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
-        self.quick_reduce(master_dark=master_dark)
+        combined_mask_file = self.combined_mask_file
+
+        # Make sure there is a combined mask (BPM+master dark) available
+        # since it is used as a weight for single-epoch exposures.
+        #
+        if combined_mask_file is None:
+            raise AssertionError('Combined mask file ' + \
+                                    'not specified, cannot proceed'
+                                    )
+
+        # Do quick reduction -- should make this a flag option at some point...
+        self.quick_reduce()
+
+        # Either make or read from file the combined
+        # bad pixels+master dark mask.
+        self.get_combined_mask(combined_mask_file)
+
+        # Make catalogs for individual exposures.
+        im_cats = self.make_exposure_catalogs(weight_file=combined_mask_file)
+
+        # Make a detection image and catalog.
         self.make_coadd_catalog(sextractor_config_path=config_path,
-                          source_selection=source_selection)
-        # Make catalogs for individual exposures
+                                    source_selection=source_selection)
+
+        # Make catalogs for individual exposures.
         self.make_exposure_catalogs(sextractor_config_path=config_path)
+
+        # Make single-epoch image weights.
+        self.make_combined_weight()
+
+        # Combine images, make a detection catalog.
+        self.make_coadd_catalog()
+
         # Build a PSF model for each image.
-        self.make_psf_models(select_truth_stars=select_truth_stars, im_cats=im_cats, use_coadd=False, psf_mode=psf_mode)
+        self.make_psf_models(select_truth_stars=select_truth_stars,
+                                im_cats=im_cats,
+                                use_coadd=use_coadd,
+                                psf_mode=psf_mode,
+                                psf_seed=psf_seed
+                                )
+
         # Make the image_info struct.
-        image_info = self.make_image_info_struct()
+        image_info = self.make_image_info_struct(use_cal=use_cal,
+                                                    use_coadd=use_coadd)
         # Make the object_info struct.
         obj_info = self.make_object_info_struct()
+
         # Make the MEDS config file.
         meds_config = self.make_meds_config()
-        # Create metadata for MEDS
-        magzp = 30.
-        meta = self._meds_metadata(magzp, use_coadd)
-        # Finally, make and write the MEDS file.
-        medsObj = meds.maker.MEDSMaker(obj_info, image_info, config=meds_config,
-                                       psf_data=self.psf_models,meta_data=meta)
+
+        # Update metadata for MEDS.
+        meta = self.meds_metadata(magzp, use_coadd)
+
+        # Make the MEDS file.
+        medsObj = meds.maker.MEDSMaker(obj_info, image_info,
+                                            config=meds_config,
+                                            psf_data=self.psf_models,
+                                            meta_data=meta
+                                            )
+
+        # Finally, write MEDS file to file
         medsObj.write(outfile)

@@ -116,8 +116,7 @@ def main(args):
     logprint('Making combined weights...')
     bm.make_combined_weight()
 
-    # slightly tedious, but this involves *remaking*
-    # Combine images, make a catalog.
+    # Combine images, make a detection catalog.
     logprint('Making coadd & its catalog...')
     bm.make_coadd_catalog()
 
@@ -150,7 +149,7 @@ def main(args):
 
     # Create metadata for MEDS
     magzp = 30.
-    meta = bm._meds_metadata(magzp, use_coadd)
+    meta = bm.meds_metadata(magzp, use_coadd)
 
     # Finally, make and write the MEDS file.
     medsObj = meds.maker.MEDSMaker(
