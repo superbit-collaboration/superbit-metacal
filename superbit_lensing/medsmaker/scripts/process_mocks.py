@@ -93,8 +93,7 @@ def main(args):
     logprint('Loading calibration data...')
     bm.setup_calib_data(master_dark=master_dark,
                         master_flat=master_flat,
-                        bpm=bpm,
-                        combined_mask=combined_mask_file
+                        bpm=bpm
                         )
 
 
