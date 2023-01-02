@@ -429,20 +429,26 @@ class BITMeasurement():
             raise('No combined_mask output filename specified, cannot make one')
 
         if os.path.exists(combined_mask_file) and overwrite is False:
-            self.logprint(f"\n Loading {combined_mask_file}\n")
+            self.logprint(f"\n Loading {combined_mask_file} \n")
             self.combined_mask = fits.open(combined_mask_file)
 
         else:
-            master_dark_mask = np.ones_like(master_dark)
+            master_dark_mask = np.ones_like(master_dark, dtype=np.int16)
             clip = master_dark > (dark_sigma_thresh*np.median(master_dark))
             master_dark_mask[clip] = 0 # setting it to 1e-6 might reduce interpolation/dark pixel issues
-            combined_mask = np.ones_like(master_dark_mask)*master_dark_mask
+            combined_mask = np.ones_like(master_dark_mask, dtype=np.int16)*master_dark_mask
 
             bpm_inverse = 1 - bpm # The default forecast mask is all zeros!
             combined_mask *= bpm_inverse
 
             fits.writeto(combined_mask_file, data=combined_mask, overwrite=overwrite)
             self.combined_mask = fits.open(combined_mask_file)
+
+            # Standard MEDS expects the use=0, skip=1 format so save a version of that too
+            inverse_mask = np.ones_like(combined_mask, dtype=np.int16) - combined_mask
+            inv_mask_file = combined_mask_file.replace('.fits', '_inverse.fits')
+            fits.writeto(inv_mask_file, data=inverse_mask, overwrite=overwrite)
+            ipdb.set_trace()
 
             '''
             # Start with dark
@@ -907,7 +913,8 @@ class BITMeasurement():
         weight_files = deepcopy(self.weight_files)
 
         # Set bad pixel mask path to the combined mask
-        bmask_path = self.combined_mask.filename()
+        combined_mask = self.combined_mask.filename()
+        bmask_path = combined_mask.replace('.fits', '_inverse.fits')
 
         # If coadd used, will be put first in MEDS entries
         if use_coadd is True:
