@@ -245,18 +245,18 @@ class BITMeasurement():
 
         self.image_files = fixed_image_files
 
-    def _set_all_paths_debug(self, run_name, psf_mode='piff', use_coadd=True):
+    def _set_all_paths_debug(self, run_name, psf_mode='piff',
+                                combined_mask_file=None, use_coadd=True):
         '''
         Helper function to set/load all medsmaker files for any debugging
         '''
         outdir = self.outdir
         psf_path = self._set_path_to_psf()
 
-        if self.combined_mask is None:
-            combined_mask_file = 'combined_mask.fits'
-            mask = os.path.join(outdir,combined_mask_file)
+        if combined_mask_file is None:
+            mask = os.path.join(outdir,'combined_mask.fits')
         else:
-            mask = self.combined_mask.filename()
+            mask = combined_mask_file
 
         ims = glob.glob(os.path.join(outdir, f'{run_name}_00?.fits')); ims.sort()
         weights = glob.glob(os.path.join(outdir, f'{run_name}_00?_cal.weight.fits')); weights.sort()
@@ -280,6 +280,9 @@ class BITMeasurement():
             if os.path.exists(file) is False:
                 print(f'Error: file {file} not found; This will cause you problems')
                 ipdb.set_trace()
+
+        # As long as mask exists, set the attribute
+        self.combined_mask = fits.open(mask)
 
         # If coadd_file exists, load up pixel scale
         pix_scale = utils.get_pixel_scale(coadd_file)
@@ -448,7 +451,6 @@ class BITMeasurement():
             inverse_mask = np.ones_like(combined_mask, dtype=np.int16) - combined_mask
             inv_mask_file = combined_mask_file.replace('.fits', '_inverse.fits')
             fits.writeto(inv_mask_file, data=inverse_mask, overwrite=overwrite)
-            ipdb.set_trace()
 
             '''
             # Start with dark
@@ -499,9 +501,14 @@ class BITMeasurement():
         weight_files = []
 
         if mask_file is not None:
-            mask_file = fits.getdata(mask_file)
+            mask_data = fits.getdata(mask_file)
         else:
-            mask_file = self.combined_mask[0].data
+            mask_data = self.combined_mask[0].data
+
+        # MEDS freaks out if it gets exactly 0 weights, making sure mask is a float
+        mask_data*=1.0
+        clip = (mask_data == 0.0)
+        mask_data[clip] += 1.0e-6
 
         for i, im_file in enumerate(image_files):
 
@@ -962,13 +969,11 @@ class BITMeasurement():
         If use_cal==True,
         '''
 
-        # In this case, image_file has the format "_cal.sub.fits"
-        if use_cal is True:
-            segmap_name = image_file.replace('.sub.fits','.sgm.fits')
-
-        elif (use_cal is False) and (image_file == self.coadd_file):
+        if (image_file == self.coadd_file):
             segmap_name = image_file.replace('.fits','.sgm.fits')
-
+        # In this case, image_file has the format "_cal.sub.fits"
+        elif use_cal is True:
+            segmap_name = image_file.replace('.sub.fits','.sgm.fits')
         else:
             calibr_file = image_file.replace('.fits', '_cal.fits')
             segmap_name = calibr_file.replace('.fits', '.sgm.fits')

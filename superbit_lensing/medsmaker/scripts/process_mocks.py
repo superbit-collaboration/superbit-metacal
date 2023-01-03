@@ -97,9 +97,9 @@ def main(args):
                         )
 
 
-    # bm._set_all_paths_debug(run_name, psf_mode=psf_mode)
+    bm._set_all_paths_debug(run_name, psf_mode=psf_mode)
 
-
+    '''
     # Do a minimal data reduction
     logprint('Quick-reducing single-exposures...')
     bm.quick_reduce()
@@ -131,7 +131,7 @@ def main(args):
         psf_seed=psf_seed
         )
 
-
+    '''
     logprint('Making MEDS...')
 
     # Make the image_info struct.
