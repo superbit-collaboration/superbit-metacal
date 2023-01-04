@@ -23,7 +23,8 @@ def parse_args():
                         help='Name of mock simulation run')
     parser.add_argument('-fname_base', action='store', type=str, default=None,
                         help='Image filename base [ims=fname_base_XXX.fits]')
-    parser.add_argument('-psf_mode', action='store', choices=['piff', 'psfex'], default='piff',
+    parser.add_argument('-psf_mode', action='store', default='piff',
+                        choices=['piff', 'psfex', 'true'],
                         help='model exposure PSF using either piff or psfex')
     parser.add_argument('-psf_seed', type=int, default=None,
                         help='Seed for chosen PSF estimation mode')
@@ -96,10 +97,8 @@ def main(args):
                         bpm=bpm
                         )
 
+    #bm._set_all_paths_debug(run_name, psf_mode=psf_mode)
 
-    bm._set_all_paths_debug(run_name, psf_mode=psf_mode)
-
-    '''
     # Do a minimal data reduction
     logprint('Quick-reducing single-exposures...')
     bm.quick_reduce()
@@ -131,7 +130,7 @@ def main(args):
         psf_seed=psf_seed
         )
 
-    '''
+
     logprint('Making MEDS...')
 
     # Make the image_info struct.
@@ -141,7 +140,7 @@ def main(args):
     obj_info = bm.make_object_info_struct()
 
     # Make the MEDS config file.
-    meds_config = bm.make_meds_config(use_coadd=use_coadd)
+    meds_config = bm.make_meds_config(use_coadd, psf_mode)
 
     # Create metadata for MEDS
     magzp = 30.

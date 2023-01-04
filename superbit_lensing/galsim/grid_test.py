@@ -22,7 +22,7 @@ import time
 import galsim
 import galsim.des
 import galsim.convolve
-import pdb
+import pdb, pudb
 from glob import glob
 import pickle
 import scipy
@@ -235,14 +235,11 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, psf, sbparams, logprint, obj
                         flux = gal_flux,
                         half_light_radius = half_light_radius)
 
-    gal = gal.shear(q = q, beta = phi)
+    # TURNED OFF: We don't add shapes for a grid test
+    # gal = gal.shear(q = q, beta = phi)
     logprint.debug('created galaxy')
 
-    ## Apply a random rotation
-    theta = ud()*2.0*np.pi*galsim.radians
-    gal = gal.rotate(theta)
-
-    ## Apply a random rotation
+    # Apply a random rotation
     theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
 
@@ -402,7 +399,7 @@ def make_a_star(ud, pud, k, wcs, affine, psf, sbparams, logprint, obj_index=None
     index = obj_index - 1
 
     if sbparams.star_cat is not None:
-        if sbparams.bandpass in ['crates_lum', 'crates_shape']:
+        if sbparams.bandpass=='crates_lum':
             star_flux = sbparams.star_cat['bitflux_electrons_lum'][index]
 
         elif sbparams.bandpass=='crates_b':
@@ -475,11 +472,8 @@ class SuperBITParameters:
 
         self._set_seeds()
 
-        # Set up stellar injection
+        # Setup stellar injection
         self._setup_stars()
-
-        # Set up dark frame
-        self._setup_darks()
 
         return
 
@@ -631,12 +625,6 @@ class SuperBITParameters:
                 self.sample_gaia_cats = bool(value)
             elif option == "gaia_dir":
                 self.gaia_dir = str(value)
-            elif option == "sample_darks":
-                self.sample_darks = bool(value)
-            elif option == "dark_dir":
-                self.dark_dir = str(value)
-            elif option == "dark_image_name":
-                self.dark_image_name = str(value)
             elif option == "noise_seed":
                 try:
                     self.noise_seed = int(value)
@@ -708,41 +696,6 @@ class SuperBITParameters:
 
         if self.nstars is None:
             self.nstars = len(self.star_cat)
-
-        return
-
-    def _setup_darks(self):
-        '''
-        Grab darks
-        '''
-        valid_args = ['dark_image_name', 'sample_darks', 'dark_dir']
-
-        for arg in valid_args:
-            if not hasattr(self, arg):
-                setattr(self, arg, None)
-
-        assert (self.dark_image_name is not None) or \
-               (self.sample_darks is not None) or \
-               (self.dark_dir is not None)
-
-        if (self.dark_image_name is not None) and (self.sample_darks is not None):
-            raise AttributeError('Cannot set both `dark_image_name` and ' +\
-                                 '`sample_darks`!')
-
-        # if using a specific dark image, try that first
-        if self.dark_image_name is not None:
-            print(f'Using dark {self.dark_image_name}')
-
-        elif self.sample_darks is True:
-            if self.dark_dir is None:
-                raise AttributeError('Must set `dark_dir` if sampling dark images!')
-
-            # Note that this is assuming a file naming structure like
-            # D{exptime}_*.fits, will fail otherwise
-
-        # Guess we aren't using a dark!
-        else:
-            self.dark_image_name = None
 
         return
 
@@ -982,10 +935,7 @@ def main(args):
     ###
 
     # If you wanted to make a non-trivial WCS system, could set theta to a non-zero number
-    fiducial_full_image = galsim.Image(sbparams.image_xsize,
-                                        sbparams.image_ysize,
-                                        dtype=np.uint16
-                                        )
+    fiducial_full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
 
     theta = 0.0 * galsim.degrees
     dudx = np.cos(theta) * sbparams.pixel_scale
@@ -1002,24 +952,6 @@ def main(args):
     ##
     rng = np.random.default_rng(sbparams.dithering_seed)
 
-    ##
-    ## If we are sampling, grab all the darks we need
-    ## There is a little trickery here: if sample_darks is true, then
-    ## self.dark_image_name is an array!
-    if sbparams.sample_darks is True:
-        dark_im_basename = f'{sbparams.dark_dir}/D{int(sbparams.exp_time)}_*.fits'
-        all_dark_images = glob(dark_im_basename)
-
-        if len(all_dark_images) == 0:
-            err = f'Found no dark images like {dark_im_basename}'
-            logprint(err)
-            raise OSError(err)
-
-        else:
-            dark_rng = np.random.default_rng(sbparams.noise_seed+1)
-            dark_images = dark_rng.choice(all_dark_images,
-                                    replace=False, size=sbparams.nexp)
-            logprint(f'Using darks {dark_images}')
     ###
     ### MAKE SIMULATED OBSERVATIONS
     ### ITERATE n TIMES TO MAKE n SEPARATE IMAGES
@@ -1049,11 +981,7 @@ def main(args):
             truth_catalog = galsim.OutputCatalog(names, types)
 
         # Set up the image:
-        full_image = galsim.Image(sbparams.image_xsize,
-                                    sbparams.image_ysize,
-                                    dtype=np.uint16
-                                    )
-
+        full_image = galsim.ImageF(sbparams.image_xsize, sbparams.image_ysize)
         sky_level = sbparams.exp_time * sbparams.sky_bkg / sbparams.gain
         full_image.fill(sky_level)
 
@@ -1303,13 +1231,14 @@ def main(args):
                     # root and the rest meet again at barrier at start of loop
                     continue
 
+        # The first thing to do is to make the Gaussian noise uniform across the whole image.
+
         if (mpi is False) or (M.is_mpi_root()):
 
-            if sbparams.sample_darks is True:
-                sbparams.dark_image_name = dark_images[i-1]
-
-            if sbparams.dark_image_name is not None:
-                sbparams.read_noise = 0
+            # Add dark current
+            logprint('Adding Dark current')
+            dark_noise = sbparams.dark_current * sbparams.exp_time
+            full_image += dark_noise
 
             # Add ccd noise
             logprint('Adding CCD noise')
@@ -1319,21 +1248,10 @@ def main(args):
                 read_noise=sbparams.read_noise,
                 rng=galsim.BaseDeviate(sbparams.noise_seed)
                 )
+
             full_image.addNoise(noise)
+
             logprint.debug('Added noise to final output image')
-
-            # Add dark current
-            if sbparams.dark_image_name is not None:
-                logprint(f'Adding dark current frame {sbparams.dark_image_name}')
-                dark_image = fitsio.read(sbparams.dark_image_name)
-                full_image += dark_image
-
-            else:
-                # Add dark current
-                logprint('Adding Dark current')
-                dark_noise = sbparams.dark_current * sbparams.exp_time
-                full_image += dark_noise
-
             if not os.path.exists(os.path.dirname(file_name)):
                 os.makedirs(os.path.dirname(file_name))
 

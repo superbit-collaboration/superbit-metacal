@@ -91,14 +91,6 @@ class SuperBITNgmixFitter():
 
         return
 
-    def _generate_initial_guess(self,observation):
-        # Generate a guess from the pixel scale.
-        fwhm_guess= 4*observation.jacobian.get_scale()
-        gmom = ngmix.gaussmom.GaussMom(observation,fwhm_guess)
-        gmom.go()
-
-        return gmom.result
-
     def _get_priors(self):
 
         # This bit is needed for ngmix v2.x.x
@@ -210,27 +202,9 @@ class SuperBITNgmixFitter():
 
         return psfex_cutouts
 
-
-    def _get_jacobians(self, source_id=None):
-        try:
-            jlist = self.medsObj.get_jacobian_list(source_id)
-            jac = [ngmix.Jacobian(row=jj['row0'],
-                                  col=jj['col0'],
-                                  dvdrow=jj['dvdrow'],
-                                  dvdcol=jj['dvdcol'],
-                                  dudrow=jj['dudrow'],
-                                  dudcol=jj['dudcol']) for jj in jlist]
-        except ValueError as e:
-            # Some observations will have zero image cutouts, which will
-            # cause a ValueError when building an obs list. We want to have
-            # this error identified during the flag check, so for now we will
-            # just return None
-            jac = None
-
-        return jac
-
     def _get_source_observations(self, iobj, weight_type='uberseg', logprint=None):
 
+        '''
         try:
             jaclist = self._get_jacobians(iobj)
             psf_cutouts = self.medsObj.get_cutout_list(iobj, type='psf')
@@ -286,6 +260,18 @@ class SuperBITNgmixFitter():
             else:
                 print(e)
             obslist = None
+        '''
+        obslist = self.medsObj.get_obslist(iobj, weight_type)
+
+        # We don't want to fit to the coadd, as its PSF is not
+        # well defined
+        if self.has_coadd is True:
+            # NOTE: doesn't produce the right type...
+            # obslist = obslist[1:]
+            se_obslist = ngmix.ObsList(meta=deepcopy(obslist._meta))
+            for obs in obslist[1:]:
+                se_obslist.append(obs)
+            obslist = se_obslist
 
         return obslist
 
@@ -296,19 +282,19 @@ class SuperBITPlotter(object):
 
         return
 
-    def setup_jdict_list(self, index_start, index_end, meds_list):
-        '''
-        Need to grab jacobian dict list for later plotting in parallel
-        '''
+    # def setup_jdict_list(self, index_start, index_end, meds_list):
+    #     '''
+    #     Need to grab jacobian dict list for later plotting in parallel
+    #     '''
 
-        self.jdict_list = []
+    #     self.jdict_list = []
 
-        for i in range(index_start, index_end):
-            try:
-                self.jdict_list.append(meds_list.get_jacobian_list(i)[0])
-            except ValueError:
-                pass
-        return
+    #     for i in range(index_start, index_end):
+    #         try:
+    #             self.jdict_list.append(meds_list.get_jacobian_list(i)[0])
+    #         except ValueError:
+    #             pass
+    #     return
 
     @staticmethod
     def _make_imc(source_id, meds_list):
@@ -502,7 +488,7 @@ def write_output_table(outfilename, tab, overwrite=False):
 
 #     return mcal_arr
 
-def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
+def mp_fit_one(source_id, obslist, prior, logprint, pars=None):
     """
     Multiprocessing version of original _fit_one()
 
@@ -511,7 +497,6 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
 
     inputs:
     - source_id: MEDS ID
-    - jaclist: Jacobian list for MEDS object of given ID
     - obslist: Observation list for MEDS object of given ID
     - prior: ngmix mcal priors
     - pars: mcal running parameters
@@ -532,10 +517,13 @@ def mp_fit_one(source_id, jaclist, obslist, prior, logprint, pars=None):
         max_pars = pars['max_pars']
         metacal_pars = pars['metacal_pars']
 
-    Tguess = 4*jaclist[0].get_scale()**2
+    # get image pixel scale (assumes constant across list)
+    jacobian = obslist[0]._jacobian
+    Tguess = 4*jacobian.get_scale()**2
     ntry = 4
     psf_model = 'gauss' # should come up with diagnostics for PSF quality
-    gal_model = 'exp'
+    # gal_model = 'exp'
+    gal_model = 'gauss'
 
     # Run the actual metacalibration fits on the observed galaxies
     mcb = ngmix.bootstrap.MaxMetacalBootstrapper(obslist)
@@ -622,7 +610,7 @@ def check_obj_flags(obj, min_cutouts=1):
 
     return False, None
 
-def mp_run_fit(i, start_ind, obj, jaclist, obslist, prior, imc,
+def mp_run_fit(i, start_ind, obj, obslist, prior, imc,
                plotter, config, logprint):
     '''
     parallelized version of original ngmix_fit_superbit3 code
@@ -636,8 +624,8 @@ def mp_run_fit(i, start_ind, obj, jaclist, obslist, prior, imc,
 
     logprint(f'Starting fit for obj {i}')
 
-    if (jaclist is None) or (obslist is None):
-        logprint('jaclist or obslist is None')
+    if obslist is None:
+        logprint('obslist is None')
 
     try:
         # first check if object is flagged
@@ -648,7 +636,7 @@ def mp_run_fit(i, start_ind, obj, jaclist, obslist, prior, imc,
 
         # mcal_res: the bootstrapper's get_mcal_result() dict
         # mcal_fit: the mcal model image
-        mcal_res, mcal_fit = mp_fit_one(i, jaclist, obslist, prior, logprint)
+        mcal_res, mcal_fit = mp_fit_one(i, obslist, prior, logprint)
 
         # Ain some identifying info like (ra,dec), id, etc.
         # for key in obj.keys():
@@ -787,9 +775,6 @@ def main():
     # Needed for making plots on each worker
     plotter = SuperBITPlotter()
 
-    # Setup jacobian dict list here for parallelization
-    plotter.setup_jdict_list(index_start, index_end, BITfitter.medsObj)
-
     if make_plots is True:
         imc_list = plotter.make_imc_list(index_start, index_end, BITfitter.medsObj)
     else:
@@ -805,8 +790,8 @@ def main():
         for i in range(index_start, index_end):
             mcal_res.append(mp_run_fit(
                             i,
+                            index_start,
                             setup_obj(i, BITfitter.medsObj[i]),
-                            BITfitter._get_jacobians(i),
                             BITfitter._get_source_observations(
                                 i, logprint=logprint
                                 ),
@@ -826,7 +811,6 @@ def main():
                                         [(i,
                                           index_start,
                                           setup_obj(i, BITfitter.medsObj[i]),
-                                          BITfitter._get_jacobians(i),
                                           BITfitter._get_source_observations(
                                               i, logprint=logprint
                                               ),
