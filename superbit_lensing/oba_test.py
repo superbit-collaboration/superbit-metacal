@@ -219,7 +219,7 @@ def main(args):
     target_name = 'test_target'
 
     if fresh is True:
-        print(f'Deleting old test directory {str(outdir)}...')
+        print(f'Deleting old test directory {str(root_dir)}...')
         try:
             shutil.rmtree(str(root_dir))
         except FileNotFoundError as e:

@@ -5,6 +5,7 @@ import os
 from superbit_lensing import utils
 from oba_io import IOManager
 from preprocess import PreprocessRunner
+from cals import CalsRunner
 
 import ipdb
 
@@ -198,12 +199,13 @@ class OBARunner(object):
             Set to overwrite existing files
         '''
 
-        runner = CalsRunner(
-            self.run_dir,
-            self.bands,
-            target_name=self.target_name
-            )
+        # TODO: turn on when ready!
+        # runner = CalsRunner(
+        #     self.run_dir,
+        #     self.bands,
+        #     target_name=self.target_name
+        #     )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        # runner.go(self.logprint, overwrite=overwrite)
 
         return
