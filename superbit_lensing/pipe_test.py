@@ -130,7 +130,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
                 'ncores': 8,
                 'run_diagnostics': True,
                 'order': [
-                    # f'{sim_module}',
+                    f'{sim_module}',
                     'medsmaker',
                     'metacal',
                     # 'metacal_v2', # turn on for ngmix v2.X metacal

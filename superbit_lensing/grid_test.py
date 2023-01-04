@@ -76,18 +76,21 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
         outdir = os.path.join(utils.TEST_DIR, run_name)
         bands = 'b,lum' # test at least 2 bands
         det_bands = 'b,lum'
+
         swarp_config = os.path.join(
             utils.MODULE_DIR, 'coadd/configs/', 'swarp.config'
             )
-        se_config = os.path.join(
-            utils.MODULE_DIR, 'detection/configs/', 'se_configs.yaml'
+        se_config_dir = os.path.join(
+            utils.MODULE_DIR, 'detection/configs/'
             )
+
+        se_config = 'se_configs.yaml'
         se_file = os.path.join(outdir, f'{run_name}_mock_coadd_cat.ldac')
         meds_file = os.path.join(outdir, f'{run_name}_meds.fits')
         mcal_file = os.path.join(outdir, f'{run_name}_mcal.fits')
-        ngmix_test_config = make_test_ngmix_config('ngmix_test.yaml',
-                                                   outdir=outdir,
-                                                   run_name=run_name)
+        ngmix_test_config = make_test_ngmix_config(
+            'ngmix_test.yaml', outdir=outdir, run_name=run_name
+            )
 
         nfw_file = os.path.join(
             utils.MODULE_DIR, 'shear_profiles/truth/nfw_cl_m7.8e14_z0.25.fits'
@@ -136,6 +139,7 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
             },
             'sextractor': {
                 'config_file': se_config,
+                'config_dir': se_config_dir,
                 'run_name': run_name,
                 'basedir': outdir,
                 'bands': bands,

@@ -109,7 +109,7 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
                 'ncores': ncores,
                 'run_diagnostics': True,
                 'order': [
-                    # 'imsim',
+                    'imsim',
                     'oba',
                     ]
                 },
