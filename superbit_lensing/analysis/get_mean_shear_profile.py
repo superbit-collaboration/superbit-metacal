@@ -23,13 +23,13 @@ def parse_args():
     parser = ArgumentParser()
 
     parser.add_argument('-shear_cats', type=str, default=None,
-                        help = 'Tables to read in: xxx_transformed_shear_tab.fits')
+                        help= 'Tables to read in: xxx_transformed_shear_tab.fits')
     parser.add_argument('-nfw_cats', type=str, default=None,
                         help='Reference NFW shear tables to read in')
     parser.add_argument('-shear_cut', type=float, default=None,
                         help='Max tangential shear to define scale cuts')
     parser.add_argument('-outfile', type=str, default=None,
-                        help = 'Name of ouput mean shear profile')
+                        help= 'Name of ouput mean shear profile')
     parser.add_argument('-minrad', type=float, default=100,
                         help='Starting radius value (in pixels)')
     parser.add_argument('-maxrad', type=float, default=5200,

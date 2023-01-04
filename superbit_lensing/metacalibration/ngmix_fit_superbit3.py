@@ -21,7 +21,7 @@ import multiprocessing
 
 import superbit_lensing.utils as utils
 
-import ipdb
+import ipdb, pdb
 
 parser = ArgumentParser()
 
@@ -204,6 +204,63 @@ class SuperBITNgmixFitter():
 
     def _get_source_observations(self, iobj, weight_type='uberseg', logprint=None):
 
+        '''
+        try:
+            jaclist = self._get_jacobians(iobj)
+            psf_cutouts = self.medsObj.get_cutout_list(iobj, type='psf')
+            weight_cutouts = self.medsObj.get_uberseg_list(iobj)
+            image_cutouts = self.medsObj.get_cutout_list(iobj, type='image')
+            obslist = ngmix.observation.ObsList()
+
+            for i in range(len(image_cutouts)):
+                jj = jaclist[i]
+                jj_psf = jj
+
+                this_image = image_cutouts[i]
+                this_weight = weight_cutouts[i]
+
+                try:
+                    # Apparently it likes to add noise to the psf.
+                    psf_noise = 1e-6
+                    this_psf = psf_cutouts[i] + psf_noise * np.random.randn(psf_cutouts[i].shape[0],psf_cutouts[i].shape[1])
+                    this_psf_weight = np.zeros_like(this_psf) + 1./psf_noise**2
+
+
+                    psfObs = ngmix.observation.Observation(this_psf,
+                                                            weight=this_psf_weight,
+                                                            jacobian=jj_psf)
+
+                    imageObs = ngmix.observation.Observation(this_image,
+                                                            weight=this_weight,
+                                                            jacobian=jj,
+                                                            psf=psfObs)
+
+                    obslist.append(imageObs)
+
+                except ngmix.gexceptions.GMixFatalError:
+                    if (np.max(this_weight) == 0):
+                        zero_wt_warn = f'Object {iobj} has zero-weight'
+                        logprint(zero_wt_warn)
+
+            # We don't want to fit to the coadd, as its PSF is not
+            # well defined
+            if self.has_coadd is True:
+                se_obslist = ngmix.ObsList(meta=deepcopy(obslist._meta))
+                for obs in obslist[1:]:
+                    se_obslist.append(obs)
+                obslist = se_obslist
+
+        except ValueError as e:
+            # Some observations will have zero image cutouts, which will
+            # cause a ValueError when building an obs list. We want to have
+            # this error identified during the flag check, so for now we will
+            # just return None
+            if logprint is not None:
+                logprint(e)
+            else:
+                print(e)
+            obslist = None
+        '''
         obslist = self.medsObj.get_obslist(iobj, weight_type)
 
         # We don't want to fit to the coadd, as its PSF is not

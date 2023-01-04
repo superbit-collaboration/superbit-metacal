@@ -19,15 +19,19 @@ def parse_args():
                         help='Name of output MEDS file')
     parser.add_argument('-outdir', type=str, default=None,
                         help='Output directory for MEDS file')
-    parser.add_argument('-fname_base', action='store', type=str, default=None,
-                        help='Basename of mock image files')
     parser.add_argument('-run_name', action='store', type=str, default=None,
                         help='Name of mock simulation run')
+    parser.add_argument('-fname_base', action='store', type=str, default=None,
+                        help='Image filename base [ims=fname_base_XXX.fits]')
     parser.add_argument('-psf_mode', action='store', default='piff',
                         choices=['piff', 'psfex', 'true'],
                         help='model exposure PSF using either piff or psfex')
     parser.add_argument('-psf_seed', type=int, default=None,
                         help='Seed for chosen PSF estimation mode')
+    parser.add_argument('-master_dark', type=str, default=None,
+                        help='Name of master dark file to subtract')
+    parser.add_argument('-master_flat', type=str, default=None,
+                        help='Name of master flat file to subtract')
     parser.add_argument('--meds_coadd', action='store_true', default=False,
                         help='Set to keep coadd cutout in MEDS file')
     parser.add_argument('--overwrite', action='store_true', default=False,
@@ -42,64 +46,82 @@ def parse_args():
     return parser.parse_args()
 
 def main(args):
+
     mock_dir = args.mock_dir
     outfile = args.outfile
     outdir = args.outdir
     run_name = args.run_name
+    filename_base = args.fname_base
     psf_mode = args.psf_mode
     psf_seed = args.psf_seed
+    master_dark = args.master_dark
+    master_flat = args.master_flat
     use_coadd = args.meds_coadd
     overwrite = args.overwrite
     source_selection = args.source_select
     select_truth_stars = args.select_truth_stars
     vb = args.vb
 
-    if args.outdir is None:
-        outdir = mock_dir
+    if args.outdir is None: outdir = mock_dir
 
     logfile = 'medsmaker.log'
-    logdir = outdir
-    log = utils.setup_logger(logfile, logdir=logdir)
+    log = utils.setup_logger(logfile, logdir=outdir)
     logprint = utils.LogPrint(log, vb=vb)
 
-    if args.fname_base is None:
-        fname_base = run_name
-    else:
-        fname_base = args.fname_base
+    # Define some file names
+    bpm = os.path.join(mock_dir,'mask_files/forecast_mask.fits')
+    combined_mask_file = os.path.join(outdir, 'combined_mask.fits')
+    image_files = glob.glob(os.path.join(mock_dir, filename_base) +\
+                        '*[!truth,mcal,.sub,*_cal,mock_coadd].fits')
 
+    logprint(f'Using science frames: {image_files}')
 
-    science = glob.glob(os.path.join(mock_dir, fname_base) +\
-                        '*[!truth,mcal,.sub,mock_coadd].fits')
-    logprint(f'Science frames: {science}')
-
+    # This is the output MEDS file
     outfile = os.path.join(outdir, outfile)
 
-    logprint('Setting up configuration...')
-    bm = medsmaker.BITMeasurement(
-        image_files=science, data_dir=mock_dir, run_name=run_name,
-        log=log, vb=vb
-        )
+    # Set up BITMeasurement object
+    logprint('Setting up BITMeasurement object...')
+    bm = medsmaker.BITMeasurement(image_files=image_files,
+                                    data_dir=mock_dir,
+                                    run_name=run_name,
+                                    outdir=outdir,
+                                    log=log,
+                                    overwrite=overwrite,
+                                    vb=vb
+                                    )
 
-    bm.set_working_dir(path=outdir)
-    mask_dir = os.path.join(mock_dir,'mask_files')
-    weight_dir = os.path.join(mock_dir,'weight_files')
-    bm.set_mask(
-        mask_name='forecast_mask.fits', mask_dir=mask_dir
-        )
-    bm.set_weight(
-        weight_name='forecast_weight.fits', weight_dir=weight_dir
-        )
+    # Load calibration data and masks
+    logprint('Loading calibration data...')
+    bm.setup_calib_data(master_dark=master_dark,
+                        master_flat=master_flat,
+                        bpm=bpm
+                        )
 
-    # Combine images, make a catalog.
-    logprint('Making coadd & its catalog...')
-    bm.make_coadd_catalog(source_selection=source_selection)
+    #bm._set_all_paths_debug(run_name, psf_mode=psf_mode)
+
+    # Do a minimal data reduction
+    logprint('Quick-reducing single-exposures...')
+    bm.quick_reduce()
+
+    # Get mask(s) for science images
+    logprint(f'Getting {combined_mask_file}...')
+    bm.get_combined_mask(combined_mask_file)
 
     # Make single-exposure catalogs
     logprint('Making single-exposure catalogs...')
-    im_cats = bm.make_exposure_catalogs()
+    im_cats = bm.make_exposure_catalogs(weight_file=combined_mask_file)
+
+    # Special function to create a combined weight-mask image
+    logprint('Making combined weights...')
+    bm.make_combined_weight()
+
+    # Combine images, make a detection catalog.
+    logprint('Making coadd & its catalog...')
+    bm.make_coadd_catalog()
 
     # Build a PSF model for each image.
     logprint('Making PSF models...')
+
     bm.make_psf_models(
         select_truth_stars=select_truth_stars,
         im_cats=im_cats,
@@ -108,10 +130,11 @@ def main(args):
         psf_seed=psf_seed
         )
 
+
     logprint('Making MEDS...')
 
     # Make the image_info struct.
-    image_info = bm.make_image_info_struct(use_coadd=use_coadd)
+    image_info = bm.make_image_info_struct(use_cal=True, use_coadd=use_coadd)
 
     # Make the object_info struct.
     obj_info = bm.make_object_info_struct()
@@ -122,8 +145,8 @@ def main(args):
     # Create metadata for MEDS
     magzp = 30.
     meta = bm.meds_metadata(magzp, use_coadd)
-    # Finally, make and write the MEDS file.
 
+    # Finally, make and write the MEDS file.
     medsObj = meds.maker.MEDSMaker(
         obj_info, image_info, config=meds_config,
         psf_data=bm.psf_models, meta_data=meta

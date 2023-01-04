@@ -222,7 +222,7 @@ class AnnularCatalog():
 
             truth_name = ''.join([self.run_name,'_truth.fits'])
             truth_dir = self.outdir
-            truth_file = os.path.join(truth_dir,truth_name) 
+            truth_file = os.path.join(truth_dir,truth_name)
             self.cat_info['truth_file'] = truth_file
 
         else:
@@ -258,7 +258,7 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 1.2
+        min_Tpsf = 0.8
         max_sn = 1000
         min_sn = 10
         min_T = 0.0

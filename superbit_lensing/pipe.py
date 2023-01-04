@@ -408,7 +408,8 @@ class GridTestModule(GalSimModule):
 
 class MedsmakerModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
-    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_mode', 'psf_seed']
+    _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_mode',
+                    'psf_seed', 'master_dark']
     _flag_fields = ['meds_coadd', 'source_select', 'select_truth_stars',
                     'overwrite', 'vb']
 
@@ -779,7 +780,6 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False,
                     },
                 f'{imsim}': {
                     'config_file': 'pipe_test.yaml',
-                    # 'config_file': 'superbit_parameters_forecast.yaml',
                     'config_dir': os.path.join(utils.MODULE_DIR,
                                                'galsim',
                                                'config_files'),
@@ -794,6 +794,9 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False,
                     'outdir': outdir,
                     'overwrite': overwrite,
                     'meds_coadd': True,
+                    'master_dark': os.path.join(utils.MODULE_DIR,
+                                               'medsmaker/superbit/',
+                                               'master_dark_clipped.fits'),
                     'psf_mode': 'piff'
                 },
                 'metacal': {
@@ -801,7 +804,7 @@ def make_test_config(config_file='pipe_test.yaml', outdir=None, overwrite=False,
                     'meds_file': meds_file,
                     'outfile': mcal_file,
                     'outdir': outdir,
-                    'end': 250,
+                    'end': 5000,
                     'overwrite': overwrite
                 },
                 'ngmix_fit': {
