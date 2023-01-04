@@ -62,11 +62,14 @@ def main(args):
     log = utils.setup_logger(logfile, logdir=logdir)
     logprint = utils.LogPrint(log, vb)
 
+    # only used for logging purposes; set later
     if config_dir is not None:
-        config_file = os.path.join(config_dir, config_file)
+        cfile = os.path.join(config_dir, config_file)
+    else:
+        cfile = config_file
 
-    logprint(f'Using master config file {config_file}')
-    if not os.path.exists(config_file):
+    logprint(f'Using master config file {cfile}')
+    if not os.path.exists(cfile):
         raise ValueError(f'SExtractor master config file not found!')
 
     #-----------------------------------------------------------------
@@ -77,6 +80,7 @@ def main(args):
         run_name,
         basedir,
         bands,
+        config_dir=config_dir
         )
 
     # Do the source extracting!

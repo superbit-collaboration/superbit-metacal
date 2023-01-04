@@ -19,8 +19,10 @@
 # (field 'det') and run SExtractor in dual mode
 dual_mode: True
 
-# NOTE: all filenames & paths are done relative to `config_dir` if provided
-config_dir: /Users/sweveret/repos/superbit-metacal/superbit_lensing/detection/configs/
+# NOTE: All filenames & paths are done relative to `config_dir` if provided.
+#       This can also be passed as an arg to the run_sextractor.py script.
+#       Example:
+#config_dir: {PATH_TO_REPO}/superbit_lensing/detection/configs/
 
 bands: [b, lum]
 b: sb_sextractor_b.config

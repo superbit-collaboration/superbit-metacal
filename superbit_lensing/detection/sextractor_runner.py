@@ -122,9 +122,6 @@ class SExtractorRunner(object):
 
         if not isinstance(config_file, str):
             raise TypeError('config_file must be a str!')
-        if not os.path.exists(config_file):
-            raise OSError(f'Passed master SExtractor config {config_file}' +
-                          'does not exist!')
 
         if config_dir is not None:
             if not isinstance(config_dir, str):
@@ -134,7 +131,12 @@ class SExtractorRunner(object):
             self.config_file = config_file
         self.config_dir = config_dir
 
-        config = utils.read_yaml(config_file)
+        cfile = self.config_file
+        if not os.path.exists(cfile):
+            raise OSError(f'Passed master SExtractor config {cfile}' +
+                          'does not exist!')
+
+        config = utils.read_yaml(self.config_file)
 
         # do the usual config parsing
         self.config = utils.parse_config(
@@ -163,26 +165,29 @@ class SExtractorRunner(object):
 
         # NOTE: if the master config sets a config_dir for each single-band
         # config (*not* necessarily the config_dir for the master config!),
-        # parse it now. Otherwise it defaults to CWD
-        if 'config_dir' in self.config:
+        # parse it now. Otherwise it defaults to the master config dir
+        if self.config['config_dir'] is None:
+            cdir = self.config_dir
+        else:
             cdir = self.config['config_dir']
-            if cdir is not None:
-                # update single-band configs
-                bands = self.bands.copy()
-                if 'det' in self.config:
-                    bands.append('det')
-                for band in bands:
-                    self.config[band] = os.path.join(
-                        cdir, self.config[band]
-                        )
 
-                # update auxillary files
-                fields = ['parameters', 'filter', 'nnw']
-                for field in fields:
-                    if self.config[field] is not None:
-                        self.config[field] = os.path.join(
-                            cdir, self.config[field]
-                            )
+        if cdir is not None:
+            # update single-band configs
+            bands = self.bands.copy()
+            if 'det' in self.config:
+                bands.append('det')
+            for band in bands:
+                self.config[band] = os.path.join(
+                    cdir, self.config[band]
+                    )
+
+            # update auxillary files
+            fields = ['parameters', 'filter', 'nnw']
+            for field in fields:
+                if self.config[field] is not None:
+                    self.config[field] = os.path.join(
+                        cdir, self.config[field]
+                        )
 
         # for convenience
         self.cat_types = self.config['cat_types']
