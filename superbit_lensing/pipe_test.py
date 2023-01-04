@@ -55,7 +55,7 @@ def parse_args():
     parser.add_argument('-pipe_config', type=str, default=None,
                         help='A pipeline config to use for the pipe test, if ' +
                         'youd rather specify everything yourself')
-    parser.add_argument('-sim_module', type=str, default='imsim',
+    parser.add_argument('-sim_module', type=str, default='galsim',
                         help='The name of the image simulation module to use')
 
     # NOTE: Can either pass a path_config file to specify the minimal needed
@@ -82,7 +82,7 @@ def parse_args():
 # categories. You can always provide your own if you prefer.
 
 def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
-                          sim_module='imsim', outdir=None, overwrite=False):
+                          sim_module='galsim', outdir=None, overwrite=False):
     '''
     Create a basic yaml config file that tests whether the pipeline
     succeeds in running end-to-end. Prioritizes speed over scientific
@@ -130,7 +130,7 @@ def make_test_pipe_config(gs_config_file, outfile='pipe_test.yaml',
                 'ncores': 8,
                 'run_diagnostics': True,
                 'order': [
-                    f'{sim_module}',
+                    # f'{sim_module}',
                     'medsmaker',
                     'metacal',
                     # 'metacal_v2', # turn on for ngmix v2.X metacal
@@ -208,20 +208,27 @@ def make_test_gs_config(path_config, sim_module, outfile='pipe_test_gs.yaml', ou
             )
 
         # update with local filepaths
-        root_fields = {
-            'datadir': 'input',
-            'cosmosdir': 'galaxies',
-            'cluster_dir': 'cluster_galaxies',
-            'cluster_cat_name': 'cluster_galaxies',
-            'gaia_dir': 'stars',
-        }
-        for name, path in path_config.items():
-            root = root_fields[name]
-            try:
-                test_config[root][name] = path
-            except KeyError:
-                # might not be used
-                pass
+        if sim_module == 'imsim':
+            root_fields = {
+                'datadir': 'input',
+                'cosmosdir': 'galaxies',
+                'cluster_dir': 'cluster_galaxies',
+                'cluster_cat_name': 'cluster_galaxies',
+                'gaia_dir': 'stars',
+            }
+            for name, path in path_config.items():
+                root = root_fields[name]
+                try:
+                    test_config[root][name] = path
+                except KeyError:
+                    # might not be used
+                    pass
+
+            test_config['output']['outdir'] = outdir
+
+        else:
+            for name, path in path_config.items():
+                test_config[name] = path
 
         utils.write_yaml(test_config, filename)
 

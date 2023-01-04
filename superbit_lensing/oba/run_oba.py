@@ -28,6 +28,9 @@ def parse_args():
                         '(no space) to use for the detection image')
     # parser.add_argument('-fname_base', action='store', type=str, default=None,
     #                     help='Basename of image files')
+    parser.add_argument('--test', action='store_true', default=False,
+                        help='Set to indicate that this is a test run, ' +
+                        'which will utilize the TestPrepper')
     parser.add_argument('--overwrite', action='store_true', default=False,
                         help='Set to overwrite files')
     parser.add_argument('--vb', action='store_true', default=False,
@@ -46,6 +49,7 @@ def main(args):
     target_name = args.target_name
     bands = args.bands
     det_bands = args.det_bands
+    test = args.test
     overwrite = args.overwrite
     vb = args.vb
 
@@ -83,6 +87,18 @@ def main(args):
 
     io_manager = IOManager(root_dir=root_dir)
     io_manager.print_dirs(logprint=logprint)
+
+    #-----------------------------------------------------------------
+    # Test setup, if needed
+
+    if test is True:
+        # handle any needed setup for simulated inputs
+        from setup_test import TestPrepper
+
+        logprint('\nTEST == TRUE; Starting test prepper\n')
+
+        prepper = TestPrepper(target_name, bands)
+        prepper.go(io_manager, overwrite=overwrite, logprint=logprint)
 
     #-----------------------------------------------------------------
     # Run pipeline

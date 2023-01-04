@@ -12,6 +12,10 @@ class PreprocessRunner(object):
     (OBA) preprocessing
     '''
 
+    _compression_method = 'bzip2'
+    _compression_args = '-dk' # forces decompression, keep orig file
+    _compression_ext = 'bz2'
+
     def __init__(self, raw_dir, run_dir, out_dir, bands, target_name=None):
         '''
         raw_dir: pathlib.Path
@@ -64,13 +68,16 @@ class PreprocessRunner(object):
 
         return
 
-    def go(self, logprint):
+    def go(self, logprint, overwrite=False):
         '''
         Run the OBA preprocessing step. This entails the following:
 
         1) Setup the run_dir
         2) Copy raw sci frames from raw_dir to run_dir
         3) Decompress raw files
+
+        overwrite: bool
+            Set to overwrite existing files
         '''
 
         logprint('Setting up temporary run directories...')
@@ -80,7 +87,7 @@ class PreprocessRunner(object):
         self.copy_raw_files(logprint)
 
         logprint('Decompressing raw files...')
-        self.decompress_raw_files(logprint)
+        self.decompress_raw_files(logprint, overwrite=overwrite)
 
         logprint('Preprocessing completed!')
 
@@ -120,6 +127,7 @@ class PreprocessRunner(object):
         '''
 
         bands = self.bands
+        cext = self._compression_ext
 
         for band in bands:
             logprint(f'Starting band {band}')
@@ -133,7 +141,9 @@ class PreprocessRunner(object):
 
             # NOTE: This glob is safe as OBA files have a fixed convention
             raw_files = glob(
-                os.path.join(str(orig), f'*_{band}_*.fits')
+                os.path.join(
+                    str(orig), f'{self.target_name}*_{band}_*.fits.{cext}'
+                    )
                 )
 
             Nraw = len(raw_files)
@@ -159,10 +169,13 @@ class PreprocessRunner(object):
 
         return
 
-    def decompress_raw_files(self, logprint):
+    def decompress_raw_files(self, logprint, overwrite=False):
         '''
         We've already done the work of registering each copied
         raw sci frame, so now decompress each
+
+        overwrite: bool
+            Set to overwrite existing files
         '''
 
         for band, images in self.images.items():
@@ -171,6 +184,23 @@ class PreprocessRunner(object):
             for image in images:
                 image = str(image)
                 logprint(f'Decompressing file {image}')
+
+                # NOTE: check if decompressed file already exists; can
+                # cause issues otherwise
+                decompressed_image = image.replace(
+                    f'.{self._compression_ext}', ''
+                    )
+                if os.path.exists(decompressed_image):
+                    # will cause a bzip2 error if not handled
+                    logprint(f'{decompressed_image} already exists')
+                    # if overwrite is True:
+                    if True:
+                        logprint('Deleting file as overwrite is True')
+                        os.remove(decompressed_image)
+                    else:
+                        logprint('Keeping file as overwrite is False')
+                        continue
+
                 self._decompress_file(image, logprint)
 
         return
@@ -179,6 +209,13 @@ class PreprocessRunner(object):
     def _copy_file(orig_file, dest, logprint=None):
         '''
         Input paths must be str's, not pathlib Paths at this point
+
+        orig_file: str
+            The filepath of the original file
+        dest: str
+            The filepath of the destination
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
         '''
 
         cmd = f'cp {orig_file} {dest}'
@@ -194,6 +231,11 @@ class PreprocessRunner(object):
     def _decompress_file(filename, logprint=None):
         '''
         Inputs paths must be str's, not pathlib Paths at this point
+
+        filename: str
+            Name of the file to decomporess
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
         '''
 
         # TODO: Check if bzip2 is the correct command!
@@ -202,6 +244,6 @@ class PreprocessRunner(object):
         if logprint is not None:
             logprint(f'cmd = {cmd}')
 
-        utils.run_command(cmd, logprint=logprint)
+        rc = utils.run_command(cmd, logprint=logprint)
 
         return

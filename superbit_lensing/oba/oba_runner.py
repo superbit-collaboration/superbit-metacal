@@ -162,19 +162,22 @@ class OBARunner(object):
         self.logprint(f'Starting onboard analysis for target {target}')
 
         self.logprint('Starting preprocessing...')
-        self.run_preprocessing()
+        self.run_preprocessing(overwrite=overwrite)
 
         self.logprint('Applying image calibrations...')
-        self.run_calibrations()
+        self.run_calibrations(overwrite=overwrite)
 
-        self.logprint('Onboard analysis completed for target {target}')
+        self.logprint(f'Onboard analysis completed for target {target}')
 
         return
 
-    def run_preprocessing(self):
+    def run_preprocessing(self, overwrite=False):
         '''
         Do basic setup of temp oba run directory, copy raw sci
         frames to that dir, and uncompress files
+
+        overwrite: bool
+            Set to overwrite existing files
         '''
 
         runner = PreprocessRunner(
@@ -185,10 +188,22 @@ class OBARunner(object):
             target_name=self.target_name
             )
 
-        runner.go(self.logprint)
+        runner.go(self.logprint, overwrite=overwrite)
 
         return
 
-    def run_calibrations(self):
-        pass
+    def run_calibrations(self, overwrite=False):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
 
+        runner = CalsRunner(
+            self.run_dir,
+            self.bands,
+            target_name=self.target_name
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
+
+        return

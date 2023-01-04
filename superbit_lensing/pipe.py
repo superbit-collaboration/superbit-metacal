@@ -797,7 +797,7 @@ class OBAModule(SuperBITModule):
     _req_fields = ['target_name']
     _opt_fields = ['config_file', 'config_dir', 'root_dir',
                    'bands', 'det_bands']
-    _flag_fields = ['overwrite', 'vb']
+    _flag_fields = ['test', 'overwrite', 'vb']
 
     def run(self, run_options, logprint):
         logprint(f'\nRunning module {self.name}\n')

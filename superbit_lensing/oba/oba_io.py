@@ -34,8 +34,9 @@ class IOManager(object):
     Raw cluster science images:
     RAW_CLUSTERS: RAW_DATA/clusters/
 
+    NOTE: Only if a target_name is passed:
     Raw wl science images for a given target:
-    RAW_CLUSTERS/{TARGET_NAME}/
+    RAW_TARGET: RAW_CLUSTERS/{TARGET_NAME}/
 
     ----------------------------------------------------------------------
     On-board analysis
@@ -46,11 +47,12 @@ class IOManager(object):
     Root oba dir for clusters:
     OBA_CLUSTERS: OBA_DIR/clusters/
 
+    NOTE: Only if a target_name is passed:
     Temporary analysis dir for a given cluster target:
-    OBA_CLUSTERS/{TARGET_NAME}/
+    OBA_TARGET: OBA_CLUSTERS/{TARGET_NAME}/
 
     Temporary analysis files per band for a given target:
-    OBA_CLUSTERS/{TARGET_NAME}/{BAND}/
+    OBA_CLUSTERS/{TARGET}/{BAND}/
 
     Possible bands are [‘u’, ‘b’, ‘g’, ‘r’, ‘nir’, ‘lum’, ‘det’]
 
@@ -58,7 +60,7 @@ class IOManager(object):
 
     Temporary output analysis files (coadds, MEDS, & logs for now)
     for a given band & target:
-    OBA_CLUSTERS/{TARGET_NAME}/out/
+    OBA_CLUSETRS/{TARGET_NAME}/out/
 
     ----------------------------------------------------------------------
     Permanent OBA outputs
@@ -88,7 +90,14 @@ class IOManager(object):
 
     # returns {root_dir}/home/bit/oba_temp/
     oba_dir = io_manager.OBA_DIR
+
     ...
+
+    # alternatively, can instantiate for a given target:
+    io_manager = IOManager(root_dir=root_dir, target_name=target_name)
+
+    # returns {root_dir}/data/bit/science_images/clusters/{target_name}/
+    target_dir = io_manager.RAW_TARGET
 
     '''
 
@@ -99,12 +108,14 @@ class IOManager(object):
         'CAL_DATA',
         'RAW_DATA',
         'RAW_CLUSTERS',
+        'RAW_TARGET',
         'OBA_DIR',
         'OBA_CLUSTERS',
+        'OBA_TARGET',
         'OBA_RESULTS',
         ]
 
-    def __init__(self, root_dir=None):
+    def __init__(self, root_dir=None, target_name=None):
         '''
         root_dir: str
             The root directory that defines all other SuperBIT
@@ -113,13 +124,16 @@ class IOManager(object):
         '''
 
         if root_dir is not None:
-            if not isinstance(root_dir, (str, Path)):
-                raise TypeError('root_dir must be a str or pathlib.Path!')
+            utils.check_type('root_dir', root_dir, (str, Path))
         else:
             # will allow for uniform dir setting
             root_dir = '/'
 
         self.root_dir = Path(root_dir).resolve()
+
+        if target_name is not None:
+            utils.check_type('target_name', target_name, str)
+        self.target_name = target_name
 
         # only makes dir if it does not yet exist
         utils.make_dir(self.root_dir)
@@ -140,7 +154,9 @@ class IOManager(object):
             'CAl_DATA': 'data/bit/calibrations/',
             'RAW_DATA': 'data/bit/science_images/',
             'RAW_CLUSTERS': 'data/bit/science_images/clusters/',
+            'RAW_TARGET': None,
             'OBA_DIR': 'home/bit/oba_temp/',
+            'OBA_TARGET': None,
             'OBA_CLUSTERS': 'home/bit/oba_temp/clusters/',
             'OBA_RESULTS': 'data/bit/oba_results/',
             }
@@ -148,8 +164,21 @@ class IOManager(object):
         self.registered_dirs = {}
 
         for name, default in _registered_defaults.items():
-            # works for all cases as default root_dir is "/"
-            self.registered_dirs[name] = self.root_dir / default
+            if default is not None:
+                # works for all cases as default root_dir is "/"
+                self.registered_dirs[name] = self.root_dir / default
+            else:
+                self.registered_dirs[name] = None
+
+        # the IO manager is target agnostic, but if a target name is passed
+        # we can add some convenience dirs
+        if self.target_name is not None:
+            target_defaults = {
+                'RAW_TARGET': self.registered_dirs['RAW_CLUSTERS'] / target_name,
+                'OBA_TARGET': self.registered_dirs['OBA_CLUSTERS'] / target_name
+            }
+            for name, path in target_defaults.items():
+                self.registered_dirs[name] = path
 
         return
 
@@ -174,6 +203,11 @@ class IOManager(object):
         return self._check_dir(name)
 
     @property
+    def RAW_TARGET(self):
+        name = 'RAW_TARGET'
+        return self._check_dir(name)
+
+    @property
     def OBA_DIR(self):
         name = 'OBA_DIR'
         return self._check_dir(name)
@@ -181,6 +215,11 @@ class IOManager(object):
     @property
     def OBA_CLUSTERS(self):
         name = 'OBA_CLUSTERS'
+        return self._check_dir(name)
+
+    @property
+    def OBA_TARGET(self):
+        name = 'OBA_TARGET'
         return self._check_dir(name)
 
     @property

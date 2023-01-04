@@ -121,7 +121,8 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
             },
             'oba': {
                 'target_name': run_name,
-                'root_dir': str(test_dir)
+                'root_dir': str(test_dir),
+                'test': True
             }
         }
 
@@ -216,17 +217,15 @@ def main(args):
     # we want it to match the QCC paths, relative to a local root dir
     root_dir = test_dir / 'oba_test/'
     target_name = 'test_target'
-    outdir = setup_oba_dirs(root_dir, target_name)
 
     if fresh is True:
         print(f'Deleting old test directory {str(outdir)}...')
         try:
-            shutil.rmtree(str(outdir))
+            shutil.rmtree(str(root_dir))
         except FileNotFoundError as e:
             print('Test directory does not exist. Ignoring --fresh flag')
 
-    # only makes it if it does not currently exist
-    utils.make_dir(str(outdir))
+    outdir = setup_oba_dirs(root_dir, target_name)
 
     logfile = 'oba_test.log'
     logdir = os.path.join(outdir)
