@@ -158,7 +158,9 @@ class ImSimRunner(object):
             config_seeds = self.config['seeds']
             try:
                 master_seed = config_seeds['master']
-                if (master_seed is None) or (eval(master_seed) is None):
+                if (master_seed is None) or \
+                   (isinstance(master_seed, str) and \
+                    (eval(master_seed) is None)):
                     master_seed = None
             except KeyError:
                 pass
