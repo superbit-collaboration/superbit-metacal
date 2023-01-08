@@ -15,7 +15,6 @@ from objects import build_objects
 
 import ipdb
 
-# TODO: double-check for full seed coverage!
 # TODO: implement dithers!
 
 class ImSimRunner(object):
@@ -141,55 +140,61 @@ class ImSimRunner(object):
             if b not in self.bands:
                 raise ValueError(f'{b} in sky_bkg not a registed band!')
             if not isinstance(val, (int, float)):
-                raise TypeError('Sky backgroudn values must be floats!')
+                raise TypeError('Sky background values must be floats!')
 
         return
 
     def setup_seeds(self):
 
         # need seeds for noise, dithering, and the 3 possible source classes
-        _seed_types = ['noise', 'dithering', 'galaxies', 'cluster_galaxies',
-                       'stars', 'master']
+        _seed_types = ['master', 'noise', 'dithering', 'grid',
+                       'galaxies', 'cluster_galaxies', 'stars'
+                       ]
         Nseeds = len(_seed_types) - 1 # ignore master seed
         master_seed = None
         self.seeds = {}
 
-        try:
+        if 'seeds' in self.config:
             config_seeds = self.config['seeds']
-            try:
-                master_seed = config_seeds['master']
-                if (master_seed is None) or \
-                   (isinstance(master_seed, str) and \
-                    (eval(master_seed) is None)):
-                    master_seed = None
-            except KeyError:
-                pass
 
+            if 'master' in config_seeds:
+                master_seed = config_seeds['master']
+                # parsing some annoying edge-cases
+                if isinstance(master_seed, str) and eval(master_seed is None):
+                    master_seed = None
+
+            # generate any seeds not set explicitly from the master
+            # NOTE: If master is not set, will create one using current time
             seeds = utils.generate_seeds(Nseeds, master_seed=master_seed)
 
+            # populate generated seeds, if needed
             for seed_type, seed in config_seeds.items():
                 if seed_type == 'master':
                     continue
                 if (seed_type not in _seed_types):
                     raise ValueError(f'{seed_type} is not a valid seed type!')
+                if isinstance(seed, str) and (eval(seed) is None):
+                    seed = None
 
-                if (seed is None) or (eval(seed) is None):
+                if seed is None:
                     self.logprint(f'{seed_type} seed not passed; generating')
                     self.seeds[seed_type] = seeds.pop()
                 else:
                     self.seeds[seed_type] = seed
 
-        except KeyError:
+            # for any registered seeds not listed in the config
+            for seed_type in _seed_types:
+                if (seed_type not in self.seeds) and (seed_type != 'master'):
+                    self.logprint(f'{seed_type} not passed; generating')
+                    self.seeds[seed_type] = seeds.pop()
+
+            # all generated seeds better have been assigned by now!
+            assert len(seeds) == 0
+
+        else:
             self.logprint('No seeds passed; master seed will set based ' +
                           'on current time')
             seeds = utils.generate_seeds(Nseeds)
-
-        for seed_type in _seed_types:
-            if seed_type == 'master':
-                continue
-            if seed_type not in self.seeds:
-                self.logprint(f'{seed_type} seed not passed; generating')
-                self.seeds[seed_type] = seeds.pop()
 
         self.logprint('Using the following seeds:')
         for name, seed in self.seeds.items():
@@ -197,11 +202,16 @@ class ImSimRunner(object):
 
         if self.Nbands > 1:
             # need to create independent seeds for noise & dithering
-            noise_seeds = utils.generate_seeds(self.Nbands)
-            dither_seeds = utils.generate_seeds(self.Nbands)
+            noise_seeds = utils.generate_seeds(
+                self.Nbands, master_seed=self.seeds['noise']
+                )
+            dither_seeds = utils.generate_seeds(
+                self.Nbands, master_seed=self.seeds['dithering']
+                )
 
-            self.logprint('As Nbands > 1, generating independent noise '
-                          'and dithering seeds for each:')
+            self.logprint('As Nbands > 1, generating independent noise ' +
+                          'and dithering seeds for each, using previous ' +
+                          'seeds as the masters')
             self.logprint(f'noise: {noise_seeds}')
             self.logprint(f'dithering: {dither_seeds}')
             self.seeds['noise'] = noise_seeds
@@ -289,13 +299,10 @@ class ImSimRunner(object):
         self.logprint('Adding masks...')
         self.add_masks()
 
-        # self.logprint('Wr')
-
         self.logprint('Writing out images...')
         self.write_images()
 
         self.logprint('Building truth catalog...')
-        # TODO: current multi-band refactor point!
         self.build_truth_cat()
 
         self.logprint('Writing truth catalog...')
@@ -556,7 +563,7 @@ class ImSimRunner(object):
 
                 elif pos_type in bg._valid_grid_types:
                     obj_list.assign_grid_positions(
-                        self.base_image, pos_type, ps_obj
+                        self.base_image, pos_type, ps_obj, self.pixel_scale
                         )
 
                 elif pos_type in bg._valid_mixed_types:
@@ -565,6 +572,9 @@ class ImSimRunner(object):
                         inj_frac = {}
                         gtypes = set()
                         gspacing = set()
+
+                        grid_seed = self.seeds['grid']
+                        rng = np.random.default_rng(grid_seed)
 
                         # MixedGrids have to be built with info across all
                         # simultaneously
@@ -592,11 +602,12 @@ class ImSimRunner(object):
                         gtype = gtypes.pop()
 
                         mixed_grid = grid.MixedGrid(
-                            gtype, N_inj_types, inj_frac
+                            gtype, N_inj_types, inj_frac, seed=grid_seed
                             )
 
                         grid_kwargs = grid.build_grid_kwargs(
-                            gtype, ps_obj, self.base_image, self.pixel_scale
+                            gtype, ps_obj, self.base_image, self.pixel_scale,
+                            rng=rng
                             )
                         mixed_grid.build_grid(**grid_kwargs)
 
@@ -691,11 +702,11 @@ class ImSimRunner(object):
         '''
 
         exp_time = self.config['observation']['exp_time']
-
         gain = self.config['detector']['gain']
 
         read_noise = self.config['noise']['read_noise']
         dark_current = self.config['noise']['dark_current']
+        dark_noise = dark_current * exp_time
 
         for band in self.bands:
             self.logprint(f'Starting band {band}')
@@ -712,8 +723,8 @@ class ImSimRunner(object):
                 self.logprint(f'Adding noise for image {i+1} of {Nim}')
 
                 image, seed = z[0], z[1]
+                self.logprint(f'Using noise seed of {seed}')
 
-                dark_noise = dark_current * exp_time
                 image += dark_noise
 
                 noise = galsim.CCDNoise(

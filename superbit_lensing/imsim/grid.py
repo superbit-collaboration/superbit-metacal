@@ -20,7 +20,8 @@ class BaseGrid(object):
 class Grid(BaseGrid):
 
     def __init__(self, grid_spacing, wcs, Npix_x, Npix_y, pix_scale,
-                 rot_angle=None, pos_offset=None, angle_unit='rad'):
+                 rot_angle=None, pos_offset=None, angle_unit='rad',
+                 seed=None):
         '''
         grid_spacing: float
             Distance between "core" grid points in arcsec. May not be
@@ -39,6 +40,8 @@ class Grid(BaseGrid):
             The positional offset of the grid in arcsec
         angle_unit: str
             The astropy unit of the rotation angle
+        seed: int
+            The seed to use for random draws, if desired
         '''
 
         self.grid_spacing = grid_spacing  # arcsec
@@ -70,6 +73,9 @@ class Grid(BaseGrid):
         else:
             self.startx, self.endx = 0, Npix_x
             self.starty, self.endy = 0, Npix_y
+
+        self.seed = seed
+        self.rng = np.random.default_rng(self.seed)
 
         return
 
@@ -144,7 +150,8 @@ class Grid(BaseGrid):
 
 class RectGrid(Grid):
     def __init__(self, grid_spacing, wcs, Npix_x, Npix_y, pix_scale,
-                 rot_angle=None, pos_offset=None, angle_unit='rad'):
+                 rot_angle=None, pos_offset=None, angle_unit='rad',
+                 seed=None):
         '''
         See Grid
         '''
@@ -152,7 +159,8 @@ class RectGrid(Grid):
         super(RectGrid, self).__init__(
             grid_spacing, wcs, Npix_x=Npix_x, Npix_y=Npix_y,
             pix_scale=pix_scale, rot_angle=rot_angle,
-            pos_offset=pos_offset, angle_unit=angle_unit
+            pos_offset=pos_offset, angle_unit=angle_unit,
+            seed=seed
             )
 
         self._create_grid()
@@ -189,7 +197,8 @@ class RectGrid(Grid):
 
 class HexGrid(Grid):
     def __init__(self, grid_spacing, wcs, Npix_x, Npix_y, pix_scale,
-                 rot_angle=None, pos_offset=None, angle_unit='rad'):
+                 rot_angle=None, pos_offset=None, angle_unit='rad',
+                 seed=None):
         '''
         See Grid
         '''
@@ -197,7 +206,8 @@ class HexGrid(Grid):
         super(HexGrid, self).__init__(
             grid_spacing, wcs, Npix_x=Npix_x, Npix_y=Npix_y,
             pix_scale=pix_scale, rot_angle=rot_angle,
-            pos_offset=pos_offset, angle_unit=angle_unit
+            pos_offset=pos_offset, angle_unit=angle_unit,
+            seed=seed
             )
 
         self._create_grid()
@@ -284,7 +294,7 @@ class HexGrid(Grid):
         return
 
 class MixedGrid(BaseGrid):
-    def __init__(self, grid_type, N_inj_types, inj_frac=None):
+    def __init__(self, grid_type, N_inj_types, inj_frac=None, seed=None):
         '''
         grid_type: str
             The name of the grid type
@@ -320,6 +330,9 @@ class MixedGrid(BaseGrid):
         self.nobjects = {}
 
         self.pos_unit = None
+
+        self.seed = seed
+        self.rng = np.random.default_rng(self.seed)
 
         self.assigned_objects = False
 
@@ -393,7 +406,7 @@ class MixedGrid(BaseGrid):
 
             self.nobjects[inj_type] = nobjs
 
-            i = np.random.choice(indx, nobjs, replace=False)
+            i = self.rng.choice(indx, nobjs, replace=False)
             self.indx[inj_type] = i
             self.pos[inj_type] = self.grid.pos[i]
             self.im_pos[inj_type] = self.grid.im_pos[i]
@@ -407,7 +420,7 @@ class MixedGrid(BaseGrid):
 
         return
 
-def build_grid_kwargs(grid_type, grid_config, image, pixel_scale):
+def build_grid_kwargs(grid_type, grid_config, image, pixel_scale, rng=None):
     '''
     Setup the kwargs needed to build the desired grid
 
@@ -425,7 +438,12 @@ def build_grid_kwargs(grid_type, grid_config, image, pixel_scale):
     pixel_scale: float
         The image pixel scale (NOTE: not always image.scale, for
         non-trivial WCS)
+    rng: np.random.rng
+        A rng instance for random calls, if desired
     '''
+
+    if rng is None:
+        rng = np.random.default_rng()
 
     try:
         gs = grid_config['grid_spacing']
@@ -437,9 +455,9 @@ def build_grid_kwargs(grid_type, grid_config, image, pixel_scale):
         r = grid_config['rotate']
         if (isinstance(r, str)) and (r.lower() == 'random'):
             if grid_type == 'RectGrid':
-                grid_rot_angle = np.random.uniform(0., np.pi/2.)
+                grid_rot_angle = rng.uniform(0., np.pi/2.)
             elif grid_type == 'HexGrid':
-                grid_rot_angle = np.random.uniform(0., np.pi/3.)
+                grid_rot_angle = rng.uniform(0., np.pi/3.)
         else:
             unit = grid_config['angle_unit']
             if unit == 'deg':
@@ -461,8 +479,8 @@ def build_grid_kwargs(grid_type, grid_config, image, pixel_scale):
     try:
         o = grid_config['offset']
         if (isinstance(o, str)) and (o.lower() == 'random'):
-            grid_offset = [np.random.uniform(-gs/2., gs/2.),
-                           np.random.uniform(-gs/2., gs/2.)]
+            grid_offset = [rng.uniform(-gs/2., gs/2.),
+                           rng.uniform(-gs/2., gs/2.)]
         else:
             if isinstance(o, list):
                 grid_offset = list(o)
@@ -477,6 +495,9 @@ def build_grid_kwargs(grid_type, grid_config, image, pixel_scale):
     except KeyError:
         # Default in radians
         angle_unit = 'rad'
+
+    # a grid object expects a seed, not a rng
+    seed = rng.integers(2**32-1)
 
     wcs = image.wcs
     # NOTE: image.array.shape is the transpose of FITS convention, so
@@ -494,7 +515,8 @@ def build_grid_kwargs(grid_type, grid_config, image, pixel_scale):
         'pix_scale': pixel_scale,
         'rot_angle': grid_rot_angle,
         'angle_unit': angle_unit,
-        'pos_offset': grid_offset
+        'pos_offset': grid_offset,
+        'seed': seed
     }
 
     return grid_kwargs

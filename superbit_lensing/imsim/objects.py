@@ -8,6 +8,8 @@ import os
 import time
 from glob import glob
 
+import grid
+
 from superbit_lensing import utils
 
 import ipdb
@@ -125,7 +127,7 @@ class SourceClass(object):
 
         return
 
-    def assign_grid_positions(self, image, ps_type, grid_config):
+    def assign_grid_positions(self, image, ps_type, grid_config, pixel_scale):
         '''
         image: galsim.Image
             A galsim image object. Assigned positions are done relative
@@ -136,7 +138,11 @@ class SourceClass(object):
         grid_config: dict
             The configuration dictionary for the grid of the given
             object type
+        pixel_scale: float
+            The image pixel scale
         '''
+
+        rng = np.random.default_rng(self.seed)
 
         if ps_type == 'MixedGrid':
             grid_type = grid_config['grid_type']
@@ -145,15 +151,15 @@ class SourceClass(object):
             grid_type = ps_type
 
         grid_kwargs = grid.build_grid_kwargs(
-            grid_type, grid_config, image
+            grid_type, grid_config, image, pixel_scale, rng=rng
             )
 
         self.grid = grid.build_grid(grid_type, **grid_kwargs)
-        self.pos = tile_grid.pos
-        self.pos_unit = tile_grid.pos_unit
-        self.im_pos = tile_grid.im_pos
+        self.pos = self.grid.pos
+        self.pos_unit = self.grid.pos_unit
+        self.im_pos = self.grid.im_pos
 
-        inj_nobjs = np.shape(tile_grid.pos)[0]
+        inj_nobjs = np.shape(self.grid.pos)[0]
 
         self.Nobjs = inj_nobjs
 
@@ -168,11 +174,13 @@ class SourceClass(object):
             positions for each obj_type
         '''
 
+        rng = np.random.default_rng(self.seed)
+
         self.set_Nobjs(mixed_grid.nobjects[self.obj_type])
         self.set_positions(
             mixed_grid.pos[self.obj_type],
             mixed_grid.im_pos[self.obj_type],
-            mixed_grid.pos_unit
+            mixed_grid.pos_unit,
         )
         self.grid = mixed_grid
         assert self.pos.shape[0] == self.Nobjs
