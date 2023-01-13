@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+from glob import glob
+import numpy as np
 
 from superbit_lensing import utils
 
@@ -17,13 +19,12 @@ class IOManager(object):
 
     ----------------------------------------------------------------------
     Calibration data
-    CAL_DATA: /data/bit/calibrations/
 
     Darks (one master per day):
-    CAL_DATA/darks/{date}/
+    DARKS: /data/bit/master_darks/
 
     Flats (for now, one master flat):
-    CAL_DATA/flats/
+    FLATS: /data/bit/master_flats/
 
     ----------------------------------------------------------------------
     Raw data
@@ -151,7 +152,8 @@ class IOManager(object):
 
         # defaults for qcc (root / added later)
         _registered_defaults = {
-            'CAl_DATA': 'data/bit/calibrations/',
+            'DARKS': 'data/bit/master_darks/',
+            'FLATS': 'data/bit/master_flats/',
             'RAW_DATA': 'data/bit/science_images/',
             'RAW_CLUSTERS': 'data/bit/science_images/clusters/',
             'RAW_TARGET': None,
@@ -188,8 +190,13 @@ class IOManager(object):
         return self.registered_dirs[name]
 
     @property
-    def CAL_DATA(self):
-        name = 'CAL_DATA'
+    def DARKS(self):
+        name = 'DARKS'
+        return self._check_dir(name)
+
+    @property
+    def FLATS(self):
+        name = 'FLATS'
         return self._check_dir(name)
 
     @property
@@ -242,3 +249,210 @@ class IOManager(object):
             logprint(f'{dname}: {str(dval)}')
 
         return
+
+#------------------------------------------------------------------------------
+# general I/O functions
+
+def parse_image_file(image_file, image_type):
+    '''
+    Return a dictionary of SCI image parameters given a filename.
+    Raw sci images and calibration images have different filename
+    conventions:
+
+    SCI: {TARGET_NAME}_{EXP_TIME}_{BAND}_{UTC}.fits
+    CAL: MASTER_{TYPE}_{EXP_TIME}_{UTC}.fits
+
+    image_file: pathlib.Path
+        The filepath of the raw image. Can be a processed image as
+        long as it still follows the standard raw image filename
+        convention
+    image_type: str
+        The type of image being searched for. Can be one of:
+        ['sci', 'cal']
+    '''
+
+    # while not officially supported, try to handle a passed str
+    if isinstance(image_file, str):
+        image_file = Path(image_file)
+
+    utils.check_type('image_file', image_file, Path)
+    utils.check_type('image_type', image_type, str)
+
+    allowed_image_types = ['sci', 'cal']
+    if image_type not in allowed_image_types:
+        raise ValueError(f'image_type {image_type} is not valid! ' +
+                         f'Must be one of {allowed_image_types}')
+
+    parse_funcs = {
+        'sci': parse_sci_image_file,
+        'cal': parse_cal_image_file
+    }
+
+    return parse_funcs[image_type](image_file)
+
+def parse_sci_image_file(image_file):
+    '''
+    Return a dictionary of SCI image parameters given a filename
+
+    Raw sci image filename convention:
+    {TARGET_NAME}_{EXP_TIME}_{BAND}_{UTC}.fits
+
+    image_file: pathlib.Path
+        The filepath of the raw image. Can be a processed image as
+        long as it still follows the standard raw image filename
+        convention
+    '''
+
+    # while not officially supported, try to handle a passed str
+    if isinstance(image_file, str):
+        image_file = Path(image_file)
+
+    name = image_file.name
+    features = name.split('_')
+
+    # remove file ext
+    features[-1] = features[-1].replace('.fits', '')
+
+    # We define them relative to the end to allow for _'s in a target_name
+    im_pars = {
+        'target_name': '_'.join(features[0:-3]),
+        'exp_time': int(features[-3]),
+        'band': features[-2],
+        'utc': int(features[-1])
+        }
+
+    return im_pars
+
+def parse_cal_image_file(image_file):
+    '''
+    Return a dictionary of calibration image parameters given a filename
+
+    Raw calibration image filename convention:
+    MASTER_{TYPE}_{EXP_TIME}_{UTC}.fits
+
+    image_file: pathlib.Path
+        The filepath of the calibration image
+        convention
+    '''
+
+    # while not officially supported, try to handle a passed str
+    if isinstance(image_file, str):
+        image_file = Path(image_file)
+
+    name = image_file.name
+    features = name.split('_')
+
+    # remove file ext
+    features[-1] = features[-1].replace('.fits', '')
+
+    # for a calibration frame, the 0th feature is just the str "master"
+    im_pars = {
+        'cal_type': features[1].lower(),
+        'exp_time': int(features[2]),
+        'utc': int(features[3])
+        }
+
+    return im_pars
+
+def closest_file_in_time(image_type, search_dir, utc, req=None):
+    '''
+    Find the closest file in time, given a search directory and utc
+
+    NOTE: Will work correctly only for sci & cal images
+
+    image_type: str
+        The type of image being searched for. Can be one of:
+        ['sci', 'cal']
+    search_dir: pathlib.Path
+        The directory to conduct the search for a file
+    utc: int
+        The UTC time to the closest second
+    req: dict
+        A set of requirements that must be met to be a valid match,
+        e.g. the same exposure time. Fields must be those registered
+        in the above image parser functions
+    '''
+
+    files = glob(str(search_dir.resolve())+'/*')
+    Nfiles = len(files)
+
+    if Nfiles == 0:
+        return None
+
+    times = np.zeros(Nfiles, dtype=int)
+    good_indices = []
+    for i, fname in enumerate(files):
+        im_pars = parse_image_file(fname, image_type)
+
+        # Check if this is a valid image to consider as
+        # a match. For example, ignore files w/ a different
+        # exposure time
+        if req is not None:
+            good = True
+            for name, val in req.items():
+                if im_pars[name] != val:
+                    good = False
+                    # only one failed req is enough
+                    # continue
+            if good is True:
+                good_indices.append(i)
+        else:
+            good_indices.append(i)
+
+        times[i] = im_pars['utc']
+
+    # don't consider any files that don't meet requirements
+    files = [files[i] for i in good_indices]
+    times = np.array([times[i] for i in good_indices], dtype=int)
+    assert len(files) == len(times)
+
+    if len(files) == 0:
+        return None
+
+    # best file match is the one that minimizes abs difference in UTC
+    indx = np.argmin(abs(times - utc))
+
+    return Path(files[indx])
+
+def get_raw_files(search_dir, target_name, band=None):
+    '''
+    Grab all raw sci exposures in a given search dir
+
+    search_dir: pathlib.Path
+        The directory in which to do the search
+    target_name: str
+        The name of the sci target
+    band: str
+        The name of the desired band (defaults to all)
+    '''
+
+    utils.check_type('search_dir', search_dir, Path)
+    utils.check_type('target_name', target_name, str)
+
+    if band is None:
+        band_str = ''
+    else:
+        utils.check_type('band', band, str)
+        band_str = f'_{band}_'
+
+    # for raw files, we want to ignore any temporary OBA files
+    # that may have gotten written out to the same dir
+    ignore = '[!'
+    for suffix in OBA_FILE_SUFFIXES:
+        ignore += f'{suffix},'
+    ignore += ']'
+
+    fname_base = f'{target_name}_*{band_str}*{ignore}.fits'
+    image_base = search_dir / fname_base
+
+    files = glob(
+        str(image_base.resolve())
+        )
+
+    return files
+
+# Various suffixes that get appended to temporary OBA files
+OBA_FILE_SUFFIXES = [
+    '_cal',
+    # TODO: finish!
+]
