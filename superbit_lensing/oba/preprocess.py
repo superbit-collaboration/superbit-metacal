@@ -68,16 +68,21 @@ class PreprocessRunner(object):
 
         return
 
-    def go(self, logprint, overwrite=False):
+    def go(self, logprint, overwrite=False, skip_decompress=False):
         '''
         Run the OBA preprocessing step. This entails the following:
 
-        1) Setup the run_dir
+        1) Setup the run_dir (and all subdirs)
         2) Copy raw sci frames from raw_dir to run_dir
         3) Decompress raw files
 
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
         overwrite: bool
             Set to overwrite existing files
+        skip_decompress: bool
+            Set to skip the raw file decompression if file already exists
+            (should only be used for test runs)
         '''
 
         logprint('Setting up temporary run directories...')
@@ -86,8 +91,11 @@ class PreprocessRunner(object):
         logprint('Copying raw sci files...')
         self.copy_raw_files(logprint)
 
+        # TODO: Could make a distinction between normal overwrite and
+        # whether to skip decompression if files already exist to speed
+        # up testing
         logprint('Decompressing raw files...')
-        self.decompress_raw_files(logprint, overwrite=overwrite)
+        self.decompress_raw_files(logprint, overwrite=(not skip_decompress))
 
         logprint('Preprocessing completed!')
 
@@ -96,6 +104,9 @@ class PreprocessRunner(object):
     def setup_run_dirs(self, logprint):
         '''
         Setup the OBA run directory for the target
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
         '''
 
         dirs = [
@@ -106,6 +117,9 @@ class PreprocessRunner(object):
 
         for b in self.bands:
             dirs.append(self.run_dir / b)
+            dirs.append(self.run_dir / b / 'cal/')
+            dirs.append(self.run_dir / b / 'masked/')
+            dirs.append(self.run_dir / b / 'bkg/')
             dirs.append(self.run_dir / b / 'coadd/')
             dirs.append(self.run_dir / b / 'out/')
 
@@ -124,6 +138,9 @@ class PreprocessRunner(object):
         '''
         Copy raw sci frames to the temp OBA run directory for
         a given target
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
         '''
 
         bands = self.bands
@@ -174,8 +191,10 @@ class PreprocessRunner(object):
         We've already done the work of registering each copied
         raw sci frame, so now decompress each
 
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
         overwrite: bool
-            Set to overwrite existing files
+            Set to overwrite existing raw files
         '''
 
         for band, images in self.images.items():
@@ -193,8 +212,7 @@ class PreprocessRunner(object):
                 if os.path.exists(decompressed_image):
                     # will cause a bzip2 error if not handled
                     logprint(f'{decompressed_image} already exists')
-                    # if overwrite is True:
-                    if True:
+                    if overwrite is True:
                         logprint('Deleting file as overwrite is True')
                         os.remove(decompressed_image)
                     else:
