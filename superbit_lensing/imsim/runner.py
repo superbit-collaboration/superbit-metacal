@@ -160,7 +160,7 @@ class ImSimRunner(object):
             if 'master' in config_seeds:
                 master_seed = config_seeds['master']
                 # parsing some annoying edge-cases
-                if isinstance(master_seed, str) and eval(master_seed is None):
+                if isinstance(master_seed, str) and (eval(master_seed) is None):
                     master_seed = None
 
             # generate any seeds not set explicitly from the master
@@ -292,6 +292,9 @@ class ImSimRunner(object):
 
         self.logprint('Adding noise...')
         self.add_noise()
+
+        # TODO: Implement!
+        # self.logprint('Removing data from inactive regions...')
 
         self.logprint('Adding weights...')
         self.add_weights()
