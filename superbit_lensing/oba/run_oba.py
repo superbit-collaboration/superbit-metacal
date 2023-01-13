@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from argparse import ArgumentParser
 
 from oba_io import IOManager
@@ -70,12 +70,15 @@ def main(args):
     # config setup
 
     # TODO: Decide if this is necessary!
-    # if config_dir is not None:
-    #     config_file = os.path.join(config_dir, config_file)
+    if config_file is not None:
+        config_file = Path(config_file)
+        if config_dir is not None:
+            config_file = Path(config_dir) / config_file
+        config_file = config_file.resolve()
 
-    # logprint(f'Using config file {config_file}')
-    # if not os.path.exists(config_file):
-    #     raise ValueError(f'OBA pipeline config file not found!')
+    logprint(f'Using config file {config_file}')
+    if not config_file.is_file():
+        raise ValueError(f'OBA pipeline config file not found: {config_file}')
 
     #-----------------------------------------------------------------
     # I/O setup (registering filepaths, dirs, etc. for run)
@@ -109,7 +112,8 @@ def main(args):
         target_name,
         bands,
         det_bands,
-        logprint
+        logprint,
+        test=test
         )
 
     runner.go(overwrite=overwrite)

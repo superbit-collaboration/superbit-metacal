@@ -6,6 +6,8 @@ from superbit_lensing import utils
 from oba_io import IOManager
 from preprocess import PreprocessRunner
 from cals import CalsRunner
+from masking import MaskingRunner
+from background import BackgroundRunner
 
 import ipdb
 
@@ -15,8 +17,20 @@ class OBARunner(object):
     only analyzes cluster lensing targets
     '''
 
-    _req_fields = []
+    # fields for the config file
+    _req_fields = ['include']
     _opt_fields = {}
+
+    # if no config is passed, use the default include list
+    _default_include= [
+        'preprocessing',
+        'cals',
+        'masking',
+        'background',
+        'coadd',
+        'detection',
+        # ...
+    ]
 
     # The QCC uses ints for the band when writing out the
     # exposure filenames
@@ -33,7 +47,7 @@ class OBARunner(object):
     _allowed_bands = _bindx.keys()
 
     def __init__(self, config_file, io_manager, target_name,
-                 bands, det_bands, logprint):
+                 bands, det_bands, logprint, test=False):
         '''
         config_file: str
             The OBA configuration file
@@ -48,15 +62,19 @@ class OBARunner(object):
             A list of band names to use when creating detection image
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
+        test: bool
+            Set to indicate that this is a test run. Useful for skipping
+            some checks to speedup test run
         '''
 
         inputs = {
-            # 'config_file' TODO: add if needed later!
+            'config_file': (config_file, Path),
             'io_manager': (io_manager, IOManager),
             'target_name': (target_name, str),
             'bands': (bands, list),
             'det_bands': (det_bands, list),
             'logprint': (logprint, utils.LogPrint),
+            'test': (test, bool)
         }
         for name, tup in inputs.items():
             var, cls = tup
@@ -72,7 +90,30 @@ class OBARunner(object):
         return
 
     def parse_config(self):
-        pass
+        # TODO: Do additional parsing!
+        if self.config_file is not None:
+            config = utils.read_yaml(self.config_file)
+            self.config = utils.parse_config(
+                config, self._req_fields, self._opt_fields
+                )
+        else:
+            # make a very simple config consistent with a
+            # real data run
+            self.config = self._make_default_config()
+
+        self.include = self.config['include']
+
+        return
+
+    def _make_default_config(self):
+        '''
+        Make a basic config if one is not passed
+        '''
+
+        self.config = {}
+        self.config['include'] = _default_include
+
+        return
 
     def parse_bands(self):
         '''
@@ -98,6 +139,7 @@ class OBARunner(object):
     def set_dirs(self):
 
         self.set_raw_dir()
+        self.set_cals_dirs()
         self.set_run_dir()
         self.set_out_dir()
 
@@ -111,6 +153,18 @@ class OBARunner(object):
 
         # for now, we only analyze cluster lensing targets
         self.raw_dir = self.io_manager.RAW_CLUSTERS / self.target_name
+
+        return
+
+
+    def set_cals_dirs(self):
+        '''
+        Determine the calibration directories for the target given the
+        registered IOManager
+        '''
+
+        self.darks_dir = self.io_manager.DARKS
+        self.flats_dir = self.io_manager.FLATS
 
         return
 
@@ -154,21 +208,31 @@ class OBARunner(object):
         7) MEDS-maker
         8) Compression & cleanup
 
+        NOTE: you can choose which subset of these steps to run using the
+        `include` field in the OBA config file, but in most instances this
+        should only be done for testing
+
         overwrite: bool
             Set to overwrite existing files
         '''
 
         target = self.target_name
 
-        self.logprint(f'Starting onboard analysis for target {target}')
+        self.logprint(f'\nStarting onboard analysis for target {target}')
 
-        self.logprint('Starting preprocessing...')
+        self.logprint('\nStarting preprocessing')
         self.run_preprocessing(overwrite=overwrite)
 
-        self.logprint('Applying image calibrations...')
+        self.logprint('\nStarting image calibrations')
         self.run_calibrations(overwrite=overwrite)
 
-        self.logprint(f'Onboard analysis completed for target {target}')
+        self.logprint('\nStarting image masking')
+        self.run_masking(overwrite=overwrite)
+
+        self.logprint('\nStarting background estimation')
+        self.run_background(overwrite=overwrite)
+
+        self.logprint(f'\nOnboard analysis completed for target {target}')
 
         return
 
@@ -181,6 +245,10 @@ class OBARunner(object):
             Set to overwrite existing files
         '''
 
+        if 'preprocessing' not in self.include:
+            self.logprint('Skipping preprocessing given config include')
+            return
+
         runner = PreprocessRunner(
             self.raw_dir,
             self.run_dir,
@@ -189,7 +257,14 @@ class OBARunner(object):
             target_name=self.target_name
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        if self.test is True:
+            skip_decompress = True
+        else:
+            skip_decompress = False
+
+        runner.go(
+            self.logprint, overwrite=overwrite, skip_decompress=skip_decompress
+            )
 
         return
 
@@ -199,13 +274,58 @@ class OBARunner(object):
             Set to overwrite existing files
         '''
 
-        # TODO: turn on when ready!
-        # runner = CalsRunner(
-        #     self.run_dir,
-        #     self.bands,
-        #     target_name=self.target_name
-        #     )
+        if 'cals' not in self.include:
+            self.logprint('Skipping image calibrations given config include')
+            return
 
-        # runner.go(self.logprint, overwrite=overwrite)
+        runner = CalsRunner(
+            self.run_dir,
+            self.darks_dir,
+            self.flats_dir,
+            self.bands,
+            target_name=self.target_name
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
+
+        return
+
+    def run_masking(self, overwrite=False):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        if 'masking' not in self.include:
+            self.logprint('Skipping image masking given config include')
+            return
+
+        runner = MaskingRunner(
+            self.run_dir,
+            self.bands,
+            target_name=self.target_name
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
+
+        return
+
+    def run_background(self, overwrite=True):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        if 'background' not in self.include:
+            self.logprint('Skipping background estimation given config include')
+            return
+
+        runner = BackgroundRunner(
+            self.run_dir,
+            self.bands,
+            target_name=self.target_name
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
 
         return
