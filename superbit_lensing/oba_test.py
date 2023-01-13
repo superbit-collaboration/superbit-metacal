@@ -13,6 +13,8 @@ run such a test (just change "pipe/grid" -> "oba")
 import os
 import shutil
 from pathlib import Path
+from glob import glob
+import fitsio
 from argparse import ArgumentParser
 
 import utils
@@ -91,11 +93,12 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
         bands = 'b,lum' # test at least 2 bands
         det_bands = 'b,lum'
 
-        test_dir = Path(utils.TEST_DIR) / 'oba_test/'
-        config_dir = Path(utils.MODULE_DIR) / 'oba/configs/'
-        gs_config = (outdir / gs_config).resolve()
-        swarp_config = (config_dir / 'swarp.config').resolve()
-        se_config = (config_dir / 'se_configs.yaml').resolve()
+        test_dir = (Path(utils.TEST_DIR) / 'oba_test/').resolve()
+        config_dir = (Path(utils.MODULE_DIR) / 'oba/configs/').resolve()
+        gs_config = outdir / gs_config
+        oba_config = config_dir / 'test_config.yaml'
+        swarp_config = config_dir / 'swarp.config'
+        se_config = config_dir / 'se_configs.yaml'
 
         det_cat_file = (outdir / f'{run_name}_coadd_det_cat.fits').resolve()
         meds_file = (outdir / f'{run_name}_meds.fits').resolve()
@@ -108,6 +111,7 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
                 'vb': vb,
                 'ncores': ncores,
                 'run_diagnostics': True,
+                'overwrite': overwrite,
                 'order': [
                     'imsim',
                     'oba',
@@ -122,6 +126,7 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
             'oba': {
                 'target_name': run_name,
                 'root_dir': str(test_dir),
+                'config_file': str(oba_config),
                 'test': True
             }
         }
@@ -168,7 +173,7 @@ def make_test_gs_config(path_config, outdir, outfile='oba_test_gs.yaml',
 
     return outfile
 
-def setup_oba_dirs(root_dir, target_name):
+def setup_oba_dirs(root_dir, target_name, overwrite=False):
     '''
     Setup the expected OBA dir for raw science frames, as defined
     in oba_io.py
@@ -178,6 +183,8 @@ def setup_oba_dirs(root_dir, target_name):
         defined relative to
     target_name: str
         The target name which is used to setup the final directory
+    overwrite: bool
+        Set to overwrite any test files that are to be copied to oba dirs
 
     Returns the path to the cluster target raw science frames
     '''
@@ -191,6 +198,32 @@ def setup_oba_dirs(root_dir, target_name):
 
     target_dir = raw_clusters_dir / target_name
     utils.make_dir(target_dir)
+
+    # calibration frames
+    cal_dirs = {
+        'darks': io_manager.DARKS,
+        'flats': io_manager.FLATS
+    }
+
+    # copy over test calibration master frames
+    for cal in ['darks', 'flats']:
+        outdir = cal_dirs[cal]
+        utils.make_dir(outdir)
+        local_cals_dir = Path(utils.MODULE_DIR) / f'oba/data/{cal}/'
+        cal_files = glob(str(local_cals_dir / '*.fits*'))
+
+        for cal_file in cal_files:
+            outfile = outdir / Path(cal_file).name
+
+            # only copy cals over if they don't already exist, unless
+            # overwrite is true
+            if outfile.is_file():
+                if overwrite is True:
+                    outfile.unlink()
+                else:
+                    continue
+
+            shutil.copy(cal_file, outfile)
 
     return target_dir
 
