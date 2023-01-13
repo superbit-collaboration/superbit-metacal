@@ -69,5 +69,8 @@ class TestIOManager(unittest.TestCase):
 
         return
 
+    # TODO: Write unit tests for assigning calibration frames to
+    # raw sci files!
+
 if __name__ == '__main__':
     unittest.main()
