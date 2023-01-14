@@ -87,6 +87,10 @@ class OBARunner(object):
         # set relevant dirs for the oba of the given target
         self.set_dirs()
 
+        # setup & register the various config files that will get used
+        # during many of the OBA processing steps
+        self.setup_configs()
+
         return
 
     def parse_config(self):
@@ -191,6 +195,41 @@ class OBARunner(object):
         oba_results = self.io_manager.OBA_RESULTS / 'clusters'
 
         self.out_dir = oba_results / self.target_name
+
+        return
+
+    def setup_configs(self):
+        '''
+        Many steps of the OBA will require input configs, such as for SWarp
+        and SExtractor. Manage the registration of these config files here
+        '''
+
+        # will hold the filepaths for all config files, indexed by type
+        self.configs = {}
+
+        configs_dir = Path(utils.MODULE_DIR) / 'oba/configs/'
+        sex_dir = configs_dir / 'sextractor/'
+        swarp_dir = configs_dir / 'swarp/'
+
+        # TODO: Need to sort out params, filter, etc. and set!
+        self.configs['swarp'] = {}
+        self.configs['sextractor'] = {}
+
+        for band in self.bands:
+            self.configs['sextractor'][band] = sex_dir / \
+                f'sb_sextractor_{band}.config'
+
+            # NOTE: for now, just a single config, but can be updated
+            self.configs['swarp'][band] = swarp_dir / 'swarp.config'
+
+        # Some extra SExtractor config files
+        self.configs['sextractor']['param'] = sex_dir / 'sb_sextractor.param'
+        self.configs['sextractor']['filter'] = sex_dir / 'default.conv'
+        self.configs['sextractor']['nnw'] = sex_dir / 'default.nnw'
+
+        # for now, a single config for bkg estimation
+        self.configs['sextractor']['bkg'] = sex_dir / \
+            'sb_sextractor_bkg.config'
 
         return
 
@@ -323,6 +362,7 @@ class OBARunner(object):
         runner = BackgroundRunner(
             self.run_dir,
             self.bands,
+            self.configs['sextractor']['bkg'],
             target_name=self.target_name
             )
 

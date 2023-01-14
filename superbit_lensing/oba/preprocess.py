@@ -1,6 +1,7 @@
 from pathlib import Path
 from glob import glob
 import os
+from astropy.io import fits
 
 from superbit_lensing import utils
 
@@ -15,6 +16,13 @@ class PreprocessRunner(object):
     _compression_method = 'bzip2'
     _compression_args = '-dk' # forces decompression, keep orig file
     _compression_ext = 'bz2'
+
+    # some useful detector meta data to be added to headers; should be static
+    _header_info = {
+        'GAIN': 0.343, # e- / ADU
+        'SATURATE': 65535, # TODO: Should we lower this to be more realistic?
+        'SATUR_KEY': 'SATURATE' # sets the saturation key SExtractor looks for
+    }
 
     def __init__(self, raw_dir, run_dir, out_dir, bands, target_name=None):
         '''
@@ -65,6 +73,7 @@ class PreprocessRunner(object):
 
         # will get populated during call to go()
         self.images = {}
+        self.decompressed_images = {}
 
         return
 
@@ -75,6 +84,7 @@ class PreprocessRunner(object):
         1) Setup the run_dir (and all subdirs)
         2) Copy raw sci frames from raw_dir to run_dir
         3) Decompress raw files
+        4) Update fits headers with useful info
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -91,11 +101,11 @@ class PreprocessRunner(object):
         logprint('Copying raw sci files...')
         self.copy_raw_files(logprint)
 
-        # TODO: Could make a distinction between normal overwrite and
-        # whether to skip decompression if files already exist to speed
-        # up testing
         logprint('Decompressing raw files...')
         self.decompress_raw_files(logprint, overwrite=(not skip_decompress))
+
+        logprint('Updating fits headers...')
+        self.update_headers(logprint)
 
         logprint('Preprocessing completed!')
 
@@ -199,16 +209,21 @@ class PreprocessRunner(object):
 
         for band, images in self.images.items():
             logprint(f'Starting band {band}')
+            self.decompressed_images[band] = []
 
             for image in images:
                 image = str(image)
                 logprint(f'Decompressing file {image}')
 
-                # NOTE: check if decompressed file already exists; can
-                # cause issues otherwise
                 decompressed_image = image.replace(
                     f'.{self._compression_ext}', ''
                     )
+                self.decompressed_images[band].append(
+                    Path(decompressed_image)
+                    )
+
+                # NOTE: check if decompressed file already exists; can
+                # cause issues otherwise
                 if os.path.exists(decompressed_image):
                     # will cause a bzip2 error if not handled
                     logprint(f'{decompressed_image} already exists')
@@ -263,5 +278,33 @@ class PreprocessRunner(object):
             logprint(f'cmd = {cmd}')
 
         rc = utils.run_command(cmd, logprint=logprint)
+
+        return
+
+    def update_headers(self, logprint, ext=0):
+        '''
+        Add useful and / or required metadata for downstream processes
+        in the raw image headers
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        ext: int
+            The fits extension to update the header of
+        '''
+
+        logprint('Setting the following values in each raw image header:')
+        for key, val in self._header_info.items():
+            logprint(f'{key}: {val}')
+
+        for band, images in self.decompressed_images.items():
+            logprint(f'Starting band {band}')
+
+            Nimages = len(images)
+            for i, image in enumerate(images):
+                image_name = image.name
+                logprint(f'Updating {image_name}; {i+1} of {Nimages}')
+
+                for key, val in self._header_info.items():
+                    fits.setval(str(image), key, value=val, ext=ext)
 
         return
