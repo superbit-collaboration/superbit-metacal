@@ -48,11 +48,14 @@ class LogPrint(object):
 
         return
 
-    def __call__(self, msg):
+    def __call__(self, msg=None):
         '''
         treat it like print()
         e.g. lprint = LogPrint(...); lprint('message')
         '''
+
+        if msg is None:
+            msg = ''
 
         if self.log is not None:
             self.log.info(msg)
