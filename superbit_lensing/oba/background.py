@@ -94,7 +94,7 @@ class BackgroundRunner(object):
 
         Currently planned steps:
 
-        (1) Register all target calibrated sci images
+        (1) Gather all target calibrated sci images
         (2) Run SExtractor on each image, generating a background-
             subtracted image, a background image, and background RMS map
         (3) Update weight map WGT with bkg rms map
@@ -110,18 +110,18 @@ class BackgroundRunner(object):
             Set to overwrite existing files
         '''
 
-        logprint('Registering calibrated sci frames...')
-        self.register_images(logprint)
+        logprint('Gathering calibrated sci frames...')
+        self.gather_images(logprint)
 
         logprint('Estimating image backgrounds...')
-        self.estimate_background(logprint)
+        self.estimate_background(logprint, overwrite=overwrite)
 
         logprint('Collating outputs...')
-        self.collate(logprint, overwrite=overwrite)
+        self.collate(logprint)
 
         return
 
-    def register_images(self, logprint):
+    def gather_images(self, logprint):
         '''
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -142,10 +142,12 @@ class BackgroundRunner(object):
 
         return
 
-    def estimate_background(self, logprint):
+    def estimate_background(self, logprint, overwrite=False):
         '''
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
+        overwrite: bool
+            Set to overwrite existing files
         '''
 
         for band in self.bands:
@@ -158,12 +160,12 @@ class BackgroundRunner(object):
                 image_name = image.name
                 logprint(f'Starting image {image_name}; {i+1} of {Nimages}')
 
-                cmd = self.setup_se_cmd(image, band)
+                cmd = self.setup_se_cmd(image, band, overwrite=overwrite)
                 self._run_sextractor(cmd, logprint)
 
         return
 
-    def setup_se_cmd(self, image_file, band):
+    def setup_se_cmd(self, image_file, band, overwrite=False):
         '''
         Generate the SExtractor cmd given the image filename and band
 
@@ -171,6 +173,8 @@ class BackgroundRunner(object):
             The filepath of the image to run SExtractor on
         band: str
             The name of the band
+        overwrite: bool
+            Set to overwrite existing files
         '''
 
         if isinstance(image_file, Path):
@@ -182,7 +186,7 @@ class BackgroundRunner(object):
 
         base = f'sex {image_file}[0] -c {config_file}'
 
-        options = self._get_se_cmd_args(image_file, band)
+        options = self._get_se_cmd_args(image_file, band, overwrite=overwrite)
 
         cmd = f'{base} {options}'
 
@@ -203,17 +207,41 @@ class BackgroundRunner(object):
 
         return self.se_config
 
-    def _get_se_cmd_args(self, image_file, band):
+    def _get_se_cmd_args(self, image_file, band, overwrite=False):
         '''
         Generate the SExtractor command-line args to overwrite any
         band-specific fields for the single-epoch background estimation
         runs
 
-        image_file: str
+        image_file: str, pathlib.Path
             The filepath of the image to run SExtractor on
         band: str
             The name of the band
+        overwrite: bool
+            Set to overwrite existing files
         '''
+
+        utils.check_type('image_file', image_file, (str, Path))
+
+        if isinstance(image_file, str):
+            image_file = Path(image_file)
+
+        # want to save one dir up from the `band/cals/` dir
+        cat_dir = image_file.parents[1] / 'cats/'
+        utils.make_dir(str(cat_dir))
+
+        cat_name = image_file.name.replace('.fits', '_cat.fits')
+        cat_file = cat_dir / cat_name
+
+        if cat_file.is_file():
+            if overwrite is False:
+                raise OSError('Catalog already exists and overwrite is False!' +
+                            f'\n{str(cat_file)}')
+            else:
+                cat_file.unlink()
+
+        image_file = str(image_file)
+        cat_file = str(cat_file)
 
         wgt_type = 'MAP_WEIGHT'
         wgt_image = f'{image_file}[1]'
@@ -250,6 +278,7 @@ class BackgroundRunner(object):
         nnw_file = str(config_dir / 'default.nnw')
 
         args = {
+            'CATALOG_NAME': cat_file,
             'WEIGHT_TYPE': wgt_type,
             'WEIGHT_IMAGE': wgt_image,
             'CHECKIMAGE_TYPE': checkimage_type,
@@ -291,16 +320,14 @@ class BackgroundRunner(object):
 
         return
 
-    def collate(self, logprint, overwrite=False):
+    def collate(self, logprint):
         '''
         Collate the produced SExtractor check-images into a single multi-
         extension fits file, as well as update the SCI_CAL image with
-        the background-subtracted image
+        the background-subtracted image (overwrite check is done earlier)
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
-        overwrite: bool
-            Set to overwrite existing files
         '''
 
         sci_ext = self.sci_ext
