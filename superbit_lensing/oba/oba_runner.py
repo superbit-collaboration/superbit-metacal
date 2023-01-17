@@ -8,6 +8,8 @@ from preprocess import PreprocessRunner
 from cals import CalsRunner
 from masking import MaskingRunner
 from background import BackgroundRunner
+from astrometry import AstrometryRunner
+from coadd import CoaddRunner
 
 import ipdb
 
@@ -18,15 +20,16 @@ class OBARunner(object):
     '''
 
     # fields for the config file
-    _req_fields = ['include']
+    _req_fields = ['modules']
     _opt_fields = {}
 
-    # if no config is passed, use the default include list
-    _default_include= [
+    # if no config is passed, use the default modules list
+    _default_modules = [
         'preprocessing',
         'cals',
         'masking',
         'background',
+        'astrometry',
         'coadd',
         'detection',
         # ...
@@ -105,7 +108,7 @@ class OBARunner(object):
             # real data run
             self.config = self._make_default_config()
 
-        self.include = self.config['include']
+        self.modules = self.config['modules']
 
         return
 
@@ -115,7 +118,7 @@ class OBARunner(object):
         '''
 
         self.config = {}
-        self.config['include'] = _default_include
+        self.config['modules'] = _default_modules
 
         return
 
@@ -248,7 +251,7 @@ class OBARunner(object):
         8) Compression & cleanup
 
         NOTE: you can choose which subset of these steps to run using the
-        `include` field in the OBA config file, but in most instances this
+        `modules` field in the OBA config file, but in most instances this
         should only be done for testing
 
         overwrite: bool
@@ -271,6 +274,12 @@ class OBARunner(object):
         self.logprint('\nStarting background estimation')
         self.run_background(overwrite=overwrite)
 
+        self.logprint('\nStarting astrometric registration')
+        self.run_astrometry(overwrite=overwrite)
+
+        self.logprint('\nStarting coaddition')
+        self.run_coaddition(overwrite=overwrite)
+
         self.logprint(f'\nOnboard analysis completed for target {target}')
 
         return
@@ -284,8 +293,8 @@ class OBARunner(object):
             Set to overwrite existing files
         '''
 
-        if 'preprocessing' not in self.include:
-            self.logprint('Skipping preprocessing given config include')
+        if 'preprocessing' not in self.modules:
+            self.logprint('Skipping preprocessing given config modules')
             return
 
         runner = PreprocessRunner(
@@ -313,8 +322,8 @@ class OBARunner(object):
             Set to overwrite existing files
         '''
 
-        if 'cals' not in self.include:
-            self.logprint('Skipping image calibrations given config include')
+        if 'cals' not in self.modules:
+            self.logprint('Skipping image calibrations given config modules')
             return
 
         runner = CalsRunner(
@@ -335,8 +344,8 @@ class OBARunner(object):
             Set to overwrite existing files
         '''
 
-        if 'masking' not in self.include:
-            self.logprint('Skipping image masking given config include')
+        if 'masking' not in self.modules:
+            self.logprint('Skipping image masking given config modules')
             return
 
         runner = MaskingRunner(
@@ -355,14 +364,54 @@ class OBARunner(object):
             Set to overwrite existing files
         '''
 
-        if 'background' not in self.include:
-            self.logprint('Skipping background estimation given config include')
+        if 'background' not in self.modules:
+            self.logprint('Skipping background estimation given config modules')
             return
 
         runner = BackgroundRunner(
             self.run_dir,
             self.bands,
             self.configs['sextractor']['bkg'],
+            target_name=self.target_name
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
+
+        return
+
+    def run_astrometry(self, overwrite=True):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        if 'astrometry' not in self.modules:
+            self.logprint('Skipping astrometry estimation given config modules')
+            return
+
+        runner = AstrometryRunner(
+            self.run_dir,
+            self.bands,
+            target_name=self.target_name
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
+
+        return
+
+    def run_coaddition(self, overwrite=True):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        if 'coadd' not in self.modules:
+            self.logprint('Skipping coaddition given config modules')
+            return
+
+        runner = CoaddRunner(
+            self.run_dir,
+            self.bands,
             target_name=self.target_name
             )
 
