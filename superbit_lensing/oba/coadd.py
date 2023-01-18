@@ -110,8 +110,8 @@ class CoaddRunner(object):
         logprint('Making single-band coadd images...')
         self.make_coadds(logprint, overwrite=overwrite)
 
-        # TODO: implement!
-        # logprint('Making detection coadd image...')
+        logprint('Making detection image...')
+        self.make_detection_image(logprint)
 
         logprint('Collating coadd extensions...')
         self.collate_extensions(logprint)
@@ -210,9 +210,8 @@ class CoaddRunner(object):
             self._run_swarp(logprint, band, outfile)
 
             self.coadds[band]['sci'] = outfile
-            # self.coadds[band]['wgt'] = outfile.replace('.fits', '.wgt.fits')
-            self.coadds[band]['wgt'] = Path(
-                outdir / outfile.name.replace('.fits', '.wgt.fits')
+            self.coadds[band]['wgt'] = outdir / outfile.name.replace(
+                '.fits', '.wgt.fits'
                 )
 
         if len(self.coadds) != len(self.bands):
@@ -295,8 +294,8 @@ class CoaddRunner(object):
 
         else:
             # detection coadds resample from the single-band coadds
-            sci_im_list = [self.coadds[b]['sci'] for b in self.det_bands]
-            wgt_im_list = [self.coadds[b]['wgt'] for b in self.det_bands]
+            sci_im_list = [str(self.coadds[b]['sci']) for b in self.det_bands]
+            wgt_im_list = [str(self.coadds[b]['wgt']) for b in self.det_bands]
 
             sci_im_args = ' '.join(sci_im_list)
             wgt_im_args = ','.join(wgt_im_list)
@@ -311,6 +310,47 @@ class CoaddRunner(object):
             ])
 
         return cmd
+
+    def make_detection_image(self, logprint, overwrite=False):
+        '''
+        Make a coadd image using SWarp for each band
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        overwrite: bool
+            Set to True to overwrite existing coadd files
+        '''
+
+        for band in self.det_bands:
+            if band not in self.coadds:
+                raise ValueError('Cannot make detection image until all '
+                                 'following single-band coadds are done: '
+                                 f'{self.det_bands}')
+
+        band = 'det'
+        self.coadds[band] = {}
+
+        outdir = self.run_dir / band / 'coadd/'
+
+        outfile = outdir / f'{self.target_name}_coadd_{band}.fits'
+
+        if outfile.is_file():
+            if overwrite is False:
+                raise OSError(f'{outfile} already exists and '
+                                'overwrite is False!')
+            else:
+                logprint(f'{outfile} exists; deleting as ' +
+                                'overwrite is True')
+                outfile.unlink()
+
+        self._run_swarp(logprint, band, outfile, detection=True)
+
+        self.coadds[band]['sci'] = outfile
+        self.coadds[band]['wgt'] = outdir / outfile.name.replace(
+            '.fits', '.wgt.fits'
+            )
+
+        return
 
     def collate_extensions(self, logprint):
         '''
@@ -337,3 +377,4 @@ class CoaddRunner(object):
             wgt_file.unlink()
 
         return
+
