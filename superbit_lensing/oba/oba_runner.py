@@ -49,6 +49,13 @@ class OBARunner(object):
 
     _allowed_bands = _bindx.keys()
 
+    # TODO: Determine which bands we will use in the detection image!
+    det_bands = [
+        'b',
+        'lum',
+        # ...
+    ]
+
     def __init__(self, config_file, io_manager, target_name,
                  bands, det_bands, logprint, test=False):
         '''
@@ -214,16 +221,15 @@ class OBARunner(object):
         sex_dir = configs_dir / 'sextractor/'
         swarp_dir = configs_dir / 'swarp/'
 
-        # TODO: Need to sort out params, filter, etc. and set!
-        self.configs['swarp'] = {}
+
+        # NOTE: for now, just a single config, but can be updated
+        self.configs['swarp'] = swarp_dir / 'swarp.config'
+
         self.configs['sextractor'] = {}
 
         for band in self.bands:
             self.configs['sextractor'][band] = sex_dir / \
                 f'sb_sextractor_{band}.config'
-
-            # NOTE: for now, just a single config, but can be updated
-            self.configs['swarp'][band] = swarp_dir / 'swarp.config'
 
         # Some extra SExtractor config files
         self.configs['sextractor']['param'] = sex_dir / 'sb_sextractor.param'
@@ -410,8 +416,10 @@ class OBARunner(object):
             return
 
         runner = CoaddRunner(
+            self.configs['swarp'],
             self.run_dir,
             self.bands,
+            self.det_bands,
             target_name=self.target_name
             )
 

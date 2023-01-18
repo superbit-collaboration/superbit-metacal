@@ -125,11 +125,12 @@ class PreprocessRunner(object):
             self.run_dir / 'det' / 'coadd'
             ]
 
+        # TODO: decide which of these we don't need!
         for b in self.bands:
             dirs.append(self.run_dir / b)
             dirs.append(self.run_dir / b / 'cal/')
-            dirs.append(self.run_dir / b / 'masked/')
-            dirs.append(self.run_dir / b / 'bkg/')
+            # dirs.append(self.run_dir / b / 'masked/')
+            # dirs.append(self.run_dir / b / 'bkg/')
             dirs.append(self.run_dir / b / 'coadd/')
             dirs.append(self.run_dir / b / 'out/')
 

@@ -106,6 +106,9 @@ class MaskingRunner(object):
                 str(cal_dir / f'{self.target_name}*_{band}_*_cal.fits')
                 )
 
+            Nimages = len(cal_files)
+            logprint(f'Found {Nimages} images')
+
             for cal_file in cal_files:
                 msk = fitsio.read(cal_file, ext=msk_ext)
                 cal_name = Path(cal_file).name
