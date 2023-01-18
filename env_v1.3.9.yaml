@@ -1,27 +1,29 @@
 name: sbmcal_139
 channels:
-  - defaults
   - conda-forge
+  - defaults
 dependencies:
-  - python=3.7
-  - numpy
-  - astropy
-  - galsim
-  - fitsio
-  - esutil
-  - mpi4py
-  - scipy
-  - yaml
   - pyyaml
-  - meds
-  - ipython
-  - astromatic-swarp
+  - python=3.7
+  - astropy
+  - numba
+  - mpi4py
   - astromatic-source-extractor
-  - ngmix=1.3.9
+  - jupyter
+  - fitsio
   - astroquery
   - matplotlib
-  - jupyter
-  - jupyterlab
-  - pudb
-  - ipdb
+  - scipy
+  - astromatic-swarp
+  - galsim
+  - meds
   - statsmodels
+  - ipdb
+  - esutil
+  - ngmix=1.3.9
+  - numpy
+  - yaml
+  - piff
+  - ipython
+  - jupyterlab
+prefix: /work/mccleary_group/miniconda3/envs/sbmcal_139
