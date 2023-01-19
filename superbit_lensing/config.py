@@ -23,7 +23,7 @@ parser.add_argument('--run_overwrite', action='store_true',
 # parser.add_argument('outfile', type=str,
 #                help='Output filepath for config file')
 
-def make_run_config(run_name, outfile, nfw_file, gs_config,
+def make_run_config(run_name, outfile, nfw_file, gs_config, master_dark,
                     outdir=None, config_overwrite=False, seeds=None,
                     run_overwrite=False, ncores=1, run_diagnostics=True,
                     psf_mode='piff', meds_coadd=True, vb=True):
@@ -57,6 +57,8 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
         Options: ['psfex', 'piff', 'true']
     meds_coadd: bool
         Set to True to add coadd stamp to MEDS file
+    master_dark: str
+        Name of master dark file for quick-reduction
     vb: bool
         Set to True for verbose printing
     '''
@@ -128,7 +130,8 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
             'outdir': outdir,
             'psf_seed': seeds['psf_seed'],
             'psf_mode': psf_mode,
-            'meds_coadd': meds_coadd
+            'meds_coadd': meds_coadd,
+            'master_dark': master_dark
         },
         'metacal': {
             'meds_file': meds_file,

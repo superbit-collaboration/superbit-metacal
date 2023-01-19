@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 from jobs import JobsManager
-
+import ipdb
 parser = ArgumentParser()
 
 parser.add_argument('jobs_config', type=str,
@@ -13,6 +13,7 @@ def main(args):
     fresh = args.fresh
 
     manager = JobsManager(config, fresh=fresh)
+    #ipdb.set_trace()
     manager.run()
 
     return 0
