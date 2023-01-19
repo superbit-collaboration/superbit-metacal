@@ -6,6 +6,7 @@ from numpy.random import SeedSequence, default_rng
 
 import utils
 from config import make_run_config_from_dict
+import ipdb
 
 class JobsManager(object):
     '''
@@ -120,6 +121,7 @@ class JobsManager(object):
         nfw_dir = config['nfw_dir']
 
         psf_mode = config['psf_mode']
+        master_dark = config['master_dark']
 
         if os.path.exists(base_dir):
             if fresh is False:
@@ -180,6 +182,7 @@ class JobsManager(object):
                         'ncores': ncores,
                         'memory': memory,
                         'psf_mode': psf_mode,
+                        'master_dark': master_dark,
                         'run_diagnostics': run_diagnostics,
                         'vb': vb
                     }
@@ -265,7 +268,7 @@ class ClusterJob(object):
     '''
 
     _req_params = ['base_dir', 'run_name', 'mass', 'z', 'job_index',
-                   'nfw_file', 'ncores', 'memory', 'realization']
+                   'nfw_file', 'ncores', 'memory', 'realization', 'master_dark']
 
     _opt_params = ['gs_master_seed', 'gs_config', 'psf_mode',
                    'run_diagnostics', 'vb']
@@ -363,7 +366,7 @@ class ClusterJob(object):
         # config.make_run_config()
         same_keys = [
             'run_name', 'gs_config', 'nfw_file', 'ncores', 'vb',
-            'run_diagnostics', 'psf_mode'
+            'run_diagnostics', 'psf_mode', 'master_dark'
             ]
         for key in same_keys:
             config_dict[key] = self._config[key]
