@@ -7,7 +7,7 @@ from ngmix.medsreaders import NGMixMEDS
 from multiprocessing import Pool
 from argparse import ArgumentParser
 import superbit_lensing.utils as utils
-import pudb
+import pdb
 
 parser = ArgumentParser()
 

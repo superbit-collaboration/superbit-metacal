@@ -1,7 +1,7 @@
 # GalSim is opyright (c) 2012-2019 by the GalSim developers team on GitHub
 # https://github.com/GalSim-developers
 #
-# GalSim is free software: redistribution and use in source and binary forms,
+ # GalSim is free software: redistribution and use in source and binary forms,
 # with or without modification, are permitted provided that the following
 # conditions are met:
 #
@@ -22,7 +22,7 @@ import time
 import galsim
 import galsim.des
 import galsim.convolve
-import pdb, pudb
+import pdb
 from glob import glob
 import pickle
 import scipy
