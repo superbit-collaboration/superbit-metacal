@@ -637,7 +637,7 @@ class BITMeasurement():
             star_params = {'CLASS_STAR':0.92,
                             'MIN_MAG':22,
                             'MAX_MAG':17,
-                            'MIN_SIZE':1.1,
+                            'MIN_SIZE':1.8,
                             'MAX_SIZE':3.0,
                             'MIN_SNR': 20
                             }
@@ -895,7 +895,8 @@ class BITMeasurement():
             outname = sscat.replace('.ldac','stars.ldac')
             self.logprint("Selecting stars on CLASS_STAR...")
             wg_stars = (ss['CLASS_STAR']>star_params['CLASS_STAR']) & \
-            (ss['SNR_WIN']>star_params['MIN_SNR'])
+            (ss['SNR_WIN']>star_params['MIN_SNR']) & \
+            (ss['FWHM_IMAGE']>star_params['MIN_SIZE'])
             ss[wg_stars].write(outname, format='fits', overwrite=True)
 
         return outname
