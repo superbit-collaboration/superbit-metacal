@@ -10,6 +10,7 @@ from masking import MaskingRunner
 from background import BackgroundRunner
 from astrometry import AstrometryRunner
 from coadd import CoaddRunner
+from detection import DetectionRunner
 
 import ipdb
 
@@ -222,7 +223,8 @@ class OBARunner(object):
         swarp_dir = configs_dir / 'swarp/'
 
 
-        # NOTE: for now, just a single config, but can be updated
+        # NOTE: for now, just a single config, but can be updated for
+        # multi-band if needed
         self.configs['swarp'] = swarp_dir / 'swarp.config'
 
         self.configs['sextractor'] = {}
@@ -230,6 +232,10 @@ class OBARunner(object):
         for band in self.bands:
             self.configs['sextractor'][band] = sex_dir / \
                 f'sb_sextractor_{band}.config'
+
+        # treat `det` as a derived band
+        self.configs['sextractor']['det'] = sex_dir / \
+                'sb_sextractor_det.config'
 
         # Some extra SExtractor config files
         self.configs['sextractor']['param'] = sex_dir / 'sb_sextractor.param'
@@ -253,7 +259,7 @@ class OBARunner(object):
         4) Astrometry
         5) Coaddition (single-band & detection image)
         6) Source detection
-        7) MEDS-maker
+        7) MEDS-maker (or equivalent)
         8) Compression & cleanup
 
         NOTE: you can choose which subset of these steps to run using the
@@ -285,6 +291,9 @@ class OBARunner(object):
 
         self.logprint('\nStarting coaddition')
         self.run_coaddition(overwrite=overwrite)
+
+        self.logprint('\nStarting source detection')
+        self.run_detection(overwrite=overwrite)
 
         self.logprint(f'\nOnboard analysis completed for target {target}')
 
@@ -420,6 +429,26 @@ class OBARunner(object):
             self.run_dir,
             self.bands,
             self.det_bands,
+            target_name=self.target_name
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
+
+        return
+
+    def run_detection(self, overwrite=True):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        if 'detection' not in self.modules:
+            self.logprint('Skipping detection given config modules')
+            return
+
+        runner = DetectionRunner(
+            self.configs['sextractor']['det'],
+            self.run_dir,
             target_name=self.target_name
             )
 
