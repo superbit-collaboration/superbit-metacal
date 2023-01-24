@@ -226,8 +226,8 @@ class BackgroundRunner(object):
         if isinstance(image_file, str):
             image_file = Path(image_file)
 
-        # want to save one dir up from the `band/cals/` dir
-        cat_dir = image_file.parents[1] / 'cats/'
+        # want to save one dir up from the `band/cal/` dir
+        cat_dir = image_file.parents[1] / 'cat/'
         utils.make_dir(str(cat_dir))
 
         cat_name = image_file.name.replace('.fits', '_cat.fits')
@@ -397,7 +397,7 @@ class BackgroundRunner(object):
             The SExtractor BACKGROUND_RMS check-image
         '''
 
-        # the initial weight map saved during the call to cals.py is just
+        # the initial weight map saved during the call to cal.py is just
         # the complement of the mask. Thus the weight map should now be
         # just the background RMS map with masked pixels given zero weight
         new_wgt = 1. / bkg_rms**2

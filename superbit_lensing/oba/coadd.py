@@ -89,7 +89,7 @@ class CoaddRunner(object):
         Steps:
 
         (1) Gather all target calibrated, bkg-subtracted sci images
-        (2) Check that all imgages have a WCS solution
+        (2) Check that all images have a WCS solution
         (3) Run SWarp for all target images of a given band, generating
             maximal coadd images (i.e. full extent of all single-epoch
             exposures, which will have non-uniform depth)
