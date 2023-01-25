@@ -121,6 +121,7 @@ class SourceClass(object):
             # NOTE: 1 for fits-like origin. That is how we initialized
             # the galsim Image / WCS
             # TODO: check this bit
+            ipdb.set_trace()
             lenpos=len(self.im_pos)
             posIm = [galsim.PositionD(self.im_pos[i,:]) for i in range(lenpos)]
             self.pos = [image.wcs.toWorld(pos) for pos in posIm]
