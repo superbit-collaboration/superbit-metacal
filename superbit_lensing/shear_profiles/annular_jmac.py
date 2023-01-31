@@ -309,10 +309,10 @@ class Annular(object):
         # This should be in diagnostics, but do it here for now
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 
-        ax.hist(nfw_tab['redshift'],bins=100,range=[self.z.min(),\
-            self.z.max()],histtype='step',label='nfw resamp')
+        ax.hist(nfw_tab['redshift'],bins=10,range=[self.z.min(),\
+                                                    self.z.max()],histtype='step',label='nfw resamp', density=True)
         ax.hist(self.z,bins=100,range=[self.z.min(),\
-            self.z.max()],histtype='step',label='selected galaxies')
+                                       self.z.max()],histtype='step',label='selected galaxies', density=True)
         ax.set_xlabel('Galaxy redshift')
         ax.set_ylabel('Number')
         ax.legend()
