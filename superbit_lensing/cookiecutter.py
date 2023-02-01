@@ -139,6 +139,13 @@ class ImageLocator(object):
         else:
             return fitsio.FITS(self._backgroundfile,'r')[self._backgroundext]
 
+    @property
+    def skyvar(self):
+        if self._skyvarfile is None:
+            return None
+        else:
+            return fitsio.FITS(self._backgroundfile,'r')[self._skyvarext]
+
 
 
 def removeEssentialFITSkeys(header,excludekeys = ['SIMPLE', 'BITPIX', 'NAXIS', 'NAXIS1', 'NAXIS2', 'EXTEND']):
@@ -276,7 +283,8 @@ class CookieCutter(object):
                                                                           ('imagefile','S64'),
                                                                           ('startpos',int),
                                                                           ('endpos',int),
-                                                                          ('skylevel',float),
+                                                                          ('background',float),
+                                                                          ('variance',float),
                                                                           ('extnumber',int)])
         info_index = 0
         
@@ -290,6 +298,7 @@ class CookieCutter(object):
                                     weightfile = image['weightfile'],weightext = image['weight ext'],\
                                     maskfile   = image['maskfile'], maskext = image['mask ext'])
 
+            image_wcs = WCS(imageObj.image.read_header())
             imageHDR = removeEssentialFITSkeys(imageObj.image.read_header())
             
             
@@ -334,7 +343,10 @@ class CookieCutter(object):
                     sky_cutout = np.zeros_like(image_cutout)
                     sky_cutout[cutout_slice] = imageObj.sky[image_slice]
                     sky_level = np.median(sky_cutout)
-
+                if imageObj.skyvar is not None:
+                    skyvar_cutout = np.zeros_like(image_cutout)
+                    skyvar_cutout[cutout_slice] = imageObj.skyvar[image_slice]
+                    sky_var = np.mean(sky_cutout)
                 if imageObj.weight is not None:
                     weight_cutout = np.zeros_like(image_cutout)
                     weight_cutout[cutout_slice] = imageObj.weight[image_slice]
@@ -350,7 +362,9 @@ class CookieCutter(object):
                 object_info_table[info_index]['object id'] = iobj['id']
                 object_info_table[info_index]['imagefile'] = image['imagefile']
                 object_info_table[info_index]['startpos'] = npix_sci_written # This is how we look up object positions to read later.
+                object_info_table[info_index]['endpos'] = npix_sci_written + iobj[boxsizetag]**2
                 object_info_table[info_index]['background'] = sky_level
+                object_info_table[info_index]['variance'] = sky_var
                 object_info_table[info_index]['extension'] = image_index
 
                 
@@ -422,3 +436,5 @@ class CookieCutter(object):
         return cutout2d
         
         
+    def getCutouts(self,objectids=None,extnumbers=None,filenames=None,cutoutTypes=['IMAGE','MASK']):
+        # Can specify all three, will try to find everything that matches at least one.
