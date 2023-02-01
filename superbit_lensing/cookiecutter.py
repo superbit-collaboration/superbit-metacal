@@ -62,9 +62,15 @@ class NoOverlapError(ValueError):
 
 
 class ImageLocator(object):
+    '''
+    TODO: Decide whether to set defaults to 
+
+    '''
+
+    
     def __init__(self,imagefile = None, imageext = None, weightfile = None, weightext = None,
                      maskfile = None, maskext = None,backgroundfile = None, backgroundext = None,
-                     globalpath = None):
+                     skyvarfile = None, skyvarext = None, globalpath = None):
         if globalpath is not None:
             imagefile = Path(globalpath) / Path(imagefile)
             if weightfile is not None:
@@ -102,7 +108,12 @@ class ImageLocator(object):
             self._backgroundext = 0
         else:
             self._backgroundext = backgroundext
-
+        self._skyvarfile = skyvarfile
+        if skyvarext is None:
+            self._skyvarext = 0
+        else:
+            self._skyvarext = skyvarext
+            
     @property
     def image(self):
         return fitsio.FITS(self._imagefile,'r')[self._imageext]
@@ -242,6 +253,7 @@ class CookieCutter(object):
 
 
         TODO: CONFIRM THAT THE OBJECT DATA TABLE IS INITIALIZED WITH SUFFICIENT LENGTH TO HOLD THE IMAGE FILENAME.
+        TODO: Ensure that the first non-empty fits extension is the metadata table.
         '''
         
         # We get a list of images from the config file.
@@ -265,6 +277,10 @@ class CookieCutter(object):
                                                                           ('startpos',int),
                                                                           ('skylevel',float]))
         info_index = 0
+        
+        # The first non-empty extension should be the metadata table.
+        fits.create_table_hdu(data=object_info_table,extname='META')
+
                                                         
         for image_index,image in enumerate(images):
             
@@ -281,9 +297,10 @@ class CookieCutter(object):
 
 
             
-            science_image_dimensions = (2,npix) # one dimension for data, one dimension for sky.
+            science_image_dimensions = (1,npix) # one dimension for data, one dimension for sky.
             mask_image_dimensions = (1,npix)
 
+            
             # Store each image's cutouts in a new extension.
             # Because the image and background have different datatypes to the mask,
             # we need two different extensions.
@@ -335,8 +352,6 @@ class CookieCutter(object):
                 
                 npix_sci_written = npix_sci_written + sky_cutout.size
                 info_index = info_index+1
+        fits['META'].write(object_info_table)
         fits.close()
-
-        # Finally, write the ancillary table we'll need to interpret the data to the last extension.
-        fitsio.write(self.config['objectinfo output'],object_info_table)
         
