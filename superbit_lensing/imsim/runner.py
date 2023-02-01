@@ -617,13 +617,13 @@ class ImSimRunner(object):
 
                     # Objects are assigned immediately since we set all injection
                     # fractions during construction. Otherwise would have to wait
-                    obj_list.assign_mixed_grid_positions(
+                    obj_list.assign_mixed_grid_positions(self.base_image,
                         mixed_grid
                         )
 
                 else:
                     # mixed_grid already created & positions assigned
-                    obj_list.assign_mixed_grid_positions(
+                    obj_list.assign_mixed_grid_positions(self.base_image,
                         mixed_grid
                         )
 

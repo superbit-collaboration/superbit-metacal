@@ -167,7 +167,7 @@ class SourceClass(object):
 
         return
 
-    def assign_mixed_grid_positions(self, mixed_grid):
+    def assign_mixed_grid_positions(self,image, mixed_grid):
         '''
         Assign positions from an existing MixedGrid
 
@@ -183,13 +183,14 @@ class SourceClass(object):
             mixed_grid.pos[self.obj_type],
             mixed_grid.im_pos[self.obj_type],
             mixed_grid.pos_unit,
+          image
         )
         self.grid = mixed_grid
-        assert self.pos.shape[0] == self.Nobjs
+        assert len(self.pos) == self.Nobjs
 
         return
 
-    def set_positions(self, pos_list, im_pos, pos_unit):
+    def set_positions(self, pos_list, im_pos, pos_unit, image):
         '''
         Set source positions with an explicit list. Useful if source positions
         are coupled between source classes, such as with a MixedGrid
@@ -202,10 +203,13 @@ class SourceClass(object):
             A GalSim angle unit class for the position list
         '''
 
-        self.pos = pos_list
+        lenpos=len(im_pos)
+
+        pos_list = [galsim.PositionD(im_pos[i,:]) for i in range(lenpos)]
+        self.pos = [image.wcs.toWorld(pos) for pos in pos_list]
         self.im_pos = im_pos
         self.pos_unit = pos_unit
-
+        
         return
 
     def _check_Nobjs(self):
