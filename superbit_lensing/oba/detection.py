@@ -249,6 +249,7 @@ class DetectionRunner(object):
         seg_name = f'{base}.sgm.fits'
         ctype = 'SEGMENTATION'
         check_arg = f'-CHECKIMAGE_TYPE {ctype} -CHECKIMAGE_NAME {seg_name}'
+        check_arg = ''
 
         cmd = ' '.join([
             'sex', image_args, config_arg, cat_arg, wgt_args, check_arg

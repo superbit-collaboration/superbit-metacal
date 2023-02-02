@@ -112,7 +112,7 @@ class CoaddRunner(object):
         self.make_coadds(logprint, overwrite=overwrite)
 
         logprint('Making detection image...')
-        self.make_detection_image(logprint)
+        self.make_detection_image(logprint, overwrite=overwrite)
 
         logprint('Collating coadd extensions...')
         self.collate_extensions(logprint)

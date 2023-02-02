@@ -247,7 +247,7 @@ def parse_image_file(image_file, image_type):
     conventions:
 
     SCI: {TARGET_NAME}_{EXP_TIME}_{BAND_INDEX}_{UTC}.fits
-    CAL: MASTER_{TYPE}_{EXP_TIME}_{UTC}.fits
+    CAL: master_{TYPE}_{EXP_TIME}_{UTC}.fits
 
     image_file: pathlib.Path
         The filepath of the raw image. Can be a processed image as
@@ -315,7 +315,7 @@ def parse_cal_image_file(image_file):
     Return a dictionary of calibration image parameters given a filename
 
     Raw calibration image filename convention:
-    MASTER_{TYPE}_{EXP_TIME}_{UTC}.fits
+    master_{TYPE}_{EXP_TIME}_{UTC}.fits
 
     image_file: pathlib.Path
         The filepath of the calibration image
