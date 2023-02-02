@@ -834,9 +834,11 @@ class ImSimRunner(object):
                     fname = f'{run_name}_{time}_{band}.fits'
                 elif fmt == 'oba':
                     # use SuperBIT onboard analysis format
+                    from superbit_lensing.oba import oba_io
                     time = int(datetime.now(timezone.utc).timestamp())
                     exp_time = self.config['observation']['exp_time']
-                    fname = f'{run_name}_{exp_time}_{band}_{time}.fits'
+                    bindx = oba_io.band2index(band)
+                    fname = f'{run_name}_{exp_time}_{bindx}_{time}.fits'
                 else:
                     # shouldn't happen, but a reminder for later
                     raise ValueError(f'fmt={fmt} is unregistered!')

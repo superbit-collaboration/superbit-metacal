@@ -88,7 +88,7 @@ def main(args):
     else:
         logprint(f'root_dir is {root_dir}')
 
-    io_manager = IOManager(root_dir=root_dir)
+    io_manager = IOManager(root_dir=root_dir, target_name=target_name)
     io_manager.print_dirs(logprint=logprint)
 
     #-----------------------------------------------------------------

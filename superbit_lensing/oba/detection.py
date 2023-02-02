@@ -248,7 +248,7 @@ class DetectionRunner(object):
         base = im_sci.split('.fits')[0]
         seg_name = f'{base}.sgm.fits'
         ctype = 'SEGMENTATION'
-        check_arg = f'-CHECKIMAGE_TYPE {ctype} -CHECKIMAGE_NAME  {seg_name}'
+        check_arg = f'-CHECKIMAGE_TYPE {ctype} -CHECKIMAGE_NAME {seg_name}'
 
         cmd = ' '.join([
             'sex', image_args, config_arg, cat_arg, wgt_args, check_arg

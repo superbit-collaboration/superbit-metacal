@@ -6,7 +6,7 @@ import fitsio
 from astropy.io import fits
 
 from superbit_lensing import utils
-from superbit_lensing.detection import SExtractorRunner
+from superbit_lensing.oba.oba_io import band2index
 
 import ipdb
 
@@ -131,9 +131,10 @@ class BackgroundRunner(object):
             logprint(f'Starting band {band}')
 
             cal_dir = (self.run_dir / band / 'cal/').resolve()
+            bindx = band2index(band)
 
             self.images[band] = glob(
-                str(cal_dir / f'{self.target_name}*_{band}_*_cal.fits')
+                str(cal_dir / f'{self.target_name}*_{bindx}_*_cal.fits')
                 )
 
             # to keep consistent convention with other modules, store as Paths

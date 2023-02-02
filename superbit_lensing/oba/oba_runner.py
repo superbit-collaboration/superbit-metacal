@@ -3,7 +3,7 @@ from copy import deepcopy
 import os
 
 from superbit_lensing import utils
-from oba_io import IOManager
+from oba_io import IOManager, BAND_INDEX
 from preprocess import PreprocessRunner
 from cals import CalsRunner
 from masking import MaskingRunner
@@ -33,20 +33,13 @@ class OBARunner(object):
         'astrometry',
         'coadd',
         'detection',
+        'cookiecutter'
         # ...
     ]
 
     # The QCC uses ints for the band when writing out the
     # exposure filenames
-    _bindx = {
-        'u': 0,
-        'b': 1,
-        'g': 2,
-        'dark': 3,
-        'r': 4,
-        'nir': 2,
-        'lum': 3
-    }
+    _bindx = BAND_INDEX
 
     _allowed_bands = _bindx.keys()
 
@@ -166,8 +159,7 @@ class OBARunner(object):
         registered IOManager
         '''
 
-        # for now, we only analyze cluster lensing targets
-        self.raw_dir = self.io_manager.RAW_CLUSTERS / self.target_name
+        self.raw_dir = self.io_manager.RAW_DATA
 
         return
 
@@ -189,10 +181,9 @@ class OBARunner(object):
         IOManager
         '''
 
-        # for now, we only analyze cluster lensing targets
-        clusters_dir = self.io_manager.OBA_CLUSTERS
+        oba_dir = self.io_manager.OBA_DIR
 
-        self.run_dir = clusters_dir / self.target_name
+        self.run_dir = oba_dir / self.target_name
 
         return
 
@@ -202,8 +193,7 @@ class OBARunner(object):
         given the registered IOManager
         '''
 
-        # for now, we only analyze cluster lensing targets
-        oba_results = self.io_manager.OBA_RESULTS / 'clusters'
+        oba_results = self.io_manager.OBA_RESULTS
 
         self.out_dir = oba_results / self.target_name
 
@@ -259,7 +249,7 @@ class OBARunner(object):
         4) Astrometry
         5) Coaddition (single-band & detection image)
         6) Source detection
-        7) MEDS-maker (or equivalent)
+        7) Cookie-Cutter (output MEDS-like format)
         8) Compression & cleanup
 
         NOTE: you can choose which subset of these steps to run using the
@@ -294,6 +284,10 @@ class OBARunner(object):
 
         self.logprint('\nStarting source detection')
         self.run_detection(overwrite=overwrite)
+
+        # TODO: Current refactor point!
+        # self.logprint('\nStarting cookie cutter ')
+        # self.run_cookie_cutter(overwrite=overwrite)
 
         self.logprint(f'\nOnboard analysis completed for target {target}')
 
@@ -448,6 +442,25 @@ class OBARunner(object):
 
         runner = DetectionRunner(
             self.configs['sextractor']['det'],
+            self.run_dir,
+            target_name=self.target_name
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
+
+        return
+
+    def run_cookie_cutter(self, overwrite=True):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        if 'cookiecutter' not in self.modules:
+            self.logprint('Skipping cookiecutter given config modules')
+            return
+
+        runner = CookieCutterRunner(
             self.run_dir,
             target_name=self.target_name
             )

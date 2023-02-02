@@ -32,12 +32,13 @@ class IOManager(object):
     Root data dir:
     RAW_DATA: /data/bit/science_images/
 
-    Raw cluster science images:
-    RAW_CLUSTERS: RAW_DATA/clusters/
+    NOTE: See below
+    RAW_TARGET: RAW_DATA
 
-    NOTE: Only if a target_name is passed:
-    Raw wl science images for a given target:
-    RAW_TARGET: RAW_CLUSTERS/{TARGET_NAME}/
+    NOTE: The following is for the old definition; *all* exposures
+    (other than cals) will now be pointed to RAW_DATA
+    # Raw wl science images for a given target (if passed):
+    # RAW_TARGET: RAW_DATA/{TARGET_NAME}/
 
     ----------------------------------------------------------------------
     On-board analysis
@@ -45,15 +46,12 @@ class IOManager(object):
     Root oba dir:
     OBA_DIR: /home/bit/oba_temp/
 
-    Root oba dir for clusters:
-    OBA_CLUSTERS: OBA_DIR/clusters/
-
     NOTE: Only if a target_name is passed:
     Temporary analysis dir for a given cluster target:
-    OBA_TARGET: OBA_CLUSTERS/{TARGET_NAME}/
+    OBA_TARGET: OBA_DIR/{TARGET_NAME}/
 
     Temporary analysis files per band for a given target:
-    OBA_CLUSTERS/{TARGET}/{BAND}/
+    OBA_DIR/{TARGET_NAME}/{BAND}/
 
     Possible bands are [‘u’, ‘b’, ‘g’, ‘r’, ‘nir’, ‘lum’, ‘det’]
 
@@ -108,10 +106,8 @@ class IOManager(object):
     _registered_dir_names = [
         'CAL_DATA',
         'RAW_DATA',
-        'RAW_CLUSTERS',
         'RAW_TARGET',
         'OBA_DIR',
-        'OBA_CLUSTERS',
         'OBA_TARGET',
         'OBA_RESULTS',
         ]
@@ -155,11 +151,10 @@ class IOManager(object):
             'DARKS': 'data/bit/master_darks/',
             'FLATS': 'data/bit/master_flats/',
             'RAW_DATA': 'data/bit/science_images/',
-            'RAW_CLUSTERS': 'data/bit/science_images/clusters/',
+            # NOTE: old definition
             'RAW_TARGET': None,
             'OBA_DIR': 'home/bit/oba_temp/',
             'OBA_TARGET': None,
-            'OBA_CLUSTERS': 'home/bit/oba_temp/clusters/',
             'OBA_RESULTS': 'data/bit/oba_results/',
             }
 
@@ -176,8 +171,10 @@ class IOManager(object):
         # we can add some convenience dirs
         if self.target_name is not None:
             target_defaults = {
-                'RAW_TARGET': self.registered_dirs['RAW_CLUSTERS'] / target_name,
-                'OBA_TARGET': self.registered_dirs['OBA_CLUSTERS'] / target_name
+                # NOTE: old definition!
+                # TODO: Relook at this!
+                'RAW_TARGET': self.registered_dirs['RAW_DATA'],
+                'OBA_TARGET': self.registered_dirs['OBA_DIR'] / self.target_name
             }
             for name, path in target_defaults.items():
                 self.registered_dirs[name] = path
@@ -205,11 +202,6 @@ class IOManager(object):
         return self._check_dir(name)
 
     @property
-    def RAW_CLUSTERS(self):
-        name = 'RAW_CLUSTERS'
-        return self._check_dir(name)
-
-    @property
     def RAW_TARGET(self):
         name = 'RAW_TARGET'
         return self._check_dir(name)
@@ -217,11 +209,6 @@ class IOManager(object):
     @property
     def OBA_DIR(self):
         name = 'OBA_DIR'
-        return self._check_dir(name)
-
-    @property
-    def OBA_CLUSTERS(self):
-        name = 'OBA_CLUSTERS'
         return self._check_dir(name)
 
     @property
@@ -259,7 +246,7 @@ def parse_image_file(image_file, image_type):
     Raw sci images and calibration images have different filename
     conventions:
 
-    SCI: {TARGET_NAME}_{EXP_TIME}_{BAND}_{UTC}.fits
+    SCI: {TARGET_NAME}_{EXP_TIME}_{BAND_INDEX}_{UTC}.fits
     CAL: MASTER_{TYPE}_{EXP_TIME}_{UTC}.fits
 
     image_file: pathlib.Path
@@ -295,7 +282,7 @@ def parse_sci_image_file(image_file):
     Return a dictionary of SCI image parameters given a filename
 
     Raw sci image filename convention:
-    {TARGET_NAME}_{EXP_TIME}_{BAND}_{UTC}.fits
+    {TARGET_NAME}_{EXP_TIME}_{BAND_INDEX}_{UTC}.fits
 
     image_file: pathlib.Path
         The filepath of the raw image. Can be a processed image as
@@ -317,7 +304,7 @@ def parse_sci_image_file(image_file):
     im_pars = {
         'target_name': '_'.join(features[0:-3]),
         'exp_time': int(features[-3]),
-        'band': features[-2],
+        'band': index2band(int(features[-2])),
         'utc': int(features[-1])
         }
 
@@ -433,7 +420,8 @@ def get_raw_files(search_dir, target_name, band=None):
         band_str = ''
     else:
         utils.check_type('band', band, str)
-        band_str = f'_{band}_'
+        bindx = band2index(band)
+        band_str = f'_{bindx}_'
 
     # for raw files, we want to ignore any temporary OBA files
     # that may have gotten written out to the same dir
@@ -450,6 +438,40 @@ def get_raw_files(search_dir, target_name, band=None):
         )
 
     return files
+
+#------------------------------------------------------------------------------
+# The SuperBIT convention for band indx <-> str mapping
+BAND_INDEX = {
+    0: 'u',
+    1: 'b',
+    2: 'g',
+    3: 'dark',
+    4: 'r',
+    5: 'nir',
+    6: 'lum',
+}
+
+def band2index(band):
+    '''
+    Convert a band str to the appropriate indx
+
+    band: str
+        The band str to convert
+    '''
+
+    inv = {v: k for k, v in BAND_INDEX.items()}
+
+    return inv[band]
+
+def index2band(indx):
+    '''
+    Convert a band str to the appropriate indx
+
+    indx: int
+        The band index to convert to a band str
+    '''
+
+    return BAND_INDEX[indx]
 
 # Various suffixes that get appended to temporary OBA files
 OBA_FILE_SUFFIXES = [
