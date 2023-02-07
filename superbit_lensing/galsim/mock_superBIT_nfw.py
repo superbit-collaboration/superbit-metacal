@@ -898,7 +898,7 @@ def main():
         # Set up a truth catalog during first image generation
         if i == 1:
             truth_file_name = os.path.join(sbparams.outdir,
-                                           f'{run_name}.fits')
+                    f'nfw_cl{sbparams.mass:.1e}_z{sbparams.nfw_z_halo:.2f}.fits')
             names = ['gal_num', 'cosmos_index','x_image', 'y_image',
                      'ra', 'dec', 'nfw_g1', 'nfw_g2',
                      'nfw_mu', 'redshift', 'flux',
@@ -1247,7 +1247,7 @@ def main():
     except OSError as e:
         logprint(f'OSError: {e}')
         raise e
-        
+
     # Log file was created before outdir is setup in some cases
     # If so, move from temp location to there
     if temp_log is True:
