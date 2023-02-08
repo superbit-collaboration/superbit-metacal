@@ -153,8 +153,8 @@ class MaskingRunner(object):
                                                           contrast=2,
                                                           cr_threshold=6,
                                                           neighbor_threshold=6,
-                                                          effective_gain=0.343,
-                                                          readnoise=2.08,
+                                                          effective_gain=0.343, # e-/ADU
+                                                          readnoise=2.08, # e- RMS
                                                           maxiter=2)
                 
                 # AND cosmic ray mask with the existing mask on cal file
