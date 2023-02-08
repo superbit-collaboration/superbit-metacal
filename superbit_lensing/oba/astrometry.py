@@ -178,17 +178,11 @@ class AstrometryRunner(object):
 
         hdr = fitsio.read_header(image_file, ext=wcs_ext)
 
-        w = WCS(image_file)
-        wcs_exist = (w.wcs.ctype[0] == '' and w.wcs.ctype[1] == '')
-        
-        if wcs_exist:
-            wcs = w
-        else: 
-            wcs = None
-        # try:
-        #     wcs = WCS(image_file)
-        # except KeyError as e:
-        #     wcs = None
+        req_keys = ['CRVAL1', 'CRVAL2', 'CRPIX1', 'CRPIX2', 'CTYPE1', 'CTYPE2']
 
-        return wcs
+        for key in req_keys:
+            if key not in hdr.keys():
+                return None
+        
+        return WCS(image_file)
 
