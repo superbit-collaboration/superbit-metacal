@@ -2,6 +2,7 @@ from pathlib import Path
 from glob import glob
 from astropy.wcs import WCS
 import fitsio
+import os
 
 from superbit_lensing import utils
 from superbit_lensing.oba.oba_io import band2index
@@ -140,6 +141,7 @@ class AstrometryRunner(object):
             images = self.images[band]
 
             Nimages = len(images)
+            
             for i, image in enumerate(images):
                 image_name = image.name
                 logprint(f'Starting {image_name}; {i+1} of {Nimages}')
@@ -157,8 +159,26 @@ class AstrometryRunner(object):
 
                 # TODO: Implement actual astrometry.net running!
                 logprint('WARNING: Astrometric registration not yet implemented!')
-                # wcs = ...
-                # self.wcs_solutions[image] = wcs
+
+                # Attempt 1: Try with a larger search radius around expected RA and DEC (10 degrees)
+                hdu = fitsio.read_header(image_name)
+                target_ra = float(hdu['TARGET_RA'])
+                target_dec = float(hdu['TARGET_DEC'])
+
+                wcs_dir = os.mkdir(f"{image_name}/wcs_try")
+                
+                wcs_cmd_0 = f"--overwrite --width 9602 --height 6498 --scale-units arcsecperpix"
+                wcs_cmd_1 = f"--scale-low 0.141 --scale-high 0.142 --no-plots --use-sextractor --cpulimit 90"
+                wcs_cmd_2 = f"--rdls none --solved none --corr none --index-xyls none --axy none --match none"
+                wcs_cmd_full = f"solve_field {image_name} {wcs_cmd_0} --ra {target_ra} --dec {target_dec}" \
+                                "--radius 10 --dir {wcs_dir} {wcs_cmd_1} {wcs_cmd_2}"
+
+                # Run WCS cmd
+                os.system(wcs_cmd_full)
+                new_file_list = glob(f"{wcs_dir}/*new*")
+
+                if len(new_file_list) != 0: # Astrometry.net worked
+                    self.wcs_solutions[image] = WCS(new_file_list[0])
 
         return
 
