@@ -198,7 +198,12 @@ class AstrometryRunner(object):
 
         hdr = fitsio.read_header(image_file, ext=wcs_ext)
 
-        req_keys = ['CRVAL1', 'CRVAL2', 'CRPIX1', 'CRPIX2', 'CTYPE1', 'CTYPE2']
+        req_keys = ['CTYPE1', 'CTYPE2',
+                    'CRVAL1', 'CRVAL2', 
+                    'CRPIX1', 'CRPIX2', 
+                    'CRUNIT1', 'CRUNIT2',
+                    'CD1_1', 'CD1_2',
+                    'CD2_1', 'CD2_2']
 
         for key in req_keys:
             if key not in hdr.keys():
