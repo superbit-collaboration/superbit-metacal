@@ -3,6 +3,7 @@ from glob import glob
 import os
 import numpy as np
 import fitsio
+import lacosmic
 
 from superbit_lensing import utils
 from superbit_lensing.oba.oba_io import band2index
@@ -131,7 +132,35 @@ class MaskingRunner(object):
         with self.masks entry
         '''
 
-        logprint('\nWARNING: Cosmic ray masking not yet implemented!\n')
+        logprint(f'Starting Cosmic Ray masking.\n')
+
+        for band in self.bands:
+            logprint(f'Starting band {band}')
+
+            cal_dir = (self.run_dir / band / 'cal/').resolve()
+            bindx = band2index(band)
+
+            cal_files = glob(
+                str(cal_dir / f'{self.target_name}*_{bindx}_*_cal.fits')
+                )
+
+            Nimages = len(cal_files)
+            logprint(f'Found {Nimages} images')
+
+            for cal_file in cal_files:
+                data = fitsio.read(cal_file, ext=0)
+                data_cr_corr, cr_mask = lacosmic.lacosmic(data=data.astype(np.float32),
+                                                          contrast=2,
+                                                          cr_threshold=6,
+                                                          neighbor_threshold=6,
+                                                          effective_gain=0.343,
+                                                          readnoise=2.08,
+                                                          maxiter=2)
+                
+                # AND cosmic ray mask with the existing mask on cal file
+                self.masks[cal_file] *= cr_mask
+
+        # logprint('\nWARNING: Cosmic ray masking not yet implemented!\n')
 
         return
 
