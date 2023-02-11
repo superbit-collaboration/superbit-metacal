@@ -60,11 +60,13 @@ def main(args):
     #-----------------------------------------------------------------
     # Logger setup
 
-    logfile = f'{target_name}_oba.log'
+    logdir = (Path(utils.get_test_dir()) / 'oba_test').resolve()
+    logfile = str(logdir / f'{target_name}_oba.log')
 
-    logdir = None
     log = utils.setup_logger(logfile, logdir=logdir)
     logprint = utils.LogPrint(log, vb)
+
+    logprint(f'Log is being saved at {logfile}')
 
     #-----------------------------------------------------------------
     # config setup
