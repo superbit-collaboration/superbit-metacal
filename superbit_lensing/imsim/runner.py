@@ -86,6 +86,8 @@ class ImSimRunner(object):
 
         # grab a few params important for running
         self.nexp = self.config['observation']['nexp']
+        self.target_ra = self.config['cluster']['center_ra']
+        self.target_dec = self.config['cluster']['center_dec']
 
         self.images = None
         self.weights = None
@@ -355,12 +357,15 @@ class ImSimRunner(object):
             transformation from image coords to the tangent plane coords
         '''
 
+        ra = self.target_ra
+        dec = self.target_dec
+
         ra_unit = self.config['cluster']['center_ra_unit']
         dec_unit = self.config['cluster']['center_dec_unit']
 
         sky_center = galsim.CelestialCoord(
-            ra=self.config['cluster']['center_ra'] * ra_unit,
-            dec=self.config['cluster']['center_dec'] * dec_unit
+            ra=(ra * ra_unit),
+            dec=(dec * dec_unit)
         )
 
         pixel_scale = self.pixel_scale
@@ -905,6 +910,15 @@ class ImSimRunner(object):
         return
 
     def _extend_sci_header(self, fits):
+        ra_unit = self.config['cluster']['center_ra_unit']
+        dec_unit = self.config['cluster']['center_dec_unit']
+
+        fits[0].write_key(
+            'TARGET_RA', self.target_ra, comment=f'{ra_unit}'
+            )
+        fits[0].write_key(
+            'TARGET_DEC', self.target_dec, comment=f'{dec_unit}'
+            )
         fits[0].write_key(
             'GAIN', self.config['detector']['gain'], comment='e-/ADU'
             )
