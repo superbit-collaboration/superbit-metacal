@@ -388,10 +388,12 @@ class OBARunner(object):
 
         return
 
-    def run_astrometry(self, overwrite=True):
+    def run_astrometry(self, overwrite=True, rerun=True):
         '''
         overwrite: bool
             Set to overwrite existing files
+        rerun: bool
+            Set to rerun astrometry even if WCS is in image header
         '''
 
         if 'astrometry' not in self.modules:
@@ -404,7 +406,7 @@ class OBARunner(object):
             target_name=self.target_name
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        runner.go(self.logprint, overwrite=overwrite, rerun=rerun)
 
         return
 

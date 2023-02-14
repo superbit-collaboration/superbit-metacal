@@ -86,7 +86,7 @@ class AstrometryRunner(object):
 
         # NOTE: check for existing WCS solutions is done inside method
         logprint('Registering images...')
-        self.register_images(logprint)
+        self.register_images(logprint, rerun=rerun)
 
         return
 
