@@ -1,0 +1,32 @@
+global input path: /Users/sweveret/repos/superbit-metacal/tests/oba_test/home/bit/oba_temp/test_target/
+input catalog:
+  filename: det/coadd/test_target_coadd_det_cat.fits
+  file extension: 1
+  ra tag: RA
+  dec tag: DEC
+  boxsize tag: boxsize
+
+input catalog file extension: 1
+global output path: ./
+output filename: test-cookie-cutter.fits
+
+images:
+  file1:
+    image_file: test_target_600_1_1676405090.fits
+    imageext: 0
+    weight_file: test_target_600_1_1676405090.fits
+    weightext: 1
+    mask_file: test_target_600_1_1676405090.fits
+    maskext: 2
+    # seg_file: test_target_600_1_1676405090.fits
+    # segext: 3
+  file2:
+    image_file: test_target_600_1_1676405088.fits
+    imageext: 0
+    weight_file: test_target_600_1_1676405088.fits
+    weightext: 1
+    mask_file: test_target_600_1_1676405088.fits
+    maskext: 2
+    # seg_file: test_target_600_1_1676405088.fits
+    # segext: 3
+  # ...
