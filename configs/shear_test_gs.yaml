@@ -90,22 +90,18 @@ galaxies:
   flux_max: 1e3
   Nobjs: 1000 # used for random position sampling
 
-
 position_sampling:
-  galaxies:
-    type: 'random'
-  stars:
-    type: 'random'
 # position_sampling:
-#   galaxies:
-#     type: MixedGrid
-#     grid_type: HexGrid
-#     grid_spacing: 40 # arcsec
-#     fraction: 0.8
-#   stars:
-#     type: MixedGrid
-#     fraction: 0.2
-#   # TODO: fill in the rest of the required fields!
+  galaxies:
+    # type: 'random'
+    type: MixedGrid
+    grid_type: HexGrid
+    grid_spacing: 40 # arcsec
+    fraction: 0.8
+  stars:
+    # type: 'random'
+    type: MixedGrid
+    fraction: 0.2
 
 shear:
   type: constant

@@ -538,15 +538,6 @@ class ImSimRunner(object):
 
         ps = self.config['position_sampling'].copy()
 
-        # if isinstance(ps, str):
-        #     if ps == 'random':
-        #         for name, obj_class in self.objects.items():
-        #             obj_class.assign_random_positions(self.base_image)
-        #     else:
-        #         raise ValueError('position_sampling can only be a str if ' +
-        #                          'set to `random`!')
-
-        #elif isinstance(ps, dict):
         _allowed_objs = ['galaxies', 'cluster_galaxies', 'stars']
 
         # used if at least one source type is on a grid
@@ -630,9 +621,6 @@ class ImSimRunner(object):
             else:
                 # An error should have already occured, but just in case:
                 raise ValueError('Position sampling type {} is not valid!'.format(gtype))
-
-        #else:
-        #    raise TypeError('position_sampling must either be a str or dict!')
 
         Nobjs_all = 0
         for obj_type, obj in self.objects.items():

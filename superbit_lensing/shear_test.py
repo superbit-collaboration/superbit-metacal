@@ -52,7 +52,7 @@ def make_test_pipe_config(gs_config, select_config, outfile='shear_test.yaml',
                           imsim='imsim', outdir=None, overwrite=False):
     '''
     Create a basic yaml config file that tests whether the shear calibration
-    succeeds in a simplified setting (low noise, objects on a shear, etc.)
+    succeeds in a simplified setting (low noise, objects on a grid, etc.)
 
     gs_config: str
         The filename of the galsim config file to use
@@ -294,7 +294,7 @@ def make_test_selection_config(outfile='shear_test_select.yaml',
     return filename
 
 def main(args):
-    ipdb.set_trace()
+
     pipe_config_file = args.pipe_config
     path_config_file = args.path_config
     selection_config_file = args.selection_config
