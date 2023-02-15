@@ -8,3 +8,8 @@ modules:
   - astrometry
   - coadd
   - detection
+
+masking:
+  types:
+    - cosmic_rays
+    - satellites

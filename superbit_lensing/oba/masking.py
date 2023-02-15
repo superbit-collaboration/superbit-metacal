@@ -23,7 +23,14 @@ class MaskingRunner(object):
     ext2: MSK (mask; 1 if masked, 0 otherwise)
     '''
 
-    def __init__(self, run_dir, bands, target_name=None):
+    # by default, do *all* masking steps
+    # NOTE: hot pixels & "active region" masks are handled in cals
+    _default_mask_types = [
+        'cosmic_rays',
+        'satellites'
+    ]
+
+    def __init__(self, run_dir, bands, target_name=None, mask_types=None):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -32,6 +39,9 @@ class MaskingRunner(object):
         target_name: str
             The name of the target. Default is to use the end of
             run_dir
+        mask_types: list of str's
+            A list of mask types to include in the masking scheme. See the
+            class variable `default_mask_types` for the full list
         '''
 
         args = {
@@ -49,6 +59,18 @@ class MaskingRunner(object):
 
         utils.check_type('target_name', target_name, str)
         self.target_name = target_name
+
+        default_mtypes = self._default_mask_types
+        if mask_types is None:
+            mask_types = default_mtypes
+
+        utils.check_type('mask_types', mask_types, list)
+        for mtype in mask_types:
+            utils.check_type('mask_type', mtype, str)
+            if mtype not in default_mtypes:
+                raise ValueError(f'{mtype} not a registered mask type! ' +
+                                 f'Must be one of {default_mtypes}')
+        self.mask_types = mask_types
 
         # this dictionary will store the mask arrays for each image, indexed
         # by sci_cal filename
@@ -80,11 +102,17 @@ class MaskingRunner(object):
         logprint('Initializing masks...')
         self.initialize_masks(logprint)
 
-        logprint('Masking cosmic rays...')
-        self.mask_cosmic_rays(logprint)
+        if 'cosmic_rays' in self.mask_types:
+            logprint('Masking cosmic rays...')
+            self.mask_cosmic_rays(logprint)
+        else:
+            logprint('Skipping cosmic ray masking given config file')
 
-        logprint('Masking satellite trails...')
-        self.mask_satellite_trails(logprint)
+        if 'satellites' in self.mask_types:
+            logprint('Masking satellite trails...')
+            self.mask_satellite_trails(logprint)
+        else:
+            logprint('Skipping satellite trail masking given config file')
 
         return
 
@@ -146,7 +174,10 @@ class MaskingRunner(object):
             for cal_file in self.masks.keys():
                 logprint(f'Running lacosmic on {cal_file.name}')
 
-                data = fitsio.read(str(cal_file), ext=sci_ext)
+                data, hdr = fitsio.read(
+                    str(cal_file), ext=sci_ext, header=True
+                    )
+                gain = hdr['GAIN']
 
                 # TODO: can we move some of these pars to a config?
                 data_cr_corr, cr_mask = lacosmic(
@@ -154,7 +185,8 @@ class MaskingRunner(object):
                     contrast=2,
                     cr_threshold=6,
                     neighbor_threshold=6,
-                    effective_gain=0.343, # e-/ADU
+                    effective_gain=gain, # e-/ADU (0.343 for SB)
+                    # TODO: generalize the readnoise val!
                     readnoise=2.08, # e- RMS
                     maxiter=2
                     )

@@ -21,8 +21,12 @@ class OBARunner(object):
     '''
 
     # fields for the config file
-    _req_fields = ['modules']
-    _opt_fields = {}
+    _req_fields = [
+        'modules'
+        ]
+    _opt_fields = {
+        'masking': None,
+        }
 
     # if no config is passed, use the default modules list
     _default_modules = [
@@ -357,10 +361,19 @@ class OBARunner(object):
             self.logprint('Skipping image masking given config modules')
             return
 
+
+        # TODO: right now we only do this for the masking step, but can
+        # generalize for each module
+        try:
+            mask_types = self.config['masking']['types']
+        except KeyError:
+            mask_types = None
+
         runner = MaskingRunner(
             self.run_dir,
             self.bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            mask_types=mask_types
             )
 
         runner.go(self.logprint, overwrite=overwrite)
