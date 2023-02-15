@@ -28,7 +28,7 @@ def parse_args():
                         help='Truth file containing redshifts')
     parser.add_argument('-nfw_file', type=str, default=None,
                         help='Theory NFW shear catalog')
-    parser.add_argument('-Nresample', type=int, default=100,
+    parser.add_argument('-Nresample', type=int, default=10,
                         help='The number of NFW redshift resamples to compute')
     parser.add_argument('-rmin', type=float, default=100,
                         help='Starting radius value (in pixels)')
@@ -258,7 +258,7 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 0.5
+        min_Tpsf = 1.0
         max_sn = 1000
         min_sn = 10
         min_T = 0.0

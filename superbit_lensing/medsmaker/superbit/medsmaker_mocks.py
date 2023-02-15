@@ -1,6 +1,7 @@
 import numpy as np
 import meds
 import os
+import psfex
 from astropy.io import fits
 import string
 from pathlib import Path
@@ -750,10 +751,11 @@ class BITMeasurement():
             # Do more standard stellar locus matching
             # Would be great to have stellar_locus_params be more customizable...
             outname = sscat.replace('.ldac','stars.ldac')
-            self.logprint("Selecting analysis objects on CLASS_STAR...")
+            self.logprint("Selecting stars on CLASS_STAR...")
             wg_stars = (ss['CLASS_STAR']>star_params['CLASS_STAR']) & \
-            (ss['SNR_WIN']>star_params['MIN_SNR'])
-            ss[wg_stars].write(outname,format='fits',overwrite=True)
+            (ss['SNR_WIN']>star_params['MIN_SNR']) & \
+            (ss['FWHM_IMAGE']>star_params['MIN_SIZE'])
+            ss[wg_stars].write(outname, format='fits', overwrite=True)
 
         return outname
 

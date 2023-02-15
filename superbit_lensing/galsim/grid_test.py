@@ -22,6 +22,7 @@ import time
 import galsim
 import galsim.des
 import galsim.convolve
+import pdb, pudb
 from glob import glob
 import pickle
 import scipy
@@ -38,8 +39,6 @@ from multiprocessing import Pool
 
 import superbit_lensing.utils as utils
 
-import ipdb
-
 def parse_args():
     parser = ArgumentParser()
 
@@ -53,7 +52,7 @@ def parse_args():
                         help='Number of cores to use for multiproessing')
     parser.add_argument('--mpi', action='store_true', default=False,
                         help='Use to turn on mpi')
-    parser.add_argument('--overwrite', action='store_true', default=False,
+    parser.add_argument('--clobber', action='store_true', default=False,
                         help='Turn on to overwrite existing files')
     parser.add_argument('--vb', action='store_true', default=False,
                         help='Turn on for verbose prints')
@@ -236,14 +235,11 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, psf, sbparams, logprint, obj
                         flux = gal_flux,
                         half_light_radius = half_light_radius)
 
-    gal = gal.shear(q = q, beta = phi)
+    # TURNED OFF: We don't add shapes for a grid test
+    # gal = gal.shear(q = q, beta = phi)
     logprint.debug('created galaxy')
 
-    ## Apply a random rotation
-    theta = ud()*2.0*np.pi*galsim.radians
-    gal = gal.rotate(theta)
-
-    ## Apply a random rotation
+    # Apply a random rotation
     theta = ud()*2.0*np.pi*galsim.radians
     gal = gal.rotate(theta)
 
@@ -265,7 +261,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, psf, sbparams, logprint, obj
     stamp.setCenter(image_pos.x,image_pos.y)
     logprint.debug('drew & centered galaxy!')
     galaxy_truth=truth()
-    galaxy_truth.cosmos_index = cosmos_cat[index]['col0']
+    galaxy_truth.cosmos_index = index
     galaxy_truth.ra=ra.deg; galaxy_truth.dec=dec.deg
     galaxy_truth.x=image_pos.x; galaxy_truth.y=image_pos.y
     galaxy_truth.g1=g1; galaxy_truth.g2=g2
@@ -403,10 +399,10 @@ def make_a_star(ud, pud, k, wcs, affine, psf, sbparams, logprint, obj_index=None
     index = obj_index - 1
 
     if sbparams.star_cat is not None:
-        if sbparams.bandpass in ['crates_lum', 'crates_shape']:
+        if sbparams.bandpass=='crates_lum':
             star_flux = sbparams.star_cat['bitflux_electrons_lum'][index]
 
-        elif sbparams.bandpass in ['crates_b', 'crates_u']:
+        elif sbparams.bandpass=='crates_b':
             star_flux = sbparams.star_cat['bitflux_electrons_b'][index]
 
         else:
@@ -583,8 +579,6 @@ class SuperBITParameters:
                 self.cat_file_name = str(value)
             elif option == "fit_file_name":
                 self.fit_file_name = str(value)
-            elif option == "cluster_cat_dir":
-                self.cluster_cat_dir= str(value)
             elif option == "cluster_cat_name":
                 self.cluster_cat_name = str(value)
             elif option == "star_cat_name":
@@ -619,8 +613,8 @@ class SuperBITParameters:
                 self.jitter_fwhm=float(value)
             elif option == "run_name":
                 self.run_name=str(value)
-            elif option == "overwrite":
-                self.overwrite=bool(value)
+            elif option == "clobber":
+                self.clobber=bool(value)
             elif option == "mpi":
                 self.mpi = bool(value)
             elif option == "ncores":
@@ -667,11 +661,6 @@ class SuperBITParameters:
         self.flux_scaling = (sbit_eff_area/hst_eff_area) * self.exp_time
         if not hasattr(self,'jitter_fwhm'):
             self.jitter_fwhm = 0.1
-
-        if hasattr(self, 'cluster_cat_dir'):
-            self.cluster_cat_name = os.path.join(
-                self.cluster_cat_dir, self.cluster_cat_name
-                )
 
         return
 
@@ -851,7 +840,7 @@ def main(args):
     run_name = args.run_name
     mpi = args.mpi
     ncores = args.ncores
-    clobber = args.overwrite
+    clobber = args.clobber
     vb = args.vb
 
     start_time = time.time()
@@ -939,7 +928,7 @@ def main(args):
 
         psf = galsim.Convolve([jitter_psf, optics])
 
-        logprint('\nuse_optics is True; convolving telescope optics PSF profile\n')
+        logprint('\n Use_optics is True; convolving telescope optics PSF profile\n')
 
     ###
     ### Make generic WCS

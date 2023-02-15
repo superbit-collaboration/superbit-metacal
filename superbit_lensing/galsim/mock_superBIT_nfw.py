@@ -22,7 +22,7 @@ import time
 import galsim
 import galsim.des
 import galsim.convolve
-import pdb, pudb
+import pdb
 from glob import glob
 import scipy
 import yaml
@@ -898,7 +898,8 @@ def main():
         # Set up a truth catalog during first image generation
         if i == 1:
             truth_file_name = os.path.join(sbparams.outdir,
-                                           f'{run_name}.fits')
+                    f'nfw_cl{sbparams.mass:.1e}_z{sbparams.nfw_z_halo:.2f}.fits')
+                                                               
             names = ['gal_num', 'cosmos_index','x_image', 'y_image',
                      'ra', 'dec', 'nfw_g1', 'nfw_g2',
                      'nfw_mu', 'redshift', 'flux',

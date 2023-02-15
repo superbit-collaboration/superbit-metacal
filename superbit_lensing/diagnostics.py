@@ -232,10 +232,32 @@ class MetacalDiagnostics(TruthDiagnostics):
 
         self._setup_matched_cat(outfile)
 
+<<<<<<< .merge_file_MTizga
         # ...
 
         return
 
+=======
+        self.plot_shear_calibration_g1g2(run_options, logprint)
+
+        return
+
+    def plot_shear_calibration_g1g2(self, run_options, logprint):
+        outdir = self.config['outdir']
+        outfile = os.path.join(outdir, self.config['outfile'])
+
+        shear_file = self.config['outfile']
+        true_file = self.truth_file
+        run_name = run_options['run_name']
+        out_dir = self.plot_outdir
+        vb = run_options['vb']
+
+        # TODO: finish! (on new PR)
+        # os.
+
+        return
+
+>>>>>>> .merge_file_Ulr6EY
 class MetacalV2Diagnostics(MetacalDiagnostics):
     pass
 
@@ -301,7 +323,11 @@ class ShearProfileDiagnostics(TruthDiagnostics):
         run_name = run_options['run_name']
 
         shear_script = os.path.join(self.outdir, 'diagnostic_shear_calibration.py')
+<<<<<<< .merge_file_MTizga
         annular_file = os.path.join(self.outdir, 'transformed_shear_tab.fits')
+=======
+        annular_file = os.path.join(self.outdir, self.config['outfile'])
+>>>>>>> .merge_file_Ulr6EY
         truth_file = self.truth_file
         outdir = self.plot_outdir
 
