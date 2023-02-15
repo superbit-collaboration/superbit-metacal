@@ -113,16 +113,18 @@ class SourceClass(object):
         if self.Nobjs > 0:
             shape = (self.Nobjs, 2)
             self.pos = np.zeros(shape)
-            self.pos_im = np.zeros(shape)
+            self.im_pos = np.zeros(shape)
 
-            for i, Npix in enumerate(image.array.shape):
-                self.im_pos[i] = np.random.rand(self.Nobjs) * Npix
+            for i, Npix in enumerate(image.array.T.shape):
+                # NOTE: This technically needs a dec correction!
+                self.im_pos[:,i] = np.random.rand(self.Nobjs) * Npix
 
             # NOTE: 1 for fits-like origin. That is how we initialized
             # the galsim Image / WCS
             # TODO: check this bit
-            # self.pos = image.wcs.wcs_pix2world(self.im_pos, 1)
-            self.pos = image.wcs.toWorld(self.im_pos).radian
+            lenpos = len(self.im_pos)
+            pos_im = [galsim.PositionD(self.im_pos[i,:]) for i in range(lenpos)]
+            self.pos = [image.wcs.toWorld(pos) for pos in pos_im]
             self.pos_unit = galsim.radians
 
         return
@@ -165,10 +167,13 @@ class SourceClass(object):
 
         return
 
-    def assign_mixed_grid_positions(self, mixed_grid):
+    def assign_mixed_grid_positions(self, image, mixed_grid):
         '''
         Assign positions from an existing MixedGrid
 
+        image: galsim.Image
+            A galsim image object. Assigned positions are done relative
+            to this image (which has bounds, wcs, etc.)
         mixed_grid: grid.MixedGrid
             A MixedGrid instance that has already assigned
             positions for each obj_type
@@ -181,13 +186,15 @@ class SourceClass(object):
             mixed_grid.pos[self.obj_type],
             mixed_grid.im_pos[self.obj_type],
             mixed_grid.pos_unit,
+            image
         )
+
         self.grid = mixed_grid
-        assert self.pos.shape[0] == self.Nobjs
+        assert len(self.pos) == self.Nobjs
 
         return
 
-    def set_positions(self, pos_list, im_pos, pos_unit):
+    def set_positions(self, pos_list, im_pos, pos_unit, image):
         '''
         Set source positions with an explicit list. Useful if source positions
         are coupled between source classes, such as with a MixedGrid
@@ -198,9 +205,15 @@ class SourceClass(object):
             An array of object positions in *image* coords
         pos_unit: galsim.Angle
             A GalSim angle unit class for the position list
+        image: galsim.Image
+            A galsim image object. Assigned positions are done relative
+            to this image (which has bounds, wcs, etc.)
         '''
 
-        self.pos = pos_list
+        lenpos = len(im_pos)
+
+        pos_list = [galsim.PositionD(im_pos[i,:]) for i in range(lenpos)]
+        self.pos = [image.wcs.toWorld(pos) for pos in pos_list]
         self.im_pos = im_pos
         self.pos_unit = pos_unit
 
@@ -270,18 +283,15 @@ class SourceClass(object):
                 batch_indices = utils.setup_batches(self.Nobjs, ncores)
                 seeds = utils.generate_seeds(ncores, master_seed=self.seed)
 
+                args = [self.get_make_obj_args(
+                        batch_indices, band, run_config, image, psf,
+                        shear, logprint, k
+                    ) for k in range(ncores)]
+
                 self.collate_objs(
                     exp,
                     band,
-                    pool.starmap(
-                        self.make_obj_runner,
-                        ([
-                            self.get_make_obj_args(
-                                batch_indices, band, run_config, image, psf,
-                                shear, logprint, k
-                                ) for k in range(ncores)
-                        ])
-                    )
+                    pool.starmap(self.make_obj_runner, args)
                 )
 
         dt = time.time() - start
@@ -360,8 +370,8 @@ class SourceClass(object):
         for i, stamp, truth in self.obj_list[band][new_exp]:
             if (stamp is None) or (truth is None):
                 continue
-            ra, dec = self.pos[i]
-            world_pos = galsim.CelestialCoord(ra*unit, dec*unit)
+            ra, dec = self.pos[i].ra, self.pos[i].dec
+            world_pos = galsim.CelestialCoord(ra, dec)
             image_pos = image.wcs.toImage(world_pos)
 
             try:
@@ -584,7 +594,8 @@ class CircleGalaxies(SourceClass):
         obj, lens_pars = shear.lens(obj, return_lens_pars=True)
         g1, g2, mu = lens_pars['g1'], lens_pars['g2'], lens_pars['mu']
 
-        pos = [p*pos_unit for p in pos]
+        #pos = [p*pos_unit for p in pos]
+        pos = [pos.ra, pos.dec]
         obj_stamp = super(CircleGalaxies, cls)._render_obj(
             obj, psf, image, pos
             )
@@ -861,7 +872,7 @@ class GAIAStars(SourceClass):
         # No shear for stars!
         # obj = shear.lens(obj)
 
-        pos = [p*pos_unit for p in pos]
+        pos = [pos.ra, pos.dec]
         obj_stamp = super(GAIAStars, cls)._render_obj(
             obj, psf, image, pos
             )

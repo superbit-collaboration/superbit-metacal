@@ -6,7 +6,7 @@ import fitsio
 from astropy.io import fits
 
 from superbit_lensing import utils
-from superbit_lensing.detection import SExtractorRunner
+from superbit_lensing.oba.oba_io import band2index
 
 import ipdb
 
@@ -131,9 +131,10 @@ class BackgroundRunner(object):
             logprint(f'Starting band {band}')
 
             cal_dir = (self.run_dir / band / 'cal/').resolve()
+            bindx = band2index(band)
 
             self.images[band] = glob(
-                str(cal_dir / f'{self.target_name}*_{band}_*_cal.fits')
+                str(cal_dir / f'{self.target_name}*_{bindx}_*_cal.fits')
                 )
 
             # to keep consistent convention with other modules, store as Paths
@@ -226,8 +227,8 @@ class BackgroundRunner(object):
         if isinstance(image_file, str):
             image_file = Path(image_file)
 
-        # want to save one dir up from the `band/cals/` dir
-        cat_dir = image_file.parents[1] / 'cats/'
+        # want to save one dir up from the `band/cal/` dir
+        cat_dir = image_file.parents[1] / 'cat/'
         utils.make_dir(str(cat_dir))
 
         cat_name = image_file.name.replace('.fits', '_cat.fits')
@@ -397,7 +398,7 @@ class BackgroundRunner(object):
             The SExtractor BACKGROUND_RMS check-image
         '''
 
-        # the initial weight map saved during the call to cals.py is just
+        # the initial weight map saved during the call to cal.py is just
         # the complement of the mask. Thus the weight map should now be
         # just the background RMS map with masked pixels given zero weight
         new_wgt = 1. / bkg_rms**2

@@ -3,13 +3,14 @@ from copy import deepcopy
 import os
 
 from superbit_lensing import utils
-from oba_io import IOManager
+from oba_io import IOManager, BAND_INDEX
 from preprocess import PreprocessRunner
 from cals import CalsRunner
 from masking import MaskingRunner
 from background import BackgroundRunner
 from astrometry import AstrometryRunner
 from coadd import CoaddRunner
+from detection import DetectionRunner
 
 import ipdb
 
@@ -20,8 +21,12 @@ class OBARunner(object):
     '''
 
     # fields for the config file
-    _req_fields = ['modules']
-    _opt_fields = {}
+    _req_fields = [
+        'modules'
+        ]
+    _opt_fields = {
+        'masking': None,
+        }
 
     # if no config is passed, use the default modules list
     _default_modules = [
@@ -32,20 +37,13 @@ class OBARunner(object):
         'astrometry',
         'coadd',
         'detection',
+        'cookiecutter'
         # ...
     ]
 
     # The QCC uses ints for the band when writing out the
     # exposure filenames
-    _bindx = {
-        'u': 0,
-        'b': 1,
-        'g': 2,
-        'dark': 3,
-        'r': 4,
-        'nir': 2,
-        'lum': 3
-    }
+    _bindx = BAND_INDEX
 
     _allowed_bands = _bindx.keys()
 
@@ -165,8 +163,7 @@ class OBARunner(object):
         registered IOManager
         '''
 
-        # for now, we only analyze cluster lensing targets
-        self.raw_dir = self.io_manager.RAW_CLUSTERS / self.target_name
+        self.raw_dir = self.io_manager.RAW_DATA
 
         return
 
@@ -188,10 +185,9 @@ class OBARunner(object):
         IOManager
         '''
 
-        # for now, we only analyze cluster lensing targets
-        clusters_dir = self.io_manager.OBA_CLUSTERS
+        oba_dir = self.io_manager.OBA_DIR
 
-        self.run_dir = clusters_dir / self.target_name
+        self.run_dir = oba_dir / self.target_name
 
         return
 
@@ -201,8 +197,7 @@ class OBARunner(object):
         given the registered IOManager
         '''
 
-        # for now, we only analyze cluster lensing targets
-        oba_results = self.io_manager.OBA_RESULTS / 'clusters'
+        oba_results = self.io_manager.OBA_RESULTS
 
         self.out_dir = oba_results / self.target_name
 
@@ -222,7 +217,8 @@ class OBARunner(object):
         swarp_dir = configs_dir / 'swarp/'
 
 
-        # NOTE: for now, just a single config, but can be updated
+        # NOTE: for now, just a single config, but can be updated for
+        # multi-band if needed
         self.configs['swarp'] = swarp_dir / 'swarp.config'
 
         self.configs['sextractor'] = {}
@@ -230,6 +226,10 @@ class OBARunner(object):
         for band in self.bands:
             self.configs['sextractor'][band] = sex_dir / \
                 f'sb_sextractor_{band}.config'
+
+        # treat `det` as a derived band
+        self.configs['sextractor']['det'] = sex_dir / \
+                'sb_sextractor_det.config'
 
         # Some extra SExtractor config files
         self.configs['sextractor']['param'] = sex_dir / 'sb_sextractor.param'
@@ -253,7 +253,7 @@ class OBARunner(object):
         4) Astrometry
         5) Coaddition (single-band & detection image)
         6) Source detection
-        7) MEDS-maker
+        7) Cookie-Cutter (output MEDS-like format)
         8) Compression & cleanup
 
         NOTE: you can choose which subset of these steps to run using the
@@ -285,6 +285,13 @@ class OBARunner(object):
 
         self.logprint('\nStarting coaddition')
         self.run_coaddition(overwrite=overwrite)
+
+        self.logprint('\nStarting source detection')
+        self.run_detection(overwrite=overwrite)
+
+        # TODO: Current refactor point!
+        # self.logprint('\nStarting cookie cutter ')
+        # self.run_cookie_cutter(overwrite=overwrite)
 
         self.logprint(f'\nOnboard analysis completed for target {target}')
 
@@ -354,10 +361,19 @@ class OBARunner(object):
             self.logprint('Skipping image masking given config modules')
             return
 
+
+        # TODO: right now we only do this for the masking step, but can
+        # generalize for each module
+        try:
+            mask_types = self.config['masking']['types']
+        except KeyError:
+            mask_types = None
+
         runner = MaskingRunner(
             self.run_dir,
             self.bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            mask_types=mask_types
             )
 
         runner.go(self.logprint, overwrite=overwrite)
@@ -385,10 +401,12 @@ class OBARunner(object):
 
         return
 
-    def run_astrometry(self, overwrite=True):
+    def run_astrometry(self, overwrite=True, rerun=True):
         '''
         overwrite: bool
             Set to overwrite existing files
+        rerun: bool
+            Set to rerun astrometry even if WCS is in image header
         '''
 
         if 'astrometry' not in self.modules:
@@ -401,7 +419,7 @@ class OBARunner(object):
             target_name=self.target_name
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        runner.go(self.logprint, overwrite=overwrite, rerun=rerun)
 
         return
 
@@ -420,6 +438,45 @@ class OBARunner(object):
             self.run_dir,
             self.bands,
             self.det_bands,
+            target_name=self.target_name
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
+
+        return
+
+    def run_detection(self, overwrite=True):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        if 'detection' not in self.modules:
+            self.logprint('Skipping detection given config modules')
+            return
+
+        runner = DetectionRunner(
+            self.configs['sextractor']['det'],
+            self.run_dir,
+            target_name=self.target_name
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
+
+        return
+
+    def run_cookie_cutter(self, overwrite=True):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        if 'cookiecutter' not in self.modules:
+            self.logprint('Skipping cookiecutter given config modules')
+            return
+
+        runner = CookieCutterRunner(
+            self.run_dir,
             target_name=self.target_name
             )
 

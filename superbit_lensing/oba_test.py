@@ -113,7 +113,7 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
                 'run_diagnostics': True,
                 'overwrite': overwrite,
                 'order': [
-                    'imsim',
+                    # 'imsim',
                     'oba',
                     ]
                 },
@@ -193,10 +193,10 @@ def setup_oba_dirs(root_dir, target_name, overwrite=False):
 
     io_manager = IOManager(root_dir=root_dir)
 
-    raw_clusters_dir = io_manager.RAW_CLUSTERS
-    utils.make_dir(raw_clusters_dir)
+    raw_dir = io_manager.RAW_DATA
 
-    target_dir = raw_clusters_dir / target_name
+    # NOTE: OLD! The QCC will no longer have a targe_name dir for each target
+    target_dir = raw_dir
     utils.make_dir(target_dir)
 
     # calibration frames
@@ -225,7 +225,7 @@ def setup_oba_dirs(root_dir, target_name, overwrite=False):
 
             shutil.copy(cal_file, outfile)
 
-    return target_dir
+    return target_dir / 'imsim'
 
 def main(args):
 

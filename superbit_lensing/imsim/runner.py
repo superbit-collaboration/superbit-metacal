@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timezone
 from astropy.table import Table, vstack, hstack, join
 from argparse import ArgumentParser
+from copy import copy
 
 from superbit_lensing import utils
 
@@ -86,6 +87,8 @@ class ImSimRunner(object):
 
         # grab a few params important for running
         self.nexp = self.config['observation']['nexp']
+        self.target_ra = self.config['cluster']['center_ra']
+        self.target_dec = self.config['cluster']['center_dec']
 
         self.images = None
         self.weights = None
@@ -355,12 +358,15 @@ class ImSimRunner(object):
             transformation from image coords to the tangent plane coords
         '''
 
+        ra = self.target_ra
+        dec = self.target_dec
+
         ra_unit = self.config['cluster']['center_ra_unit']
         dec_unit = self.config['cluster']['center_dec_unit']
 
         sky_center = galsim.CelestialCoord(
-            ra=self.config['cluster']['center_ra'] * ra_unit,
-            dec=self.config['cluster']['center_dec'] * dec_unit
+            ra=(ra * ra_unit),
+            dec=(dec * dec_unit)
         )
 
         pixel_scale = self.pixel_scale
@@ -537,101 +543,89 @@ class ImSimRunner(object):
 
         ps = self.config['position_sampling'].copy()
 
-        if isinstance(ps, str):
-            if ps == 'random':
-                for name, obj_class in self.objects.items():
-                    obj_class.assign_random_positions(self.base_image)
-            else:
-                raise ValueError('position_sampling can only be a str if ' +
-                                 'set to `random`!')
+        _allowed_objs = ['galaxies', 'cluster_galaxies', 'stars']
 
-        elif isinstance(ps, dict):
-            _allowed_objs = ['galaxies', 'cluster_galaxies', 'stars']
+        # used if at least one source type is on a grid
+        bg = grid.BaseGrid()
+        mixed_grid = None
 
-            # used if at least one source type is on a grid
-            bg = grid.BaseGrid()
-            mixed_grid = None
+        for obj_type, obj_list in self.objects.items():
+            if obj_type not in _allowed_objs:
+                raise ValueError('position_sampling fields must be ' +
+                                 f'drawn from {_allowed_objs}!')
 
-            for obj_type, obj_list in self.objects.items():
-                if obj_type not in _allowed_objs:
-                    raise ValueError('position_sampling fields must be ' +
-                                     f'drawn from {_allowed_objs}!')
+            # position sampling config per object type:
+            ps_obj = copy(ps[obj_type])
+            pos_type = ps_obj['type']
 
-                # position sampling config per object type:
-                ps_obj = ps[obj_type].copy()
-                pos_type = ps_obj['type']
+            if pos_type == 'random':
+                obj_list.assign_random_positions(self.base_image)
 
-                if pos_type == 'random':
-                    obj_list.assign_random_positions(self.base_image)
+            elif pos_type in bg._valid_grid_types:
+                obj_list.assign_grid_positions(
+                    self.base_image, pos_type, ps_obj, self.pixel_scale
+                    )
 
-                elif pos_type in bg._valid_grid_types:
-                    obj_list.assign_grid_positions(
-                        self.base_image, pos_type, ps_obj, self.pixel_scale
+            elif pos_type in bg._valid_mixed_types:
+                if mixed_grid is None:
+                    N_inj_types = 0
+                    inj_frac = {}
+                    gtypes = set()
+                    gspacing = set()
+
+                    grid_seed = self.seeds['grid']
+                    rng = np.random.default_rng(grid_seed)
+
+                    # MixedGrids have to be built with info across all
+                    # simultaneously
+                    for name, config in ps.items():
+                        try:
+                            gtypes.add(config['grid_type'])
+                            gspacing.add(config['grid_spacing'])
+                        except KeyError:
+                            # Only has to be present for one input type
+                            pass
+                        if config['type'] == 'MixedGrid':
+                            N_inj_types += 1
+                            inj_frac[name] = config['fraction']
+
+                    # can only have 1 unique value of each
+                    unq = {
+                        'grid_type':gtypes,
+                        'grid_spacing':gspacing
+                        }
+                    for key, s in unq.items():
+                        if len(s) != 1:
+                            raise ValueError('Only one {key} is allowed ' +
+                                             'for a MixedGrid!')
+
+                    gtype = gtypes.pop()
+
+                    mixed_grid = grid.MixedGrid(
+                        gtype, N_inj_types, inj_frac, seed=grid_seed
                         )
 
-                elif pos_type in bg._valid_mixed_types:
-                    if mixed_grid is None:
-                        N_inj_types = 0
-                        inj_frac = {}
-                        gtypes = set()
-                        gspacing = set()
+                    grid_kwargs = grid.build_grid_kwargs(
+                        gtype, ps_obj, self.base_image, self.pixel_scale,
+                        rng=rng
+                        )
+                    mixed_grid.build_grid(**grid_kwargs)
 
-                        grid_seed = self.seeds['grid']
-                        rng = np.random.default_rng(grid_seed)
-
-                        # MixedGrids have to be built with info across all
-                        # simultaneously
-                        for name, config in ps.items():
-                            try:
-                                gtypes.add(config['grid_type'])
-                                gspacing.add(config['grid_spacing'])
-                            except KeyError:
-                                # Only has to be present for one input type
-                                pass
-                            if config['type'] == 'MixedGrid':
-                                N_inj_types += 1
-                                inj_frac[name] = config['fraction']
-
-                        # can only have 1 unique value of each
-                        unq = {
-                            'grid_type':gtypes,
-                            'grid_spacing':gspacing
-                            }
-                        for key, s in unq.items():
-                            if len(s) != 1:
-                                raise ValueError('Only one {key} is allowed ' +
-                                                 'for a MixedGrid!')
-
-                        gtype = gtypes.pop()
-
-                        mixed_grid = grid.MixedGrid(
-                            gtype, N_inj_types, inj_frac, seed=grid_seed
-                            )
-
-                        grid_kwargs = grid.build_grid_kwargs(
-                            gtype, ps_obj, self.base_image, self.pixel_scale,
-                            rng=rng
-                            )
-                        mixed_grid.build_grid(**grid_kwargs)
-
-                        # Objects are assigned immediately since we set all injection
-                        # fractions during construction. Otherwise would have to wait
-                        obj_list.assign_mixed_grid_positions(
-                            mixed_grid
-                            )
-
-                    else:
-                        # mixed_grid already created & positions assigned
-                        obj_list.assign_mixed_grid_positions(
-                            mixed_grid
-                            )
+                    # Objects are assigned immediately since we set all injection
+                    # fractions during construction. Otherwise would have to wait
+                    obj_list.assign_mixed_grid_positions(self.base_image,
+                        mixed_grid
+                        )
 
                 else:
-                    # An error should have already occured, but just in case:
-                    raise ValueError('Position sampling type {} is not valid!'.format(gtype))
+                    # mixed_grid already created & positions assigned
+                    obj_list.assign_mixed_grid_positions(self.base_image,
+                        mixed_grid
+                        )
 
-        else:
-            raise TypeError('position_sampling must either be a str or dict!')
+            else:
+                # An error should have already occured, but just in case:
+                raise ValueError('Position sampling type {} is not valid!'.format(gtype))
 
         Nobjs_all = 0
         for obj_type, obj in self.objects.items():
@@ -834,9 +828,11 @@ class ImSimRunner(object):
                     fname = f'{run_name}_{time}_{band}.fits'
                 elif fmt == 'oba':
                     # use SuperBIT onboard analysis format
+                    from superbit_lensing.oba import oba_io
                     time = int(datetime.now(timezone.utc).timestamp())
                     exp_time = self.config['observation']['exp_time']
-                    fname = f'{run_name}_{exp_time}_{band}_{time}.fits'
+                    bindx = oba_io.band2index(band)
+                    fname = f'{run_name}_{exp_time}_{bindx}_{time}.fits'
                 else:
                     # shouldn't happen, but a reminder for later
                     raise ValueError(f'fmt={fmt} is unregistered!')
@@ -903,6 +899,15 @@ class ImSimRunner(object):
         return
 
     def _extend_sci_header(self, fits):
+        ra_unit = self.config['cluster']['center_ra_unit']
+        dec_unit = self.config['cluster']['center_dec_unit']
+
+        fits[0].write_key(
+            'TARGET_RA', self.target_ra, comment=f'{ra_unit}'
+            )
+        fits[0].write_key(
+            'TARGET_DEC', self.target_dec, comment=f'{dec_unit}'
+            )
         fits[0].write_key(
             'GAIN', self.config['detector']['gain'], comment='e-/ADU'
             )

@@ -1,0 +1,39 @@
+# Halo
+halo_z: 0.1 # redshift of cluster
+halo_mass: 5e14 # halo mass [solmass]
+halo_conc: 3 # halo concentration
+halo_ra: 104.6125 
+halo_dec: -55.9475
+
+# Cosmos15 properties
+n_arcmin_mean: 97.55 # number of galaxies / arcmin^2 mean from COSMOS15
+n_arcmin_sigma: 17.49 # number of galaxies / arcmin^2 std from COSMOS15
+cosmos_plate_scale: 0.03 # arcsec/pix
+
+# Directories
+catalog_file: "/home/gill/sims/data/cosmos_catalog/cosmos15_superbit2023_phot_shapes.csv"
+
+# Instrument parameters
+camera: "imx455"
+telescope: "superbit"
+
+# Gaia properties
+ZP_G: 25.7915509947
+ZP_BP: 25.3861560855
+
+# pointing jitter [arcseconds] 1-sigma
+pjit: 0.05 # arcseconds
+
+# objects to simulate
+add_stars: 1 
+add_galaxies: 1 
+
+# noise
+add_read: 0
+add_dark: 1
+add_sky: 1
+
+# general parameters 
+exp_time: 300 # seconds
+n_exp: 1
+psf: 'total_zernike'

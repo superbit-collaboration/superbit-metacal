@@ -1,7 +1,10 @@
+from pathlib import Path
 import os
 from glob import glob
+import shutil
 
 from superbit_lensing import utils
+from superbit_lensing.oba.oba_io import band2index
 
 import ipdb
 
@@ -44,7 +47,8 @@ class TestPrepper(object):
         Handle any necessary test preparation on simulated
         inputs to the OBA module. For now, just the following:
 
-        (1) Compress simulated image files
+        (1) Copy simulation files to target_dir
+        (2) Compress simulated image files
 
         io_manager: oba_io.IOManager
             An IOManager instance that defines all relevant OBA
@@ -64,18 +68,45 @@ class TestPrepper(object):
 
         # not all IO managers are registered to a particular target
         if target_dir is None:
-            target_dir = io_manager.RAW_CLUSTERS / self.target_name
+            # NOTE: Old definition!
+            # target_dir = io_manager.RAW_CLUSTERS / self.target_name
+            target_dir = io_manager.RAW_DATA
 
-        target_dir = str(target_dir.resolve())
+        target_dir = target_dir.resolve()
+        source_dir = str(target_dir / 'imsim')
+        target_dir = str(target_dir)
         logprint(f'Using raw target dir {target_dir}')
 
         if not os.path.exists(target_dir):
             raise OSError(f'{target_dir} does not exist!')
 
+        logprint('Copying simulated images...')
+        self.copy_images(source_dir, target_dir, logprint)
+
         logprint('Compressing image files...')
         self.compress_images(target_dir, logprint, overwrite=overwrite)
 
         logprint('\nCompleted test setup\n')
+
+        return
+
+    def copy_images(self, source_dir, target_dir, logprint):
+        '''
+        source_dir: str
+            The path to the simulated images
+        target_dir: str
+            The path to the raw target directory
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        overwrite: bool
+            Set to overwrite existing compressed files
+        '''
+
+        search = str(Path(source_dir) / '*[!truth].fits')
+        images = glob(search)
+
+        for image in images:
+            shutil.copy(image, target_dir)
 
         return
 
@@ -115,7 +146,8 @@ class TestPrepper(object):
 
     def _get_im_list(self, target_dir, band):
 
-        exp = f'{target_dir}/{self.target_name}*_{band}_[!truth]*.fits'
+        bindx = band2index(band)
+        exp = f'{target_dir}/{self.target_name}*_{bindx}_[!truth]*.fits'
         im_list = glob(exp)
 
         return im_list
