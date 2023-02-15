@@ -6,9 +6,12 @@ import fitsio
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
 import astropy.units as u
+import glob
 
 from superbit_lensing import utils
-import glob
+from config import CookieCutterConfig
+
+import ipdb
 
 '''
 The CookieCutter class is essentially a "lite" version of the Multi-Object
@@ -204,10 +207,13 @@ class CookieCutter(object):
 
     def __init__(self, cookiecutter_file=None, config=None):
         '''
-        config: A dictionary (see example yaml file) specifying which files and
-            catalogs to use to build the CookieCutter object.
-        cookiecutter_file: initialize a cookiecutter object from an already-
-            existing cookie cutter file.
+        cookiecutter_file: str, Path
+            Initialize a cookiecutter object from an already-existing
+            CookieCutter file
+        config: str, Path, dict
+            A filepath to a config file (or its corresponding dictionary) that
+            specifies which files and catalogs to use to build the CookieCutter
+            object
 
         Only one of these two arguments above can be specified, of course.
 
@@ -219,78 +225,98 @@ class CookieCutter(object):
         this class, which expects a single argument (catalog, a numpy structured
         array) and returns an integer scalar that will be used as the cutout
         box size.
+
+        NOTE: In the constructor we just parsethe inputs. We don't load anything
+        until we're told to.
         '''
 
-        # This pattern is just here to test the inputs. We don't load anything
-        # until we're told to.
-        self.config = config
+        if config is not None:
+            utils.check_type('config', config, (str, Path, dict))
+
+            if not isinstance(config, dict):
+                config = utils.read_yaml(str(config))
+
+        # also sets defaults for optional params
+        self.config = CookieCutterConfig(config)
+
         if (cookiecutter_file is None) and (config is not None):
-            # Initialize from config
-            self._cookiecutter_file = Path(config['global output path']) /\
-                Path( config['output filename'] )
+            # Will initialize from config instead during go()
+            self._cookiecutter_file = None
+
+            # Decide where to put the output.
+            outdir = config['output']['dir']
+            outfile = config['output']['filename']
+            if outdir is not None:
+                self.outfile = Path(outdir) / outfile
+            else:
+                self.outfile = Path(outfile)
+
         elif (cookiecutter_file is not None) and (config is None):
             # Initialize from file
+            utils.check_type(
+                'cookiecutter_file', cookiecutter_file, (str, Path)
+                )
             self._cookiecutter_file = Path(cookiecutter_file)
+            self.outfile = self._cookiecutter_file
+
         else:
             raise ValueError('You should pass only a cookie cutout file or a ' +
                              'config, not both.')
 
         return
 
+    # @classmethod
+    # def from_file(cls, cookiecutter_file):
+
+        # cookiecutter = CookieCutter()
+        # cookiecutter._fits = ...
+    #     # return cookiecutter
+
     def go(self):
         '''
         TODO:...
         '''
 
+        config = self.config
+        cc_file = self._cookiecutter_file
+
         # Parse the config file.
         # Decide if we're initializing a cookie cutter object from an existing
         # cookie cutout file or if we're building one from scratch.
-        if (self._cookiecutter_file is None) and (config is not None):
+        if (cc_file is None) and (config is not None):
             # Initialize from config
-            catalog_file = Path(config['input catalog filename'])
+            catalog_file = Path(config['input']['catalog'])
 
-            if config['global input path'] is not None:
-                catalog_file = Path(config['global input path']) / catalog_file
+            input_dir = config['input']['dir']
+            if input_dir is not None:
+                catalog_file = Path(input_dir) / catalog_file
 
-            ext = config['input catalog']['file extension']
+            ext = config['input']['catalog_ext']
             catalog = fitsio.read(catalog_file, ext=ext)
 
         else:
-            self._fits = fitsio.FITS(self._cookiecutter_file, 'r')
-            return
+            # self._fits = fitsio.FITS(cc_file, 'r')
+            # return
             # TODO: check that the above works!
-            # raise NotImplementedError('Creating from a cookiecutter file ' +
-            #                           'is not yet implemented!')
+            raise NotImplementedError('Creating from a cookiecutter file ' +
+                                      'is not yet implemented!')
 
         # It's unlikely that the catalog actually has a 'boxsize' field,
         # in which case we need to create one.
         # Use a method attached to the class, so that the user can redefine it.
         # Stick here to the boxsize name provided.
-        if config['input catalog']['boxsize tag'] not in catalog.dtype.names:
+        if config['input']['boxsize tag'] not in catalog.dtype.names:
             self._updateCatalogWithBoxsizes(catalog)
 
         # The catalog read, now let's get the image information.
         images = [
-            config['images'][imagename] for imagename in config['images'].keys()
+            config['images'][image] for image in config['images'].keys()
             ]
 
-        # Decide where to put the output.
-        if 'global input path' in config.keys():
-            outputpath = Path(config['global output path']) /\
-                config['output filename']
-        else:
-            outputpath = Path(config['output filename'])
-        if 'global input path' in config.keys():
-            global_input_path = config['global input path']
-        else:
-            global_input_path = None
-
         self._createFromImages(
-            images=images,catalog=catalog,
-            ratag=config['input catalog']['ra tag'],
-            dectag=config['input catalog']['dec tag'],
-            boxsizetag=config['input catalog']['boxsize tag'],
-            globalpath=global_input_path
+            images,
+            catalog,
+            input_dir=input_dir
             )
 
         return
@@ -319,20 +345,25 @@ class CookieCutter(object):
 
         return radius
 
-    def _createFromImages(self, images=None, catalog=None, ratag='RA',
-                          dectag='DEC', boxsizetag='boxsize', outfile=None):
+    def _createFromImages(self, images, catalog, input_dir=None):
         '''
-        catalog: catalog[i][ratag], catalog[i][dectag], catalog[i]['boxsize']
-        ratag: string such that catalog call above works
-        dectag: string such that catalog call above works
-        boxsize: sring such that catalog call above works
-        images: list of dictionaries, each containing image, weight, mask, and
-            background file+extension info.
-        outfile: where to put the output.
+        dec_tag: str
+            Name of the dec column in the input catalog
+        images: list of dict's
+            Each entry in the list is a dict containing the image, weight, mask,
+            and background file+extension info.
+        input_dir: Path
+            The path to append to all image filenames, if desired
 
         TODO: CONFIRM THAT THE OBJECT DATA TABLE IS INITIALIZED WITH SUFFICIENT
         LENGTH TO HOLD THE IMAGE FILENAME.
         '''
+
+        ra_tag = self.config['input']['ra tag']
+        dec_tag = self.config['input']['dec tag']
+        boxsize_tag = self.config['input']['boxsize tag']
+
+        overwrite = self.config['output']['overwrite']
 
         # We get a list of images from the config file.
         # We get a catalog (ra/dec) as an input (either from a catalog file, or as an argument)
@@ -344,12 +375,14 @@ class CookieCutter(object):
         #   -- check for the presence of mask or weight information;
         #      if they exist, make cutouts of these as well.
 
-
-        # Create a place to put the results.
-        # QUESETION: why does the following work, as `fits` is used later
-        # outside of the with loop?
-        with fitsio.FITS(filename, 'rw', clobber=True) as fits:
-            self._fits = fits
+        outfile = self.outfile
+        if outfile.is_file():
+            if overwrite is True:
+                print(f'{str(outfile)} exist')
+                print('Deleting as overwrite is True...')
+                outfile.unlink()
+            else:
+                raise OSError(f'{outfile} already exists and overwrite is False!')
 
         object_info_table = np.empty(
             catalog.size * len(images),
@@ -363,131 +396,138 @@ class CookieCutter(object):
 
         info_index = 0
 
-        # The first non-empty extension should be the metadata table.
-        fits.create_table_hdu(data=object_info_table, extname='META')
+        ipdb.set_trace()
+        with fitsio.FITS(outfile, 'rw') as fits:
 
-        for image_index, image in enumerate(images):
-            imageObj = ImageLocator(
-                imagefile=image['imagefile'],
-                imageext=image['image ext'],
-                weightfile=image['weightfile'],
-                weightext=image['weight ext'],
-                maskfile=image['maskfile'],
-                maskext=image['mask ext']
-                )
+            # The first non-empty extension should be the metadata table.
+            fits.create_table_hdu(data=object_info_table, extname='META')
 
-            image_wcs = WCS(imageObj.image.read_header())
-            imageHDR = removeEssentialFITSkeys(imageObj.image.read_header())
-
-            # place the file path info here
-            imageHDR['image_path'] = Path(image['imagefile']).parent
-
-            image_shape = imageObj.image.get_info()['dims']
-
-            # We know in advance how many cutout pixels we'll need to store
-            npix = catalog.size * np.sum(catalog[boxsizetag][:]**2)
-
-            # one dimension for data, one dimension for sky.
-            science_image_dimensions = (1, npix)
-            mask_image_dimensions = (1, npix)
-
-            # Store each image's cutouts in a new extension.
-            # Because the image and background have different datatypes to
-            # the mask, we need two different extensions.
-            fits.create_image_hdu(
-                img=None,
-                dtype='i2',
-                dims=dims,
-                extname=f'IMAGE{image_index}',
-                header=imageHDR
-                )
-
-            fits.create_image_hdu(
-                img=None,
-                dtype='i1',
-                dims=dims,
-                extname=f'MASK{image_index}'
-                )
-
-            pixels_written = 0
-            for obindx,iobj in enumerate(catalog):
-                coord = SkyCoord(ra=iobj[ratag],dec=iobj[dectag])
-
-                # x and y are, for some reason, needlessly returned as
-                # numpy arrays.
-                x, y = image_wcs.world_to_pixel(coord)
-                object_pos_in_image = [x.item(),y.item()]
-                image_slice, cutout_slice = intersecting_slices(
-                    image_shape, iobj[boxsizetag], object_pos_in_image
+            for image_index, image in enumerate(images):
+                # TODO: Current refactor point!
+                imageObj = ImageLocator(
+                    imagefile=image['imagefile'],
+                    imageext=image['image ext'],
+                    weightfile=image['weightfile'],
+                    weightext=image['weight ext'],
+                    maskfile=image['maskfile'],
+                    maskext=image['mask ext']
                     )
 
-                cutout_shape = (iobj[boxsizetag],iobj[boxsizetag])
-                image_cutout = np.zeros(cutout_shape)
-                image_cutout[cutout_slice] = imageObj.image[image_slice]
-                science_output = image_cutout.flatten()
+                image_wcs = WCS(imageObj.image.read_header())
+                imageHDR = removeEssentialFITSkeys(imageObj.image.read_header())
 
-                if objindx == 0:
-                    fits[f'IMAGE{image_index}'].write(
-                        science_output,
-                        start=[0,pixels_written],
-                        header=imageHDR
-                        )
-                else:
-                    fits[f'IMAGE{image_index}'].write(
-                        science_output,
-                        start=[0,pixels_written]
-                        )
+                # place the file path info here
+                imageHDR['image_path'] = Path(image['imagefile']).parent
 
-                if imageObj.sky is not None:
-                    sky_cutout = np.zeros_like(image_cutout)
-                    sky_cutout[cutout_slice] = imageObj.sky[image_slice]
-                    sky_level = np.median(sky_cutout)
+                image_shape = imageObj.image.get_info()['dims']
 
-                if imageObj.skyvar is not None:
-                    skyvar_cutout = np.zeros_like(image_cutout)
-                    skyvar_cutout[cutout_slice] = imageObj.skyvar[image_slice]
-                    sky_var = np.mean(sky_cutout)
+                # We know in advance how many cutout pixels we'll need to store
+                npix = catalog.size * np.sum(catalog[boxsize_tag][:]**2)
 
-                if imageObj.weight is not None:
-                    weight_cutout = np.zeros_like(image_cutout)
-                    weight_cutout[cutout_slice] = imageObj.weight[image_slice]
+                # one dimension for data, one dimension for sky.
+                science_image_dimensions = (1, npix)
+                mask_image_dimensions = (1, npix)
 
-                if imageObj.mask is not None:
-                    mask_cutout = np.zeros_like(image_cutout)
-                    mask_cutout[cutout_slice] = imageObj.mask[image_slice]
-
-                # combine these into one bitplane.
-                maskbits_output = weight_cutout + 2*mask_cutout
-                fits[f'MASK{image_index}'].write(
-                    maskbits_output, start=[0,pixels_written]
+                # Store each image's cutouts in a new extension.
+                # Because the image and background have different datatypes to
+                # the mask, we need two different extensions.
+                fits.create_image_hdu(
+                    img=None,
+                    dtype='i2',
+                    dims=dims,
+                    extname=f'IMAGE{image_index}',
+                    header=imageHDR
                     )
 
-                meta = {
-                    'object id':iobj['id'],
-                    'startpos':pixels_written,
-                    'background':sky_level
-                    }
+                fits.create_image_hdu(
+                    img=None,
+                    dtype='i1',
+                    dims=dims,
+                    extname=f'MASK{image_index}'
+                    )
 
-                object_info_table[info_index]['object id'] = iobj['id']
-                object_info_table[info_index]['imagefile'] = image['imagefile']
+                pixels_written = 0
+                for obindx,iobj in enumerate(catalog):
+                    coord = SkyCoord(ra=iobj[ra_tag],dec=iobj[dec_tag])
 
-                # This is how we look up object positions to read later.
-                object_info_table[info_index]['startpos'] = npix_sci_written
-                object_info_table[info_index]['endpos'] = npix_sci_written +\
-                    iobj[boxsizetag]**2
+                    # x and y are, for some reason, needlessly returned as
+                    # numpy arrays.
+                    x, y = image_wcs.world_to_pixel(coord)
+                    object_pos_in_image = [x.item(),y.item()]
+                    image_slice, cutout_slice = intersecting_slices(
+                        image_shape, iobj[boxsize_tag], object_pos_in_image
+                        )
 
-                object_info_table[info_index]['background'] = sky_level
-                object_info_table[info_index]['variance'] = sky_var
-                object_info_table[info_index]['extension'] = image_index
+                    cutout_shape = (iobj[boxsize_tag],iobj[boxsize_tag])
+                    image_cutout = np.zeros(cutout_shape)
+                    image_cutout[cutout_slice] = imageObj.image[image_slice]
+                    science_output = image_cutout.flatten()
 
-                npix_sci_written = npix_sci_written + sky_cutout.size
-                info_index = info_index+1
+                    if objindx == 0:
+                        fits[f'IMAGE{image_index}'].write(
+                            science_output,
+                            start=[0,pixels_written],
+                            header=imageHDR
+                            )
+                    else:
+                        fits[f'IMAGE{image_index}'].write(
+                            science_output,
+                            start=[0,pixels_written]
+                            )
 
-        fits['META'].write(object_info_table)
+                    if imageObj.sky is not None:
+                        sky_cutout = np.zeros_like(image_cutout)
+                        sky_cutout[cutout_slice] = imageObj.sky[image_slice]
+                        sky_level = np.median(sky_cutout)
+
+                    if imageObj.skyvar is not None:
+                        skyvar_cutout = np.zeros_like(image_cutout)
+                        skyvar_cutout[cutout_slice] = imageObj.skyvar[image_slice]
+                        sky_var = np.mean(sky_cutout)
+
+                    if imageObj.weight is not None:
+                        weight_cutout = np.zeros_like(image_cutout)
+                        weight_cutout[cutout_slice] = imageObj.weight[image_slice]
+
+                    if imageObj.mask is not None:
+                        mask_cutout = np.zeros_like(image_cutout)
+                        mask_cutout[cutout_slice] = imageObj.mask[image_slice]
+
+                    # combine these into one bitplane.
+                    maskbits_output = weight_cutout + 2*mask_cutout
+                    fits[f'MASK{image_index}'].write(
+                        maskbits_output, start=[0,pixels_written]
+                        )
+
+                    meta = {
+                        'object id':iobj['id'],
+                        'startpos':pixels_written,
+                        'background':sky_level
+                        }
+
+                    object_info_table[info_index]['object id'] = iobj['id']
+                    object_info_table[info_index]['imagefile'] = image['imagefile']
+
+                    # This is how we look up object positions to read later.
+                    object_info_table[info_index]['startpos'] = npix_sci_written
+                    object_info_table[info_index]['endpos'] = npix_sci_written +\
+                        iobj[boxsize_tag]**2
+
+                    object_info_table[info_index]['background'] = sky_level
+                    object_info_table[info_index]['variance'] = sky_var
+                    object_info_table[info_index]['extension'] = image_index
+
+                    npix_sci_written = npix_sci_written + sky_cutout.size
+                    info_index = info_index+1
+
+            fits['META'].write(object_info_table)
+
+            self._fits = fits
 
         # Finally, populate the object info table if we need it for later.
         self._object_info_table = object_info_table
-        fits.close()
+
+        return
 
     @property
     def objectInfoTable(self):
