@@ -9,20 +9,20 @@ from pipe import SuperBITPipeline
 import ipdb
 
 '''
-A "grid test" is like a "pipe test", but instead of validating the current
+A "shear test" is like a "pipe test", but instead of validating the current
 state of the pipeline code, it generates a simplistic set of images to test
-the shear calibration in a simple setting. See grid_test.py & the README for
-instructions on how to run such a test (just change "pipe" -> "grid")
+the shear calibration in a simple setting. See shear_test.py & the README for
+instructions on how to run such a test (just change "pipe" -> "shear")
 '''
 
 def parse_args():
     parser = ArgumentParser()
 
     parser.add_argument('-pipe_config', type=str, default=None,
-                        help='A pipeline config to use for the grid test, if ' +
+                        help='A pipeline config to use for the shear test, if ' +
                         'youd rather specify everything yourself')
     parser.add_argument('-selection_config', type=str, default=None,
-                        help='A selection config to use for the grid test, if ' +
+                        help='A selection config to use for the shear test, if ' +
                         'youd rather specify everything yourself')
 
     # NOTE: Can either pass a path_config file to specify the minimal needed
@@ -30,9 +30,9 @@ def parse_args():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-path_config', type=str, default=None,
                         help='A yaml config file that defines the paths ' +
-                        'needed to run a grid test')
+                        'needed to run a shear test')
     group.add_argument('-gs_config', type=str, default=None,
-                        help='A galsim module config to use for the grid' +
+                        help='A galsim module config to use for the shear' +
                         'test, if youd rather specify everything yourself')
 
     parser.add_argument('--fresh', action='store_true', default=False,
@@ -40,7 +40,7 @@ def parse_args():
 
     # NOTE: As ngmix-fit needs some refactoring, this is currently unused
     parser.add_argument('-ngmix_config', type=str, default=None,
-                        help='A ngmix-fit module config to use for the grid' +
+                        help='A ngmix-fit module config to use for the shear' +
                         'test, if youd rather specify everything yourself')
 
     return parser.parse_args()
@@ -48,7 +48,7 @@ def parse_args():
 # The following helper functions create dummy config files for their corresponding
 # categories. You can always provide your own if you prefer.
 
-def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
+def make_test_pipe_config(gs_config, select_config, outfile='shear_test.yaml',
                           imsim='imsim', outdir=None, overwrite=False):
     '''
     Create a basic yaml config file that tests whether the shear calibration
@@ -72,7 +72,7 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
         filename = os.path.join(outdir, outfile)
 
     if (overwrite is True) or (not os.path.exists(filename)):
-        run_name = 'grid_test'
+        run_name = 'shear_test'
         outdir = os.path.join(utils.TEST_DIR, run_name)
         bands = 'b,lum' # test at least 2 bands
         det_bands = 'b,lum'
@@ -97,7 +97,7 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
             )
 
         if not os.path.exists(nfw_file):
-            raise OSError(f'Warning: grid test nfw file {nfw_file} does not ' +
+            raise OSError(f'Warning: shear test nfw file {nfw_file} does not ' +
                           'exist; have you unpacked the sample tar file?')
 
         test_config = {
@@ -122,7 +122,7 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
                 },
             f'{imsim}': {
                 'config_file': os.path.join(
-                    utils.TEST_DIR, run_name, 'grid_test_gs.yaml'
+                    utils.TEST_DIR, run_name, 'shear_test_gs.yaml'
                     ),
                 'run_name': run_name,
                 'outdir': outdir,
@@ -192,7 +192,7 @@ def make_test_pipe_config(gs_config, select_config, outfile='grid_test.yaml',
 
     return filename
 
-def make_test_gs_config(path_config, outfile='grid_test_gs.yaml', outdir=None,
+def make_test_gs_config(path_config, outfile='shear_test_gs.yaml', outdir=None,
                         overwrite=False):
 
     if outdir is not None:
@@ -200,10 +200,10 @@ def make_test_gs_config(path_config, outfile='grid_test_gs.yaml', outdir=None,
 
     if (overwrite is True) or (not os.path.exists(filename)):
 
-        # use REPO/configs/grid_test_gs.yaml as base
+        # use REPO/configs/shear_test_gs.yaml as base
 
         test_config = utils.read_yaml(
-            os.path.join(utils.BASE_DIR, 'configs', 'grid_test_gs.yaml')
+            os.path.join(utils.BASE_DIR, 'configs', 'shear_test_gs.yaml')
             )
 
         # update with local filepaths
@@ -239,7 +239,7 @@ def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
         filename = os.path.join(outdir, config_file)
 
     if run_name is None:
-        run_name = 'grid_test'
+        run_name = 'shear_test'
 
     if (overwrite is True) or (not os.path.exists(filename)):
         test_config = {
@@ -274,7 +274,7 @@ def make_test_ngmix_config(config_file='ngmix_test.yaml', outdir=None,
 
     return filename
 
-def make_test_selection_config(outfile='grid_test_select.yaml',
+def make_test_selection_config(outfile='shear_test_select.yaml',
                                outdir=None, overwrite=False):
 
     if outdir is not None:
@@ -307,15 +307,15 @@ def main(args):
     testdir = utils.get_test_dir()
 
     if fresh is True:
-        outdir = os.path.join(testdir, 'grid_test')
+        outdir = os.path.join(testdir, 'shear_test')
         print(f'Deleting old test directory {outdir}...')
         try:
             shutil.rmtree(outdir)
         except FileNotFoundError as e:
             print('Test directory does not exist. Ignoring --fresh flag')
 
-    logfile = 'grid_test.log'
-    logdir = os.path.join(testdir, 'grid_test')
+    logfile = 'shear_test.log'
+    logdir = os.path.join(testdir, 'shear_test')
     log = utils.setup_logger(logfile, logdir=logdir)
 
     # need to parse local paths before creating galsim config, unless
@@ -351,7 +351,7 @@ def main(args):
         print(f'Using pipe config file {pipe_config_file}')
 
     # we saved it to a file instead of returning a dict so that there is
-    # a record in the grid_test outdir
+    # a record in the shear_test outdir
     pipe_config = utils.read_yaml(pipe_config_file)
 
     vb = pipe_config['run_options']['vb']
