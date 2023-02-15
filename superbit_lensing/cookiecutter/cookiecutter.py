@@ -89,92 +89,92 @@ class ImageLocator(object):
     TODO: Decide whether to set defaults to...
     '''
 
-    def __init__(self, imagefile=None, imageext=None, weightfile=None,
-                 weightext=None, maskfile=None, maskext=None,
-                 backgroundfile=None, backgroundext=None,
-                 skyvarfile=None, skyvarext=None, globalpath=None):
+    def __init__(self, image_file=None, image_ext=None, weight_file=None,
+                 weight_ext=None, mask_file=None, mask_ext=None,
+                 background_file=None, background_ext=None,
+                 skyvar_file=None, skyvar_ext=None, globalpath=None):
 
         if globalpath is not None:
-            imagefile = Path(globalpath) / Path(imagefile)
+            image_file = Path(globalpath) / Path(image_file)
 
-            if weightfile is not None:
-                weightfile = Path(globalpath) / Path(weightfile)
-            if maskfile is not None:
-                maskfile = Path(globalpath) / Path(maskfile)
-            if backgroundfile is not None:
-                backgroundfile = Path(globalPath) / Path(maskfile)
+            if weight_file is not None:
+                weight_file = Path(globalpath) / Path(weight_file)
+            if mask_file is not None:
+                mask_file = Path(globalpath) / Path(mask_file)
+            if background_file is not None:
+                background_file = Path(globalPath) / Path(mask_file)
 
         else:
-            imagefile = Path(imagefile)
+            image_file = Path(image_file)
 
-            if weightfile is not None:
-                weightfile = Path(weightfile)
-            if maskfile is not None:
-                maskfile = Path(maskfile)
-            if backgroundfile is not None:
-                backgroundfile = Path(maskfile)
+            if weight_file is not None:
+                weight_file = Path(weight_file)
+            if mask_file is not None:
+                mask_file = Path(mask_file)
+            if background_file is not None:
+                background_file = Path(mask_file)
 
-        self._imagefile = imagefile
-        if imageext is None:
-            self._imageext = 0
+        self._image_file = image_file
+        if image_ext is None:
+            self._image_ext = 0
         else:
-            self._imageext = imageext
+            self._image_ext = image_ext
 
-        self._weightfile = weightfile
-        if weightext is None:
-            self._weightext = 0
+        self._weight_file = weight_file
+        if weight_ext is None:
+            self._weight_ext = 0
         else:
-            self._weightext = weightext
+            self._weight_ext = weight_ext
 
-        self._maskfile = maskfile
-        if maskext is None:
-            self._maskext = 0
+        self._mask_file = mask_file
+        if mask_ext is None:
+            self._mask_ext = 0
         else:
-            self._maskext = maskext
+            self._mask_ext = mask_ext
 
-        self._backgroundfile = backgroundfile
-        if backgroundext is None:
-            self._backgroundext = 0
+        self._background_file = background_file
+        if background_ext is None:
+            self._background_ext = 0
         else:
-            self._backgroundext = backgroundext
+            self._background_ext = background_ext
 
-        self._skyvarfile = skyvarfile
-        if skyvarext is None:
-            self._skyvarext = 0
+        self._skyvar_file = skyvar_file
+        if skyvar_ext is None:
+            self._skyvar_ext = 0
         else:
-            self._skyvarext = skyvarext
+            self._skyvar_ext = skyvar_ext
 
     @property
     def image(self):
-        return fitsio.FITS(self._imagefile,'r')[self._imageext]
+        return fitsio.FITS(self._image_file,'r')[self._image_ext]
 
     @property
     def weight(self):
-        if self._weightfile is None:
+        if self._weight_file is None:
             return None
         else:
-            return fitsio.FITS(self._weightfile,'r')[self._weightext]
+            return fitsio.FITS(self._weight_file,'r')[self._weight_ext]
 
     @property
     def mask(self):
-        if self._maskfile is None:
+        if self._mask_file is None:
             return None
         else:
-            return fitsio.FITS(self._maskfile,'r')[self._maskext]
+            return fitsio.FITS(self._mask_file,'r')[self._mask_ext]
 
     @property
     def background(self):
-        if self._backgroundfile is None:
+        if self._background_file is None:
             return None
         else:
-            return fitsio.FITS(self._backgroundfile,'r')[self._backgroundext]
+            return fitsio.FITS(self._background_file,'r')[self._background_ext]
 
     @property
     def skyvar(self):
-        if self._skyvarfile is None:
+        if self._skyvar_file is None:
             return None
         else:
-            return fitsio.FITS(self._backgroundfile,'r')[self._skyvarext]
+            return fitsio.FITS(self._background_file,'r')[self._skyvar_ext]
 
 def removeEssentialFITSkeys(header, exclude_keys=None):
     '''
@@ -288,11 +288,16 @@ class CookieCutter(object):
             catalog_file = Path(config['input']['catalog'])
 
             input_dir = config['input']['dir']
+            ipdb.set_trace()
             if input_dir is not None:
                 catalog_file = Path(input_dir) / catalog_file
 
             ext = config['input']['catalog_ext']
-            catalog = fitsio.read(catalog_file, ext=ext)
+            ipdb.set_trace()
+            catalog = fitsio.read(str(catalog_file), ext=ext)
+
+            self.catalog_file = catalog_file
+            self.catalog = catalog
 
         else:
             # self._fits = fitsio.FITS(cc_file, 'r')
@@ -405,12 +410,12 @@ class CookieCutter(object):
             for image_index, image in enumerate(images):
                 # TODO: Current refactor point!
                 imageObj = ImageLocator(
-                    imagefile=image['imagefile'],
-                    imageext=image['image ext'],
-                    weightfile=image['weightfile'],
-                    weightext=image['weight ext'],
-                    maskfile=image['maskfile'],
-                    maskext=image['mask ext']
+                    image_file=image['image_file'],
+                    image_ext=image['image_ext'],
+                    weight_file=image['weight_file'],
+                    weight_ext=image['weight_ext'],
+                    mask_file=image['mask_file'],
+                    mask_ext=image['mask_ext']
                     )
 
                 image_wcs = WCS(imageObj.image.read_header())
