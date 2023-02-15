@@ -4,6 +4,7 @@ import os
 from astropy.io import fits
 
 from superbit_lensing import utils
+from superbit_lensing.oba.oba_io import band2index
 
 import ipdb
 
@@ -20,7 +21,7 @@ class PreprocessRunner(object):
     # some useful detector meta data to be added to headers; should be static
     _header_info = {
         'GAIN': 0.343, # e- / ADU
-        'SATURATE': 65535, # TODO: Should we lower this to be more realistic?
+        'SATURATE': 64600, # TODO: Should we lower this to be more realistic?
         'SATUR_KEY': 'SATURATE' # sets the saturation key SExtractor looks for
     }
 
@@ -167,10 +168,12 @@ class PreprocessRunner(object):
             orig = self.raw_dir
             dest = (self.run_dir / band).resolve()
 
+            bindx = band2index(band)
+
             # NOTE: This glob is safe as OBA files have a fixed convention
             raw_files = glob(
                 os.path.join(
-                    str(orig), f'{self.target_name}*_{band}_*.fits.{cext}'
+                    str(orig), f'{self.target_name}*_{bindx}_*.fits.{cext}'
                     )
                 )
 

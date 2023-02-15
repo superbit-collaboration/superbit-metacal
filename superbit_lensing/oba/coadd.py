@@ -6,6 +6,7 @@ import fitsio
 
 from superbit_lensing import utils
 from superbit_lensing.coadd import SWarpRunner
+from superbit_lensing.oba.oba_io import band2index
 
 import ipdb
 
@@ -111,7 +112,7 @@ class CoaddRunner(object):
         self.make_coadds(logprint, overwrite=overwrite)
 
         logprint('Making detection image...')
-        self.make_detection_image(logprint)
+        self.make_detection_image(logprint, overwrite=overwrite)
 
         logprint('Collating coadd extensions...')
         self.collate_extensions(logprint)
@@ -136,9 +137,10 @@ class CoaddRunner(object):
             logprint(f'Starting band {band}')
 
             cal_dir = (self.run_dir / band / 'cal/').resolve()
+            bindx = band2index(band)
 
             self.images[band] = glob(
-                str(cal_dir / f'{self.target_name}*_{band}_*_cal.fits')
+                str(cal_dir / f'{self.target_name}*_{bindx}_*_cal.fits')
                 )
 
             # useful format for later SWarp args

@@ -2,8 +2,10 @@ from pathlib import Path
 from glob import glob
 from astropy.wcs import WCS
 import fitsio
+import os
 
 from superbit_lensing import utils
+from superbit_lensing.oba.oba_io import band2index
 
 import ipdb
 
@@ -98,9 +100,10 @@ class AstrometryRunner(object):
             logprint(f'Starting band {band}')
 
             cal_dir = (self.run_dir / band / 'cal/').resolve()
+            bindx = band2index(band)
 
             self.images[band] = glob(
-                str(cal_dir / f'{self.target_name}*_{band}_*_cal.fits')
+                str(cal_dir / f'{self.target_name}*_{bindx}_*_cal.fits')
                 )
 
             Nimages = len(self.images[band])
@@ -138,6 +141,7 @@ class AstrometryRunner(object):
             images = self.images[band]
 
             Nimages = len(images)
+
             for i, image in enumerate(images):
                 image_name = image.name
                 logprint(f'Starting {image_name}; {i+1} of {Nimages}')
@@ -153,10 +157,28 @@ class AstrometryRunner(object):
                         self.wcs_solutions[image] = wcs
                         continue
 
-                # TODO: Implement actual astrometry.net running!
-                logprint('WARNING: Astrometric registration not yet implemented!')
-                # wcs = ...
-                # self.wcs_solutions[image] = wcs
+                # Attempt 1: Try with a larger search radius around expected RA and DEC (10 degrees)
+                hdu = fitsio.read_header(str(image))
+                target_ra = float(hdu['TARGET_RA'])
+                target_dec = float(hdu['TARGET_DEC'])
+
+                wcs_dir = os.mkdir(f'{image_name}/wcs_try')
+
+                # TODO: Can we interface some of these params w/ a params class?
+                wcs_cmd_0 = f'--overwrite --width 9602 --height 6498 --scale-units arcsecperpix'
+                wcs_cmd_1 = f'--scale-low 0.141 --scale-high 0.142 --no-plots --use-sextractor --cpulimit 90'
+                wcs_cmd_2 = f'--rdls none --solved none --corr none --index-xyls none --axy none --match none'
+                wcs_cmd_full = f'solve_field {image_name} {wcs_cmd_0} --ra {target_ra} --dec {target_dec}' \
+                                '--radius 10 --dir {wcs_dir} {wcs_cmd_1} {wcs_cmd_2}'
+
+                # run Astrometry.net script
+                os.system(wcs_cmd_full)
+                new_file_list = glob(f'{wcs_dir}/*new*')
+
+                if len(new_file_list) != 0: # Astrometry.net worked
+                    self.wcs_solutions[image] = WCS(new_file_list[0])
+                else:
+                    raise Exception()
 
         return
 
@@ -176,10 +198,15 @@ class AstrometryRunner(object):
 
         hdr = fitsio.read_header(image_file, ext=wcs_ext)
 
-        try:
-            wcs = WCS(image_file)
-        except KeyError as e:
-            wcs = None
+        req_keys = ['CTYPE1', 'CTYPE2',
+                    'CRVAL1', 'CRVAL2',
+                    'CRPIX1', 'CRPIX2',
+                    'CUNIT1', 'CUNIT2',
+                    'CD1_1', 'CD1_2',
+                    'CD2_1', 'CD2_2']
 
-        return wcs
+        for key in req_keys:
+            if key not in hdr.keys():
+                return None
 
+        return WCS(image_file)

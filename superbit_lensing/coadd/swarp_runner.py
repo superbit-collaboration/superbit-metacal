@@ -247,7 +247,6 @@ class SWarpRunner(object):
         detection image
         '''
 
-
         for band in self.det_bands:
             if band not in self.coadds:
                 raise ValueError('Cannot make detection image until all '
