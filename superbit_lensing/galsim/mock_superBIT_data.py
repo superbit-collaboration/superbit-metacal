@@ -264,7 +264,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, psf, sbparams, logprint, obj
     stamp.setCenter(image_pos.x,image_pos.y)
     logprint.debug('drew & centered galaxy!')
     galaxy_truth=truth()
-    galaxy_truth.cosmos_index = cosmos_cat[index]['col0']
+    galaxy_truth.cosmos_index = cosmos_cat[index]['NUMBER']
     galaxy_truth.ra=ra.deg; galaxy_truth.dec=dec.deg
     galaxy_truth.x=image_pos.x; galaxy_truth.y=image_pos.y
     galaxy_truth.g1=g1; galaxy_truth.g2=g2
