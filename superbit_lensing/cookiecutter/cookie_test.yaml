@@ -1,35 +1,42 @@
 input:
-  dir: /Users/sweveret/repos/superbit-metacal/tests/oba_test/home/bit/oba_temp/test_target/
-  catalog: det/coadd/test_target_coadd_det_cat.fits
+  dir: /Users/sweveret/repos/superbit-metacal/tests/oba_test/home/bit/oba_temp/test_target/b/
+  catalog: /Users/sweveret/repos/superbit-metacal/tests/oba_test/home/bit/oba_temp/test_target/det/cat/test_target_coadd_det_cat.fits
   catalog_ext: 1
-  ra tag: RA
-  dec tag: DEC
+  id_tag: NUMBER
+  ra_tag: ALPHAWIN_J2000
+  dec_tag: DELTAWIN_J2000
+  ra_unit: deg
+  dec_unit: deg
   boxsize tag: boxsize
+  # seg_file: test_target_600_1_1676405090.fits
+  # seg_ext: 3
 
 # do we need this?
 # input catalog file extension: 1
 output:
-  dir: ./
+  dir: /Users/sweveret/repos/superbit-metacal/tests/cookie_cutter/
   filename: test-cookie-cutter.fits
+  sci_dtype: i2 # numpy.i2, so 16 bits
+  msk_dtype: i1 # numpy.i1, so 8 bits
   overwrite: True
 
 images:
   file1:
     image_file: test_target_600_1_1676405090.fits
     image_ext: 0
-    weight_file: test_target_600_1_1676405090.fits
+    weight_file: cal/test_target_600_1_1676405090_cal.fits
     weight_ext: 1
-    mask_file: test_target_600_1_1676405090.fits
+    mask_file: cal/test_target_600_1_1676405090_cal.fits
     mask_ext: 2
-    # seg_file: test_target_600_1_1676405090.fits
-    # seg_ext: 3
+    background_file: cal/test_target_600_1_1676405090_cal.fits
+    background_ext: 3
   file2:
     image_file: test_target_600_1_1676405088.fits
     image_ext: 0
-    weight_file: test_target_600_1_1676405088.fits
+    weight_file: cal/test_target_600_1_1676405088_cal.fits
     weight_ext: 1
-    mask_file: test_target_600_1_1676405088.fits
+    mask_file: cal/test_target_600_1_1676405088_cal.fits
     mask_ext: 2
-    # seg_file: test_target_600_1_1676405088.fits
-    # seg_ext: 3
+    background_file: cal/test_target_600_1_1676405088_cal.fits
+    background_ext: 3
   # ...

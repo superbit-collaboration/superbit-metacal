@@ -23,13 +23,17 @@ class CookieCutterConfig(object):
     _opt_params = {
         'input': {
             'dir': None,
-            'ra tag': 'RA',
-            'dec tag': 'DEC',
+            'ra_tag': 'RA',
+            'dec_tag': 'DEC',
+            'ra_unit': 'deg',
+            'dec_unit': 'deg',
             'boxsize tag': 'boxsize',
             'catalog_ext': 1, # FITS tables are not stored in primary
         },
         'output': {
             'dir': None,
+            'sci_dtype': None,
+            'msk_dtype': None,
             'overwrite': False,
         },
     }

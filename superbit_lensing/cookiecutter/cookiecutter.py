@@ -6,7 +6,9 @@ import fitsio
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
 import astropy.units as u
+from astropy.table import Table
 import glob
+from time import time
 
 from superbit_lensing import utils
 from config import CookieCutterConfig
@@ -39,6 +41,8 @@ def intersecting_slices(big_array_shape, small_array_shape, position):
     small_array_shape: tuple of int or int; shape of small array to be
         cut out
     position: position of the small array center wrt to the big array.
+        NOTE: Must be in the same order as big/small_array_shape, but
+        this is reverse (i.e. (y,x)) for FITS images!!
 
     Returns:
     --------
@@ -92,17 +96,17 @@ class ImageLocator(object):
     def __init__(self, image_file=None, image_ext=None, weight_file=None,
                  weight_ext=None, mask_file=None, mask_ext=None,
                  background_file=None, background_ext=None,
-                 skyvar_file=None, skyvar_ext=None, globalpath=None):
+                 skyvar_file=None, skyvar_ext=None, input_dir=None):
 
-        if globalpath is not None:
-            image_file = Path(globalpath) / Path(image_file)
+        if input_dir is not None:
+            image_file = Path(input_dir) / Path(image_file)
 
             if weight_file is not None:
-                weight_file = Path(globalpath) / Path(weight_file)
+                weight_file = Path(input_dir) / Path(weight_file)
             if mask_file is not None:
-                mask_file = Path(globalpath) / Path(mask_file)
+                mask_file = Path(input_dir) / Path(mask_file)
             if background_file is not None:
-                background_file = Path(globalPath) / Path(mask_file)
+                background_file = Path(input_dir) / Path(mask_file)
 
         else:
             image_file = Path(image_file)
@@ -146,35 +150,35 @@ class ImageLocator(object):
 
     @property
     def image(self):
-        return fitsio.FITS(self._image_file,'r')[self._image_ext]
+        return fitsio.FITS(self._image_file, 'r')[self._image_ext]
 
     @property
     def weight(self):
         if self._weight_file is None:
             return None
         else:
-            return fitsio.FITS(self._weight_file,'r')[self._weight_ext]
+            return fitsio.FITS(self._weight_file, 'r')[self._weight_ext]
 
     @property
     def mask(self):
         if self._mask_file is None:
             return None
         else:
-            return fitsio.FITS(self._mask_file,'r')[self._mask_ext]
+            return fitsio.FITS(self._mask_file, 'r')[self._mask_ext]
 
     @property
-    def background(self):
+    def skybkg(self):
         if self._background_file is None:
             return None
         else:
-            return fitsio.FITS(self._background_file,'r')[self._background_ext]
+            return fitsio.FITS(self._background_file, 'r')[self._background_ext]
 
     @property
     def skyvar(self):
         if self._skyvar_file is None:
             return None
         else:
-            return fitsio.FITS(self._background_file,'r')[self._skyvar_ext]
+            return fitsio.FITS(self._background_file, 'r')[self._skyvar_ext]
 
 def removeEssentialFITSkeys(header, exclude_keys=None):
     '''
@@ -205,7 +209,7 @@ class CookieCutter(object):
      - TODO:...
     '''
 
-    def __init__(self, cookiecutter_file=None, config=None):
+    def __init__(self, cookiecutter_file=None, config=None, logprint=None):
         '''
         cookiecutter_file: str, Path
             Initialize a cookiecutter object from an already-existing
@@ -216,6 +220,9 @@ class CookieCutter(object):
             object
 
         Only one of these two arguments above can be specified, of course.
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
 
         ------
 
@@ -263,6 +270,12 @@ class CookieCutter(object):
             raise ValueError('You should pass only a cookie cutout file or a ' +
                              'config, not both.')
 
+        if logprint is None:
+            logprint = print
+        else:
+            utils.check_type('logprint', logprint, utils.LogPrint)
+            self.logprint = logprint
+
         return
 
     # @classmethod
@@ -285,15 +298,11 @@ class CookieCutter(object):
         # cookie cutout file or if we're building one from scratch.
         if (cc_file is None) and (config is not None):
             # Initialize from config
+            input_dir = config['input']['dir']
+
             catalog_file = Path(config['input']['catalog'])
 
-            input_dir = config['input']['dir']
-            ipdb.set_trace()
-            if input_dir is not None:
-                catalog_file = Path(input_dir) / catalog_file
-
             ext = config['input']['catalog_ext']
-            ipdb.set_trace()
             catalog = fitsio.read(str(catalog_file), ext=ext)
 
             self.catalog_file = catalog_file
@@ -320,7 +329,6 @@ class CookieCutter(object):
 
         self._createFromImages(
             images,
-            catalog,
             input_dir=input_dir
             )
 
@@ -329,18 +337,25 @@ class CookieCutter(object):
     def _updateCatalogWithBoxsizes(self, catalog):
         # Use the numpy recfunctions library, because I'm a geezer.
         boxsizes = self.calculateBoxsizeFromCatalog(catalog)
-        new_catalog = rf.append_fields(
+        self.catalog = rf.append_fields(
             catalog, 'boxsize', boxsizes, dtypes=['i2'], usemask=False
             )
 
-        return new_catalog
+        return
 
-    def calculateBoxsizeFromCatalog(self,catalog):
+    def calculateBoxsizeFromCatalog(self, catalog, min_size=16, max_size=256):
         '''
         This is a crude rule of thumb -- smallest power of two
         that encloses a quadrature sum of 8 pixels and 4x the flux radius.
         You probably have a better idea. Can override by providing your own
         `boxsize` field
+
+        catalog: np.recarray
+            The catalog to estimate the box size from
+        min_size: int
+            The minimum box size (i.e. edge length)
+        max_size: int
+            The maximum box size (i.e. edge length)
         '''
 
         # Assume we have a FLUX_RADIUS in the catalog.
@@ -348,12 +363,13 @@ class CookieCutter(object):
             np.ceil(np.log2(np.sqrt( 8**2 + (4*catalog['FLUX_RADIUS'])**2)))
             ).astype('i2')
 
+        radius[radius < min_size] = min_size
+        radius[radius > max_size] = max_size
+
         return radius
 
-    def _createFromImages(self, images, catalog, input_dir=None):
+    def _createFromImages(self, images, input_dir=None):
         '''
-        dec_tag: str
-            Name of the dec column in the input catalog
         images: list of dict's
             Each entry in the list is a dict containing the image, weight, mask,
             and background file+extension info.
@@ -364,9 +380,20 @@ class CookieCutter(object):
         LENGTH TO HOLD THE IMAGE FILENAME.
         '''
 
-        ra_tag = self.config['input']['ra tag']
-        dec_tag = self.config['input']['dec tag']
+        # need Table format for the loop over objs to work correctly below
+        catalog = Table(self.catalog)
+        Nsources = len(catalog)
+
+        id_tag = self.config['input']['id_tag']
+        ra_tag = self.config['input']['ra_tag']
+        dec_tag = self.config['input']['dec_tag']
         boxsize_tag = self.config['input']['boxsize tag']
+
+        ra_unit = u.Unit(self.config['input']['ra_unit'])
+        dec_unit = u.Unit(self.config['input']['dec_unit'])
+
+        sci_dtype = self.config['output']['sci_dtype']
+        msk_dtype = self.config['output']['msk_dtype']
 
         overwrite = self.config['output']['overwrite']
 
@@ -390,44 +417,63 @@ class CookieCutter(object):
                 raise OSError(f'{outfile} already exists and overwrite is False!')
 
         object_info_table = np.empty(
-            catalog.size * len(images),
-            dtype=[('object id', int),
-                   ('imagefile', 'S64'),
-                   ('startpos', int),
-                   ('endpos', int),
-                   ('background', float),
-                   ('variance', float),
-                   ('extnumber', int)])
+            Nsources * len(images),
+            dtype=[('object_id', int),
+                   ('image_file', 'S64'),
+                   ('start_pos', int),
+                   ('end_pos', int),
+                   ('sky_bkg', float),
+                   ('sky_var', float),
+                   ('extension', int)])
 
         info_index = 0
 
-        ipdb.set_trace()
         with fitsio.FITS(outfile, 'rw') as fits:
 
             # The first non-empty extension should be the metadata table.
             fits.create_table_hdu(data=object_info_table, extname='META')
 
+            Nimages = len(images)
             for image_index, image in enumerate(images):
-                # TODO: Current refactor point!
+                im_file = image['image_file']
+                self.logprint(f'Starting image {im_file}; {image_index+1} of ' +
+                              f'{Nimages}')
+
                 imageObj = ImageLocator(
                     image_file=image['image_file'],
                     image_ext=image['image_ext'],
                     weight_file=image['weight_file'],
                     weight_ext=image['weight_ext'],
                     mask_file=image['mask_file'],
-                    mask_ext=image['mask_ext']
+                    mask_ext=image['mask_ext'],
+                    input_dir=input_dir
                     )
+
+                # TODO: Something equivalent for mask would be nice,
+                # but more complicated as we are combining multiple ext's
+                # into the mask
+                if sci_dtype is None:
+                    # use the native dtype
+                    sci_dtype = imageObj.image[0,0].dtype
+                # else:
+                #     if sci_dtype != this_dtype:
+                #         im_file = imageObj._image_file
+                #         raise ValueError(f'Image {im_file} dtype of {this_dtype}' +
+                #                          f' is not consistent with {sci_dtype}!')
 
                 image_wcs = WCS(imageObj.image.read_header())
                 imageHDR = removeEssentialFITSkeys(imageObj.image.read_header())
 
                 # place the file path info here
-                imageHDR['image_path'] = Path(image['imagefile']).parent
+                imageHDR['image_path'] = Path(image['image_file']).parent
 
                 image_shape = imageObj.image.get_info()['dims']
+                # NOTE: The reversal is due to the inconsistency between
+                # numpy & FITS indexing!
+                # image_shape.reverse()
 
                 # We know in advance how many cutout pixels we'll need to store
-                npix = catalog.size * np.sum(catalog[boxsize_tag][:]**2)
+                npix = np.sum(catalog[boxsize_tag][:]**2)
 
                 # one dimension for data, one dimension for sky.
                 science_image_dimensions = (1, npix)
@@ -438,93 +484,134 @@ class CookieCutter(object):
                 # the mask, we need two different extensions.
                 fits.create_image_hdu(
                     img=None,
-                    dtype='i2',
-                    dims=dims,
+                    dtype=sci_dtype,
+                    dims=science_image_dimensions,
                     extname=f'IMAGE{image_index}',
                     header=imageHDR
                     )
 
                 fits.create_image_hdu(
                     img=None,
+                    # TODO: make this more flexible!
                     dtype='i1',
-                    dims=dims,
+                    dims=mask_image_dimensions,
                     extname=f'MASK{image_index}'
                     )
 
-                pixels_written = 0
-                for obindx,iobj in enumerate(catalog):
-                    coord = SkyCoord(ra=iobj[ra_tag],dec=iobj[dec_tag])
+                start = time()
 
+                pixels_written = 0
+                for indx, iobj in enumerate(catalog):
+                    if indx % 100 == 0:
+                        self.logprint(f'{indx} of {Nsources}')
+
+                    coord = SkyCoord(
+                        ra=iobj[ra_tag]*ra_unit, dec=iobj[dec_tag]*dec_unit
+                        )
+
+                    # TODO / NOTE: refactor this bit into a function & inv
+                    # function, which will be used to re-construct the images
+                    #
                     # x and y are, for some reason, needlessly returned as
                     # numpy arrays.
                     x, y = image_wcs.world_to_pixel(coord)
-                    object_pos_in_image = [x.item(),y.item()]
+                    object_pos_in_image = [x.item(), y.item()]
+
+                    # NOTE: reversed as numpy arrays have opposite convention!
+                    object_pos_in_image_array = object_pos_in_image[-1::-1]
+
+                    boxsize = iobj[boxsize_tag]
+                    cutout_shape = [boxsize, boxsize]
+                    cutout_pixels = boxsize**2
                     image_slice, cutout_slice = intersecting_slices(
-                        image_shape, iobj[boxsize_tag], object_pos_in_image
+                        image_shape, cutout_shape, object_pos_in_image_array
                         )
 
-                    cutout_shape = (iobj[boxsize_tag],iobj[boxsize_tag])
-                    image_cutout = np.zeros(cutout_shape)
-                    image_cutout[cutout_slice] = imageObj.image[image_slice]
+                    image_cutout = np.zeros(cutout_shape, dtype=sci_dtype)
+                    sci_cutout = imageObj.image[image_slice].astype(sci_dtype)
+                    image_cutout[cutout_slice] = sci_cutout
                     science_output = image_cutout.flatten()
 
-                    if objindx == 0:
+                    if indx == 0:
                         fits[f'IMAGE{image_index}'].write(
                             science_output,
-                            start=[0,pixels_written],
+                            start=[0, pixels_written],
                             header=imageHDR
                             )
                     else:
-                        fits[f'IMAGE{image_index}'].write(
-                            science_output,
-                            start=[0,pixels_written]
-                            )
+                        try:
+                            fits[f'IMAGE{image_index}'].write(
+                                science_output,
+                                start=[0, pixels_written]
+                                )
+                        except Exception as e:
+                            self.logprint(e)
+                            ipdb.set_trace()
 
-                    if imageObj.sky is not None:
+                    # TODO / QUESTION: should we use mean or median for the following?
+                    if imageObj.skybkg is not None:
                         sky_cutout = np.zeros_like(image_cutout)
-                        sky_cutout[cutout_slice] = imageObj.sky[image_slice]
-                        sky_level = np.median(sky_cutout)
+                        sky_cutout[cutout_slice] = imageObj.skybkg[image_slice]
+                        sky_bkg = np.median(sky_cutout)
+                    else:
+                        sky_bkg = None
 
                     if imageObj.skyvar is not None:
                         skyvar_cutout = np.zeros_like(image_cutout)
                         skyvar_cutout[cutout_slice] = imageObj.skyvar[image_slice]
                         sky_var = np.mean(sky_cutout)
+                    else:
+                        sky_var = None
 
                     if imageObj.weight is not None:
-                        weight_cutout = np.zeros_like(image_cutout)
-                        weight_cutout[cutout_slice] = imageObj.weight[image_slice]
+                        # print('Weight extension currently not implemented!')
+                        weight = None
+                        # weight_cutout = np.zeros_like(image_cutout)
+                        # weight_cutout[cutout_slice] = imageObj.weight[image_slice]
+                    else:
+                        weight = None
 
+                    # TODO: This currently won't work if a mask is not provided
                     if imageObj.mask is not None:
                         mask_cutout = np.zeros_like(image_cutout)
                         mask_cutout[cutout_slice] = imageObj.mask[image_slice]
+                    else:
+                        weight = None
 
                     # combine these into one bitplane.
-                    maskbits_output = weight_cutout + 2*mask_cutout
+                    # TODO: Update this line w/ extra info, such as coadd seg!
+                    # maskbits_output = mask_cutout + 2*mask_cutout
+                    maskbits_output = mask_cutout.astype(msk_dtype)
                     fits[f'MASK{image_index}'].write(
-                        maskbits_output, start=[0,pixels_written]
+                        maskbits_output, start=[0, pixels_written]
                         )
 
-                    meta = {
-                        'object id':iobj['id'],
-                        'startpos':pixels_written,
-                        'background':sky_level
-                        }
-
-                    object_info_table[info_index]['object id'] = iobj['id']
-                    object_info_table[info_index]['imagefile'] = image['imagefile']
+                    object_info_table[info_index]['object_id'] = iobj[id_tag]
+                    object_info_table[info_index]['image_file'] = image['image_file']
 
                     # This is how we look up object positions to read later.
-                    object_info_table[info_index]['startpos'] = npix_sci_written
-                    object_info_table[info_index]['endpos'] = npix_sci_written +\
-                        iobj[boxsize_tag]**2
-
-                    object_info_table[info_index]['background'] = sky_level
-                    object_info_table[info_index]['variance'] = sky_var
                     object_info_table[info_index]['extension'] = image_index
+                    object_info_table[info_index]['start_pos'] = pixels_written
+                    object_info_table[info_index]['end_pos'] = pixels_written +\
+                        cutout_pixels
 
-                    npix_sci_written = npix_sci_written + sky_cutout.size
+                    if sky_bkg is not None:
+                        object_info_table[info_index]['sky_bkg'] = sky_bkg
+                    else:
+                        object_info_table[info_index]['sky_bkg'] = -1
+                    if sky_var is not None:
+                        object_info_table[info_index]['sky_var'] = sky_var
+                    else:
+                        object_info_table[info_index]['sky_var'] = -1
+
+                    pixels_written += cutout_pixels
                     info_index = info_index+1
 
+            end = time()
+            dT = start - end
+            self.logprint(f'Total writing time: {dT:.1f}')
+
+            ipdb.set_trace()
             fits['META'].write(object_info_table)
 
             self._fits = fits

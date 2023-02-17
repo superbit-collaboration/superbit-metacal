@@ -1,4 +1,6 @@
 from argparse import ArgumentParser
+from pathlib import Path
+
 from superbit_lensing import utils
 from superbit_lensing.cookiecutter import CookieCutter
 
@@ -8,14 +10,25 @@ parser = ArgumentParser()
 
 parser.add_argument('config_file', type=str,
                     help='The CookieCutter yaml config file to use')
+parser.add_argument('--vb', action='store_true', default=False,
+                    help='Turn on for verbose printing')
 
 def main(args):
 
     config_file = args.config_file
+    vb = args.vb
+
     config = utils.read_yaml(config_file)
 
-    cookie = CookieCutter(config=config)
-    ipdb.set_trace()
+    logdir = (Path(utils.get_test_dir()) / 'cookie_cutter').resolve()
+    logfile = str(logdir / f'cookie-cutter.log')
+
+    log = utils.setup_logger(logfile, logdir=logdir)
+    logprint = utils.LogPrint(log, vb)
+
+    logprint(f'Log is being saved at {logfile}')
+
+    cookie = CookieCutter(config=config, logprint=logprint)
     cookie.go()
 
     return 0
