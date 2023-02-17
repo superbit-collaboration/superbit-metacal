@@ -78,9 +78,11 @@ def main(args):
             config_file = Path(config_dir) / config_file
         config_file = config_file.resolve()
 
-    logprint(f'Using config file {config_file}')
-    if not config_file.is_file():
-        raise ValueError(f'OBA pipeline config file not found: {config_file}')
+        logprint(f'Using config file {config_file}')
+        if not config_file.is_file():
+            raise ValueError(f'OBA pipeline config file not found: {config_file}')
+        else:
+            logprint("No config file passed; running in default mode.")
 
     #-----------------------------------------------------------------
     # I/O setup (registering filepaths, dirs, etc. for run)
@@ -98,11 +100,31 @@ def main(args):
 
     if test is True:
         # handle any needed setup for simulated inputs
-        from setup_test import TestPrepper
+        from setup_test import make_test_prepper
+        
+        if config_file is None:
+            raise ValueError("Must set test type in config for a test!")
+        
+        config = utils.read_yaml(config_file)
+        try:
+            test_type = config['test']['type']
+        except KeyError as e:
+            logprint("Tests require a test type in the config.")
+            raise e
+        try:
+            skip_existing = config['test']['skip_existing']
+        except:
+            skip_existing = False
+            logprint("**NOT** skipping compression of files.")
+            
+        logprint(f'\nTEST == TRUE; Starting test prepper with type {test_type}\n')        
 
-        logprint('\nTEST == TRUE; Starting test prepper\n')
-
-        prepper = TestPrepper(target_name, bands)
+        prepper = make_test_prepper(
+            test_type, 
+            target_name, 
+            bands, 
+            skip_existing=skip_existing
+        )
         prepper.go(io_manager, overwrite=overwrite, logprint=logprint)
 
     #-----------------------------------------------------------------
