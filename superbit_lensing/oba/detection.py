@@ -120,9 +120,13 @@ class DetectionRunner(object):
         sci_ext = self.sci_ext
         wgt_ext = self.wgt_ext
 
-        outfile = Path(
-            str(self.det_coadd).replace('.fits', '_cat.fits')
-            )
+        out_dir = (self.run_dir / 'det/cat/').resolve()
+        utils.make_dir(out_dir)
+
+        out_dir
+
+        outfile = out_dir / self.det_coadd.name.replace('.fits', '_cat.fits')
+
         det_sci = str(self.det_coadd) + f'[{sci_ext}]'
         det_wgt = str(self.det_coadd) + f'[{wgt_ext}]'
 
