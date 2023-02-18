@@ -1317,7 +1317,7 @@ def main(args):
         logprint('\nDone!\n')
 
     end_time = time.time()
-    logprint('\n\ngalsim execution time = {end_time - start_time}\n\n')
+    logprint(f'\n\ngalsim execution time = {end_time - start_time}\n\n')
 
     return
 
