@@ -401,7 +401,7 @@ class OBARunner(object):
 
         return
 
-    def run_astrometry(self, overwrite=True, rerun=True):
+    def run_astrometry(self, overwrite=True, rerun=False):
         '''
         overwrite: bool
             Set to overwrite existing files

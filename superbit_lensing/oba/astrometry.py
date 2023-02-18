@@ -162,7 +162,8 @@ class AstrometryRunner(object):
                 target_ra = float(hdu['TARGET_RA'])
                 target_dec = float(hdu['TARGET_DEC'])
 
-                wcs_dir = os.mkdir(f'{image_name}/wcs_try')
+                wcs_dir = image.parent / 'wcs_try'
+                utils.make_dir(wcs_dir)
 
                 # TODO: Can we interface some of these params w/ a params class?
                 wcs_cmd_0 = f'--overwrite --width 9602 --height 6498 --scale-units arcsecperpix'
@@ -173,11 +174,13 @@ class AstrometryRunner(object):
 
                 # run Astrometry.net script
                 os.system(wcs_cmd_full)
-                new_file_list = glob(f'{wcs_dir}/*new*')
+                new_file_list = glob(f'{str(wcs_dir)}/*new*')
 
                 if len(new_file_list) != 0: # Astrometry.net worked
                     self.wcs_solutions[image] = WCS(new_file_list[0])
                 else:
+                    # TODO: make more descriptive error message!
+                    ipdb.set_trace()
                     raise Exception()
 
         return

@@ -1,0 +1,28 @@
+global input path: ./
+input catalog:
+  filename: ''
+  file extension: 1
+  ra tag: 'RA'
+  dec tag: 'DEC'
+  boxsize tag: 'boxsize'
+
+
+input catalog file extension: 1
+global output path: ./
+output filename: ''
+
+images:
+  file1:
+    imageext: 0
+    imagefile: ''
+    maskext: 0
+    maskfile: ''
+    weightext: 0
+    weightfile: ''
+  file2:
+    imageext: 0
+    imagefile: ''
+    maskext: 0
+    maskfile: ''
+    weightext: 0
+    weightfile: ''

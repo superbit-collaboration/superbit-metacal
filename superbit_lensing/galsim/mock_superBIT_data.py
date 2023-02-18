@@ -265,7 +265,7 @@ def make_a_galaxy(ud, wcs, affine, cosmos_cat, nfw, psf, sbparams, logprint, obj
     stamp.setCenter(image_pos.x,image_pos.y)
     logprint.debug('drew & centered galaxy!')
     galaxy_truth=truth()
-    galaxy_truth.cosmos_index = index
+    galaxy_truth.cosmos_index = cosmos_cat[index]['col0']
     galaxy_truth.ra=ra.deg; galaxy_truth.dec=dec.deg
     galaxy_truth.x=image_pos.x; galaxy_truth.y=image_pos.y
     galaxy_truth.g1=g1; galaxy_truth.g2=g2
@@ -403,10 +403,10 @@ def make_a_star(ud, pud, k, wcs, affine, psf, sbparams, logprint, obj_index=None
     index = obj_index - 1
 
     if sbparams.star_cat is not None:
-        if sbparams.bandpass=='crates_lum':
+        if sbparams.bandpass in ['crates_lum', 'crates_shape']:
             star_flux = sbparams.star_cat['bitflux_electrons_lum'][index]
 
-        elif sbparams.bandpass=='crates_b':
+        elif sbparams.bandpass in ['crates_b', 'crates_u']:
             star_flux = sbparams.star_cat['bitflux_electrons_b'][index]
 
         else:
@@ -1317,7 +1317,7 @@ def main(args):
         logprint('\nDone!\n')
 
     end_time = time.time()
-    logprint('\n\ngalsim execution time = {end_time - start_time}\n\n')
+    logprint(f'\n\ngalsim execution time = {end_time - start_time}\n\n')
 
     return
 
