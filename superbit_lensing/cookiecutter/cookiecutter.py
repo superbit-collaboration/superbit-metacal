@@ -27,6 +27,10 @@ saved in a separate FITS extension
 The CookieCutter format was designed by Eric Huff of JPL
 '''
 
+# TODO:
+# - add obj positions to metadata!
+# - make inv function to recover original images!
+
 def intersecting_slices(big_array_shape, small_array_shape, position):
     '''
 
@@ -338,12 +342,12 @@ class CookieCutter(object):
         # Use the numpy recfunctions library, because I'm a geezer.
         boxsizes = self.calculateBoxsizeFromCatalog(catalog)
         self.catalog = rf.append_fields(
-            catalog, 'boxsize', boxsizes, dtypes=['i2'], usemask=False
+            catalog, 'boxsize', boxsizes, dtypes=['i4'], usemask=False
             )
 
         return
 
-    def calculateBoxsizeFromCatalog(self, catalog, min_size=16, max_size=256):
+    def calculateBoxsizeFromCatalog(self, catalog, min_size=8, max_size=128):
         '''
         This is a crude rule of thumb -- smallest power of two
         that encloses a quadrature sum of 8 pixels and 4x the flux radius.
@@ -358,10 +362,13 @@ class CookieCutter(object):
             The maximum box size (i.e. edge length)
         '''
 
-        # Assume we have a FLUX_RADIUS in the catalog.
+        # Assume we have a FLUX_RADIUS in the catalog
+        # NOTE: have to use int32 as the square of the boxsize
+        # is often computed; can cause overflow errors if users
+        # are not careful
         radius = 2**(
             np.ceil(np.log2(np.sqrt( 8**2 + (4*catalog['FLUX_RADIUS'])**2)))
-            ).astype('i2')
+            ).astype('i4')
 
         radius[radius < min_size] = min_size
         radius[radius > max_size] = max_size
@@ -424,14 +431,11 @@ class CookieCutter(object):
                    ('end_pos', int),
                    ('sky_bkg', float),
                    ('sky_var', float),
-                   ('extension', int)])
+                   ('extension', 'u1')])
 
         info_index = 0
 
         with fitsio.FITS(outfile, 'rw') as fits:
-
-            # The first non-empty extension should be the metadata table.
-            fits.create_table_hdu(data=object_info_table, extname='META')
 
             Nimages = len(images)
             for image_index, image in enumerate(images):
@@ -468,11 +472,9 @@ class CookieCutter(object):
                 imageHDR['image_path'] = Path(image['image_file']).parent
 
                 image_shape = imageObj.image.get_info()['dims']
-                # NOTE: The reversal is due to the inconsistency between
-                # numpy & FITS indexing!
-                # image_shape.reverse()
 
                 # We know in advance how many cutout pixels we'll need to store
+                # NOTE: Need to cast to int32 or overflow can happen
                 npix = np.sum(catalog[boxsize_tag][:]**2)
 
                 # one dimension for data, one dimension for sky.
@@ -502,7 +504,7 @@ class CookieCutter(object):
 
                 pixels_written = 0
                 for indx, iobj in enumerate(catalog):
-                    if indx % 100 == 0:
+                    if indx % 1000 == 0:
                         self.logprint(f'{indx} of {Nsources}')
 
                     coord = SkyCoord(
@@ -523,9 +525,16 @@ class CookieCutter(object):
                     boxsize = iobj[boxsize_tag]
                     cutout_shape = [boxsize, boxsize]
                     cutout_pixels = boxsize**2
-                    image_slice, cutout_slice = intersecting_slices(
-                        image_shape, cutout_shape, object_pos_in_image_array
-                        )
+
+                    try:
+                        image_slice, cutout_slice = intersecting_slices(
+                            image_shape, cutout_shape, object_pos_in_image_array
+                            )
+                    except NoOverlapError as e:
+                        # TODO: Figure out how to handle this correctly...
+                        pass
+                        # self.logprint(f'Stamp {indx} has no overlap; skipping')
+                        # continue
 
                     image_cutout = np.zeros(cutout_shape, dtype=sci_dtype)
                     sci_cutout = imageObj.image[image_slice].astype(sci_dtype)
@@ -539,14 +548,10 @@ class CookieCutter(object):
                             header=imageHDR
                             )
                     else:
-                        try:
-                            fits[f'IMAGE{image_index}'].write(
-                                science_output,
-                                start=[0, pixels_written]
-                                )
-                        except Exception as e:
-                            self.logprint(e)
-                            ipdb.set_trace()
+                        fits[f'IMAGE{image_index}'].write(
+                            science_output,
+                            start=[0, pixels_written]
+                            )
 
                     # TODO / QUESTION: should we use mean or median for the following?
                     if imageObj.skybkg is not None:
@@ -608,13 +613,20 @@ class CookieCutter(object):
                     info_index = info_index+1
 
             end = time()
-            dT = start - end
-            self.logprint(f'Total writing time: {dT:.1f}')
+            dT = end - start
+            self.logprint(f'Total stamp writing time: {dT:.1f}')
+            self.logprint(f'Writing time per image: {dT/Nimages:.1f} s')
 
-            ipdb.set_trace()
-            fits['META'].write(object_info_table)
 
-            self._fits = fits
+            # NOTE: while we wanted this to be ext1, there are issues that
+            # make it easier for it to be -1
+            start = time()
+            fits.create_table_hdu(data=object_info_table, extname='META')
+            end = time()
+            dT = end - start
+            self.logprint(f'Writing time for metadata: {dT:.1f} s')
+
+            # self._fits = fits
 
         # Finally, populate the object info table if we need it for later.
         self._object_info_table = object_info_table

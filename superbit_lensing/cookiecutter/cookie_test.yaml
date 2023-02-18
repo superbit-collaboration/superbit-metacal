@@ -22,6 +22,7 @@ output:
 
 images:
   file1:
+    # image_file: test/test_target_600_1_1676405090_int.fits
     image_file: test_target_600_1_1676405090.fits
     image_ext: 0
     weight_file: cal/test_target_600_1_1676405090_cal.fits
@@ -31,6 +32,7 @@ images:
     background_file: cal/test_target_600_1_1676405090_cal.fits
     background_ext: 3
   file2:
+    # image_file: test/test_target_600_1_1676405088_int.fits
     image_file: test_target_600_1_1676405088.fits
     image_ext: 0
     weight_file: cal/test_target_600_1_1676405088_cal.fits
