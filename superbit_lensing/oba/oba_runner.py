@@ -26,6 +26,7 @@ class OBARunner(object):
         ]
     _opt_fields = {
         'masking': None,
+        'test': None,
         }
 
     # if no config is passed, use the default modules list
@@ -267,7 +268,7 @@ class OBARunner(object):
         target = self.target_name
 
         self.logprint(f'\nStarting onboard analysis for target {target}')
-
+        
         self.logprint('\nStarting preprocessing')
         self.run_preprocessing(overwrite=overwrite)
 
@@ -401,7 +402,7 @@ class OBARunner(object):
 
         return
 
-    def run_astrometry(self, overwrite=True, rerun=True):
+    def run_astrometry(self, overwrite=True, rerun=False):
         '''
         overwrite: bool
             Set to overwrite existing files

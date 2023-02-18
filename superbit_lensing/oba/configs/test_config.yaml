@@ -1,15 +1,18 @@
 # This list defines which OBA submodules to include in the analysis run
 # NOTE: If not set, the default is to run all steps
 modules:
-  - preprocessing
-  - cals
-  - masking
-  - background
+  # - preprocessing
+  # - cals
+  # - masking
+  # - background
   - astrometry
   - coadd
   - detection
 
+test:
+  type: realistic
+  skip_existing: True  
 masking:
   types:
-    - cosmic_rays
+    #- cosmic_rays
     - satellites

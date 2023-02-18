@@ -213,9 +213,9 @@ class SimsTestPrepper(TestPrepper):
         
         logprint('Copying simulated images...')
         #loop bands
-        
+
         for band in self.bands:
-            band_source_dir = os.path.join(source_dir, band)
+            band_source_dir = os.path.join(source_dir, band, '100')
             self.copy_images(band_source_dir, target_dir, logprint)
         
         #all images were copied into the same directory
@@ -245,7 +245,7 @@ def make_test_prepper(test_type, *args, **kwargs):
 
     test_type = test_type.lower()
     if test_type not in TEST_TYPES.keys():
-        raise ValueError(f'obj_type must be one of {TEST_TYPES.keys()}!'
+        raise ValueError(f'obj_type must be one of {TEST_TYPES.keys()}!')
 
     try:
         return TEST_TYPES[test_type](*args,**kwargs)

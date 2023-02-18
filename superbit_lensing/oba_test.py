@@ -30,6 +30,10 @@ def parse_args():
                         help='A pipeline config to use for the oba test, if ' +
                         'youd rather specify everything yourself')
 
+    parser.add_argument('-target_name', type=str, default=None,
+                        help='Name of the target (ie. the cluster name) in '+
+                        'the observed field.')
+
     # NOTE: Can either pass a path_config file to specify the minimal needed
     # path information to generate an imsim config, or pass a config explicitly
     group = parser.add_mutually_exclusive_group(required=True)
@@ -49,7 +53,7 @@ def parse_args():
 # The following helper functions create dummy config files for their
 # corresponding categories. You can always provide your own if you prefer
 
-def make_test_pipe_config(gs_config, outdir=None, outfile=None,
+def make_test_pipe_config(gs_config,target_name ,outdir=None, outfile=None,
                           overwrite=False, ncores=8, vb=True):
     '''
     gs_config: str
@@ -78,18 +82,18 @@ def make_test_pipe_config(gs_config, outdir=None, outfile=None,
         outfile = outdir / 'oba_test.yaml'
 
     config = _make_test_pipe_config(
-        gs_config, outfile, outdir, overwrite=overwrite, ncores=ncores, vb=vb
+        gs_config, outfile, outdir, target_name, overwrite=overwrite, ncores=ncores, vb=vb
         )
 
     utils.write_yaml(config, outfile)
 
     return outfile
 
-def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
+def _make_test_pipe_config(gs_config, outfile, outdir,target_name, overwrite=False,
                            ncores=8, vb=True):
 
     if (overwrite is True) or (not os.path.exists(outfile)):
-        run_name = 'test_target'
+        run_name = target_name
         bands = 'b,lum' # test at least 2 bands
         det_bands = 'b,lum'
 
@@ -113,7 +117,7 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
                 'run_diagnostics': True,
                 'overwrite': overwrite,
                 'order': [
-                    # 'imsim',
+                    #'imsim',
                     'oba',
                     ]
                 },
@@ -232,6 +236,7 @@ def main(args):
     print('Starting OBA test')
 
     pipe_config_file = args.pipe_config
+    target_name = args.target_name
     path_config_file = args.path_config
     gs_config_file = args.gs_config
     fresh = args.fresh
@@ -249,7 +254,9 @@ def main(args):
 
     # we want it to match the QCC paths, relative to a local root dir
     root_dir = test_dir / 'oba_test/'
-    target_name = 'test_target'
+
+    if target_name is None:
+        target_name = 'test_target'
 
     if fresh is True:
         print(f'Deleting old test directory {str(root_dir)}...')
@@ -288,7 +295,7 @@ def main(args):
         # generate a fast config
         print('Creating test pipeline config file...')
         pipe_config_file = make_test_pipe_config(
-            gs_config_file, overwrite=True, outdir=outdir
+            gs_config_file,target_name, overwrite=True, outdir=outdir
             )
         print(f'Generated pipe config file {pipe_config_file}')
 

@@ -44,8 +44,8 @@ psf:
   use_optics: False
 
 image:
-  image_xsize: 9568 # [pixels]
-  image_ysize: 6380 # [pixels]
+  image_xsize: 9600 # [pixels]
+  image_ysize: 6422 # [pixels]
   pixel_scale: 0.141 # [arcsec / pixel]
 
 observation:

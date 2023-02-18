@@ -147,6 +147,7 @@ class AstrometryRunner(object):
                 logprint(f'Starting {image_name}; {i+1} of {Nimages}')
 
                 if rerun is False:
+                    ipdb.set_trace()
                     wcs = self.check_for_wcs(image)
 
                     if wcs is not None:
@@ -156,7 +157,39 @@ class AstrometryRunner(object):
                         # as it already exists there
                         self.wcs_solutions[image] = wcs
                         continue
+                    else:
+                        ### PLACEHOLDER, REMOVE! 
+                        PIX_SCALE =0.141
+                        #wcs = astropy.wcs.WCS(naxis=2)
+                        #wcs.wcs.crpix = [X, Y]
+                        #wcs.wcs.cdelt = np.array([-PIX_SCALE/3600, PIX_SCALE/3600])
+                        #wcs.wcs.crval = [0,0]
+                        #wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+                        #wcs.wcs.cunit1 = ['deg','deg']
+                        #self.wcs_solutions[image] = wcs
+                        #hdr = wcs.to_header()
+                        wcs = {
+                                'CTYPE1' : 'RA---TAN' ,  
+                                'CTYPE2': 'DEC--TAN'  ,                             
+                                'CRPIX1' :        4800.5,                          
+                                'CRPIX2' :        3211.5,                          
+                                'CD1_1'  :  -PIX_SCALE/3600,                        
+                                'CD1_2'  :          0.,                          
+                                'CD2_1'  :          0. ,                         
+                                'CD2_2'  :  PIX_SCALE/3600,                         
+                                'CUNIT1' : 'deg',                                
+                                'CUNIT2' : 'deg ',                               
+                                'CRVAL1' :  199.5,                          
+                                'CRVAL2' :  33.1,     
+                        }
+                        import astropy
+                        for key, val in wcs.items():
+                            astropy.io.fits.setval(str(image),key,value=val)
+                        #header = astropy.io.fits.Header.fromkeys(wcs)
+                        #original_header = astropy.io.fits.open(str(image))[0].header
+                        #original_header.update(header)
 
+                        continue
                 # Attempt 1: Try with a larger search radius around expected RA and DEC (10 degrees)
                 hdu = fitsio.read_header(str(image))
                 target_ra = float(hdu['TARGET_RA'])
