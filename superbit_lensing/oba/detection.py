@@ -128,6 +128,8 @@ class DetectionRunner(object):
 
         out_name = self.det_coadd.name.replace('.fits', '_cat.fits')
         out_dir = self.det_coadd.parents[1] / 'cat/'
+        utils.make_dir(out_dir)
+
         outfile = Path(
             out_dir / out_name
             )

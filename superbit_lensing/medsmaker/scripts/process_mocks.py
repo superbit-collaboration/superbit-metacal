@@ -100,6 +100,15 @@ def main(args):
 
     # Build a PSF model for each image.
     logprint('Making PSF models...')
+    
+    star_params = {'CLASS_STAR':0.95,
+                        'MIN_MAG':23,
+                        'MAX_MAG':15,
+                        'MIN_SIZE':1.8,
+                        'MAX_SIZE':4,
+                        'MIN_SNR': 20
+                        }
+
     bm.make_psf_models(
         select_truth_stars=select_truth_stars,
         im_cats=im_cats,

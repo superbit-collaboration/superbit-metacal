@@ -163,3 +163,97 @@ class TestPrepper(object):
         utils.run_command(cmd, logprint=logprint)
 
         return
+
+class SimsTestPrepper(TestPrepper):
+    
+    """
+    Prepper for realistic sims stored in hen.
+    """
+    ###todo add logic for different directory structure
+    
+    
+    def go(self, io_manager, overwrite=None, logprint=None):
+        '''
+        Handle any necessary test preparation on simulated
+        inputs to the OBA module. For now, just the following:
+
+        (1) Copy simulation files to target_dir
+        (2) Compress simulated image files
+
+        io_manager: oba_io.IOManager
+            An IOManager instance that defines all relevant OBA
+            path information
+        overwrite: bool
+            Set to overwrite existing files
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        '''
+
+        if logprint is None:
+            logprint = print
+
+        logprint(f'Starting test prepper for target {self.target_name}')
+
+        target_dir = io_manager.RAW_TARGET
+
+        # not all IO managers are registered to a particular target
+        if target_dir is None:
+            # NOTE: Old definition!
+            # target_dir = io_manager.RAW_CLUSTERS / self.target_name
+            target_dir = io_manager.RAW_DATA
+
+        target_dir = target_dir.resolve()
+        source_dir = f"/home/gill/sims/data/sims/{self.target_name}/"
+        target_dir = str(target_dir)
+        logprint(f'Using raw target dir {target_dir}')
+
+        if not os.path.exists(target_dir):
+            raise OSError(f'{target_dir} does not exist!')
+        
+        
+        logprint('Copying simulated images...')
+        #loop bands
+        
+        for band in self.bands:
+            band_source_dir = os.path.join(source_dir, band)
+            self.copy_images(band_source_dir, target_dir, logprint)
+        
+        #all images were copied into the same directory
+        logprint('Compressing image files...')
+        self.compress_images(target_dir, logprint, overwrite=overwrite)
+
+        logprint('\nCompleted test setup\n')
+
+        return
+        
+        
+        
+
+    
+###
+def make_test_prepper(test_type, *args, **kwargs):
+    '''
+    obj_type: str
+        Type of test to run
+    config: dict
+        A configuration dictionary that contains all needed
+        fields to create the corresponding object class type
+    seed: int
+        A seed to set for the object constructor
+    '''
+    
+
+    test_type = test_type.lower()
+    if test_type not in TEST_TYPES.keys():
+        raise ValueError(f'obj_type must be one of {TEST_TYPES.keys()}!'
+
+    try:
+        return TEST_TYPES[test_type](*args,**kwargs)
+
+    except KeyError as e:
+        raise KeyError(f'{test_type} not a valid option for {TEST_TYPES.keys()}!')
+
+TEST_TYPES = {
+    'imsim': TestPrepper,
+    'realistic' : SimsTestPrepper,
+}
