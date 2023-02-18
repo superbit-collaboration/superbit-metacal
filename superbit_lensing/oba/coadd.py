@@ -23,6 +23,11 @@ class CoaddRunner(object):
     ext1: WGT (weight; 0 if masked, 1/sky_var otherwise)
     ext2: MSK (mask; 1 if masked, 0 otherwise)
     ext3: BKG (background)
+
+    The output coadd images will have the following structure:
+    Coadd images:
+    ext0: SCI (calibrated & background-subtracted)
+    ext1: WGT (weight; 0 if masked, 1/sky_var otherwise)
     '''
 
     def __init__(self, config_file, run_dir, bands, det_bands,
@@ -371,9 +376,17 @@ class CoaddRunner(object):
             wgt, wgt_hdr = fitsio.read(str(wgt_file), header=True)
 
             with fitsio.FITS(str(sci_file), 'rw') as fits:
+                # Name the main coadd image
+                fits[0].write_key('EXTNAME', 'SCI')
+
                 # adds 1 to the extension number, so do it in order
                 # (sci, wgt)
-                fits.write(wgt, header=wgt_hdr)
+                fits.create_image_hdu(
+                    img=wgt,
+                    dtype='i1',
+                    dims=wgt.shape,
+                    extname='WGT'
+                    )
 
             # now cleanup old wgt files
             wgt_file.unlink()

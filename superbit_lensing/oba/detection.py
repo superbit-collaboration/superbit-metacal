@@ -1,5 +1,6 @@
 import os
 import subprocess
+import fitsio
 from pathlib import Path
 from glob import glob
 
@@ -12,11 +13,17 @@ class DetectionRunner(object):
     Runner class for detecting sources on the calibrated, bkg-subtracted
     detection image for the SuperBIT onboard analysis (OBA).
 
-    NOTE: At this stage, input coadd images should have a
+    NOTE: At this stage, input detection coadd should have a
     WCS solution in the header and the following structure:
 
     ext0: SCI (calibrated & background-subtracted)
     ext1: WGT (weight; 0 if masked, 1/sky_var otherwise)
+
+    Afterwards, it will have the following structure:
+
+    ext0: SCI (calibrated & background-subtracted)
+    ext1: WGT (weight; 0 if masked, 1/sky_var otherwise)
+    ext2: SEG (segmentation; 0 if sky, NUMBER if pixel is assigned to an obj)
     '''
 
     def __init__(self, config_file, run_dir, target_name=None,
@@ -71,7 +78,7 @@ class DetectionRunner(object):
         (1) Grab the detection image
         (2) Run SExtractor on the detection coadd
             NOTE: We ignore the single-band coadds for OBA
-        (3) Collate any outputs needed for the final output datastructure
+        (3) Collate any outputs needed for the final output format
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -85,9 +92,8 @@ class DetectionRunner(object):
         logprint('Running source detection...')
         self.detect_sources(logprint, overwrite=overwrite)
 
-        # TODO: Do we need this?
         logprint('Collating...')
-        self.collate(logprint)
+        self.collate_extensions(logprint)
 
         return
 
@@ -120,9 +126,12 @@ class DetectionRunner(object):
         sci_ext = self.sci_ext
         wgt_ext = self.wgt_ext
 
+        out_name = self.det_coadd.name.replace('.fits', '_cat.fits')
+        out_dir = self.det_coadd.parents[1] / 'cat/'
         outfile = Path(
-            str(self.det_coadd).replace('.fits', '_cat.fits')
+            out_dir / out_name
             )
+
         det_sci = str(self.det_coadd) + f'[{sci_ext}]'
         det_wgt = str(self.det_coadd) + f'[{wgt_ext}]'
 
@@ -249,7 +258,6 @@ class DetectionRunner(object):
         seg_name = f'{base}.sgm.fits'
         ctype = 'SEGMENTATION'
         check_arg = f'-CHECKIMAGE_TYPE {ctype} -CHECKIMAGE_NAME {seg_name}'
-        check_arg = ''
 
         cmd = ' '.join([
             'sex', image_args, config_arg, cat_arg, wgt_args, check_arg
@@ -272,14 +280,31 @@ class DetectionRunner(object):
 
         return cmd
 
-    def collate(self, logprint):
+    def collate_extensions(self, logprint):
         '''
-        Collate outputs to match requirements for final datastructure
-        beamed down by OBA
-
-        TODO: At least add the coadd seg map to the next FITS ext!
+        Collate outputs to match requirements for final format
+        beamed down by OBA (CookieCutter). For now, this just
+        means the coadd segmentation map
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
         '''
-        pass
+
+        det_file = str(self.det_coadd)
+        seg_file = str(self.det_coadd).replace('.fits', '.sgm.fits')
+
+        # has the same hdr as det coadd SCI
+        seg = fitsio.read(seg_file)
+
+        with fitsio.FITS(det_file, 'rw') as fits:
+            fits.create_image_hdu(
+                img=seg,
+                dtype='i4',
+                dims=seg.shape,
+                extname='SEG'
+                )
+
+        # now cleanup old wgt files
+        Path(seg_file).unlink()
+
+        return

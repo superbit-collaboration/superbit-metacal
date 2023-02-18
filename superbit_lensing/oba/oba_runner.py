@@ -1,6 +1,5 @@
 from pathlib import Path
 from copy import deepcopy
-import os
 
 from superbit_lensing import utils
 from oba_io import IOManager, BAND_INDEX
@@ -11,6 +10,8 @@ from background import BackgroundRunner
 from astrometry import AstrometryRunner
 from coadd import CoaddRunner
 from detection import DetectionRunner
+# from output import CookieCutterRunner
+# from cleanup import CleanupRunner
 
 import ipdb
 
@@ -37,7 +38,8 @@ class OBARunner(object):
         'astrometry',
         'coadd',
         'detection',
-        'cookiecutter'
+        'cookiecutter',
+        'cleanup'
         # ...
     ]
 
@@ -254,7 +256,7 @@ class OBARunner(object):
         5) Coaddition (single-band & detection image)
         6) Source detection
         7) Cookie-Cutter (output MEDS-like format)
-        8) Compression & cleanup
+        8) Compression & cleanup (TODO)
 
         NOTE: you can choose which subset of these steps to run using the
         `modules` field in the OBA config file, but in most instances this
@@ -289,9 +291,12 @@ class OBARunner(object):
         self.logprint('\nStarting source detection')
         self.run_detection(overwrite=overwrite)
 
+        self.logprint('\nStarting cookie cutter ')
+        self.run_cookie_cutter(overwrite=overwrite)
+
         # TODO: Current refactor point!
-        # self.logprint('\nStarting cookie cutter ')
-        # self.run_cookie_cutter(overwrite=overwrite)
+        # self.logprint('\nStarting cleanup')
+        # self.run_cleanup(overwrite=overwrite)
 
         self.logprint(f'\nOnboard analysis completed for target {target}')
 
@@ -475,11 +480,30 @@ class OBARunner(object):
             self.logprint('Skipping cookiecutter given config modules')
             return
 
-        runner = CookieCutterRunner(
-            self.run_dir,
-            target_name=self.target_name
-            )
+        # runner = CookieCutterRunner(
+        #     self.run_dir,
+        #     target_name=self.target_name
+        #     )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        # runner.go(self.logprint, overwrite=overwrite)
+
+        return
+
+    def run_cleanup(self, overwrite=True):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        if 'cleanup' not in self.modules:
+            self.logprint('Skipping cleanup given config modules')
+            return
+
+        # runner = cleanupRunner(
+        #     self.run_dir,
+        #     target_name=self.target_name
+        #     )
+
+        # runner.go(self.logprint, overwrite=overwrite)
 
         return
