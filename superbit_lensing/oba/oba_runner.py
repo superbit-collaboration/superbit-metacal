@@ -10,7 +10,7 @@ from background import BackgroundRunner
 from astrometry import AstrometryRunner
 from coadd import CoaddRunner
 from detection import DetectionRunner
-# from output import CookieCutterRunner
+from output import CookieCutterRunner
 # from cleanup import CleanupRunner
 
 import ipdb

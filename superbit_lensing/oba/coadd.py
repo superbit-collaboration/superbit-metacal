@@ -80,7 +80,7 @@ class CoaddRunner(object):
         self.outfile_base = f'{target_name}_coadd'
 
         # these dicts are lists of image files (str's not Path's!) indexed
-        # by band, including FITS extension.These are passed directly
+        # by band, including FITS extension. These are passed directly
         # to SWarp
         self.sci_images = {}
         self.wgt_images = {}
