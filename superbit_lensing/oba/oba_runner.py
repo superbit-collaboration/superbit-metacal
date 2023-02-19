@@ -26,6 +26,7 @@ class OBARunner(object):
         'modules'
         ]
     _opt_fields = {
+        'test': None,
         'masking': None,
         }
 
@@ -480,12 +481,13 @@ class OBARunner(object):
             self.logprint('Skipping cookiecutter given config modules')
             return
 
-        # runner = CookieCutterRunner(
-        #     self.run_dir,
-        #     target_name=self.target_name
-        #     )
+        runner = CookieCutterRunner(
+            self.run_dir,
+            self.bands,
+            target_name=self.target_name
+            )
 
-        # runner.go(self.logprint, overwrite=overwrite)
+        runner.go(self.logprint, overwrite=overwrite)
 
         return
 

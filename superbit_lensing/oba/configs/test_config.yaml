@@ -8,6 +8,17 @@ modules:
   - astrometry
   - coadd
   - detection
+  - cookiecutter
+
+test:
+  # realistic sims on the SuperBIT computer `hen`
+  type: hen
+  # sims produced by the ImSim module
+  # test_type: imsim 
+
+  # this tells the test prepper to skip compressing test images
+  # if they are already present
+  skip_existing: True
 
 masking:
   types:

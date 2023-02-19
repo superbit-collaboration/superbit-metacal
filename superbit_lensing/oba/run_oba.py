@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from argparse import ArgumentParser
 
@@ -60,13 +61,14 @@ def main(args):
     #-----------------------------------------------------------------
     # Logger setup
 
+    # NOTE: log will be moved to target output dir eventually
     logdir = (Path(utils.get_test_dir()) / 'oba_test').resolve()
     logfile = str(logdir / f'{target_name}_oba.log')
 
     log = utils.setup_logger(logfile, logdir=logdir)
     logprint = utils.LogPrint(log, vb)
 
-    logprint(f'Log is being saved at {logfile}')
+    logprint(f'Log is being saved temporarily at {logfile}')
 
     #-----------------------------------------------------------------
     # config setup
@@ -101,30 +103,35 @@ def main(args):
     if test is True:
         # handle any needed setup for simulated inputs
         from setup_test import make_test_prepper
-        
+
         if config_file is None:
-            raise ValueError("Must set test type in config for a test!")
-        
+            raise ValueError('Must set test:type in OBA config for a test!')
+
         config = utils.read_yaml(config_file)
+
         try:
             test_type = config['test']['type']
         except KeyError as e:
-            logprint("Tests require a test type in the config.")
+            logprint('ERROR: Tests require a test type in the config!')
             raise e
+
         try:
             skip_existing = config['test']['skip_existing']
         except:
             skip_existing = False
-            logprint("**NOT** skipping compression of files.")
-            
-        logprint(f'\nTEST == TRUE; Starting test prepper with type {test_type}\n')        
+            logprint('**NOT** skipping compression of files.')
+
+        logprint(
+            f'\nTEST == TRUE; Starting test prepper with type {test_type}\n'
+            )
 
         prepper = make_test_prepper(
-            test_type, 
-            target_name, 
-            bands, 
+            test_type,
+            target_name,
+            bands,
             skip_existing=skip_existing
         )
+
         prepper.go(io_manager, overwrite=overwrite, logprint=logprint)
 
     #-----------------------------------------------------------------
@@ -142,13 +149,30 @@ def main(args):
 
     runner.go(overwrite=overwrite)
 
-    logprint('Done!')
+    logprint(f'\nOBA for {target_name} has finished succesfully!')
 
-    return 0
+    # NOTE: we want to move the log file to its final location, but
+    # this will happen outside of the main() to not clobber anything
+    dest = str(io_manager.OBA_RESULTS / target_name)
+    logprint(f'\nCopying log file to permanent storage at {dest}')
+
+    log_name = Path(logfile).name
+    dest_file = Path(dest) / log_name
+    if dest_file.is_file():
+        if overwrite is False:
+            raise OSError(f'{log_name} already exists at {dest} and ' +
+                          'overwrite is False!')
+        else:
+            dest_file.unlink()
+
+    return 0, logfile, dest
 
 if __name__ == '__main__':
     args = parse_args()
-    rc = main(args)
+    rc, logfile, dest = main(args)
+
+    # now move logfile to final location
+    shutil.move(logfile, dest)
 
     if rc == 0:
         print('\nrun_oba.py completed without error\n')

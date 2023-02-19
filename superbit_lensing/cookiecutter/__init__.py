@@ -1,1 +1,1 @@
-from cookiecutter import *
+from .cookiecutter import *

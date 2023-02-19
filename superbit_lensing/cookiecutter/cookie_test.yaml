@@ -7,8 +7,10 @@ input:
   dec_tag: DELTAWIN_J2000
   ra_unit: deg
   dec_unit: deg
-  boxsize tag: boxsize
-  # seg_file: test_target_600_1_1676405090.fits
+  boxsize_tag: boxsize
+
+  # seg_dir: /Users/sweveret/repos/superbit-metacal/tests/oba_test/home/bit/oba_temp/test_target/det/coadd/
+  # seg_file: test_target_coadd_det.fits 
   # seg_ext: 3
 
 # do we need this?
@@ -31,6 +33,8 @@ images:
     mask_ext: 2
     background_file: cal/test_target_600_1_1676405090_cal.fits
     background_ext: 3
+    segmentation_file: ../det/coadd/test_target_coadd_det.fits
+    segmentation_ext: 2
   file2:
     # image_file: test/test_target_600_1_1676405088_int.fits
     image_file: test_target_600_1_1676405088.fits
@@ -41,4 +45,6 @@ images:
     mask_ext: 2
     background_file: cal/test_target_600_1_1676405088_cal.fits
     background_ext: 3
+    segmentation_file: ../det/coadd/test_target_coadd_det.fits
+    segmentation_ext: 2
   # ...

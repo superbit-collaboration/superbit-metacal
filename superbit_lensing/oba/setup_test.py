@@ -164,14 +164,11 @@ class TestPrepper(object):
 
         return
 
-class SimsTestPrepper(TestPrepper):
-    
-    """
-    Prepper for realistic sims stored in hen.
-    """
-    ###todo add logic for different directory structure
-    
-    
+class HenSimsTestPrepper(TestPrepper):
+    '''
+    Prepper for realistic SuperBIT sims stored in `hen`
+    '''
+
     def go(self, io_manager, overwrite=None, logprint=None):
         '''
         Handle any necessary test preparation on simulated
@@ -203,34 +200,28 @@ class SimsTestPrepper(TestPrepper):
             target_dir = io_manager.RAW_DATA
 
         target_dir = target_dir.resolve()
-        source_dir = f"/home/gill/sims/data/sims/{self.target_name}/"
+        source_dir = f'/home/gill/sims/data/sims/{self.target_name}/'
         target_dir = str(target_dir)
         logprint(f'Using raw target dir {target_dir}')
 
         if not os.path.exists(target_dir):
             raise OSError(f'{target_dir} does not exist!')
-        
-        
+
         logprint('Copying simulated images...')
-        #loop bands
-        
+
+        # NOTE: unlike ImSim, the sims on `hen` are in band-specific
+        # subdirectories, so copy across all bands
         for band in self.bands:
             band_source_dir = os.path.join(source_dir, band)
             self.copy_images(band_source_dir, target_dir, logprint)
-        
-        #all images were copied into the same directory
+
         logprint('Compressing image files...')
         self.compress_images(target_dir, logprint, overwrite=overwrite)
 
         logprint('\nCompleted test setup\n')
 
         return
-        
-        
-        
 
-    
-###
 def make_test_prepper(test_type, *args, **kwargs):
     '''
     obj_type: str
@@ -241,19 +232,22 @@ def make_test_prepper(test_type, *args, **kwargs):
     seed: int
         A seed to set for the object constructor
     '''
-    
 
     test_type = test_type.lower()
-    if test_type not in TEST_TYPES.keys():
-        raise ValueError(f'obj_type must be one of {TEST_TYPES.keys()}!'
+    if test_type not in PREPPER_TYPES.keys():
+        raise ValueError(
+            f'obj_type must be one of {PREPPER_TYPES.keys()}!'
+            )
 
     try:
-        return TEST_TYPES[test_type](*args,**kwargs)
+        return PREPPER_TYPES[test_type](*args,**kwargs)
 
     except KeyError as e:
-        raise KeyError(f'{test_type} not a valid option for {TEST_TYPES.keys()}!')
+        raise KeyError(
+            f'{test_type} not a valid option for {PREPPER_TYPES.keys()}!'
+            )
 
-TEST_TYPES = {
+PREPPER_TYPES = {
     'imsim': TestPrepper,
-    'realistic' : SimsTestPrepper,
+    'hen' : HenSimsTestPrepper,
 }

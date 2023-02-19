@@ -11,7 +11,7 @@ import glob
 from time import time
 
 from superbit_lensing import utils
-from config import CookieCutterConfig
+from .config import CookieCutterConfig
 
 import ipdb
 
@@ -306,6 +306,9 @@ class CookieCutter(object):
 
             catalog_file = Path(config['input']['catalog'])
 
+            if input_dir is not None:
+                catalog_file = input_dir / catalog_file
+
             ext = config['input']['catalog_ext']
             catalog = fitsio.read(str(catalog_file), ext=ext)
 
@@ -323,7 +326,7 @@ class CookieCutter(object):
         # in which case we need to create one.
         # Use a method attached to the class, so that the user can redefine it.
         # Stick here to the boxsize name provided.
-        if config['input']['boxsize tag'] not in catalog.dtype.names:
+        if config['input']['boxsize_tag'] not in catalog.dtype.names:
             self._updateCatalogWithBoxsizes(catalog)
 
         # The catalog read, now let's get the image information.
@@ -394,7 +397,7 @@ class CookieCutter(object):
         id_tag = self.config['input']['id_tag']
         ra_tag = self.config['input']['ra_tag']
         dec_tag = self.config['input']['dec_tag']
-        boxsize_tag = self.config['input']['boxsize tag']
+        boxsize_tag = self.config['input']['boxsize_tag']
 
         ra_unit = u.Unit(self.config['input']['ra_unit'])
         dec_unit = u.Unit(self.config['input']['dec_unit'])
