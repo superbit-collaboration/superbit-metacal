@@ -2,6 +2,7 @@ from pathlib import Path
 from copy import deepcopy
 
 from superbit_lensing import utils
+from config import OBAConfig
 from oba_io import IOManager, BAND_INDEX
 from preprocess import PreprocessRunner
 from cals import CalsRunner
@@ -10,8 +11,8 @@ from background import BackgroundRunner
 from astrometry import AstrometryRunner
 from coadd import CoaddRunner
 from detection import DetectionRunner
-from output import CookieCutterRunner
-# from cleanup import CleanupRunner
+from output import OutputRunner
+from cleanup import CleanupRunner
 
 import ipdb
 
@@ -21,56 +22,19 @@ class OBARunner(object):
     only analyzes cluster lensing targets
     '''
 
-    # fields for the config file
-    _req_fields = [
-        'modules'
-        ]
-    _opt_fields = {
-        'test': None,
-        'masking': None,
-        }
-
-    # if no config is passed, use the default modules list
-    _default_modules = [
-        'preprocessing',
-        'cals',
-        'masking',
-        'background',
-        'astrometry',
-        'coadd',
-        'detection',
-        'cookiecutter',
-        'cleanup'
-        # ...
-    ]
-
     # The QCC uses ints for the band when writing out the
     # exposure filenames
     _bindx = BAND_INDEX
 
     _allowed_bands = _bindx.keys()
 
-    # TODO: Determine which bands we will use in the detection image!
-    det_bands = [
-        'b',
-        'lum',
-        # ...
-    ]
-
-    def __init__(self, config_file, io_manager, target_name,
-                 bands, det_bands, logprint, test=False):
+    def __init__(self, config_file, io_manager, logprint, test=False):
         '''
         config_file: str
-            The OBA configuration file
+            The OBA configuration file. See OBAConfig class for definition
         io_manager: oba_io.IOManager
             An IOManager instance that defines all relevant OBA
             path information
-        target_name: str
-            The name of the target to run the OBA on
-        bands: list of str's
-            A list of band names to process
-        det_bands: list of str's
-            A list of band names to use when creating detection image
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
         test: bool
@@ -81,9 +45,6 @@ class OBARunner(object):
         inputs = {
             'config_file': (config_file, Path),
             'io_manager': (io_manager, IOManager),
-            'target_name': (target_name, str),
-            'bands': (bands, list),
-            'det_bands': (det_bands, list),
             'logprint': (logprint, utils.LogPrint),
             'test': (test, bool)
         }
@@ -106,27 +67,21 @@ class OBARunner(object):
 
     def parse_config(self):
         # TODO: Do additional parsing!
-        if self.config_file is not None:
-            config = utils.read_yaml(self.config_file)
-            self.config = utils.parse_config(
-                config, self._req_fields, self._opt_fields
-                )
-        else:
-            # make a very simple config consistent with a
-            # real data run
-            self.config = self._make_default_config()
+        # if self.config_file is not None:
+        #     config = utils.read_yaml(self.config_file)
+        #     self.config = utils.parse_config(
+        #         config, self._req_fields, self._opt_fields
+        #         )
+        # else:
+        #     # make a very simple config consistent with a
+        #     # real data run
+        #     self.config = self._make_default_config()
+
+        # NOTE: all parsing has been moved into the new OBAConfig class,
+        # including default setting. See class for config def details
+        self.config = OBAConfig(self.config_file)
 
         self.modules = self.config['modules']
-
-        return
-
-    def _make_default_config(self):
-        '''
-        Make a basic config if one is not passed
-        '''
-
-        self.config = {}
-        self.config['modules'] = _default_modules
 
         return
 
@@ -245,6 +200,18 @@ class OBARunner(object):
 
         return
 
+    @property
+    def target_name(self):
+        return self.config['run_options']['target_name']
+
+    @property
+    def bands(self):
+        return self.config['run_options']['bands']
+
+    @property
+    def det_bands(self):
+        return self.config['coadd']['det_bands']
+
     def go(self, overwrite=False):
         '''
         Run all of the required on-board analysis steps in the following order:
@@ -256,8 +223,8 @@ class OBARunner(object):
         4) Astrometry
         5) Coaddition (single-band & detection image)
         6) Source detection
-        7) Cookie-Cutter (output MEDS-like format)
-        8) Compression & cleanup (TODO)
+        7) Cookie-Cutter (output MEDS-like cutout format)
+        8) Compression & cleanup
 
         NOTE: you can choose which subset of these steps to run using the
         `modules` field in the OBA config file, but in most instances this
@@ -292,12 +259,11 @@ class OBARunner(object):
         self.logprint('\nStarting source detection')
         self.run_detection(overwrite=overwrite)
 
-        self.logprint('\nStarting cookie cutter ')
-        self.run_cookie_cutter(overwrite=overwrite)
+        self.logprint('\nStarting output generation')
+        self.run_output(overwrite=overwrite)
 
-        # TODO: Current refactor point!
-        # self.logprint('\nStarting cleanup')
-        # self.run_cleanup(overwrite=overwrite)
+        self.logprint('\nStarting cleanup')
+        self.run_cleanup(overwrite=overwrite)
 
         self.logprint(f'\nOnboard analysis completed for target {target}')
 
@@ -368,12 +334,7 @@ class OBARunner(object):
             return
 
 
-        # TODO: right now we only do this for the masking step, but can
-        # generalize for each module
-        try:
-            mask_types = self.config['masking']['types']
-        except KeyError:
-            mask_types = None
+        mask_types = self.config['masking']['types']
 
         runner = MaskingRunner(
             self.run_dir,
@@ -471,17 +432,17 @@ class OBARunner(object):
 
         return
 
-    def run_cookie_cutter(self, overwrite=True):
+    def run_output(self, overwrite=True):
         '''
         overwrite: bool
             Set to overwrite existing files
         '''
 
-        if 'cookiecutter' not in self.modules:
-            self.logprint('Skipping cookiecutter given config modules')
+        if 'output' not in self.modules:
+            self.logprint('Skipping output given config modules')
             return
 
-        runner = CookieCutterRunner(
+        runner = OutputRunner(
             self.run_dir,
             self.bands,
             target_name=self.target_name
@@ -500,12 +461,17 @@ class OBARunner(object):
         if 'cleanup' not in self.modules:
             self.logprint('Skipping cleanup given config modules')
             return
+        else:
+            clean_oba_dir =  self.config['cleanup']['clean_oba_dir']
 
-        # runner = cleanupRunner(
-        #     self.run_dir,
-        #     target_name=self.target_name
-        #     )
+        runner = CleanupRunner(
+            self.run_dir,
+            self.out_dir,
+            self.bands,
+            target_name=self.target_name,
+            clean_oba_dir=clean_oba_dir,
+            )
 
-        # runner.go(self.logprint, overwrite=overwrite)
+        runner.go(self.logprint, overwrite=overwrite)
 
         return

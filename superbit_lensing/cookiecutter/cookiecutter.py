@@ -89,7 +89,9 @@ def intersecting_slices(big_array_shape, small_array_shape, position):
     return big_slices, small_slices
 
 class NoOverlapError(ValueError):
-    '''Raised when determining the overlap of non-overlapping arrays.'''
+    '''
+    Raised when determining the overlap of non-overlapping arrays
+    '''
     pass
 
 class ImageLocator(object):
@@ -237,8 +239,8 @@ class CookieCutter(object):
         array) and returns an integer scalar that will be used as the cutout
         box size.
 
-        NOTE: In the constructor we just parsethe inputs. We don't load anything
-        until we're told to.
+        NOTE: In the constructor we just parse the inputs. We don't load anything
+        until we're told to
         '''
 
         if config is not None:

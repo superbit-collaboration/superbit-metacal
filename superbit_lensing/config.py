@@ -1,11 +1,16 @@
 import os
 import yaml
+from abc import abstractmethod
+from pathlib import Path
 from glob import glob
+from copy import deepcopy
 from argparse import ArgumentParser
 
-import pipe
-import utils
+from superbit_lensing import utils
 
+import ipdb
+
+# TODO: Refactor: library modules should not have script functionality!
 parser = ArgumentParser()
 
 parser.add_argument('run_name', type=str,
@@ -22,6 +27,158 @@ parser.add_argument('--run_overwrite', action='store_true',
                help='Set to overwrite run files')
 # parser.add_argument('outfile', type=str,
 #                help='Output filepath for config file')
+
+class ModuleConfig(object):
+    '''
+    A base class that adds some logic for required & optional fields
+    in a yaml config file for automated parsing & default setting
+    (so no more testing if a given field is in the config!)
+    '''
+
+
+    # should be overwritten by any subclasses for more useful error messages
+    _name = None
+
+    # during parsing, will error if any field in the list is not present
+    _req_params = []
+
+    # during parsing, will *not* error if any field in the dict is not
+    # present, and will use the key:val pair to set the default value
+    _opt_params = {}
+
+    # set to True if you want the config parsing to error if any fields not
+    # registered below in _req_params or _opt_params are present
+    _allow_unregistered = False
+
+    # not all fields handle subparsing well, such as single-value or lists
+    _skip_subparsing = []
+
+    def __init__(self, config):
+        '''
+        config: str, pathlib.Path, dict
+            An arbitrary config. Either a filename/path for a yaml file
+            or a dictionary
+        '''
+
+        utils.check_type('config', config, (dict, str, Path))
+
+        if isinstance(config, (str, Path)):
+            if isinstance(config, Path):
+                config = str(config)
+            self.read_config(config)
+
+        elif isinstance(config, dict):
+            self.config_file = None
+            self.config = config
+
+        self.parse_config()
+
+        return
+
+    def read_config(self, config_file):
+        '''
+        config: str
+            A yaml config filename
+        '''
+        self.config_file = config_file
+        self.config = utils.read_yaml(config_file)
+
+        return
+
+    def parse_config(self):
+
+        # loop over root fields
+        for field in self._req_params:
+            req = self._req_params[field]
+            try:
+                opt = self._opt_params[field]
+
+            except KeyError:
+                opt = {}
+
+            self.config[field] = utils.parse_config(
+                self.config[field],
+                req,
+                opt,
+                self._name,
+                allow_unregistered=self._allow_unregistered
+                )
+
+        # check for any root fields that only exist in _opt_params
+        for field in self._opt_params:
+            if field not in self._req_params:
+                req = []
+            else:
+                req = self._req_params[field]
+            opt = self._opt_params[field]
+
+            # not all fields handle subparsing well, such as single-value
+            # or list entries
+            if field in self._skip_subparsing:
+                continue
+
+            try:
+                if field in self.config:
+                    config = self.config[field]
+                else:
+                    config = {}
+
+                self.config[field] = utils.parse_config(
+                    config,
+                    req,
+                    opt,
+                    f'{self.name}[\'{field}\']',
+                    allow_unregistered=self._allow_unregistered
+                    )
+            except KeyError as e:
+                raise KeyError(
+                    f'Config parsing failed due to missing key {e}!'
+                    )
+
+        return
+
+    def __getitem__(self, key):
+        '''
+        TODO: For backwards compatibility, it may be nice to search
+        through all nested fields if a key is not found
+        '''
+        return self.config[key]
+
+    def __setitem__(self, key, val):
+        self.config[key] = val
+        return
+
+    def __delitem__(self, key):
+        del self.config[key]
+        return
+
+    def __iter__(self):
+        return iter(self.config)
+
+    def __repr__(self):
+        return str(self.config)
+
+    def copy(self):
+        return self.__copy__()
+
+    @abstractmethod
+    def __copy__(self):
+        # should follow the following template:
+        # SubClass(deepcopy(self.config))
+        pass
+
+    @property
+    def name(self):
+        return self._name
+
+    def keys(self):
+        return self.config.keys()
+
+    def items(self):
+        return self.config.items()
+
+    def values(self):
+        return self.config.values()
 
 def make_run_config(run_name, outfile, nfw_file, gs_config,
                     outdir=None, config_overwrite=False, seeds=None,
@@ -75,9 +232,9 @@ def make_run_config(run_name, outfile, nfw_file, gs_config,
     se_file = os.path.join(outdir, f'{run_name}_mock_coadd_cat.ldac')
     meds_file = os.path.join(outdir, f'{run_name}_meds.fits')
     mcal_file = os.path.join(outdir, f'{run_name}_mcal.fits')
-    ngmix_test_config = pipe.make_test_ngmix_config(
-        'ngmix_test_config.yaml', outdir=outdir, run_name=run_name
-        )
+    # ngmix_test_config = make_test_ngmix_config(
+    #     'ngmix_test_config.yaml', outdir=outdir, run_name=run_name
+    # )
 
     needed_seeds = 0
     seed_names = ['psf_seed', 'mcal_seed', 'nfw_seed']

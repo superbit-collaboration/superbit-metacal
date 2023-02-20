@@ -23,7 +23,7 @@ class AstrometryRunner(object):
     ext3: BKG (background)
     '''
 
-    def __init__(self, run_dir, bands, target_name=None):
+    def __init__(self, run_dir, bands, target_name=None, search_radius=10):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -32,11 +32,14 @@ class AstrometryRunner(object):
         target_name: str
             The name of the target. Default is to use the end of
             run_dir
+        search_radius: float
+            The search radius around the target position, in deg
         '''
 
         args = {
             'run_dir': (run_dir, Path),
             'bands': (bands, list),
+            'search_radius': (search_radius, (float, int))
         }
 
         for name, tup in args.items():
@@ -86,7 +89,7 @@ class AstrometryRunner(object):
 
         # NOTE: check for existing WCS solutions is done inside method
         logprint('Registering images...')
-        self.register_images(logprint, rerun=rerun)
+        self.register_images(logprint, overwrite=overwrite, rerun=rerun)
 
         return
 
@@ -117,7 +120,7 @@ class AstrometryRunner(object):
 
         return
 
-    def register_images(self, logprint, rerun=False):
+    def register_images(self, logprint, overwrite=False, rerun=False):
         '''
         Register all target images using Astrometry.net
 
@@ -126,6 +129,8 @@ class AstrometryRunner(object):
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
+        overwrite: bool
+            Set to overwrite existing files
         rerun: bool
             Set to re-run the astrometry if a WCS solution is already present
             in the image headers
@@ -157,20 +162,31 @@ class AstrometryRunner(object):
                         self.wcs_solutions[image] = wcs
                         continue
 
-                # Attempt 1: Try with a larger search radius around expected RA and DEC (10 degrees)
+                # Attempt 1: Try with a larger search radius around expected
+                # RA and DEC (10 degrees by default)
                 hdu = fitsio.read_header(str(image))
                 target_ra = float(hdu['TARGET_RA'])
                 target_dec = float(hdu['TARGET_DEC'])
 
-                wcs_dir = image.parent / 'wcs_try'
+                wcs_dir = image.parent / 'wcs/'
                 utils.make_dir(wcs_dir)
 
+                wcs_cmd_req = f'solve_field {str(image)}'
+
                 # TODO: Can we interface some of these params w/ a params class?
-                wcs_cmd_0 = f'--overwrite --width 9602 --height 6498 --scale-units arcsecperpix'
-                wcs_cmd_1 = f'--scale-low 0.141 --scale-high 0.142 --no-plots --use-sextractor --cpulimit 90'
-                wcs_cmd_2 = f'--rdls none --solved none --corr none --index-xyls none --axy none --match none'
-                wcs_cmd_full = f'solve_field {image_name} {wcs_cmd_0} --ra {target_ra} --dec {target_dec}' \
-                                '--radius 10 --dir {wcs_dir} {wcs_cmd_1} {wcs_cmd_2}'
+                wcs_cmd_opt = (
+                    f'--width 9602 --height 6498 --scale-units arcsecperpix '
+                    f'--scale-low 0.141 --scale-high 0.142 --no-plots '
+                    f'--use-sextractor --cpulimit 90 --axy none --match none '
+                    f'--rdls none --solved none --corr none --index-xyls none '
+                    f'--radius {self.search_radius} --dir {wcs_dir}'
+                    )
+                ipdb.set_trace()
+
+                wcs_cmd_full = ' '.join(wcs_cmd_req, wcs_cmd_opt)
+
+                if overwrite is True:
+                    wcs_cmd += ' --overwrite'
 
                 # run Astrometry.net script
                 os.system(wcs_cmd_full)
@@ -182,6 +198,10 @@ class AstrometryRunner(object):
                     # TODO: make more descriptive error message!
                     ipdb.set_trace()
                     raise Exception()
+
+                # TODO: Save WCS to (copied) RAW_SCI file so that it is
+                # available during the CookieCutter step of output.py
+                # ...
 
         return
 

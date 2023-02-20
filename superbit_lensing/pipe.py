@@ -794,9 +794,8 @@ class OBAModule(SuperBITModule):
     for a given target
     '''
 
-    _req_fields = ['target_name']
-    _opt_fields = ['config_file', 'config_dir', 'root_dir',
-                   'bands', 'det_bands']
+    _req_fields = ['config_file']
+    _opt_fields = ['config_dir', 'root_dir']
     _flag_fields = ['test', 'overwrite', 'vb']
 
     def run(self, run_options, logprint):
@@ -816,9 +815,9 @@ class OBAModule(SuperBITModule):
             oba_dir, 'run_oba.py'
             )
 
-        target_name = self._config['target_name']
+        config_file = self._config['config_file']
 
-        base = f'python {filepath} {target_name}'
+        base = f'python {filepath} {config_file}'
 
         options = self._setup_options(run_options)
 

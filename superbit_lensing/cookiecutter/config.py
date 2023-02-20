@@ -3,6 +3,7 @@ from copy import deepcopy
 
 import ipdb
 
+# TODO: Subclass from ModuleConfig!
 class CookieCutterConfig(object):
 
     # these are top-level config fields

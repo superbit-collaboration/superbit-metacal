@@ -7,10 +7,10 @@ from superbit_lensing import utils
 from superbit_lensing.cookiecutter import CookieCutter
 from oba_io import band2index
 
-class CookieCutterRunner(object):
+class OutputRunner(object):
     '''
-    Runner class for the CookieCutter format, which takes image cutouts
-    of sources from an input detection catalog (typically SExtractor)
+    Runner class for the CookieCutter output format, which takes image
+    cutouts of sources from an input detection catalog (typically SExtractor)
     as well as object metadata, including information needed to re-
     construct the original images where they intersect with the stamps
 
@@ -149,14 +149,20 @@ class CookieCutterRunner(object):
         # by band & raw image filepath
         self.images = {}
 
+        # this dictionary will store the CookieCutter config filepaths,
+        # indexed by band
+        self.config_files = {}
+
         self.det_coadd = self.run_dir / f'det/coadd/{target_name}_coadd_det.fits'
         self.det_cat = self.run_dir / f'det/cat/{target_name}_coadd_det_cat.fits'
+
 
         return
 
     def go(self, logprint, overwrite=False):
         '''
-        Make a CookieCutter output file for each band
+        Run the output generation step of the OBA. Make a CookieCutter
+        output file for each band
 
         Steps:
 
@@ -289,18 +295,18 @@ class CookieCutterRunner(object):
 
             # a dictionary indexed by raw SCI filepath
             images = self.images[band]
+            config['images'] = {}
 
             for image, image_map in images.items():
                 logprint(f'Writing configuration for {image.name}')
 
                 # now for the per-image configuration
-                config[image.name] = {}
+                config['images'][image.name] = {}
                 for key, cckey in self.cookiecutter_keymap.items():
-                    image_map[cckey] = image_map[key]
-                    config[image.name][cckey] = image_map[key]
+                    config['images'][image.name][cckey] = image_map[key]
 
             # write one CookieCutter config per band
-            config_outfile = outdir / f'{target_name}_{band}_cookiecutter.yaml'
+            config_outfile = outdir / f'{target_name}_{band}_stamps.yaml'
             if config_outfile.is_file():
                 if overwrite is False:
                     raise OSError(f'{str(config_outfile)} already exists and ' +
@@ -310,6 +316,7 @@ class CookieCutterRunner(object):
 
             utils.write_yaml(config, str(config_outfile))
             logprint(f'Wrote CookieCutter config to {str(config_outfile)}')
+            self.config_files[band] = config_outfile
 
         return
 
@@ -322,7 +329,7 @@ class CookieCutterRunner(object):
         '''
 
         # we won't be using the full paths as we are setting a input dir
-        det_cat = f'cat/{self.det_cat.name}'
+        det_cat = f'det/cat/{self.det_cat.name}'
 
         base_config = {
             'input': {
@@ -356,5 +363,14 @@ class CookieCutterRunner(object):
 
         for band in self.bands:
             logprint(f'Starting band {band}')
+
+            config_file = str(self.config_files[band])
+            logprint(f'Using config file {config_file}')
+
+            # NOTE: Can pass either the config file or the loaded config
+            cutter = CookieCutter(config=config_file, logprint=logprint)
+
+            logprint('Starting...')
+            cutter.go()
 
         return

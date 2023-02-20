@@ -91,7 +91,9 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
     if (overwrite is True) or (not os.path.exists(outfile)):
         run_name = 'test_target'
         bands = 'b,lum' # test at least 2 bands
-        det_bands = 'b,lum'
+
+        # NOTE: this is now set in the OBA config
+        # det_bands = 'b,lum'
 
         test_dir = (Path(utils.TEST_DIR) / 'oba_test/').resolve()
         config_dir = (Path(utils.MODULE_DIR) / 'oba/configs/').resolve()
@@ -124,9 +126,8 @@ def _make_test_pipe_config(gs_config, outfile, outdir, overwrite=False,
                 'overwrite': overwrite
             },
             'oba': {
-                'target_name': run_name,
-                'root_dir': str(test_dir),
                 'config_file': str(oba_config),
+                'root_dir': str(test_dir),
                 'test': True
             }
         }
