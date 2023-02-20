@@ -306,7 +306,7 @@ class OutputRunner(object):
                     config['images'][image.name][cckey] = image_map[key]
 
             # write one CookieCutter config per band
-            config_outfile = outdir / f'{target_name}_{band}_stamps.yaml'
+            config_outfile = outdir / f'{target_name}_{band}_cutouts.yaml'
             if config_outfile.is_file():
                 if overwrite is False:
                     raise OSError(f'{str(config_outfile)} already exists and ' +
@@ -351,7 +351,7 @@ class OutputRunner(object):
 
         return base_config
 
-    def run_cookie_cutter(self, logprint, overwrite):
+    def run_cookie_cutter(self, logprint, overwrite=False):
         '''
         TODO: ...
 

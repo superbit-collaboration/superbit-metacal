@@ -352,7 +352,7 @@ class CookieCutter(object):
 
         return
 
-    def calculateBoxsizeFromCatalog(self, catalog, min_size=8, max_size=128):
+    def calculateBoxsizeFromCatalog(self, catalog, min_size=8, max_size=64):
         '''
         This is a crude rule of thumb -- smallest power of two
         that encloses a quadrature sum of 8 pixels and 4x the flux radius.
@@ -431,12 +431,11 @@ class CookieCutter(object):
         object_info_table = np.empty(
             Nsources * len(images),
             dtype=[('object_id', int),
-                   ('image_file', 'S64'),
                    ('start_pos', int),
                    ('end_pos', int),
                    ('sky_bkg', float),
                    ('sky_var', float),
-                   ('extension', 'u1')])
+                   ('cc_ext', 'u1')])
 
         info_index = 0
 
@@ -474,7 +473,8 @@ class CookieCutter(object):
                 imageHDR = removeEssentialFITSkeys(imageObj.image.read_header())
 
                 # place the file path info here
-                imageHDR['image_path'] = Path(image['image_file']).parent
+                imageHDR['imfile'] = str(image['image_file'])
+                imageHDR['imext'] = image['image_ext']
 
                 image_shape = imageObj.image.get_info()['dims']
 
@@ -597,10 +597,10 @@ class CookieCutter(object):
                         )
 
                     object_info_table[info_index]['object_id'] = iobj[id_tag]
-                    object_info_table[info_index]['image_file'] = image['image_file']
+                    # object_info_table[info_index]['image_file'] = image['image_file']
 
                     # This is how we look up object positions to read later.
-                    object_info_table[info_index]['extension'] = image_index
+                    object_info_table[info_index]['cc_ext'] = image_index
                     object_info_table[info_index]['start_pos'] = pixels_written
                     object_info_table[info_index]['end_pos'] = pixels_written +\
                         cutout_pixels
@@ -627,11 +627,10 @@ class CookieCutter(object):
             # make it easier for it to be -1
             start = time()
             fits.create_table_hdu(data=object_info_table, extname='META')
+            fits['META'].write(object_info_table)
             end = time()
             dT = end - start
             self.logprint(f'Writing time for metadata: {dT:.1f} s')
-
-            # self._fits = fits
 
         # Finally, populate the object info table if we need it for later.
         self._object_info_table = object_info_table

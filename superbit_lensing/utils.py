@@ -420,6 +420,25 @@ def get_pixel_scale(image_filename):
 
     return pix_scale
 
+def rm_tree(path):
+    '''
+    Recursive directory removal using pathlib
+
+    path: str, pathlib.Path
+        The directory path to recursively delete
+    '''
+
+    path = Path(path)
+    for child in path.glob('*'):
+        if child.is_file():
+            child.unlink()
+        else:
+            rm_tree(child)
+
+    path.rmdir()
+
+    return
+
 def make_dir(d):
     '''
     Makes dir if it does not already exist

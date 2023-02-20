@@ -368,22 +368,24 @@ class OBARunner(object):
 
         return
 
-    def run_astrometry(self, overwrite=True, rerun=False):
+    def run_astrometry(self, overwrite=True):
         '''
         overwrite: bool
             Set to overwrite existing files
-        rerun: bool
-            Set to rerun astrometry even if WCS is in image header
         '''
 
         if 'astrometry' not in self.modules:
             self.logprint('Skipping astrometry estimation given config modules')
             return
 
+        rerun = self.config['astrometry']['rerun']
+        search_radius = self.config['astrometry']['search_radius']
+
         runner = AstrometryRunner(
             self.run_dir,
             self.bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            search_radius=search_radius,
             )
 
         runner.go(self.logprint, overwrite=overwrite, rerun=rerun)

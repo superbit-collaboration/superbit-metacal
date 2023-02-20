@@ -168,27 +168,38 @@ class AstrometryRunner(object):
                 target_ra = float(hdu['TARGET_RA'])
                 target_dec = float(hdu['TARGET_DEC'])
 
-                wcs_dir = image.parent / 'wcs/'
+                wcs_dir = image.parents[1] / 'wcs/'
+
+                # astrometry.net doesn't appear to handle overwriting smoothly
+                if wcs_dir.is_dir():
+                    if overwrite is True:
+                        utils.rm_tree(wcs_dir)
+                    else:
+                        wcs_file = next(wcs_dir.iterdir(), None)
+                        if wcs_file is not None:
+                            raise OSError('wcs_dir already has files but ' +
+                                          'overwrite is False!')
                 utils.make_dir(wcs_dir)
 
-                wcs_cmd_req = f'solve_field {str(image)}'
+                wcs_cmd_req = f'solve-field {str(image)}'
 
                 # TODO: Can we interface some of these params w/ a params class?
                 wcs_cmd_opt = (
                     f'--width 9602 --height 6498 --scale-units arcsecperpix '
                     f'--scale-low 0.141 --scale-high 0.142 --no-plots '
-                    f'--use-sextractor --cpulimit 90 --axy none --match none '
+                    f'--use-source-extractor --cpulimit 90 --axy none --match none '
+                    # f'--use-sextractor --cpulimit 90 --axy none --match none '
                     f'--rdls none --solved none --corr none --index-xyls none '
                     f'--radius {self.search_radius} --dir {wcs_dir}'
                     )
-                ipdb.set_trace()
 
-                wcs_cmd_full = ' '.join(wcs_cmd_req, wcs_cmd_opt)
+                wcs_cmd_full = ' '.join([wcs_cmd_req, wcs_cmd_opt])
 
                 if overwrite is True:
-                    wcs_cmd += ' --overwrite'
+                    wcs_cmd_full += ' --overwrite'
 
                 # run Astrometry.net script
+                ipdb.set_trace()
                 os.system(wcs_cmd_full)
                 new_file_list = glob(f'{str(wcs_dir)}/*new*')
 
@@ -196,8 +207,7 @@ class AstrometryRunner(object):
                     self.wcs_solutions[image] = WCS(new_file_list[0])
                 else:
                     # TODO: make more descriptive error message!
-                    ipdb.set_trace()
-                    raise Exception()
+                    raise Exception('error!')
 
                 # TODO: Save WCS to (copied) RAW_SCI file so that it is
                 # available during the CookieCutter step of output.py
@@ -233,3 +243,23 @@ class AstrometryRunner(object):
                 return None
 
         return WCS(image_file)
+
+    def save_wcs_to_raw(self, cal_image):
+        '''
+        For the final output CookieCutter format, it expects the WCS in the
+        header of the main SCI image. As that will be the (copied) RAW_SCI
+        image, we need to save the solved WCS to their headers
+
+        cal_image: pathlib.Path
+            The path of the calibrated SCI image
+        '''
+
+        cal_dir = cal_image.parent
+        cal_name = cal_image.name
+
+        raw_dir = cal_dir.parent
+        raw_name = cal_name.replace('_cal.fits', '.fits')
+
+        # TODO: Implement!!
+
+        return

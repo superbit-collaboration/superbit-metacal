@@ -14,7 +14,7 @@ modules:
   # - coadd
   # - detection
   - output
-  - cleanup
+  # - cleanup
 
 test:
   # realistic sims on the SuperBIT computer `hen`
@@ -32,12 +32,12 @@ masking:
     - satellites
 
 astrometry:
-
-  # Can force the astrometry module to rerun the WCS solution even if
+  # can force the astrometry module to rerun the WCS solution even if
   # there is already a WCS in the image headers from the image checker
-  rerun: False
+  rerun: True
 
-  # 
+  # the search radius about the target position, in deg
+  search_radius: 10 # deg
 
 cleanup:
   # NOTE: Will lose intermediate data products if you turn this on!
