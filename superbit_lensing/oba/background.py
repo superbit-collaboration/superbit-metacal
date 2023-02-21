@@ -22,7 +22,7 @@ class BackgroundRunner(object):
 
     ext0: SCI (calibrated)
     ext1: WGT (weight; 0 if masked, 1 otherwise)
-    ext2: MSK (mask; 1 if masked, 0 otherwise)
+    ext2: MSK (mask; see bitmask.py for def)
 
     The runner overwrites the calibrated SCI image with the background-
     subtracted image and updates the weights with the background RMS field:

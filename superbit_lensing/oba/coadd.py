@@ -21,7 +21,7 @@ class CoaddRunner(object):
 
     ext0: SCI (calibrated & background-subtracted)
     ext1: WGT (weight; 0 if masked, 1/sky_var otherwise)
-    ext2: MSK (mask; 1 if masked, 0 otherwise)
+    ext2: MSK (mask; see bitmask.py for def)
     ext3: BKG (background)
 
     The output coadd images will have the following structure:

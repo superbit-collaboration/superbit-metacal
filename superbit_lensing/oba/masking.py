@@ -6,6 +6,7 @@ import fitsio
 from lacosmic import lacosmic
 
 from superbit_lensing import utils
+from bitmask import OBA_BITMASK, OBA_BITMASK_DTYPE
 from superbit_lensing.oba.oba_io import band2index
 
 import ipdb
@@ -20,11 +21,11 @@ class MaskingRunner(object):
 
     ext0: SCI (calibrated)
     ext1: WGT (weight; 0 if masked, 1 otherwise)
-    ext2: MSK (mask; 1 if masked, 0 otherwise)
+    ext2: MSK (mask; see bitmask.py for def)
     '''
 
     # by default, do *all* masking steps
-    # NOTE: hot pixels & "active region" masks are handled in cals
+    # NOTE: hot pixels & "inactive region" masks are handled in cals
     _default_mask_types = [
         'cosmic_rays',
         'satellites'
@@ -165,6 +166,8 @@ class MaskingRunner(object):
             The fits extension for the sci image
         '''
 
+        cosmic_val = OBA_BITMASK['cosmic_ray']
+
         for band in self.bands:
             logprint(f'Starting cosmic ray masking on band {band}')
 
@@ -191,8 +194,11 @@ class MaskingRunner(object):
                     maxiter=2
                     )
 
-                # AND cosmic ray mask with the existing mask on cal file
-                self.masks[cal_file] *= cr_mask
+                # OR cosmic ray mask with the existing mask on cal file
+                # TODO: confirm that the following works!
+                ipdb.set_trace()
+                cr_mask = cosmic_val * cr_mask.astype(OBA_BITMAS_DTYPE)
+                self.masks[cal_file] |= cr_mask
 
         return
 

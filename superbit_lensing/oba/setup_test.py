@@ -169,6 +169,28 @@ class HenSimsTestPrepper(TestPrepper):
     Prepper for realistic SuperBIT sims stored in `hen`
     '''
 
+    def __init__(self, target_name, bands, skip_existing=True,
+                 strehl_ratio=100):
+        '''
+        target_name: str
+            The name of the target to run the OBA on
+        bands: list of str's
+            A list of band names
+        skip_existing: bool
+            Set to skip existing compressed files
+        strehl_ratio: int, float
+            The Strehl ratio of the sims (100 is perfect focus)
+        '''
+
+        utils.check_type('strehl_ratio', strehl_ratio, (int, float))
+        self.strehl_ratio = strehl_ratio
+
+        super(HenSimsTestPrepper, self).__init__(
+            target_name, bands, skip_existing=skip_existing
+            )
+
+        return
+
     def go(self, io_manager, overwrite=None, logprint=None):
         '''
         Handle any necessary test preparation on simulated
@@ -212,7 +234,9 @@ class HenSimsTestPrepper(TestPrepper):
         # NOTE: unlike ImSim, the sims on `hen` are in band-specific
         # subdirectories, so copy across all bands
         for band in self.bands:
-            band_source_dir = os.path.join(source_dir, band)
+            band_source_dir = os.path.join(
+                source_dir, band, str(self.strehl_ratio)
+                )
             self.copy_images(band_source_dir, target_dir, logprint)
 
         logprint('Compressing image files...')

@@ -5,6 +5,7 @@ import numpy as np
 import fitsio
 
 from superbit_lensing import utils
+from bitmask import OBA_BITMASK, OBA_BITMASK_DTYPE
 import oba_io
 
 import ipdb
@@ -13,7 +14,34 @@ class CalsRunner(object):
     '''
     Runner class for calibrating raw SuperBIT science images
     for the onboard analysis (OBA)
+
+    NOTE: At this stage, input raw images should have the
+    following structure:
+
+    ext0: SCI (raw)
+
+    After cals has finished, the (new) calibrated images will have
+    the following structure:
+
+    ext0: SCI (calibrated)
+    ext1: WGT (weight; 0 if masked, 1 otherwise)
+    ext2: MSK (mask; see bitmask.py for def)
     '''
+
+    # smallest numpy will allow is 1 byte
+    _mask_dtype = OBA_BITMASK_DTYPE
+
+    # NOTE: this is the numpy array shape, not FITS shape!
+    _image_shape = (6422, 9600)
+
+    # the "inactive region" mask accounts for the rows & cols that are not
+    # exposed to light
+    # NOTE: these index slices are for the 0-indexed numpy arrays representing
+    # the mask, *not* the 1-indexed FITS rows/columns!
+    _inactive_reg_slices = [
+        np.s_[:, 22:23+1], # vertical colum *near* left edge, but not on it
+        np.s_[6389:, :]    # ~30 rows on the top of the detector
+        ]
 
     def __init__(self, run_dir, darks_dir, flats_dir, bands, target_name=None):
         '''
@@ -61,10 +89,29 @@ class CalsRunner(object):
         self.calibrated = {}
 
         # this dictionary will store the hot pixel mask for each master dark
-        # frame, indexed by the dark filename
+        # frame (plus the "inactive region" mask), indexed by the dark filename
         self.pixel_masks = {}
 
+        self.inactive_reg_mask = self._make_inactive_region_mask()
+
         return
+
+    def _make_inactive_region_mask(self):
+        '''
+        Mask the rows & cols of the CCD that are not exposed to light
+        '''
+
+        unmasked = OBA_BITMASK['unmasked']
+        inactive_val = OBA_BITMASK['inactive_region']
+
+        inactive_reg_mask = unmasked * np.ones(
+            self._image_shape, dtype=self._mask_dtype
+            )
+
+        for s in self._inactive_reg_slices:
+            inactive_reg_mask[s] = inactive_val
+
+        return inactive_reg_mask
 
     def go(self, logprint, overwrite=False):
         '''
@@ -73,7 +120,8 @@ class CalsRunner(object):
         images. The basic procedure is as follows:
 
         (1) Assign the corresponding master dark & flat for each image
-        (2) Create hot pixel mask using master dark
+        (2) Create hot pixel mask using master dark (in addition to
+            the "inactive region" mask)
             NOTE: The current plan is to have a static master flat
         (3) Basic calibration: Cal = (Raw - Dark) / Flat
         (4) Write out calibrated images w/ original headers
@@ -88,8 +136,8 @@ class CalsRunner(object):
         logprint('Assigning calibration frames...')
         self.assign_cals(logprint)
 
-        logprint('Creating hot pixel masks...')
-        self.make_hot_pixel_masks(logprint)
+        logprint('Creating hot pixel + "inactive region" masks...')
+        self.make_image_masks(logprint)
 
         logprint('Applying calibrations to raw images...')
         self.apply_cals(logprint)
@@ -205,9 +253,11 @@ class CalsRunner(object):
 
         return flat
 
-    def make_hot_pixel_masks(self, logprint, threshold=1000):
+    def make_image_masks(self, logprint, threshold=1000):
         '''
-        Create the hot pixel masks for each master dark used for cals
+        Create the hot pixel & inactive region masks for each master dark
+        used for cals. Builds ontop of the inactive region mask set in
+        constructor. See bitmask.py for details
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -217,20 +267,29 @@ class CalsRunner(object):
         '''
 
         utils.check_type('threshold', threshold, int)
-        logprint(f'Using a threshold value of {threshold}')
+        logprint(f'Using a hot pixel threshold value of {threshold}')
+
+        unmasked_val = OBA_BITMASK['unmasked']
+        hot_pix_val = OBA_BITMASK['hot_pixel']
 
         for sci_file, cals in self.cals.items():
 
             dark_file = cals['dark']
             dark = fitsio.read(str(dark_file))
-            mask = np.zeros(dark.shape, dtype=bool)
+
+            if dark.shape != self._image_shape:
+                raise ValueError(f'dark shape {dark.shape} does not match ' +
+                                 f'the SuperBIT image shape {self._image_shape}')
+
+            # start with the inactive region mask as the base
+            mask = self.inactive_reg_mask.copy()
 
             bad_pix = np.where(dark > threshold)
-            mask[bad_pix] = True
+            mask[bad_pix] = hot_pix_val
 
             shape = mask.shape
-            Nbad = len(mask[mask == True])
-            bad_frac = len(mask[mask > 0]) / (shape[0] * shape[1])
+            Nbad = len(mask[mask != unmasked_val])
+            bad_frac = Nbad / (shape[0] * shape[1])
             bad_perc = 100 * bad_frac
             logprint(f'Mask for {dark_file.name} has {Nbad} bad pixels; ' +
                      f'{bad_perc:.2f}%')
@@ -351,8 +410,8 @@ class CalsRunner(object):
     def _make_msk_image(self, raw_image):
         '''
         Create the mask image for the input raw_file. Just the hot
-        pixel mask at this stage - more complex features like cosmic
-        rays and satellite trails are handled later
+        pixel mask & inactive region at this stage - more complex
+        features like cosmic rays and satellite trails are handled later
 
         NOTE: Must be run after cals have been assigned!
 
@@ -363,10 +422,8 @@ class CalsRunner(object):
 
         dark_file = self.cals[raw_image]['dark']
 
-        # NOTE: numpy does not support smaller dtypes than 1 byte.
-        #       We will have to cast down by hand at the end of
-        #       the OBA
-        msk = self.pixel_masks[dark_file].astype(np.uint8)
+        # NOTE: dtype set in bitmask.py
+        msk = self.pixel_masks[dark_file]
 
         msk_hdr = {
             'IMTYPE': 'MASK'

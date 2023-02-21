@@ -7,13 +7,13 @@ run_options:
 # NOTE: If not set, the default is to run all steps
 modules:
   # - preprocessing
-  # - cals
-  # - masking
+  - cals
+  - masking
   # - background
   # - astrometry
   # - coadd
   # - detection
-  - output
+  # - output
   # - cleanup
 
 test:
@@ -28,7 +28,7 @@ test:
 
 masking:
   types:
-    # - cosmic_rays
+    - cosmic_rays
     - satellites
 
 astrometry:

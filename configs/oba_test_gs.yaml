@@ -44,8 +44,11 @@ psf:
   use_optics: False
 
 image:
-  image_xsize: 9568 # [pixels]
-  image_ysize: 6380 # [pixels]
+  image_xsize: 9600 # [pixels]
+  image_ysize: 6422 # [pixels]
+  # NOTE: These are the dimensions of the "active" parts of the CCD
+  # image_xsize: 9568 # [pixels]
+  # image_ysize: 6380 # [pixels]
   pixel_scale: 0.141 # [arcsec / pixel]
 
 observation:
@@ -94,12 +97,12 @@ position_sampling:
   galaxies:
     type: MixedGrid
     grid_type: HexGrid
-    grid_spacing: 60 # arcsec
+    grid_spacing: 20 # arcsec
     fraction: 0.8
   stars:
     type: MixedGrid
     fraction: 0.2
-  # TODO: fill in the rest of the required fields!
+    # NOTE: other fields are inherited from the shared grid above
 
 shear:
   type: constant
@@ -122,4 +125,6 @@ seeds:
   cluster_galaxies: None
   stars: None
   galaxies: None
+  # NOTE: each seed will be set even if you don't specify, as below:
+  # grid: None
 
