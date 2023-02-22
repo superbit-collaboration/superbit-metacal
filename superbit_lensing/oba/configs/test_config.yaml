@@ -6,15 +6,15 @@ run_options:
 # This list defines which OBA submodules to include in the analysis run
 # NOTE: If not set, the default is to run all steps
 modules:
-  # - preprocessing
+  - preprocessing
   - cals
   - masking
-  # - background
-  # - astrometry
-  # - coadd
-  # - detection
-  # - output
-  # - cleanup
+  - background
+  - astrometry
+  - coadd
+  - detection
+  - output
+  - cleanup
 
 test:
   # realistic sims on the SuperBIT computer `hen`
@@ -37,7 +37,7 @@ astrometry:
   rerun: True
 
   # the search radius about the target position, in deg
-  search_radius: 10 # deg
+  search_radius: 1 # deg
 
 cleanup:
   # NOTE: Will lose intermediate data products if you turn this on!

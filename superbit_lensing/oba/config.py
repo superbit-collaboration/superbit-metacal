@@ -57,7 +57,7 @@ class OBAConfig(ModuleConfig):
             # there is already a WCS in the image headers from the image checker
             'rerun': False,
             # the search radius about the target position, in deg
-            'search_radius': 10 # deg
+            'search_radius': 1, # deg
         },
         'coadd': {
             'det_bands': ['b', 'lum'],

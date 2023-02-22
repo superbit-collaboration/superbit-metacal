@@ -185,12 +185,11 @@ class AstrometryRunner(object):
 
                 # TODO: Can we interface some of these params w/ a params class?
                 wcs_cmd_opt = (
-                    f'--ra {target_ra} --dec {target_dec}'
-                    f'--width 9602 --height 6498 --scale-units arcsecperpix '
+                    f'--ra {target_ra} --dec {target_dec} --dir {wcs_dir} '
+                    f'--radius {self.search_radius} --scale-units arcsecperpix '
                     f'--scale-low 0.141 --scale-high 0.142 --no-plots '
                     f'--use-source-extractor --cpulimit 90 --axy none --match none '
                     f'--rdls none --solved none --corr none --index-xyls none '
-                    f'--radius {self.search_radius} --dir {wcs_dir}'
                     )
 
                 wcs_cmd_full = ' '.join([wcs_cmd_req, wcs_cmd_opt])
