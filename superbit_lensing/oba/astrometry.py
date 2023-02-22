@@ -185,10 +185,10 @@ class AstrometryRunner(object):
 
                 # TODO: Can we interface some of these params w/ a params class?
                 wcs_cmd_opt = (
+                    f'--ra {target_ra} --dec {target_dec}'
                     f'--width 9602 --height 6498 --scale-units arcsecperpix '
                     f'--scale-low 0.141 --scale-high 0.142 --no-plots '
                     f'--use-source-extractor --cpulimit 90 --axy none --match none '
-                    # f'--use-sextractor --cpulimit 90 --axy none --match none '
                     f'--rdls none --solved none --corr none --index-xyls none '
                     f'--radius {self.search_radius} --dir {wcs_dir}'
                     )
@@ -199,12 +199,13 @@ class AstrometryRunner(object):
                     wcs_cmd_full += ' --overwrite'
 
                 # run Astrometry.net script
-                ipdb.set_trace()
                 os.system(wcs_cmd_full)
                 new_file_list = glob(f'{str(wcs_dir)}/*new*')
 
                 if len(new_file_list) != 0: # Astrometry.net worked
                     self.wcs_solutions[image] = WCS(new_file_list[0])
+                    print(self.wcs_solutions[image])
+                    ipdb.set_trace()
                 else:
                     # TODO: make more descriptive error message!
                     raise Exception('error!')
