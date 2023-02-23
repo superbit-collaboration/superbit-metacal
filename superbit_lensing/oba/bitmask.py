@@ -14,7 +14,7 @@ OBA_BITMASK = {
 }
 
 # NOTE: this is the minimum number of *bits* needed to represent the bitmask
-OBA_BITMASK_MIN_SIZE = 3
+OBA_BITMASK_MIN_SIZE = len(OBA_BITMASK.keys())
 
 # NOTE: numpy doesn't like using dtypes less than 1 byte
 OBA_BITMASK_DTYPE = np.dtype(f'u{OBA_BITMASK_MIN_SIZE//8 + 1}')

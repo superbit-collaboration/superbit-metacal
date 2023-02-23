@@ -43,7 +43,8 @@ class CalsRunner(object):
         np.s_[6389:, :]    # ~30 rows on the top of the detector
         ]
 
-    def __init__(self, run_dir, darks_dir, flats_dir, bands, target_name=None):
+    def __init__(self, run_dir, darks_dir, flats_dir, bands, target_name=None,
+                 cal_dtype=np.dtype('float64')):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -56,6 +57,8 @@ class CalsRunner(object):
         target_name: str
             The name of the target. Default is to use the end of
             run_dir
+        cal_type: numpy.dtype
+            A string signifying the numpy dtype of the output cal image
         '''
 
         args = {
@@ -63,6 +66,7 @@ class CalsRunner(object):
             'darks_dir': (darks_dir, Path),
             'flats_dir': (flats_dir, Path),
             'bands': (bands, list),
+            'cal_type': (cal_type, np.dtype),
         }
 
         for name, tup in args.items():
@@ -313,11 +317,15 @@ class CalsRunner(object):
         '''
 
         for image_file, cals in self.cals.items():
-            dark = fitsio.read(cals['dark'])
-            flat = fitsio.read(cals['flat'])
-            raw = fitsio.read(image_file)
+            # NOTE: If we don't cast to higher precision here, will cause
+            # overflow as the raw files are u16!
+            dark = fitsio.read(cals['dark']).astype('int32')
+            flat = fitsio.read(cals['flat']).astype('int32')
+            raw = fitsio.read(image_file).astype('int32')
 
-            self.calibrated[image_file] = (raw - dark) / flat
+            self.calibrated[image_file] = ((raw - dark) / flat).astype(
+                self.cal_type
+                )
 
         return
 
@@ -362,6 +370,9 @@ class CalsRunner(object):
             # we want to inherit the header of the raw file
             raw_hdr = fitsio.read_header(raw_file)
             raw_hdr['IMTYPE'] = 'SCI_CAL'
+
+            # NOTE: itemsize is in bytes
+            raw_hdr['BITPIX'] = self.cal_dtype.itemsize * 8
 
             # create the weight & mask image for the calibrated file,
             # based off of the hot pixel mask created for the associated
