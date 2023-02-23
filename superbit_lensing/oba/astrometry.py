@@ -211,12 +211,8 @@ class AstrometryRunner(object):
                 # NOTE: we need to copy the solved WCS to the RAW_SCI FITs file
                 # so that it is available during the CookieCutter step of the
                 # `output` module
-                raw_dir = image.parents[1]
-                raw_name = image_name.replace('_cal.fits', '.fits')
-                raw_image = raw_dir / raw_name
-
-                with fits.open(raw_image, 'rw') as raw:
-                    raw[0].header.update(new_wcs.to_header())
+                logprint('Saving WCS solution to RAW header')
+                self.save_wcs_to_raw(image, new_wcs)
 
         return
 
@@ -249,7 +245,7 @@ class AstrometryRunner(object):
 
         return WCS(image_file)
 
-    def save_wcs_to_raw(self, cal_image):
+    def save_wcs_to_raw(self, cal_image, wcs):
         '''
         For the final output CookieCutter format, it expects the WCS in the
         header of the main SCI image. As that will be the (copied) RAW_SCI
@@ -257,14 +253,15 @@ class AstrometryRunner(object):
 
         cal_image: pathlib.Path
             The path of the calibrated SCI image
+        wcs: astropy.wcs.WCS
+            The WCS solution to add
         '''
+	raw_dir = cal_image.parents[1]
+	raw_name = cal_image.name.replace('_cal.fits', '.fits')
+	raw_image = raw_dir / raw_name
 
-        cal_dir = cal_image.parent
-        cal_name = cal_image.name
-
-        raw_dir = cal_dir.parent
-        raw_name = cal_name.replace('_cal.fits', '.fits')
-
-        # TODO: Implement!!
+	with fits.open(str(raw_image, mode='update') as raw:
+	    raw[0].header.update(wcs.to_header())
+	    raw.flush()
 
         return
