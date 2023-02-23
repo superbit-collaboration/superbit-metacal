@@ -203,8 +203,6 @@ class AstrometryRunner(object):
 
                 if len(new_file_list) != 0: # Astrometry.net worked
                     self.wcs_solutions[image] = WCS(new_file_list[0])
-                    print(self.wcs_solutions[image])
-                    ipdb.set_trace()
                 else:
                     # TODO: make more descriptive error message!
                     raise Exception('error!')
