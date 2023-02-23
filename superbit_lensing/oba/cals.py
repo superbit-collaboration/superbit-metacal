@@ -1,5 +1,6 @@
 from pathlib import Path
 from glob import glob
+from copy import copy
 import os
 import numpy as np
 import fitsio
@@ -44,7 +45,7 @@ class CalsRunner(object):
         ]
 
     def __init__(self, run_dir, darks_dir, flats_dir, bands, target_name=None,
-                 cal_dtype=np.dtype('float64')):
+                 cal_dtype=np.dtype('float64'), allow_negatives=True):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -57,8 +58,11 @@ class CalsRunner(object):
         target_name: str
             The name of the target. Default is to use the end of
             run_dir
-        cal_type: numpy.dtype
+        cal_dtype: numpy.dtype
             A string signifying the numpy dtype of the output cal image
+        allow_negatives: bool
+            Set to allow negative numbers in the calibration dtype (e.g.
+            BITPIX = -64 instead of 64)
         '''
 
         args = {
@@ -66,7 +70,8 @@ class CalsRunner(object):
             'darks_dir': (darks_dir, Path),
             'flats_dir': (flats_dir, Path),
             'bands': (bands, list),
-            'cal_type': (cal_type, np.dtype),
+            'cal_dtype': (cal_dtype, np.dtype),
+            'allow_negatives': (allow_negatives, bool),
         }
 
         for name, tup in args.items():
@@ -319,13 +324,11 @@ class CalsRunner(object):
         for image_file, cals in self.cals.items():
             # NOTE: If we don't cast to higher precision here, will cause
             # overflow as the raw files are u16!
-            dark = fitsio.read(cals['dark']).astype('int32')
-            flat = fitsio.read(cals['flat']).astype('int32')
-            raw = fitsio.read(image_file).astype('int32')
+            dark = fitsio.read(cals['dark']).astype(self.cal_dtype)
+            flat = fitsio.read(cals['flat']).astype(self.cal_dtype)
+            raw = fitsio.read(image_file).astype(self.cal_dtype)
 
-            self.calibrated[image_file] = ((raw - dark) / flat).astype(
-                self.cal_type
-                )
+            self.calibrated[image_file] = ((raw - dark) / flat)
 
         return
 
@@ -368,11 +371,21 @@ class CalsRunner(object):
                                   'and overwrite is False!')
 
             # we want to inherit the header of the raw file
-            raw_hdr = fitsio.read_header(raw_file)
-            raw_hdr['IMTYPE'] = 'SCI_CAL'
+            cal_hdr = copy(fitsio.read_header(raw_file))
+            cal_hdr['IMTYPE'] = 'SCI_CAL'
 
             # NOTE: itemsize is in bytes
-            raw_hdr['BITPIX'] = self.cal_dtype.itemsize * 8
+            bitpix = str(self.cal_dtype.itemsize * 8)
+            if self.allow_negatives is True:
+                bitpix = f'-{bitpix}'
+            cal_hdr['BITPIX'] =  bitpix
+
+            # TODO: do something more robust here!
+            # we do this hacky thing as the hen sims have BZERO=2^15...
+            if cal_hdr['BZERO'] != 0:
+                logprint(f'WARNING: BZERO = {cal_hdr["BZERO"]}; are you ' +
+                         'sure that is correct? Setting to zero for now...')
+            cal_hdr['BZERO'] =  0
 
             # create the weight & mask image for the calibrated file,
             # based off of the hot pixel mask created for the associated
@@ -381,7 +394,7 @@ class CalsRunner(object):
             msk, msk_hdr = self._make_msk_image(raw_file)
 
             with fitsio.FITS(cal_file, 'rw') as fits:
-                fits.write(cal, header=raw_hdr)
+                fits.write(cal, header=cal_hdr)
                 fits.write(wgt, header=wgt_hdr)
                 fits.write(msk, header=msk_hdr)
 
