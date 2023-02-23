@@ -257,12 +257,12 @@ class AstrometryRunner(object):
             The WCS solution to add
         '''
 
-	    raw_dir = cal_image.parents[1]
-	    raw_name = cal_image.name.replace('_cal.fits', '.fits')
-	    raw_image = raw_dir / raw_name
+        raw_dir = cal_image.parents[1]
+        raw_name = cal_image.name.replace('_cal.fits', '.fits')
+        raw_image = raw_dir / raw_name
 
-	    with fits.open(str(raw_image, mode='update')) as raw:
-	        raw[0].header.update(wcs.to_header())
-	        raw.flush()
+        with fits.open(str(raw_image), mode='update') as raw:
+            raw[0].header.update(wcs.to_header())
+            raw.flush()
 
         return
