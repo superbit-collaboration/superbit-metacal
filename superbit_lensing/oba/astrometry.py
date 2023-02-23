@@ -1,5 +1,6 @@
 from pathlib import Path
 from glob import glob
+from astropy.io import fits
 from astropy.wcs import WCS
 import fitsio
 import os
@@ -202,16 +203,20 @@ class AstrometryRunner(object):
                 new_file_list = glob(f'{str(wcs_dir)}/*new*')
 
                 if len(new_file_list) != 0: # Astrometry.net worked
-                    self.wcs_solutions[image] = WCS(new_file_list[0])
-                    print(self.wcs_solutions[image])
-                    ipdb.set_trace()
+                    new_wcs = WCS(new_file_list[0])
+                    self.wcs_solutions[image] = new_wcs
                 else:
-                    # TODO: make more descriptive error message!
-                    raise Exception('error!')
+                    raise Exception(f'solve-field failed for image {image_name}')
 
-                # TODO: Save WCS to (copied) RAW_SCI file so that it is
-                # available during the CookieCutter step of output.py
-                # ...
+                # NOTE: we need to copy the solved WCS to the RAW_SCI FITs file
+                # so that it is available during the CookieCutter step of the
+                # `output` module
+                raw_dir = image.parents[1]
+                raw_name = image_name.replace('_cal.fits', '.fits')
+                raw_image = raw_dir / raw_name
+
+                with fits.open(raw_image, 'rw') as raw:
+                    raw[0].header.update(new_wcs.to_header())
 
         return
 
