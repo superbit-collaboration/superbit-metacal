@@ -227,7 +227,7 @@ class MaskingRunner(object):
                 # OR cosmic ray mask with the existing mask on cal file
                 # TODO: confirm that the following works!
                 ipdb.set_trace()
-                cr_mask = cosmic_val * cr_mask.astype(OBA_BITMAS_DTYPE)
+                cr_mask = cosmic_val * cr_mask.astype(OBA_BITMASK_DTYPE)
                 self.masks[cal_file] |= cr_mask
 
         return
