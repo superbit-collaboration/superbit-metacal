@@ -1,20 +1,21 @@
 # high-level configuration for the full OBA run
 run_options:
-  target_name: test_target
+  target_name: Abell2813
+  #target_name: Abell2744
   bands: ['b', 'lum']
 
 # This list defines which OBA submodules to include in the analysis run
 # NOTE: If not set, the default is to run all steps
 modules:
-  - preprocessing
-  - cals
-  - masking
-  - background
+  #- preprocessing
+  #- cals
+  #- masking
+  #- background
   - astrometry
-  - coadd
-  - detection
-  - output
-  - cleanup
+  #- coadd
+  #- detection
+  #- output
+  #- cleanup
 
 test:
   # realistic sims on the SuperBIT computer `hen`
@@ -28,7 +29,7 @@ test:
 
 masking:
   types:
-    - cosmic_rays
+    #- cosmic_rays
     - satellites
 
 astrometry:
