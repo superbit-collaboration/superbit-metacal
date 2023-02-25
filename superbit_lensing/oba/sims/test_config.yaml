@@ -1,0 +1,13 @@
+target_name: 'Abell2813'
+master_seed: 72396
+starting_roll: 0 # deg
+exp_time: 300
+n_exp: 6
+
+add_stars: True
+add_galaxies: True
+
+overwrite: True
+fresh: False
+
+

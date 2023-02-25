@@ -126,7 +126,7 @@ class CookieCutter(object):
             logprint = print
         else:
             utils.check_type('logprint', logprint, utils.LogPrint)
-            self.logprint = logprint
+        self.logprint = logprint
 
         return
 
@@ -251,7 +251,7 @@ class CookieCutter(object):
 
         return radius
 
-    def register_images(self, progress=50):
+    def register_images(self, progress=1000):
         '''
         Use the config to initialize the CookieCutter structure and save obj
         stamps from each input file to a corrsponding set of FITS extensions
@@ -380,7 +380,7 @@ class CookieCutter(object):
                 # We know in advance how many cutout pixels we'll need to store
                 self.logprint(f'Determining memory requirement')
                 Npix = self._compute_ext_Npix(
-                    imageObj.image, catalog
+                    imageObj.image, catalog, progress=progress
                     )
 
                 # NOTE: This was the old way, which unnecessarily allocates
@@ -533,7 +533,7 @@ class CookieCutter(object):
 
         return
 
-    def _compute_ext_Npix(self, image, catalog, progress=100):
+    def _compute_ext_Npix(self, image, catalog, progress=1000):
         '''
         Compute the number of pixels needed to allocate for a given
         image extension

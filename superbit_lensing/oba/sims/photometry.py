@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
-import h5py
 import bisect
 import astropy
 from astropy.io import fits
