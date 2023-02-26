@@ -283,23 +283,30 @@ def crate_from_mean_flambda(mean_flambda,
                             illum_area,
                             bandpass_transmission,
                             bandpass_wavelengths):
+    '''
+    NOTE: mean_flambda can be an array
+    '''
 
     illum_area *= u.cm**2
     wave_int = bandpass_wavelengths * u.nm
     mean_flambda *= u.erg/u.s/u.cm**2/u.nm
 
-    integrand = (illum_area
-                 * mean_flambda
-                 * bandpass_transmission
-                 * wave_int) / (h * c)
+    count_rates = np.zeros(mean_flambda.shape)
 
-    del_lam = ((np.max(wave_int) - np.min(wave_int)) / len(wave_int))
+    for i, mf in enumerate(mean_flambda):
+        integrand = (illum_area
+                    * mf
+                    * bandpass_transmission
+                    * wave_int) / (h * c)
 
-    count_rate = (np.trapz(y=integrand,
-                           x=wave_int,
-                           dx=del_lam).to(u.s**-1))  # electron/s
-    return count_rate.value
+        del_lam = ((np.max(wave_int) - np.min(wave_int)) / len(wave_int))
 
+        count_rates[i] = (np.trapz(y=integrand,
+                                   x=wave_int,
+                                   dx=del_lam).to(u.s**-1)).value  # electron/s
+
+
+    return count_rates
 
 def mean_fnu_from_flam_pivot(flambda,
                              bandpass_transmission,

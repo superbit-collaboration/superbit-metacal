@@ -3,6 +3,8 @@
 import instrument as inst
 import photometry as phot
 
+from stars import make_a_star
+
 # Packages
 from argparse import ArgumentParser
 from pathlib import Path
@@ -35,12 +37,6 @@ def parse_args():
 
     parser.add_argument('config_file', type=str,
                         help='The filepath of the simulation config file')
-
-    # NOTE: let's put all of this in a config instead
-    # parser.add_argument('target_name', type=str,
-    #                     help='The name of the target to simulate')
-    # parser.add_argument('-ncores', type=int, default=1,
-    #                     help='The number of cpus to use')
 
     return parser.parse_args()
 
@@ -84,10 +80,151 @@ def setup_seeds(config):
 
     return seeds
 
+def make_obj_runner(batch_indices, *args, **kwargs):
+    '''
+    Handles the batch running of make_obj() over multiple cores
+    '''
+
+    res = []
+    for i in batch_indices:
+        res.append(make_obj(i, *args, **kwargs))
+
+    return res
+
+def make_obj(i, obj_type, *args, **kwargs):
+    '''
+    Runs the approrpriate "make_a_{obj}" function given object type.
+    Particularly useful for multiprocessing wrappers
+    '''
+
+    logprint = args[-1]
+
+    func = None
+
+    func_map = {
+        'gal': make_a_galaxy,
+        'cluster_gal': make_cluster_galaxy,
+        'star': make_a_star
+    }
+
+    obj_types = func_map.keys()
+    if obj_type not in obj_types:
+        raise ValueError(f'Object type must be one of {obj_types}!')
+
+    func = func_map[obj_type]
+
+    try:
+        obj_index = int(i)
+        logprint(f'Starting {obj_type} {i}')
+        stamp, truth = func(*args, **kwargs,obj_index=i)
+        logprint(f'{obj_type} {i} completed succesfully')
+
+    except galsim.errors.GalSimError:
+        logprint(f'{obj_type} {i} has failed, skipping...')
+        return i, None, None
+
+    return i, stamp, truth
+
+def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
+    '''
+    (i, stamps, truths) are the output of make_obj
+    exp_num is the exposure number. Only add to truth table if == 1
+    '''
+
+    # flatten outputs into 1 list
+    make_obj_outputs = [item for sublist in make_obj_outputs
+                        for item in sublist]
+
+    for i, stamp, truth in make_obj_outputs:
+
+        if (stamp is None) or (truth is None):
+            continue
+
+        # Find the overlapping bounds:
+        bounds = stamp.bounds & full_image.bounds
+
+        # Finally, add the stamp to the full image.
+        try:
+            full_image[bounds] += stamp[bounds]
+        except galsim.errors.GalSimBoundsError as e:
+            print(e)
+
+        this_flux = np.sum(stamp.array)
+
+        # if exp_num == 1:
+            # TODO:
+            # row = [i, truth.cosmos_index, truth.x, truth.y,
+            #        truth.ra, truth.dec,
+            #        truth.g1, truth.g2,
+            #        truth.mu,truth.z,
+            #        this_flux, truth.fwhm, truth.mom_size,
+            #        truth.n, truth.hlr, truth.scale_h_over_r,
+            #        truth.obj_class
+            #        ]
+            # truth_catalog.addRow(row)
+
+    return full_image, truth_catalog
+
+def setup_stars(ra, dec, width_deg, height_deg):
+
+    Vizier.ROW_LIMIT = -1
+
+    coordinates = coord.SkyCoord(
+        ra=ra * u.deg,
+        dec=dec * u.deg,
+        frame='icrs'
+        )
+
+    # we add some buffer to account for dithering & rolls
+    qsize = 1.1 * np.max([height_deg.value, width_deg.value])
+    gaia_cat = Vizier.query_region(
+        coordinates=coordinates,
+        height=qsize*u.deg,
+        width=qsize*u.deg,
+        catalog='I/345/gaia2'
+        )
+
+    gaia_cat = gaia_cat[0].filled()
+
+    # Convert Table to pandas dataframe
+    df_stars = pd.DataFrame()
+
+    df_stars['RA_ICRS'] = gaia_cat['RA_ICRS']
+    df_stars['DE_ICRS'] = gaia_cat['DE_ICRS']
+
+    df_stars['FG'] = gaia_cat['FG']
+    df_stars['FBP'] = gaia_cat['FBP']
+
+    df_stars['BPmag'] = (-2.5 * np.log10(gaia_cat['FBP'])) + 25.3861560855
+    df_stars['Gmag'] = (-2.5 * np.log10(gaia_cat['FG'])) + 25.7915509947
+
+    df_stars.dropna()
+
+    df_stars = df_stars[df_stars['Gmag'] >= -5]
+    df_stars = df_stars[df_stars['BPmag'] >= -5]
+
+    df_stars = df_stars.reset_index(drop=True)
+
+    return df_stars
+
 def main(args):
 
     config_file = args.config_file
     config = utils.read_yaml(config_file)
+
+    if 'run_name' in config:
+        run_name = config['run_name']
+    else:
+        run_name = 'quicktest'
+
+    # WARNING: cleans all existing files in run_dir!
+    if 'fresh' in config:
+        if config['fresh'] is True:
+            run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}')
+            try:
+                utils.rm_tree(run_dir)
+            except OSError:
+                pass
 
     if 'overwrite' in config:
         overwrite = config['overwrite']
@@ -103,6 +240,11 @@ def main(args):
         max_fft_size = config['max_fft_size']
 
     big_fft = galsim.GSParams(maximum_fft_size=max_fft_size)
+
+    if 'ncores' in config:
+        ncores = config['ncores']
+    else:
+        ncores = 1
 
     # Dict for pivot wavelengths
     piv_dict = {
@@ -136,8 +278,7 @@ def main(args):
 
     pix_scale = bandpass.plate_scale.value
 
-    # bands = ['b', 'lum', 'g', 'r', 'nir', 'u']
-    bands = ['lum']
+    bands = ['b', 'lum', 'g', 'r', 'nir', 'u']
 
     exp_time = config['exp_time'] # seconds
     n_exp = config['n_exp']
@@ -165,7 +306,9 @@ def main(args):
 
     cosmos_plate_scale = 0.03 # arcsec/pix
 
-    dither_pix = 100
+    # TODO: revert!!
+    # dither_pix = 100
+    dither_pix = 1
     dither_deg = pix_scale * dither_pix / 3600 # dither_deg
 
     for idx, row in df.iterrows():
@@ -176,20 +319,70 @@ def main(args):
         mass = 10**(row['mass']) # solmass
         conc = row['c']
 
+        # setup stars
+        if config['add_stars'] is True:
+            print('Setting up stars...')
+
+            df_stars = setup_stars(
+                ra.value, dec.value, height_deg, width_deg
+                )
+
+            Nstars = len(df_stars)
+
         for band in bands:
             # We want to rotate the sky by (5 min + 1 min overhead) each
             # new target
             theta_master = 0 * u.radian
             rot_rate = 0.25 # deg / min
 
+            # pivot wavelength
+            piv_wave = piv_dict[band]
+
+            bandpass.transmission = get_transmission(band=band)
+
+            # setup stellar fluxes
+            if config['add_stars'] is True:
+                if piv_wave > 600:
+                    gaia_mag = 'Gmag'
+                else:
+                    gaia_mag = 'BPmag'
+
+                # Find counts to add for the star
+                mean_fnu_star_mag = phot.abmag_to_mean_fnu(
+                    abmag=df_stars[gaia_mag]
+                    )
+
+                mean_flambda = phot.mean_flambda_from_mean_fnu(
+                    mean_fnu=mean_fnu_star_mag.to_numpy(),
+                    bandpass_transmission=bandpass.transmission,
+                    bandpass_wavelengths=bandpass.wavelengths
+                    )
+
+                crate_electrons_pix = phot.crate_from_mean_flambda(
+                    mean_flambda=mean_flambda,
+                    illum_area=telescope.illum_area.value,
+                    bandpass_transmission=bandpass.transmission,
+                    bandpass_wavelengths=bandpass.wavelengths
+                    )
+
+                crate_adu_pix = crate_electrons_pix / camera.gain.value
+
+                # what is actually used below
+                star_flux_adu = crate_adu_pix * exp_time * 1
+
             for exp_num, strehl in enumerate(strehl_ratios):
 
                 print(f'Image simulation starting for {target}, {band}; ' +
                       f'{exp_num+1} of {n_exp}')
 
-                outdir = os.path.join(utils.TEST_DIR, f'ajay/{target}/{band}/{strehl}/')
-                if config['fresh'] is True:
-                    outdir.rmdir()
+                if run_name is None:
+                    rn = ''
+                else:
+                    rn = f'{run_name}/'
+
+                outdir = os.path.join(
+                    utils.TEST_DIR, f'ajay/{rn}{target}/{band}/{strehl}/'
+                    )
                 utils.make_dir(outdir)
 
                 ra_sim = np.random.uniform(
@@ -203,12 +396,8 @@ def main(args):
                 dither_ra = (ra.value - ra_sim) * 3600 / pix_scale
                 dither_dec = (dec.value - dec_sim) * 3600 / pix_scale
 
-                bandpass.transmission = get_transmission(band=band)
-
                 # Step 1: Get the optical PSF, given the Strehl ratio
                 aberrations = get_zernike(band=band, strehl_ratio=strehl)
-
-                piv_wave = piv_dict[band]
 
                 optical_zernike_psf = galsim.OpticalPSF(
                     lam=piv_wave,
@@ -227,11 +416,21 @@ def main(args):
                 sci_img = galsim.Image(
                     ncol=camera.npix_H.value,
                     nrow=camera.npix_V.value,
-                    dtype=np.uint16
+                    # dtype=np.uint16
                     )
 
-                # Step 3: Fill the science image with zeros
-                sci_img.fill(0)
+                # Step 3: Fill the science image with mean sky bkg (Gill et al. 2020)
+                crate_sky_electron_pix = phot.crate_bkg(
+                    illum_area=telescope.illum_area,
+                    bandpass=bandpass,
+                    bkg_type='raw',
+                    strength='ave'
+                    )
+
+                crate_sky_adu_pix = crate_sky_electron_pix / camera.gain.value
+                sky_adu_pix = crate_sky_adu_pix * exp_time * 1  # ADU
+
+                sci_img.fill(sky_adu_pix)
                 sci_img.setOrigin(0, 0)
 
                 # Step 4: WCS setup
@@ -259,112 +458,33 @@ def main(args):
                 wcs = galsim.TanWCS(affine, sky_center, units=galsim.arcsec)
                 sci_img.wcs = wcs
 
-                # Step 5: Add a dark frame
-                # TODO: fix!
-                # dark_dir = OBA_SIM_DATA_DIR / 'darks/minus10'
-                dark_dir = Path(utils.MODULE_DIR) / 'oba/data/darks/'
-                # dark_dir = "/home/gill/sims/data/darks/minus10/*"
-                # dark_fname = random.choice(np.sort(glob.glob(dark_dir)))
-                darks = np.sort(glob.glob(str(dark_dir / '*.fits')))
-                dark_fname = np.random.choice(darks)
-
-                dark = fits.getdata(dark_fname)
-                sci_img += dark
-
-                # Step 6: Add sky noise (Gill et al. 2020)
-                crate_sky_electron_pix = phot.crate_bkg(
-                    illum_area=telescope.illum_area,
-                    bandpass=bandpass,
-                    bkg_type='raw',
-                    strength='ave'
-                    )
-
-                crate_sky_adu_pix = crate_sky_electron_pix / camera.gain.value
-                sky_adu_pix = crate_sky_adu_pix * exp_time * 1  # ADU
-
-                sky_bkg = phot.get_sky_bkg(
-                    image_shape=sci_img.array.shape,
-                    sky_adu_pix=sky_adu_pix
-                    )
-
-                sci_img += sky_bkg
-
-                # Step 7: Add stars
+                # Step 5: Add stars (setup done earlier)
                 if config['add_stars'] is True:
 
-                    Vizier.ROW_LIMIT = -1
+                    start = time.time()
 
-                    coordinates = coord.SkyCoord(
-                        ra=ra_sim * u.deg,
-                        dec=dec_sim * u.deg,
-                        frame='icrs'
-                        )
+                    print(f'Adding {Nstars} stars')
 
-                    gaia_cat = Vizier.query_region(
-                        coordinates=coordinates,
-                        height=height_deg,
-                        width=width_deg,
-                        catalog='I/345/gaia2'
-                        )
+                    # NOTE: in progres...
+                    # with Pool(ncores) as pool:
+                    #     batch_indices = utils.setup_batches(Nobjs, ncores)
 
-                    gaia_cat = gaia_cat[0].filled()
-
-                    # Convert Table to pandas dataframe
-                    df_stars = pd.DataFrame()
-
-                    df_stars['RA_ICRS'] = gaia_cat['RA_ICRS']
-                    df_stars['DE_ICRS'] = gaia_cat['DE_ICRS']
-
-                    df_stars['FG'] = gaia_cat['FG']
-                    df_stars['FBP'] = gaia_cat['FBP']
-
-                    df_stars['BPmag'] = (-2.5 * np.log10(gaia_cat['FBP'])) + 25.3861560855
-                    df_stars['Gmag'] = (-2.5 * np.log10(gaia_cat['FG'])) + 25.7915509947
-
-                    df_stars.dropna()
-
-                    df_stars = df_stars[df_stars['Gmag'] >= -5]
-                    df_stars = df_stars[df_stars['BPmag'] >= -5]
-
-                    df_stars = df_stars.reset_index(drop=True)
-
-                    print(f'Adding {len(df_stars)} stars')
+                    #     full_image, truth_catalog = combine_objs(
+                    #         pool.starmap(
+                    #             make_obj_runner,
+                    #             ([
+                    #                 batch_indices,
+                    #                 'star',
+                    #                 wcs,
+                    #             ])
+                    #         )
 
                     for idx in range(len(df_stars)):
 
                         if idx % 100 == 0:
                             print(f'{idx} of {len(df_stars)} completed')
 
-                        if piv_wave > 600:
-                            gaia_mag = 'Gmag'
-                        else:
-                            gaia_mag = 'BPmag'
-
-                        # Find counts to add for the star
-                        mean_fnu_star_mag = phot.abmag_to_mean_fnu(
-                            abmag=df_stars[gaia_mag][idx]
-                            )
-
-                        mean_flambda = phot.mean_flambda_from_mean_fnu(
-                            mean_fnu=mean_fnu_star_mag,
-                            bandpass_transmission=bandpass.transmission,
-                            bandpass_wavelengths=bandpass.wavelengths
-                            )
-
-                        crate_electrons_pix = phot.crate_from_mean_flambda(
-                            mean_flambda=mean_flambda,
-                            illum_area=telescope.illum_area.value,
-                            bandpass_transmission=bandpass.transmission,
-                            bandpass_wavelengths=bandpass.wavelengths
-                            )
-
-                        crate_adu_pix = crate_electrons_pix / camera.gain.value
-
-                        flux_adu = int(crate_adu_pix * exp_time * 1)
-
-                        # Limit the flux
-                        if flux_adu > 2**16 - 1:
-                            flux_adu = 2**16  - 1
+                        this_flux_adu = star_flux_adu[idx]
 
                         # Assign real position to the star on the sky
                         star_ra_deg = df_stars['RA_ICRS'][idx] * galsim.degrees
@@ -375,7 +495,7 @@ def main(args):
                             )
                         image_pos = wcs.toImage(world_pos)
 
-                        star = galsim.DeltaFunction(flux=int(flux_adu))
+                        star = galsim.DeltaFunction(flux=this_flux_adu)
 
                         # Position fractional stuff
                         x_nominal = image_pos.x + 0.5
@@ -398,7 +518,7 @@ def main(args):
                             wcs=wcs.local(image_pos),
                             offset=offset,
                             method='auto',
-                            dtype=np.uint16
+                            # dtype=np.uint16
                             )
 
                         star_image.setCenter(ix_nominal, iy_nominal)
@@ -410,13 +530,20 @@ def main(args):
                             sci_img[stamp_overlap] += star_image[stamp_overlap]
 
                         except galsim.errors.GalSimBoundsError:
+                            ipdb.set_trace()
 
-                            print('Out of bounds star. Skipping.')
+                            # print('Out of bounds star. Skipping.')
                             continue
 
                     print('Done adding stars.')
 
+                    star_time = time.time() - start
+                    print(f'Stars took {star_time:.1f} s')
+
+                # step 6
                 if config['add_galaxies'] is True:
+
+                    start = time.time()
 
                     sci_img_ra_min = (ra_sim * u.deg - ((sci_img_size_x_arcsec.to(u.arcsecond).to(u.deg)) / 2)).to(u.deg)
                     sci_img_ra_max = (ra_sim * u.deg + ((sci_img_size_x_arcsec.to(u.arcsecond).to(u.deg)) / 2)).to(u.deg)
@@ -449,7 +576,7 @@ def main(args):
 
                     for idx in range(n_gal_total_img):
                         if idx % 100 == 0:
-                            print('{idx} of {n_gal_total_img} completed')
+                            print(f'{idx} of {n_gal_total_img} completed')
 
                         # Randomly sample a galaxy
                         gal_df = cat_df_filt.sample(n=1, random_state=seed[idx])
@@ -577,7 +704,7 @@ def main(args):
                             wcs=wcs.local(image_pos),
                             offset=offset,
                             method='auto',
-                            dtype=np.uint16
+                            # dtype=np.uint16
                             )
 
                         gal_image.setCenter(ix_nominal, iy_nominal)
@@ -591,6 +718,33 @@ def main(args):
                         except galsim.errors.GalSimBoundsError:
                             print('Out of bounds star. Skipping.')
                             continue
+
+                    gal_time = time.time() - start
+                    print('Done with galaxies')
+                    print(f'Galaxies took {gal_time:.1f} s')
+
+
+                # add shot noise on sky + sources
+                # TODO: sort out why this turns sci_img to ints...
+                noise = galsim.PoissonNoise(sky_level=0.0)
+                sci_img.addNoise(noise)
+                sci_img = sci_img.array
+
+                # Step 8: Add a dark frame
+                dark_dir = OBA_SIM_DATA_DIR / 'darks/minus10/'
+                darks = np.sort(glob.glob(str(dark_dir / '*.fits')))
+                dark_fname = np.random.choice(darks)
+
+                # we upcast for now, cast back later
+                dark = fits.getdata(dark_fname).astype('float32')
+                sci_img += dark
+
+                # limit the flux
+                sci_img[sci_img >= (2**16)] = 2**16 - 1
+                sci_img[sci_img < 0] = 0
+
+                # *now* cast to int16
+                sci_img = sci_img.astype('uint16')
 
                 # HEADERS
                 hdr = fits.Header()
@@ -606,8 +760,6 @@ def main(args):
                 hdr['roll_theta'] = theta.deg # in deg
                 hdr['dark'] = Path(dark_fname).name
 
-                # outdir = f'/home/gill/sims/data/sims/{target}/{band}/{strehl}/'
-
                 dt_now = datetime.datetime.now()
                 unix_time = int(time.mktime(dt_now.timetuple()))
 
@@ -620,7 +772,7 @@ def main(args):
 
                 fits.writeto(
                     filename=output_fname,
-                    data=sci_img.array,
+                    data=sci_img,
                     header=hdr,
                     overwrite=overwrite
                     )
