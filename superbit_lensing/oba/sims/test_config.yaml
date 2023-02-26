@@ -1,12 +1,15 @@
 target_name: 'Abell2813'
-run_name: quick_stars
-master_seed: 72396
+run_name: multiprocess
+# master_seed: 72396
 starting_roll: 0 # deg
 exp_time: 300
 n_exp: 8
+bands: ['b', 'lum']
+ncores: 8
 
 add_stars: True
-add_galaxies: False
+add_galaxies: True
 
 overwrite: True
-fresh: True
+fresh: False
+vb: True

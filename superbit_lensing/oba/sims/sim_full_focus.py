@@ -4,12 +4,15 @@ import instrument as inst
 import photometry as phot
 
 from stars import make_a_star
+from gals import make_a_galaxy
 
 # Packages
 from argparse import ArgumentParser
 from pathlib import Path
+from multiprocessing import Pool
 import pandas as pd
 import numpy as np
+from numpy.lib import recfunctions as rf
 import galsim
 import sys
 import os
@@ -17,6 +20,7 @@ import glob
 from astropy import units as u
 from astroquery.vizier import Vizier
 import astropy.coordinates as coord
+from astropy.table import Table, join
 from astropy.io import fits
 import yaml
 import math
@@ -80,18 +84,57 @@ def setup_seeds(config):
 
     return seeds
 
-def make_obj_runner(batch_indices, *args, **kwargs):
+def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
+    '''
+    ra, dec, theta: deg
+    im_xsize, im_ysize: arcsec
+
+    Use the roll angle theta to determine the box inscribing the rotated
+    rectangular SCI image
+
+    returns: ra_bounds, dec_bounds
+        The new (conservative) ra/dec bounds, in deg
+    '''
+
+    # NOTE: haven't made it robust to |theta| > 90
+    assert abs(theta) <= 90
+
+    # original box lengths
+    Lx = im_xsize.to(u.deg).value
+    Ly = im_ysize.to(u.deg).value
+
+    # to rad
+    theta_rad = np.deg2rad(theta)
+
+    # compute the new, larger box
+    new_Lx = Ly * np.sin(theta_rad) + Lx * np.cos(theta_rad)
+    new_Ly = Lx * np.sin(theta_rad) + Ly * np.cos(theta_rad)
+
+    ra_min = ra - new_Lx/2.
+    ra_max = ra + new_Lx/2.
+
+    dec_min = dec - new_Ly/2.
+    dec_max = dec + new_Ly/2.
+
+    ra_bounds = [ra_min, ra_max] * u.deg
+    dec_bounds = [dec_min, dec_max] *u.deg
+
+    return ra_bounds, dec_bounds
+
+def make_obj_runner(batch_indices, obj_type, obj_cat, *args, **kwargs):
     '''
     Handles the batch running of make_obj() over multiple cores
     '''
 
     res = []
     for i in batch_indices:
-        res.append(make_obj(i, *args, **kwargs))
+        # replace obj catalog with single obj to reduce mem passing
+        obj = obj_cat[i]
+        res.append(make_obj(i, obj_type, obj, *args, **kwargs))
 
     return res
 
-def make_obj(i, obj_type, *args, **kwargs):
+def make_obj(i, obj_type, obj, *args, **kwargs):
     '''
     Runs the approrpriate "make_a_{obj}" function given object type.
     Particularly useful for multiprocessing wrappers
@@ -103,7 +146,7 @@ def make_obj(i, obj_type, *args, **kwargs):
 
     func_map = {
         'gal': make_a_galaxy,
-        'cluster_gal': make_cluster_galaxy,
+        # 'cluster_gal': make_cluster_galaxy,
         'star': make_a_star
     }
 
@@ -116,7 +159,7 @@ def make_obj(i, obj_type, *args, **kwargs):
     try:
         obj_index = int(i)
         logprint(f'Starting {obj_type} {i}')
-        stamp, truth = func(*args, **kwargs,obj_index=i)
+        stamp, truth = func(obj_index, obj, *args, **kwargs)
         logprint(f'{obj_type} {i} completed succesfully')
 
     except galsim.errors.GalSimError:
@@ -125,7 +168,8 @@ def make_obj(i, obj_type, *args, **kwargs):
 
     return i, stamp, truth
 
-def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
+def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num,
+                 logprint):
     '''
     (i, stamps, truths) are the output of make_obj
     exp_num is the exposure number. Only add to truth table if == 1
@@ -147,21 +191,13 @@ def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num):
         try:
             full_image[bounds] += stamp[bounds]
         except galsim.errors.GalSimBoundsError as e:
-            print(e)
+            logprint(f'{indx} out of bounds. Skipping.')
 
-        this_flux = np.sum(stamp.array)
-
-        # if exp_num == 1:
-            # TODO:
-            # row = [i, truth.cosmos_index, truth.x, truth.y,
-            #        truth.ra, truth.dec,
-            #        truth.g1, truth.g2,
-            #        truth.mu,truth.z,
-            #        this_flux, truth.fwhm, truth.mom_size,
-            #        truth.n, truth.hlr, truth.scale_h_over_r,
-            #        truth.obj_class
-            #        ]
-            # truth_catalog.addRow(row)
+        if exp_num == 0:
+            if len(truth_catalog) == 0:
+                truth_catalog = Table(truth)
+            else:
+                truth_catalog.add_row(truth)
 
     return full_image, truth_catalog
 
@@ -176,6 +212,7 @@ def setup_stars(ra, dec, width_deg, height_deg):
         )
 
     # we add some buffer to account for dithering & rolls
+    # TODO: understand why it is so sensitive to the prefactor...
     qsize = 1.1 * np.max([height_deg.value, width_deg.value])
     gaia_cat = Vizier.query_region(
         coordinates=coordinates,
@@ -205,22 +242,45 @@ def setup_stars(ra, dec, width_deg, height_deg):
 
     df_stars = df_stars.reset_index(drop=True)
 
-    return df_stars
+    star_cat = df_stars.to_records()
+
+    return star_cat
+
+def setup_gals(n_gal_total_img, gal_rng):
+
+    cosmos_dir = OBA_SIM_DATA_DIR / 'cosmos_catalog/'
+    cosmos_file = cosmos_dir / 'cosmos15_superbit2023_phot_shapes.csv'
+    cat_df = pd.read_csv(str(cosmos_file))
+
+    # Filter the data for FLUX_RADIUS > than 0 and HLR < 50
+    cat_df = cat_df[cat_df['FLUX_RADIUS'] >= 0]
+    cat_df = cat_df[cat_df['c10_sersic_fit_hlr'] < 50]
+
+    # Randomly sample from galaxy catalog
+    gal_cat = cat_df.sample(
+        n=n_gal_total_img, random_state=gal_rng
+        ).to_records()
+
+    return gal_cat
 
 def main(args):
 
     config_file = args.config_file
     config = utils.read_yaml(config_file)
 
+    # required
+    target_name = config['target_name']
+
     if 'run_name' in config:
         run_name = config['run_name']
     else:
         run_name = 'quicktest'
 
+    run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}')
+
     # WARNING: cleans all existing files in run_dir!
     if 'fresh' in config:
         if config['fresh'] is True:
-            run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}')
             try:
                 utils.rm_tree(run_dir)
             except OSError:
@@ -231,6 +291,18 @@ def main(args):
     else:
         overwrite = False
 
+    if 'vb' in config:
+        vb = config['vb']
+    else:
+        vb = False
+
+    # setup logger
+    logdir = run_dir
+    logfile = str(logdir / f'{run_name}_sim.log')
+
+    log = utils.setup_logger(logfile, logdir=logdir)
+    logprint = utils.LogPrint(log, vb=vb)
+
     # dict of independent seeds for given types
     seeds = setup_seeds(config)
 
@@ -239,7 +311,7 @@ def main(args):
     else:
         max_fft_size = config['max_fft_size']
 
-    big_fft = galsim.GSParams(maximum_fft_size=max_fft_size)
+    gs_params = galsim.GSParams(maximum_fft_size=max_fft_size)
 
     if 'ncores' in config:
         ncores = config['ncores']
@@ -256,14 +328,6 @@ def main(args):
         'lum': 522.73829660009810
     }
 
-    cosmos_dir = OBA_SIM_DATA_DIR / 'cosmos_catalog/'
-    cosmos_file = cosmos_dir / 'cosmos15_superbit2023_phot_shapes.csv'
-    cat_df = pd.read_csv(str(cosmos_file))
-
-    # Filter the data for FLUX_RADIUS > than 0 and HLR < 50
-    cat_df = cat_df[cat_df['FLUX_RADIUS'] >= 0]
-    cat_df = cat_df[cat_df['c10_sersic_fit_hlr'] < 50]
-
     # Initialize the camera, telescope, bandpass
     camera = inst.Camera('imx455')
     telescope = inst.Telescope('superbit')
@@ -278,13 +342,17 @@ def main(args):
 
     pix_scale = bandpass.plate_scale.value
 
-    bands = ['b', 'lum', 'g', 'r', 'nir', 'u']
+    if 'bands' in config:
+        bands = config['bands']
+    else:
+        bands = ['b', 'lum', 'g', 'r', 'nir', 'u']
 
     exp_time = config['exp_time'] # seconds
     n_exp = config['n_exp']
 
     target_list = Path(__file__).parent / 'target_list_full_focus.csv'
-    df = pd.read_csv(str(target_list))
+    # df = pd.read_csv(str(target_list))
+    targets = Table.read(str(target_list))
 
     # Do 12 exposures at full focus (Strehl ratio of 1)
     strehl_ratios = (np.full(n_exp, 100))
@@ -300,484 +368,477 @@ def main(args):
         u.arcmin**2
         )
 
+    # the *sampled* area has to be bigger than this, to allow for rolls
+    # TODO: Revert!!
+    # img_max_len = np.max([
+    img_max_len = np.min([
+        sci_img_size_x_arcsec.value, sci_img_size_y_arcsec.value
+        ]) * u.arcsec
+    sampled_img_area = (img_max_len**2).to(u.arcmin**2)
+
     n_gal_sqarcmin = 97.55 * (u.arcmin**-2)
 
-    n_gal_total_img = round((sci_img_area * n_gal_sqarcmin).value)
+    # TODO: Revert!!
+    # n_gal_total_img = round((sampled_img_area * n_gal_sqarcmin).value)
+    n_gal_total_img = 300
 
     cosmos_plate_scale = 0.03 # arcsec/pix
 
-    dither_pix = 100
+    # TODO: Revert!!
+    dither_pix = 1
     dither_deg = pix_scale * dither_pix / 3600 # dither_deg
+    dither_rng = np.random.default_rng(seeds['dithering'])
 
-    for idx, row in df.iterrows():
-        target = row['target']
-        ra = row['ra'] * u.deg
-        dec = row['dec'] * u.deg
-        z = row['z']
-        mass = 10**(row['mass']) # solmass
-        conc = row['c']
+    if 'add_galaxies' in config:
+        add_galaxies = config['add_galaxies']
+    else:
+        add_galaxies = True
 
-        # setup stars
-        if config['add_stars'] is True:
-            print('Setting up stars...')
+    if 'add_stars' in config:
+        add_stars = config['add_stars']
+    else:
+        add_stars = True
 
-            df_stars = setup_stars(
-                ra.value, dec.value, height_deg, width_deg
+    # setup galaxies
+    if add_galaxies is True:
+        gal_rng = np.random.default_rng(seeds['gals'])
+
+        gal_cat = setup_gals(n_gal_total_img, gal_rng)
+        Ngals = len(gal_cat)
+
+        # will populate w/ a truth cat for each band
+        truth_gal_cat = None
+
+    if add_stars is True:
+        # will populate w/ a truth cat for each band
+        truth_star_cat = None
+
+    # Start main process
+    row = np.where(targets['target'] == target_name)
+
+    target = targets[row][0]
+
+    ra = target['ra'] * u.deg
+    dec = target['dec'] * u.deg
+    z = target['z']
+    mass = 10**(target['mass']) # solmass
+    conc = target['c']
+
+    # setup stars (query only for now)
+    if add_stars is True:
+        logprint('Setting up stars...')
+
+        star_cat = setup_stars(
+            ra.value, dec.value, height_deg, width_deg
+            )
+
+        Nstars = len(star_cat)
+
+    # setup gals (sampling positions only for now)
+    if add_galaxies is True:
+
+        sample_len = (img_max_len / 2.).to(u.deg).value
+
+        sampled_ra = gal_rng.uniform(
+            ra.value - sample_len,
+            ra.value + sample_len,
+            size=Ngals
+            )
+        sampled_dec = np.random.uniform(
+            dec.value - sample_len,
+            dec.value + sample_len,
+            size=Ngals
+            )
+
+        gal_cat = rf.append_fields(
+            gal_cat,
+            ['ra', 'dec'],
+            [sampled_ra, sampled_dec],
+            dtypes=['float32'],
+            usemask=False
+        )
+
+    for band in bands:
+        # We want to rotate the sky by (5 min + 1 min overhead) each
+        # new target
+        theta_master = 0 * u.radian
+        rot_rate = 0.25 # deg / min
+
+        # pivot wavelength
+        piv_wave = piv_dict[band]
+
+        bandpass.transmission = get_transmission(band=band)
+
+        # setup truth cats for this band
+        truth_gals = Table()
+        truth_stars = Table()
+
+        # setup stellar fluxes
+        if add_stars is True:
+            if piv_wave > 600:
+                gaia_mag = 'Gmag'
+            else:
+                gaia_mag = 'BPmag'
+
+            # Find counts to add for the star
+            mean_fnu_star_mag = phot.abmag_to_mean_fnu(
+                abmag=star_cat[gaia_mag]
                 )
 
-            Nstars = len(df_stars)
+            mean_flambda = phot.mean_flambda_from_mean_fnu(
+                mean_fnu=mean_fnu_star_mag,
+                bandpass_transmission=bandpass.transmission,
+                bandpass_wavelengths=bandpass.wavelengths
+                )
 
-        for band in bands:
-            # We want to rotate the sky by (5 min + 1 min overhead) each
-            # new target
-            theta_master = 0 * u.radian
-            rot_rate = 0.25 # deg / min
+            crate_electrons_pix = phot.crate_from_mean_flambda(
+                mean_flambda=mean_flambda,
+                illum_area=telescope.illum_area.value,
+                bandpass_transmission=bandpass.transmission,
+                bandpass_wavelengths=bandpass.wavelengths
+                )
 
-            # pivot wavelength
-            piv_wave = piv_dict[band]
+            crate_adu_pix = crate_electrons_pix / camera.gain.value
 
-            bandpass.transmission = get_transmission(band=band)
+            # what is actually used below
+            star_flux_adu = crate_adu_pix * exp_time * 1
 
-            # setup stellar fluxes
-            if config['add_stars'] is True:
-                if piv_wave > 600:
-                    gaia_mag = 'Gmag'
-                else:
-                    gaia_mag = 'BPmag'
+        for exp_num, strehl in enumerate(strehl_ratios):
 
-                # Find counts to add for the star
-                mean_fnu_star_mag = phot.abmag_to_mean_fnu(
-                    abmag=df_stars[gaia_mag]
-                    )
+            logprint(f'Image simulation starting for {target_name}, {band}; ' +
+                    f'{exp_num+1} of {n_exp}')
 
-                mean_flambda = phot.mean_flambda_from_mean_fnu(
-                    mean_fnu=mean_fnu_star_mag.to_numpy(),
-                    bandpass_transmission=bandpass.transmission,
-                    bandpass_wavelengths=bandpass.wavelengths
-                    )
+            if run_name is None:
+                rn = ''
+            else:
+                rn = f'{run_name}/'
 
-                crate_electrons_pix = phot.crate_from_mean_flambda(
-                    mean_flambda=mean_flambda,
-                    illum_area=telescope.illum_area.value,
-                    bandpass_transmission=bandpass.transmission,
-                    bandpass_wavelengths=bandpass.wavelengths
-                    )
+            outdir = os.path.join(
+                utils.TEST_DIR, f'ajay/{rn}{target_name}/{band}/{strehl}/'
+                )
+            utils.make_dir(outdir)
 
-                crate_adu_pix = crate_electrons_pix / camera.gain.value
+            ra_sim = dither_rng.uniform(
+                ra.value - dither_deg, ra.value + dither_deg
+                )
+            dec_sim = dither_rng.uniform(
+                dec.value - dither_deg, dec.value + dither_deg
+                )
 
-                # what is actually used below
-                star_flux_adu = crate_adu_pix * exp_time * 1
+            # in pixels
+            dither_ra = (ra.value - ra_sim) * 3600 / pix_scale
+            dither_dec = (dec.value - dec_sim) * 3600 / pix_scale
 
-            for exp_num, strehl in enumerate(strehl_ratios):
+            # Step 1: Get the optical PSF, given the Strehl ratio
+            aberrations = get_zernike(band=band, strehl_ratio=strehl)
 
-                print(f'Image simulation starting for {target}, {band}; ' +
-                      f'{exp_num+1} of {n_exp}')
+            optical_zernike_psf = galsim.OpticalPSF(
+                lam=piv_wave,
+                diam=telescope.diameter.value,
+                aberrations=aberrations,
+                obscuration=0.38,
+                nstruts=4,
+                flux=1
+                )
 
-                if run_name is None:
-                    rn = ''
-                else:
-                    rn = f'{run_name}/'
+            jitter_psf = galsim.Gaussian(sigma=0.05, flux=1)
 
-                outdir = os.path.join(
-                    utils.TEST_DIR, f'ajay/{rn}{target}/{band}/{strehl}/'
-                    )
-                utils.make_dir(outdir)
+            psf_sim = galsim.Convolve([optical_zernike_psf, jitter_psf])
 
-                ra_sim = np.random.uniform(
-                    ra.value - dither_deg, ra.value + dither_deg
-                    )
-                dec_sim = np.random.uniform(
-                    dec.value - dither_deg, dec.value + dither_deg
-                    )
+            # Step 2: Construct the science image
+            sci_img = galsim.Image(
+                ncol=camera.npix_H.value,
+                nrow=camera.npix_V.value,
+                # dtype=np.uint16
+                )
 
-                # in pixels
-                dither_ra = (ra.value - ra_sim) * 3600 / pix_scale
-                dither_dec = (dec.value - dec_sim) * 3600 / pix_scale
+            # Step 3: Fill the science image with mean sky bkg (Gill et al. 2020)
+            crate_sky_electron_pix = phot.crate_bkg(
+                illum_area=telescope.illum_area,
+                bandpass=bandpass,
+                bkg_type='raw',
+                strength='ave'
+                )
 
-                # Step 1: Get the optical PSF, given the Strehl ratio
-                aberrations = get_zernike(band=band, strehl_ratio=strehl)
+            crate_sky_adu_pix = crate_sky_electron_pix / camera.gain.value
+            sky_adu_pix = crate_sky_adu_pix * exp_time * 1  # ADU
 
-                optical_zernike_psf = galsim.OpticalPSF(
-                    lam=piv_wave,
-                    diam=telescope.diameter.value,
-                    aberrations=aberrations,
-                    obscuration=0.38,
-                    nstruts=4,
-                    flux=1
-                    )
+            sci_img.fill(sky_adu_pix)
+            sci_img.setOrigin(0, 0)
 
-                jitter_psf = galsim.Gaussian(sigma=0.05, flux=1)
+            # Step 4: WCS setup
+            if strehl < 100:
+                theta = 0 * galsim.degrees
+            else:
+                theta = theta_master.to(u.deg).value * galsim.degrees
 
-                psf_sim = galsim.Convolve([optical_zernike_psf, jitter_psf])
+            dudx = np.cos(theta) * pix_scale
+            dudy = -np.sin(theta) * pix_scale
+            dvdx = np.sin(theta) * pix_scale
+            dvdy = np.cos(theta) * pix_scale
 
-                # Step 2: Construct the science image
-                sci_img = galsim.Image(
-                    ncol=camera.npix_H.value,
-                    nrow=camera.npix_V.value,
-                    # dtype=np.uint16
-                    )
+            image_center = sci_img.true_center
 
-                # Step 3: Fill the science image with mean sky bkg (Gill et al. 2020)
-                crate_sky_electron_pix = phot.crate_bkg(
-                    illum_area=telescope.illum_area,
-                    bandpass=bandpass,
-                    bkg_type='raw',
-                    strength='ave'
-                    )
+            affine = galsim.AffineTransform(
+                dudx, dudy, dvdx, dvdy, origin=image_center
+                )
 
-                crate_sky_adu_pix = crate_sky_electron_pix / camera.gain.value
-                sky_adu_pix = crate_sky_adu_pix * exp_time * 1  # ADU
+            sky_center = galsim.CelestialCoord(
+                ra=ra_sim * galsim.degrees,
+                dec=dec_sim * galsim.degrees
+                )
 
-                sci_img.fill(sky_adu_pix)
-                sci_img.setOrigin(0, 0)
+            wcs = galsim.TanWCS(affine, sky_center, units=galsim.arcsec)
+            sci_img.wcs = wcs
 
-                # Step 4: WCS setup
-                if strehl < 100:
-                    theta = 0 * galsim.degrees
-                else:
-                    theta = theta_master.to(u.deg).value * galsim.degrees
+            sci_img_bounds = sci_img.bounds
 
-                dudx = np.cos(theta) * pix_scale
-                dudy = -np.sin(theta) * pix_scale
-                dvdx = np.sin(theta) * pix_scale
-                dvdy = np.cos(theta) * pix_scale
+            # Step 5: Setup image bounds & cluster halo
+            # NOTE: these define the minimum bounding box of the (possibly
+            # rotated) image. This will allow us to skip galaxies
+            # off of the current image more efficiently
+            ra_bounds, dec_bounds = compute_im_bounding_box(
+                ra_sim,
+                dec_sim,
+                sci_img_size_x_arcsec,
+                sci_img_size_y_arcsec,
+                theta.deg
+                )
 
-                image_center = sci_img.true_center
+            ra_bounds *= u.deg
+            dec_bounds *= u.deg
 
-                affine = galsim.AffineTransform(
-                    dudx, dudy, dvdx, dvdy, origin=image_center
-                    )
+            # setup NFW halo at the center
+            nfw_halo_pos_xasec = (camera.npix_H.value/2) * pix_scale
+            nfw_halo_pos_yasec = (camera.npix_V.value/2) * pix_scale
 
-                sky_center = galsim.CelestialCoord(
-                    ra=ra_sim * galsim.degrees,
-                    dec=dec_sim * galsim.degrees
-                    )
+            halo_pos = galsim.PositionD(
+                x=nfw_halo_pos_xasec, y=nfw_halo_pos_yasec
+                )
 
-                wcs = galsim.TanWCS(affine, sky_center, units=galsim.arcsec)
-                sci_img.wcs = wcs
+            nfw_halo = galsim.NFWHalo(
+                mass=mass,
+                conc=conc,
+                redshift=z,
+                omega_m=0.3,
+                halo_pos=halo_pos,
+                omega_lam=0.7
+                )
 
-                # Step 5: Add stars (setup done earlier)
-                if config['add_stars'] is True:
+            # Step 6: Add stars (setup done earlier)
+            if add_stars is True:
 
-                    start = time.time()
+                start = time.time()
 
-                    print(f'Adding {Nstars} stars')
+                logprint(f'Adding {Nstars} stars')
 
-                    # NOTE: in progres...
-                    # with Pool(ncores) as pool:
-                    #     batch_indices = utils.setup_batches(Nobjs, ncores)
+                # NOTE: in progress...
+                # with Pool(ncores) as pool:
+                #     batch_indices = utils.setup_batches(Nobjs, ncores)
 
-                    #     full_image, truth_catalog = combine_objs(
-                    #         pool.starmap(
-                    #             make_obj_runner,
-                    #             ([
-                    #                 batch_indices,
-                    #                 'star',
-                    #                 wcs,
-                    #             ])
-                    #         )
+                #     full_image, truth_catalog = combine_objs(
+                #         pool.starmap(
+                #             make_obj_runner,
+                #             ([
+                #                 batch_indices,
+                #                 'star',
+                #                 wcs,
+                #             ])
+                #         )
 
-                    for idx in range(len(df_stars)):
+                for idx in range(len(star_cat)):
 
-                        if idx % 100 == 0:
-                            print(f'{idx} of {len(df_stars)} completed')
+                    if idx % 100 == 0:
+                        logprint(f'{idx} of {len(star_cat)} completed')
 
-                        this_flux_adu = star_flux_adu[idx]
+                    this_flux_adu = star_flux_adu[idx]
 
-                        # Assign real position to the star on the sky
-                        star_ra_deg = df_stars['RA_ICRS'][idx] * galsim.degrees
-                        star_dec_deg = df_stars['DE_ICRS'][idx] * galsim.degrees
+                    # Assign real position to the star on the sky
+                    star_ra_deg = star_cat['RA_ICRS'][idx] * galsim.degrees
+                    star_dec_deg = star_cat['DE_ICRS'][idx] * galsim.degrees
 
-                        world_pos = galsim.CelestialCoord(
-                            star_ra_deg, star_dec_deg
-                            )
-                        image_pos = wcs.toImage(world_pos)
+                    world_pos = galsim.CelestialCoord(
+                        star_ra_deg, star_dec_deg
+                        )
+                    image_pos = wcs.toImage(world_pos)
 
-                        star = galsim.DeltaFunction(flux=this_flux_adu)
+                    star = galsim.DeltaFunction(flux=this_flux_adu)
 
-                        # Position fractional stuff
-                        x_nominal = image_pos.x + 0.5
-                        y_nominal = image_pos.y + 0.5
+                    # Position fractional stuff
+                    x_nominal = image_pos.x + 0.5
+                    y_nominal = image_pos.y + 0.5
 
-                        ix_nominal = int(math.floor(x_nominal+0.5))
-                        iy_nominal = int(math.floor(y_nominal+0.5))
+                    ix_nominal = int(math.floor(x_nominal+0.5))
+                    iy_nominal = int(math.floor(y_nominal+0.5))
 
-                        dx = x_nominal - ix_nominal
-                        dy = y_nominal - iy_nominal
+                    dx = x_nominal - ix_nominal
+                    dy = y_nominal - iy_nominal
 
-                        offset = galsim.PositionD(dx,dy)
+                    offset = galsim.PositionD(dx,dy)
 
-                        # convolve star with the psf
-                        convolution = galsim.Convolve([psf_sim, star])
+                    # convolve star with the psf
+                    convolution = galsim.Convolve([psf_sim, star])
 
-                        star_image = convolution.drawImage(
-                            nx=1000,
-                            ny=1000,
-                            wcs=wcs.local(image_pos),
-                            offset=offset,
-                            method='auto',
-                            # dtype=np.uint16
-                            )
-
-                        star_image.setCenter(ix_nominal, iy_nominal)
-
-                        stamp_overlap = star_image.bounds & sci_img.bounds
-
-                        # Check to ensure star is not out of bounds on the image
-                        try:
-                            sci_img[stamp_overlap] += star_image[stamp_overlap]
-
-                        except galsim.errors.GalSimBoundsError:
-                            # print('Out of bounds star. Skipping.')
-                            continue
-
-                    print('Done adding stars.')
-
-                    star_time = time.time() - start
-                    print(f'Stars took {star_time:.1f} s')
-
-                # step 6
-                if config['add_galaxies'] is True:
-
-                    start = time.time()
-
-                    sci_img_ra_min = (ra_sim * u.deg - ((sci_img_size_x_arcsec.to(u.arcsecond).to(u.deg)) / 2)).to(u.deg)
-                    sci_img_ra_max = (ra_sim * u.deg + ((sci_img_size_x_arcsec.to(u.arcsecond).to(u.deg)) / 2)).to(u.deg)
-
-                    sci_img_dec_min = (dec_sim * u.deg - ((sci_img_size_y_arcsec.to(u.arcsecond).to(u.deg)) / 2)).to(u.deg)
-                    sci_img_dec_max = (dec_sim * u.deg + ((sci_img_size_y_arcsec.to(u.arcsecond).to(u.deg)) / 2)).to(u.deg)
-                    # setup NFW halo at the center
-                    nfw_halo_pos_xasec = (camera.npix_H.value/2) * pix_scale
-                    nfw_halo_pos_yasec = (camera.npix_V.value/2) * pix_scale
-
-                    halo_pos = galsim.PositionD(
-                        x=nfw_halo_pos_xasec, y=nfw_halo_pos_yasec
+                    # TODO: figure out stamp size issue...
+                    star_image = convolution.drawImage(
+                        # nx=1000,
+                        # ny=1000,
+                        wcs=wcs.local(image_pos),
+                        offset=offset,
+                        method='auto',
+                        # dtype=np.uint16
                         )
 
-                    nfw_halo = galsim.NFWHalo(
-                        mass=mass,
-                        conc=conc,
-                        redshift=z,
-                        omega_m=0.3,
-                        halo_pos=halo_pos,
-                        omega_lam=0.7
-                        )
+                    star_image.setCenter(ix_nominal, iy_nominal)
 
-                    # Only inject bkg galaxies
-                    cat_df_filt = cat_df[cat_df['ZPDF'] >= z]
+                    stamp_overlap = star_image.bounds & sci_img.bounds
 
-                    print(f'Adding {n_gal_total_img} background galaxies')
+                    # Check to ensure star is not out of bounds on the image
+                    try:
+                        sci_img[stamp_overlap] += star_image[stamp_overlap]
 
-                    seed = np.arange(0, n_gal_total_img, 1)
+                    except galsim.errors.GalSimBoundsError:
+                        # logprint('Out of bounds star. Skipping.')
+                        continue
 
-                    for idx in range(n_gal_total_img):
-                        if idx % 100 == 0:
-                            print(f'{idx} of {n_gal_total_img} completed')
+                logprint('Done adding stars.')
 
-                        # Randomly sample a galaxy
-                        gal_df = cat_df_filt.sample(n=1, random_state=seed[idx])
-                        gal_z = gal_df.ZPDF.item()
+                star_time = time.time() - start
+                logprint(f'Stars took {star_time:.1f} s')
 
-                        crate_dict = {
-                            'b': gal_df.crates_b.item(),
-                            'u': gal_df.crates_u.item(),
-                            'r': gal_df.crates_r.item(),
-                            'nir': gal_df.crates_nir.item(),
-                            'lum': gal_df.crates_lum.item(),
-                            'g': gal_df.crates_g.item()
-                            }
+            # step 6
+            if add_galaxies is True:
 
-                        # Get its Sersic parameters
-                        gal_n_sersic_cosmos10 = gal_df.c10_sersic_fit_n.item()
+                logprint(f'Adding {n_gal_total_img} background galaxies')
+                logprint(f'Parallelizing across {ncores} cores')
 
-                        if gal_n_sersic_cosmos10 < 0.3:
-                            gal_n_sersic_cosmos10 = 0.3
+                start = time.time()
 
-                        crate = crate_dict[band] # galaxy count rate e/s
+                with Pool(ncores) as pool:
+                    batch_indices = utils.setup_batches(Ngals, ncores)
 
-                        flux_adu = int(
-                            crate * exp_time * 1 / camera.gain.value
-                            )
-
-                        hlr_arcsec = (gal_df.c10_sersic_fit_hlr.item()
-                                    * np.sqrt(gal_df.c10_sersic_fit_q.item())
-                                    * cosmos_plate_scale)
-
-                        if hlr_arcsec <= 0:
-                            continue
-
-                        hlr_pixels = hlr_arcsec / pix_scale
-
-                        gal = galsim.Sersic(
-                            n=gal_n_sersic_cosmos10,
-                            half_light_radius=hlr_arcsec,
-                            flux=flux_adu
-                            )
-
-                        gal = gal.shear(
-                            q=gal_df.c10_sersic_fit_q.item(),
-                            beta=gal_df.c10_sersic_fit_phi.item()*galsim.radians
-                            )
-
-                        # Set the seed, so that each observation have same galaxy locations
-                        np.random.seed(seed[idx])
-
-                        gal_ra = np.random.uniform(
-                            sci_img_ra_min.value, sci_img_ra_max.value
-                            )
-                        gal_dec = np.random.uniform(
-                            sci_img_dec_min.value, sci_img_dec_max.value
-                            )
-
-                        gal_ra *= galsim.degrees
-                        gal_dec *= galsim.degrees
-
-                        world_pos = galsim.CelestialCoord(gal_ra, gal_dec)
-                        image_pos = wcs.toImage(world_pos)
-
-                        # galaxy 2d position on sci img in arcsec
-                        gal_pos_cent_xasec = image_pos.x * pix_scale
-                        gal_pos_cent_yasec = image_pos.y * pix_scale
-
-                        # get the expected shear from the halo at galaxy 2d position
-                        g1, g2 = nfw_halo.getShear(
-                            pos=galsim.PositionD(
-                                x=gal_pos_cent_xasec,
-                                y=gal_pos_cent_yasec
-                                ),
-                            z_s=gal_z,
-                            units=galsim.arcsec,
-                            reduced=True
-                            )
-
-                        abs_val = np.sqrt(g1**2 + g2**2)
-
-                        if abs_val >= 1:  # strong lensing
-                            g1 = 0
-                            g2 = 0
-
-                        nfw_mu = nfw_halo.getMagnification(
-                            pos=galsim.PositionD(
-                                x=gal_pos_cent_xasec,
-                                y=gal_pos_cent_yasec
-                                ),
-                            z_s=gal_z,
-                            units=galsim.arcsec
-                            )
-
-                        # strong lensing
-                        if nfw_mu < 0:
-                            print('Warning: mu < 0 means strong lensing! Using mu=25.')
-                            nfw_mu = 25
-                        elif nfw_mu > 25:
-                            print('Warning: mu > 25 means strong lensing! Using mu=25.')
-                            nfw_mu = 25
-
-                        # lens the Sersic object galaxy
-                        gal = gal.lens(g1=g1, g2=g2, mu=nfw_mu)
-
-                        # Position fractional stuff
-                        x_nominal = image_pos.x + 0.5
-                        y_nominal = image_pos.y + 0.5
-
-                        ix_nominal = int(math.floor(x_nominal+0.5))
-                        iy_nominal = int(math.floor(y_nominal+0.5))
-
-                        dx = x_nominal - ix_nominal
-                        dy = y_nominal - iy_nominal
-
-                        offset = galsim.PositionD(dx,dy)
-
-                        # convolve galaxy GSObject with the psf (optical+jitter convolved already)
-                        convolution = galsim.Convolve(
-                            [psf_sim, gal], gsparams=big_fft
-                            )
-                        stamp_size = round(hlr_pixels + 500)
-
-                        gal_image = convolution.drawImage(
-                            nx=stamp_size,
-                            ny=stamp_size,
-                            wcs=wcs.local(image_pos),
-                            offset=offset,
-                            method='auto',
-                            # dtype=np.uint16
-                            )
-
-                        gal_image.setCenter(ix_nominal, iy_nominal)
-
-                        stamp_overlap = gal_image.bounds & sci_img.bounds
-
-                        # Check to ensure galaxy is not out of bounds on the image
-                        try:
-                            sci_img[stamp_overlap] += gal_image[stamp_overlap]
-
-                        except galsim.errors.GalSimBoundsError:
-                            print('Out of bounds star. Skipping.')
-                            continue
-
-                    gal_time = time.time() - start
-                    print('Done with galaxies')
-                    print(f'Galaxies took {gal_time:.1f} s')
-
-
-                # add shot noise on sky + sources
-                # TODO: sort out why this turns sci_img to ints...
-                noise = galsim.PoissonNoise(sky_level=0.0)
-                sci_img.addNoise(noise)
-                sci_img = sci_img.array
-
-                # Step 8: Add a dark frame
-                dark_dir = OBA_SIM_DATA_DIR / 'darks/minus10/'
-                darks = np.sort(glob.glob(str(dark_dir / '*.fits')))
-                dark_fname = np.random.choice(darks)
-
-                # we upcast for now, cast back later
-                dark = fits.getdata(dark_fname).astype('float32')
-                sci_img += dark
-
-                # limit the flux
-                sci_img[sci_img >= (2**16)] = 2**16 - 1
-                sci_img[sci_img < 0] = 0
-
-                # *now* cast to int16
-                sci_img = sci_img.astype('uint16')
-
-                # HEADERS
-                hdr = fits.Header()
-                hdr['EXPTIME'] = int(exp_time)
-                hdr['band'] = band
-                hdr['strehl'] = strehl
-                hdr['stars'] = int(config['add_stars'])
-                hdr['galaxies'] = int(config['add_galaxies'])
-                hdr['TARGET_RA'] = ra.value # in deg
-                hdr['TARGET_DEC'] = dec.value # in deg
-                hdr['dither_ra'] = dither_ra # in pixels
-                hdr['dither_dec'] = dither_dec # in pixels
-                hdr['roll_theta'] = theta.deg # in deg
-                hdr['dark'] = Path(dark_fname).name
-
-                dt_now = datetime.datetime.now()
-                unix_time = int(time.mktime(dt_now.timetuple()))
-
-                band_int = oba_io.band2index(band)
-
-                # Path checks
-                Path(outdir).mkdir(parents=True, exist_ok=True)
-
-                output_fname = f'{outdir}/{target}_{exp_time}_{band_int}_{unix_time}.fits'
-
-                fits.writeto(
-                    filename=output_fname,
-                    data=sci_img,
-                    header=hdr,
-                    overwrite=overwrite
+                    sci_img, truth_gals = combine_objs(
+                        pool.starmap(
+                            make_obj_runner,
+                            ([
+                                batch_indices[k],
+                                'gal',
+                                gal_cat,
+                                band,
+                                wcs,
+                                psf_sim,
+                                nfw_halo,
+                                camera,
+                                exp_time,
+                                pix_scale,
+                                cosmos_plate_scale,
+                                ra_bounds,
+                                dec_bounds,
+                                gs_params,
+                                logprint
+                            ] for k in range(ncores))
+                        ),
+                        sci_img,
+                        truth_gals,
+                        exp_num,
+                        logprint
                     )
 
-                # Update the roll angle
-                if strehl == 100:
-                    theta_master += ((rot_rate * 6) * u.deg).to(u.radian)
+                gal_time = time.time() - start
+                logprint('Done with galaxies')
+                logprint(f'Galaxies took {gal_time:.1f} s')
 
-                print(f'Image simulation complete for {target}, {band}, {strehl}.\n')
+            # add shot noise on sky + sources
+            # TODO: sort out why this turns sci_img to ints...
+            noise = galsim.PoissonNoise(sky_level=0.0)
+            sci_img.addNoise(noise)
+            sci_img = sci_img.array
+
+            # Step 8: Add a dark frame
+            dark_dir = OBA_SIM_DATA_DIR / 'darks/minus10/'
+            darks = np.sort(glob.glob(str(dark_dir / '*.fits')))
+            dark_fname = np.random.choice(darks)
+
+            # we upcast for now, cast back later
+            dark = fits.getdata(dark_fname).astype('float32')
+            sci_img += dark
+
+            # limit the flux
+            sci_img[sci_img >= (2**16)] = 2**16 - 1
+            sci_img[sci_img < 0] = 0
+
+            # *now* cast to int16
+            sci_img = sci_img.astype('uint16')
+
+            # HEADERS
+            hdr = fits.Header()
+            hdr['EXPTIME'] = int(exp_time)
+            hdr['band'] = band
+            hdr['strehl'] = strehl
+            hdr['stars'] = int(add_stars)
+            hdr['galaxies'] = int(add_galaxies)
+            hdr['TARGET_RA'] = ra.value # in deg
+            hdr['TARGET_DEC'] = dec.value # in deg
+            hdr['dither_ra'] = dither_ra # in pixels
+            hdr['dither_dec'] = dither_dec # in pixels
+            hdr['roll_theta'] = theta.deg # in deg
+            hdr['dark'] = Path(dark_fname).name
+
+            # add WCS info to header
+            wcs.writeToFitsHeader(hdr, bounds=sci_img_bounds)
+
+            dt_now = datetime.datetime.now()
+            unix_time = int(time.mktime(dt_now.timetuple()))
+
+            band_int = oba_io.band2index(band)
+
+            # Path checks
+            Path(outdir).mkdir(parents=True, exist_ok=True)
+
+            output_fname = f'{outdir}/{target_name}_{exp_time}_{band_int}_{unix_time}.fits'
+
+            fits.writeto(
+                filename=output_fname,
+                data=sci_img,
+                header=hdr,
+                overwrite=overwrite
+                )
+
+            # Update the roll angle
+            if strehl == 100:
+                theta_master += ((rot_rate * 6) * u.deg).to(u.radian)
+
+            logprint(f'Image simulation complete for {target_name}, {band}, {strehl}.\n')
+
+        if add_stars is True:
+            if truth_star_cat is None:
+                truth_star_cat = truth_stars.copy()
+            else:
+                truth_star_cat = join(
+                    truth_star_cat,
+                    truth_stars,
+                    join_type='left',
+                    )
+
+        if add_galaxies is True:
+            if truth_gal_cat is None:
+                truth_gal_cat = truth_gals.copy()
+            else:
+                truth_gal_cat = join(
+                    truth_gal_cat,
+                    truth_gals,
+                    join_type='left',
+                    )
+
+    # merge truth cats & save
+    if add_stars is True:
+        outfile = f'{run_dir}/truth_stars.fits'
+        truth_star_cat.write(outfile, overwrite=overwrite)
+    if add_galaxies is True:
+        outfile = f'{run_dir}/truth_gals.fits'
+        truth_gal_cat.write(outfile, overwrite=overwrite)
+
+    return 0
 
 if __name__ == '__main__':
     args = parse_args()
