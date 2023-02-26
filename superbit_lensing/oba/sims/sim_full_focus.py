@@ -306,9 +306,7 @@ def main(args):
 
     cosmos_plate_scale = 0.03 # arcsec/pix
 
-    # TODO: revert!!
-    # dither_pix = 100
-    dither_pix = 1
+    dither_pix = 100
     dither_deg = pix_scale * dither_pix / 3600 # dither_deg
 
     for idx, row in df.iterrows():
@@ -530,8 +528,6 @@ def main(args):
                             sci_img[stamp_overlap] += star_image[stamp_overlap]
 
                         except galsim.errors.GalSimBoundsError:
-                            ipdb.set_trace()
-
                             # print('Out of bounds star. Skipping.')
                             continue
 
