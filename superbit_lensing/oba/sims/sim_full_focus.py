@@ -191,7 +191,7 @@ def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num,
         try:
             full_image[bounds] += stamp[bounds]
         except galsim.errors.GalSimBoundsError as e:
-            logprint(f'{indx} out of bounds. Skipping.')
+            logprint(f'obj {i} out of bounds. Skipping.')
 
         if exp_num == 0:
             if len(truth_catalog) == 0:
@@ -369,18 +369,17 @@ def main(args):
         )
 
     # the *sampled* area has to be bigger than this, to allow for rolls
-    # TODO: Revert!!
-    # img_max_len = np.max([
-    img_max_len = np.min([
+    img_max_len = np.max([
+    # img_max_len = np.min([
         sci_img_size_x_arcsec.value, sci_img_size_y_arcsec.value
         ]) * u.arcsec
     sampled_img_area = (img_max_len**2).to(u.arcmin**2)
 
     n_gal_sqarcmin = 97.55 * (u.arcmin**-2)
 
-    # TODO: Revert!!
+    # TODO: Reveret!!
     # n_gal_total_img = round((sampled_img_area * n_gal_sqarcmin).value)
-    n_gal_total_img = 300
+    n_gal_total_img = 5000
 
     cosmos_plate_scale = 0.03 # arcsec/pix
 
@@ -681,8 +680,8 @@ def main(args):
 
                     # TODO: figure out stamp size issue...
                     star_image = convolution.drawImage(
-                        # nx=1000,
-                        # ny=1000,
+                        nx=1000,
+                        ny=1000,
                         wcs=wcs.local(image_pos),
                         offset=offset,
                         method='auto',
