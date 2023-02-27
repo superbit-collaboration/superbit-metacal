@@ -199,7 +199,8 @@ class AstrometryRunner(object):
                     wcs_cmd_full += ' --overwrite'
 
                 # run Astrometry.net script
-                os.system(wcs_cmd_full)
+                # os.system(wcs_cmd_full)
+                utils.run_command(wcs_cmd_full, logprint=logprint)
                 new_file_list = glob(f'{str(wcs_dir)}/*new*')
 
                 if len(new_file_list) != 0: # Astrometry.net worked

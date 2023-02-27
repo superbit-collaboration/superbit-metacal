@@ -796,7 +796,9 @@ class OBAModule(SuperBITModule):
 
     _req_fields = ['config_file']
     _opt_fields = ['config_dir', 'root_dir']
-    _flag_fields = ['test', 'overwrite', 'vb']
+
+    # NOTE: overwrite & vb have been moved to config_file
+    _flag_fields = ['test']
 
     def run(self, run_options, logprint):
         logprint(f'\nRunning module {self.name}\n')
@@ -821,10 +823,9 @@ class OBAModule(SuperBITModule):
 
         options = self._setup_options(run_options)
 
-        if 'overwrite' not in options:
-            if 'overwrite' in run_options:
-                if run_options['overwrite'] is True:
-                    options += ' --overwrite'
+        # NOTE: OBA handles vb through its own config
+        if ' --vb' in options:
+            options = options.replace(' --vb', '')
 
         cmd = base + options
 

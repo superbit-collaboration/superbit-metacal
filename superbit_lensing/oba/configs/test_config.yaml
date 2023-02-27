@@ -1,20 +1,21 @@
 # high-level configuration for the full OBA run
 run_options:
-  target_name: Abell2813
-  #target_name: Abell2744
+  target_name: test_target
   bands: ['b', 'lum']
+  overwrite: True
+  vb: True
 
 # This list defines which OBA submodules to include in the analysis run
 # NOTE: If not set, the default is to run all steps
 modules:
-  #- preprocessing
-  #- cals
-  #- masking
-  #- background
-  - astrometry
+  # - preprocessing
+  # - cals
+  # - masking
+  # - background
+  #- astrometry
   #- coadd
   #- detection
-  #- output
+  - output
   #- cleanup
 
 test:
@@ -35,7 +36,7 @@ masking:
 astrometry:
   # can force the astrometry module to rerun the WCS solution even if
   # there is already a WCS in the image headers from the image checker
-  rerun: True
+  rerun: False
 
   # the search radius about the target position, in deg
   search_radius: 1 # deg

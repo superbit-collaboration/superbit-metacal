@@ -22,10 +22,7 @@ def parse_args():
     parser.add_argument('--test', action='store_true', default=False,
                         help='Set to indicate that this is a test run, ' +
                         'which will utilize the TestPrepper')
-    parser.add_argument('--overwrite', action='store_true', default=False,
-                        help='Set to overwrite files')
-    parser.add_argument('--vb', action='store_true', default=False,
-                        help='Verbosity')
+    # NOTE: --vb and --overwrite have been moved to the OBA config!
 
     return parser.parse_args()
 
@@ -38,8 +35,6 @@ def main(args):
     config_dir = args.config_dir
     root_dir = args.root_dir
     test = args.test
-    overwrite = args.overwrite
-    vb = args.vb
 
     #-----------------------------------------------------------------
     # config setup
@@ -54,8 +49,11 @@ def main(args):
 
     config = OBAConfig(config_file)
 
-    target_name = config['run_options']['target_name']
-    bands = config['run_options']['bands']
+    run_options = config['run_options']
+    target_name = run_options['target_name']
+    bands = run_options['bands']
+    overwrite = run_options['overwrite']
+    vb = run_options['vb']
 
     #-----------------------------------------------------------------
     # Logger setup
