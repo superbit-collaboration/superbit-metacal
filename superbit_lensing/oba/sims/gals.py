@@ -125,7 +125,7 @@ def make_a_galaxy(indx, obj, band, wcs, psf, nfw_halo, camera, exp_time,
     dx = x_nominal - ix_nominal
     dy = y_nominal - iy_nominal
 
-    offset = galsim.PositionD(dx,dy)
+    offset = galsim.PositionD(dx, dy)
 
     # convolve galaxy GSObject with the psf (optical+jitter convolved already)
     convolution = galsim.Convolve(
@@ -174,14 +174,14 @@ def make_a_galaxy(indx, obj, band, wcs, psf, nfw_halo, camera, exp_time,
     truth['x'] = image_pos.x
     truth['y'] = image_pos.y
     truth['sersic_n'] = gal_n_sersic_cosmos10
-    truth[f'crates_flux_{band}'] = crate_flux
-    truth[f'adu_flux_{band}'] = flux_adu
-    truth[f'stamp_flux_{band}'] = this_flux
     truth['hlr'] = hlr_arcsec
     truth['z'] = gal_z
     truth['g1'] = g1
     truth['g2'] = g2
     truth['mu'] = nfw_mu
+    truth[f'crates_flux_{band}'] = crate_flux
+    truth[f'adu_flux_{band}'] = flux_adu
+    truth[f'stamp_flux_{band}'] = this_flux
 
     # we'll want it as a Row obj later
     truth = Table(truth)[0]

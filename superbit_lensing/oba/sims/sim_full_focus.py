@@ -377,14 +377,13 @@ def main(args):
 
     n_gal_sqarcmin = 97.55 * (u.arcmin**-2)
 
-    # TODO: Reveret!!
+    # TODO: Revert!!
     # n_gal_total_img = round((sampled_img_area * n_gal_sqarcmin).value)
     n_gal_total_img = 5000
 
     cosmos_plate_scale = 0.03 # arcsec/pix
 
-    # TODO: Revert!!
-    dither_pix = 1
+    dither_pix = 100
     dither_deg = pix_scale * dither_pix / 3600 # dither_deg
     dither_rng = np.random.default_rng(seeds['dithering'])
 
@@ -419,7 +418,7 @@ def main(args):
 
     ra = target['ra'] * u.deg
     dec = target['dec'] * u.deg
-    z = target['z']
+    cluster_z = target['z']
     mass = 10**(target['mass']) # solmass
     conc = target['c']
 
@@ -436,7 +435,8 @@ def main(args):
     # setup gals (sampling positions only for now)
     if add_galaxies is True:
 
-        sample_len = (img_max_len / 2.).to(u.deg).value
+        # we use the larger box to handle roll angles
+        sample_len = 1.01*(img_max_len / 2.).to(u.deg).value
 
         sampled_ra = gal_rng.uniform(
             ra.value - sample_len,
@@ -607,20 +607,20 @@ def main(args):
             ra_bounds *= u.deg
             dec_bounds *= u.deg
 
-            # setup NFW halo at the center
-            nfw_halo_pos_xasec = (camera.npix_H.value/2) * pix_scale
-            nfw_halo_pos_yasec = (camera.npix_V.value/2) * pix_scale
-
-            halo_pos = galsim.PositionD(
-                x=nfw_halo_pos_xasec, y=nfw_halo_pos_yasec
+            # setup NFW halo at the target position
+            halo_pos = galsim.CelestialCoord(
+                ra=ra.value*galsim.degrees,
+                dec=dec.value*galsim.degrees
                 )
+
+            halo_pos_im = wcs.toImage(halo_pos) * pix_scale
 
             nfw_halo = galsim.NFWHalo(
                 mass=mass,
                 conc=conc,
-                redshift=z,
+                redshift=cluster_z,
                 omega_m=0.3,
-                halo_pos=halo_pos,
+                halo_pos=halo_pos_im,
                 omega_lam=0.7
                 )
 
