@@ -1,0 +1,15 @@
+target_name: 'Abell2813'
+run_name: multiprocess
+# master_seed: 72396
+starting_roll: 0 # deg
+exp_time: 300
+n_exp: 8
+bands: ['b', 'lum']
+ncores: 8
+
+add_stars: True
+add_galaxies: True
+
+overwrite: True
+fresh: False
+vb: True
