@@ -809,15 +809,16 @@ def main(args):
 
             logprint(f'Image simulation complete for {target_name}, {band}, {strehl}.\n')
 
-        if add_stars is True:
-            if truth_star_cat is None:
-                truth_star_cat = truth_stars.copy()
-            else:
-                truth_star_cat = join(
-                    truth_star_cat,
-                    truth_stars,
-                    join_type='left',
-                    )
+        # TODO: implement!
+        # if add_stars is True:
+        #     if truth_star_cat is None:
+        #         truth_star_cat = truth_stars.copy()
+        #     else:
+        #         truth_star_cat = join(
+        #             truth_star_cat,
+        #             truth_stars,
+        #             join_type='left',
+        #             )
 
         if add_galaxies is True:
             if truth_gal_cat is None:
@@ -830,9 +831,11 @@ def main(args):
                     )
 
     # merge truth cats & save
-    if add_stars is True:
-        outfile = f'{run_dir}/truth_stars.fits'
-        truth_star_cat.write(outfile, overwrite=overwrite)
+
+    # TODO: implement!
+    # if add_stars is True:
+    #     outfile = f'{run_dir}/truth_stars.fits'
+    #     truth_star_cat.write(outfile, overwrite=overwrite)
     if add_galaxies is True:
         outfile = f'{run_dir}/truth_gals.fits'
         truth_gal_cat.write(outfile, overwrite=overwrite)
