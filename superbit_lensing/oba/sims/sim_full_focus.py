@@ -86,8 +86,9 @@ def setup_seeds(config):
 
 def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
     '''
-    ra, dec, theta: deg
+    ra, dec: deg
     im_xsize, im_ysize: arcsec
+    theta: galsim.Angle
 
     Use the roll angle theta to determine the box inscribing the rotated
     rectangular SCI image
@@ -97,18 +98,15 @@ def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
     '''
 
     # NOTE: haven't made it robust to |theta| > 90
-    assert abs(theta) <= 90
+    assert abs(theta.deg) <= 90
 
     # original box lengths
     Lx = im_xsize.to(u.deg).value
     Ly = im_ysize.to(u.deg).value
 
-    # to rad
-    theta_rad = np.deg2rad(theta)
-
     # compute the new, larger box
-    new_Lx = Ly * np.sin(theta_rad) + Lx * np.cos(theta_rad)
-    new_Ly = Lx * np.sin(theta_rad) + Ly * np.cos(theta_rad)
+    new_Lx = Ly * np.sin(theta.rad) + Lx * np.cos(theta.rad)
+    new_Ly = Lx * np.sin(theta.rad) + Ly * np.cos(theta.rad)
 
     ra_min = ra - new_Lx/2.
     ra_max = ra + new_Lx/2.
@@ -318,6 +316,11 @@ def main(args):
     else:
         ncores = 1
 
+    if 'starting_roll' in config:
+        starting_roll = config['starting_roll']
+    else:
+        starting_roll = 0. * galsim.degrees
+
     # Dict for pivot wavelengths
     piv_dict = {
         'u': 395.35082727585194,
@@ -354,9 +357,6 @@ def main(args):
     # df = pd.read_csv(str(target_list))
     targets = Table.read(str(target_list))
 
-    # Do 12 exposures at full focus (Strehl ratio of 1)
-    strehl_ratios = (np.full(n_exp, 100))
-
     # Number of background galaxies to add
     sci_img_size_x_arcsec = camera.npix_H * bandpass.plate_scale
     sci_img_size_y_arcsec = camera.npix_V * bandpass.plate_scale
@@ -379,13 +379,16 @@ def main(args):
 
     # TODO: Revert!!
     # n_gal_total_img = round((sampled_img_area * n_gal_sqarcmin).value)
-    n_gal_total_img = 5000
+    n_gal_total_img = 50
 
     cosmos_plate_scale = 0.03 # arcsec/pix
 
     dither_pix = 100
     dither_deg = pix_scale * dither_pix / 3600 # dither_deg
     dither_rng = np.random.default_rng(seeds['dithering'])
+
+    # only doing in-focus sims
+    strehl = 100
 
     if 'add_galaxies' in config:
         add_galaxies = config['add_galaxies']
@@ -460,13 +463,28 @@ def main(args):
     for band in bands:
         # We want to rotate the sky by (5 min + 1 min overhead) each
         # new target
-        theta_master = 0 * u.radian
+        theta = starting_roll * galsim.degrees
         rot_rate = 0.25 # deg / min
 
         # pivot wavelength
         piv_wave = piv_dict[band]
 
         bandpass.transmission = get_transmission(band=band)
+
+        aberrations = get_zernike(band=band, strehl_ratio=strehl)
+
+        optical_zernike_psf = galsim.OpticalPSF(
+            lam=piv_wave,
+            diam=telescope.diameter.value,
+            aberrations=aberrations,
+            obscuration=0.38,
+            nstruts=4,
+            flux=1
+            )
+
+        jitter_psf = galsim.Gaussian(sigma=0.05, flux=1)
+
+        psf_sim = galsim.Convolve([optical_zernike_psf, jitter_psf])
 
         # setup truth cats for this band
         truth_gals = Table()
@@ -502,7 +520,15 @@ def main(args):
             # what is actually used below
             star_flux_adu = crate_adu_pix * exp_time * 1
 
-        for exp_num, strehl in enumerate(strehl_ratios):
+            star_cat = rf.append_fields(
+                star_cat,
+                f'flux_adu_{band}',
+                star_flux_adu,
+                dtypes='float32',
+                usemask=False
+            )
+
+        for exp_num in range(n_exp):
 
             logprint(f'Image simulation starting for {target_name}, {band}; ' +
                     f'{exp_num+1} of {n_exp}')
@@ -513,7 +539,7 @@ def main(args):
                 rn = f'{run_name}/'
 
             outdir = os.path.join(
-                utils.TEST_DIR, f'ajay/{rn}{target_name}/{band}/{strehl}/'
+                utils.TEST_DIR, f'ajay/{rn}{target_name}/{band}/'
                 )
             utils.make_dir(outdir)
 
@@ -528,23 +554,7 @@ def main(args):
             dither_ra = (ra.value - ra_sim) * 3600 / pix_scale
             dither_dec = (dec.value - dec_sim) * 3600 / pix_scale
 
-            # Step 1: Get the optical PSF, given the Strehl ratio
-            aberrations = get_zernike(band=band, strehl_ratio=strehl)
-
-            optical_zernike_psf = galsim.OpticalPSF(
-                lam=piv_wave,
-                diam=telescope.diameter.value,
-                aberrations=aberrations,
-                obscuration=0.38,
-                nstruts=4,
-                flux=1
-                )
-
-            jitter_psf = galsim.Gaussian(sigma=0.05, flux=1)
-
-            psf_sim = galsim.Convolve([optical_zernike_psf, jitter_psf])
-
-            # Step 2: Construct the science image
+            # Step 1: Construct the science image
             sci_img = galsim.Image(
                 ncol=camera.npix_H.value,
                 nrow=camera.npix_V.value,
@@ -566,15 +576,13 @@ def main(args):
             sci_img.setOrigin(0, 0)
 
             # Step 4: WCS setup
-            if strehl < 100:
-                theta = 0 * galsim.degrees
-            else:
-                theta = theta_master.to(u.deg).value * galsim.degrees
+            # TODO: generalize
+            theta += (rot_rate * 6) * galsim.degrees # 5min + 1 minute fudge
 
-            dudx = np.cos(theta) * pix_scale
-            dudy = -np.sin(theta) * pix_scale
-            dvdx = np.sin(theta) * pix_scale
-            dvdy = np.cos(theta) * pix_scale
+            dudx = np.cos(theta.rad) * pix_scale
+            dudy = -np.sin(theta.rad) * pix_scale
+            dvdx = np.sin(theta.rad) * pix_scale
+            dvdy = np.cos(theta.rad) * pix_scale
 
             image_center = sci_img.true_center
 
@@ -592,6 +600,9 @@ def main(args):
 
             sci_img_bounds = sci_img.bounds
 
+            # Step ?: Update the PSF to account for roll angle
+            psf_roll = psf_sim.rotate(theta)
+
             # Step 5: Setup image bounds & cluster halo
             # NOTE: these define the minimum bounding box of the (possibly
             # rotated) image. This will allow us to skip galaxies
@@ -601,7 +612,7 @@ def main(args):
                 dec_sim,
                 sci_img_size_x_arcsec,
                 sci_img_size_y_arcsec,
-                theta.deg
+                theta
                 )
 
             ra_bounds *= u.deg
@@ -632,73 +643,33 @@ def main(args):
                 logprint(f'Adding {Nstars} stars')
 
                 # NOTE: in progress...
-                # with Pool(ncores) as pool:
-                #     batch_indices = utils.setup_batches(Nobjs, ncores)
+                with Pool(ncores) as pool:
+                    batch_indices = utils.setup_batches(Nstars, ncores)
 
-                #     full_image, truth_catalog = combine_objs(
-                #         pool.starmap(
-                #             make_obj_runner,
-                #             ([
-                #                 batch_indices,
-                #                 'star',
-                #                 wcs,
-                #             ])
-                #         )
-
-                for idx in range(len(star_cat)):
-
-                    if idx % 100 == 0:
-                        logprint(f'{idx} of {len(star_cat)} completed')
-
-                    this_flux_adu = star_flux_adu[idx]
-
-                    # Assign real position to the star on the sky
-                    star_ra_deg = star_cat['RA_ICRS'][idx] * galsim.degrees
-                    star_dec_deg = star_cat['DE_ICRS'][idx] * galsim.degrees
-
-                    world_pos = galsim.CelestialCoord(
-                        star_ra_deg, star_dec_deg
-                        )
-                    image_pos = wcs.toImage(world_pos)
-
-                    star = galsim.DeltaFunction(flux=this_flux_adu)
-
-                    # Position fractional stuff
-                    x_nominal = image_pos.x + 0.5
-                    y_nominal = image_pos.y + 0.5
-
-                    ix_nominal = int(math.floor(x_nominal+0.5))
-                    iy_nominal = int(math.floor(y_nominal+0.5))
-
-                    dx = x_nominal - ix_nominal
-                    dy = y_nominal - iy_nominal
-
-                    offset = galsim.PositionD(dx,dy)
-
-                    # convolve star with the psf
-                    convolution = galsim.Convolve([psf_sim, star])
-
-                    # TODO: figure out stamp size issue...
-                    star_image = convolution.drawImage(
-                        nx=1000,
-                        ny=1000,
-                        wcs=wcs.local(image_pos),
-                        offset=offset,
-                        method='auto',
-                        # dtype=np.uint16
-                        )
-
-                    star_image.setCenter(ix_nominal, iy_nominal)
-
-                    stamp_overlap = star_image.bounds & sci_img.bounds
-
-                    # Check to ensure star is not out of bounds on the image
-                    try:
-                        sci_img[stamp_overlap] += star_image[stamp_overlap]
-
-                    except galsim.errors.GalSimBoundsError:
-                        # logprint('Out of bounds star. Skipping.')
-                        continue
+                    sci_img, truth_stars = combine_objs(
+                        pool.starmap(
+                            make_obj_runner,
+                            ([
+                                batch_indices[k],
+                                'star',
+                                star_cat,
+                                band,
+                                wcs,
+                                psf_roll,
+                                camera,
+                                exp_time,
+                                pix_scale,
+                                ra_bounds,
+                                dec_bounds,
+                                gs_params,
+                                logprint
+                            ] for k in range(ncores))
+                        ),
+                        sci_img,
+                        truth_stars,
+                        exp_num,
+                        logprint
+                    )
 
                 logprint('Done adding stars.')
 
@@ -725,7 +696,7 @@ def main(args):
                                 gal_cat,
                                 band,
                                 wcs,
-                                psf_sim,
+                                psf_roll,
                                 nfw_halo,
                                 camera,
                                 exp_time,
@@ -803,22 +774,17 @@ def main(args):
                 overwrite=overwrite
                 )
 
-            # Update the roll angle
-            if strehl == 100:
-                theta_master += ((rot_rate * 6) * u.deg).to(u.radian)
-
             logprint(f'Image simulation complete for {target_name}, {band}, {strehl}.\n')
 
-        # TODO: implement!
-        # if add_stars is True:
-        #     if truth_star_cat is None:
-        #         truth_star_cat = truth_stars.copy()
-        #     else:
-        #         truth_star_cat = join(
-        #             truth_star_cat,
-        #             truth_stars,
-        #             join_type='left',
-        #             )
+        if add_stars is True:
+            if truth_star_cat is None:
+                truth_star_cat = truth_stars.copy()
+            else:
+                truth_star_cat = join(
+                    truth_star_cat,
+                    truth_stars,
+                    join_type='left',
+                    )
 
         if add_galaxies is True:
             if truth_gal_cat is None:
@@ -831,11 +797,10 @@ def main(args):
                     )
 
     # merge truth cats & save
+    if add_stars is True:
+        outfile = f'{run_dir}/truth_stars.fits'
+        truth_star_cat.write(outfile, overwrite=overwrite)
 
-    # TODO: implement!
-    # if add_stars is True:
-    #     outfile = f'{run_dir}/truth_stars.fits'
-    #     truth_star_cat.write(outfile, overwrite=overwrite)
     if add_galaxies is True:
         outfile = f'{run_dir}/truth_gals.fits'
         truth_gal_cat.write(outfile, overwrite=overwrite)
