@@ -317,9 +317,9 @@ def main(args):
         ncores = 1
 
     if 'starting_roll' in config:
-        starting_roll = config['starting_roll']
+        starting_roll = config['starting_roll'] * galsim.degrees
     else:
-        starting_roll = 0. * galsim.degrees
+        starting_roll = 0 * galsim.degrees
 
     # Dict for pivot wavelengths
     piv_dict = {
@@ -377,9 +377,13 @@ def main(args):
 
     n_gal_sqarcmin = 97.55 * (u.arcmin**-2)
 
-    # TODO: Revert!!
-    # n_gal_total_img = round((sampled_img_area * n_gal_sqarcmin).value)
-    n_gal_total_img = 50
+    if 'ngals' in config:
+        n_gal_total_img = config['ngals']
+    else:
+        # use fiducial density
+        n_gal_total_img = round(
+            (sampled_img_area * n_gal_sqarcmin).value
+            )
 
     cosmos_plate_scale = 0.03 # arcsec/pix
 
@@ -463,7 +467,7 @@ def main(args):
     for band in bands:
         # We want to rotate the sky by (5 min + 1 min overhead) each
         # new target
-        theta = starting_roll * galsim.degrees
+        theta = starting_roll # already a galsim.Angle
         rot_rate = 0.25 # deg / min
 
         # pivot wavelength
@@ -577,7 +581,9 @@ def main(args):
 
             # Step 4: WCS setup
             # TODO: generalize
-            theta += (rot_rate * 6) * galsim.degrees # 5min + 1 minute fudge
+            if exp_num > 0:
+                # 5min + 1 minute fudge
+                theta += (rot_rate * 6) * galsim.degrees
 
             dudx = np.cos(theta.rad) * pix_scale
             dudy = -np.sin(theta.rad) * pix_scale
