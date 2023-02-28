@@ -1,74 +1,52 @@
-import instrument as inst
-import photometry as phot
-
+import numpy as np
 import galsim
+import math
+from astropy.table import Table, Row
 
-def make_a_star(idx, piv_wave, df_stars, wcs, telescope, camera, bandpass,
-                exp_time):
+import ipdb
+
+def make_a_star(indx, obj, band, wcs, psf, camera, exp_time, pix_scale,
+                ra_bounds, dec_bounds, gsparams, logprint):
     '''
     Make a single GAIA star given inputs. Setup for multiprocessing
 
-    idx: int
+    indx: int
         The batch index
-    piv_wave: float
-        The pivot wavelength in nm
-    df_stars: pandas.DataFrame
-        The stellar catalog
+    obj: np.recarray, astropy.Table row
+        The stellar object to simulate
+    band: str
+        The band to simulate
     wcs: galsim.WCS
         The image WCS
-    telescope: instrument.Telescope
-        An instance of the Telescope class
     camera: instrument.Camera
         An instance of the Camera class
-    bandpass: instrument.Bandpass
-        An instance of the Bandpass class
     exp_time: int, float
         The exposure time
 
     returns:
     '''
 
-    if piv_wave > 600:
-        gaia_mag = 'Gmag'
-    else:
-        gaia_mag = 'BPmag'
+    this_flux_adu = obj[f'flux_adu_{band}']
 
-    # Find counts to add for the star
-    mean_fnu_star_mag = phot.abmag_to_mean_fnu(
-        abmag=df_stars[gaia_mag][idx]
-        )
+    # determine if we should skip
+    ra_min, ra_max = ra_bounds
+    dec_min, dec_max = dec_bounds
 
-    mean_flambda = phot.mean_flambda_from_mean_fnu(
-        mean_fnu=mean_fnu_star_mag,
-        bandpass_transmission=bandpass.transmission,
-        bandpass_wavelengths=bandpass.wavelengths
-        )
+    star_ra = obj['RA_ICRS'] * galsim.degrees
+    star_dec = obj['DE_ICRS'] * galsim.degrees
 
-    crate_electrons_pix = phot.crate_from_mean_flambda(
-        mean_flambda=mean_flambda,
-        illum_area=telescope.illum_area.value,
-        bandpass_transmission=bandpass.transmission,
-        bandpass_wavelengths=bandpass.wavelengths
-        )
-
-    crate_adu_pix = crate_electrons_pix / camera.gain.value
-
-    flux_adu = int(crate_adu_pix * exp_time * 1)
-
-    # Limit the flux
-    if flux_adu > 2**16 - 1:
-        flux_adu = 2**16  - 1
+    if (ra_min.value > star_ra.deg) or (ra_max.value < star_ra.deg) or\
+       (dec_min.value > star_dec.deg) or (dec_max.value < star_dec.deg):
+        logprint(f'star {indx} out of bounds. Skipping')
+        return (None, None)
 
     # Assign real position to the star on the sky
-    star_ra_deg = df_stars['RA_ICRS'][idx] * galsim.degrees
-    star_dec_deg = df_stars['DE_ICRS'][idx] * galsim.degrees
-
     world_pos = galsim.CelestialCoord(
-        star_ra_deg, star_dec_deg
+        star_ra, star_dec
         )
     image_pos = wcs.toImage(world_pos)
 
-    star = galsim.DeltaFunction(flux=int(flux_adu))
+    star = galsim.DeltaFunction(flux=this_flux_adu)
 
     # Position fractional stuff
     x_nominal = image_pos.x + 0.5
@@ -80,29 +58,54 @@ def make_a_star(idx, piv_wave, df_stars, wcs, telescope, camera, bandpass,
     dx = x_nominal - ix_nominal
     dy = y_nominal - iy_nominal
 
-    offset = galsim.PositionD(dx,dy)
+    offset = galsim.PositionD(dx, dy)
 
     # convolve star with the psf
-    convolution = galsim.Convolve([psf_sim, star])
+    convolution = galsim.Convolve(
+        [psf, star], gsparams=gsparams
+        )
 
+    # TODO: figure out stamp size issue...
     star_image = convolution.drawImage(
         nx=1000,
         ny=1000,
         wcs=wcs.local(image_pos),
         offset=offset,
         method='auto',
-        dtype=np.uint16
+        # dtype=np.uint16
         )
 
     star_image.setCenter(ix_nominal, iy_nominal)
 
-    stamp_overlap = star_image.bounds & sci_img.bounds
+    # setup obj truth
+    dtype = [
+        ('id', int),
+        ('class', np.dtype('U4')),
+        ('ra', float),
+        ('dec', float),
+        ('x', float),
+        ('y', float),
+        (f'crates_flux_{band}', float),
+        (f'adu_flux_{band}', float),
+        (f'stamp_flux_{band}', float),
+        ('hlr', float),
+        ('z', float),
+        ('g1', float),
+        ('g2', float),
+        ('mu', float),
+        ]
 
-    # Check to ensure star is not out of bounds on the image
-    sci_img[stamp_overlap] += star_image[stamp_overlap]
+    truth = np.recarray(1, dtype=dtype)
 
-    # gets caught above
-    # except galsim.errors.GalSimBoundsError:
-    #     print('Out of bounds star. Skipping.')
+    truth['id'] = indx
+    truth['class'] = 'star'
+    truth['ra'] = star_ra.deg
+    truth['dec'] = star_dec.deg
+    truth['x'] = image_pos.x
+    truth['y'] = image_pos.y
+    truth[f'stamp_flux_{band}'] = this_flux_adu
 
-    return
+    # we'll want it as a Row obj later
+    truth = Table(truth)[0]
+
+    return star_image, truth
