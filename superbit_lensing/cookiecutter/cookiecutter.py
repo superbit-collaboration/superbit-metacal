@@ -379,7 +379,7 @@ class CookieCutter(object):
 
                 # We know in advance how many cutout pixels we'll need to store
                 self.logprint(f'Determining memory requirement')
-                Npix = self._compute_ext_Npix(
+                Npix, skip_list = self._compute_ext_Npix(
                     imageObj.image, catalog, progress=progress
                     )
 
@@ -421,6 +421,13 @@ class CookieCutter(object):
                     if indx % progress == 0:
                         self.logprint(f'{indx} of {Nsources}')
 
+                    # TODO: validate!
+                    if indx in skip_list:
+                        # if there is no overlap in the image, skip this obj
+                        self.logprint(f'Object {indx} has no overlap in image ' +
+                                      f'{im_name}; skipping')
+                        continue
+
                     try:
                         out = self._compute_obj_slices(
                             imageObj.image, obj
@@ -430,7 +437,10 @@ class CookieCutter(object):
                     except NoOverlapError:
                         # if there is no overlap in the image, skip this obj
                         self.logprint(f'Object {indx} has no overlap in image ' +
-                                      f'{image_name}; skipping')
+                                      f'{im_name}; skipping')
+
+                        # TODO: shouldn't have happened given above; check
+                        ipdb.set_trace()
                         continue
 
                     cutout_shape = (obj['boxsize'], obj['boxsize'])
@@ -547,14 +557,19 @@ class CookieCutter(object):
             The number of objects stamps to write to the CookieCutter before
             printing out the progress update, if desired
 
-        returns: Npix
+        returns:
+
+        Npix: int
             The number of cutout pixels that need to be allocated for
             the given image extension
+        skip_list: list of int's
+            A list of obj indices that should be skipped due to no overlap
         '''
 
         Nsources = len(catalog)
 
         Npix = 0
+        skip_list = []
         for indx, obj in enumerate(catalog):
             try:
                 if indx % progress == 0:
@@ -569,10 +584,10 @@ class CookieCutter(object):
             except NoOverlapError:
                 # if there is no overlap in the image, do not add the stamp
                 # to the allocated memory for this extension
-                ipdb.set_trace()
+                skip_list.append(indx)
                 continue
 
-        return Npix
+        return Npix, skip_list
 
     def _compute_obj_slices(self, image, obj):
         '''
