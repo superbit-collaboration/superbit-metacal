@@ -113,6 +113,9 @@ def set_config_defaults(config):
     if 'star_stamp_size' not in config:
         config['star_stamp_size'] = 1000
 
+    if 'strehl_ratio' not in config:
+        config['strehl_ratio'] = 100
+
     return config
 
 def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
@@ -310,6 +313,7 @@ def main(args):
     bands = config['bands']
     starting_roll = config['starting_roll'] * galsim.degrees
     max_fft_size = config['max_fft_size']
+    strehl_ratio = config['strehl_ratio']
     ncores = config['ncores']
     fresh = config['fresh']
     overwrite = config['overwrite']
@@ -401,9 +405,6 @@ def main(args):
     dither_deg = pix_scale * dither_pix / 3600 # dither_deg
     dither_rng = np.random.default_rng(seeds['dithering'])
 
-    # only doing in-focus sims
-    strehl = 100
-
     if 'add_galaxies' in config:
         add_galaxies = config['add_galaxies']
     else:
@@ -485,7 +486,7 @@ def main(args):
 
         bandpass.transmission = get_transmission(band=band)
 
-        aberrations = get_zernike(band=band, strehl_ratio=strehl)
+        aberrations = get_zernike(band=band, strehl_ratio=strehl_ratio)
 
         optical_zernike_psf = galsim.OpticalPSF(
             lam=piv_wave,
@@ -552,8 +553,13 @@ def main(args):
             else:
                 rn = f'{run_name}/'
 
+            if strehl_ratio == 100:
+                sr = ''
+            else:
+                sr = f'{strehl_ratio}/'
+
             outdir = os.path.join(
-                utils.TEST_DIR, f'ajay/{rn}{target_name}/{band}/'
+                utils.TEST_DIR, f'ajay/{rn}{target_name}/{band}/{sr}'
                 )
             utils.make_dir(outdir)
 
@@ -772,7 +778,7 @@ def main(args):
             hdr = fits.Header()
             hdr['EXPTIME'] = int(exp_time)
             hdr['band'] = band
-            hdr['strehl'] = strehl
+            hdr['strehl'] = strehl_ratio
             hdr['stars'] = int(add_stars)
             hdr['galaxies'] = int(add_galaxies)
             hdr['TARGET_RA'] = ra.value # in deg
