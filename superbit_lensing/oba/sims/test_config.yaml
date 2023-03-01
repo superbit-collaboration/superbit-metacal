@@ -1,15 +1,20 @@
 target_name: 'Abell2813'
-run_name: multiprocess
+run_name: blink
 # master_seed: 72396
 starting_roll: 0 # deg
 exp_time: 300
 n_exp: 8
-bands: ['b', 'lum']
+bands: ['b']
 ncores: 8
 
-add_stars: True
-add_galaxies: True
+add_stars: True 
+add_galaxies: False
+
+# set if you want to specify the number instead of the default desnity
+# ngals: 0
+
+star_stamp_size: 1000
 
 overwrite: True
-fresh: False
+fresh: True
 vb: True
