@@ -6,7 +6,7 @@ from astropy.table import Table, Row
 import ipdb
 
 def make_a_star(indx, obj, band, wcs, psf, camera, exp_time, pix_scale,
-                ra_bounds, dec_bounds, gsparams, logprint):
+                ra_bounds, dec_bounds, gsparams, stamp_size, logprint):
     '''
     Make a single GAIA star given inputs. Setup for multiprocessing
 
@@ -38,6 +38,7 @@ def make_a_star(indx, obj, band, wcs, psf, camera, exp_time, pix_scale,
     if (ra_min.value > star_ra.deg) or (ra_max.value < star_ra.deg) or\
        (dec_min.value > star_dec.deg) or (dec_max.value < star_dec.deg):
         logprint(f'star {indx} out of bounds. Skipping')
+
         return (None, None)
 
     # Assign real position to the star on the sky
@@ -60,15 +61,19 @@ def make_a_star(indx, obj, band, wcs, psf, camera, exp_time, pix_scale,
 
     offset = galsim.PositionD(dx, dy)
 
+    # TODO: get this to work according to Mike's suggestion!
+    # Update the PSF to account for roll angle
+    # ipdb.set_trace()
+    # psf_roll = wcs.toImage(psf, image_pos=image_pos)
+
     # convolve star with the psf
     convolution = galsim.Convolve(
         [psf, star], gsparams=gsparams
         )
 
-    # TODO: figure out stamp size issue...
     star_image = convolution.drawImage(
-        nx=1000,
-        ny=1000,
+        nx=stamp_size,
+        ny=stamp_size,
         wcs=wcs.local(image_pos),
         offset=offset,
         method='auto',

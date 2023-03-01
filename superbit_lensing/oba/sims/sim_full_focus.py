@@ -84,11 +84,42 @@ def setup_seeds(config):
 
     return seeds
 
+def set_config_defaults(config):
+
+    if 'run_name' not in config:
+        config['run_name'] = 'quicktest'
+
+    if 'overwrite' not in config:
+        config['overwrite'] = False
+
+    if 'bands' not in config:
+        config['bands'] = ['b', 'lum', 'g', 'r', 'nir', 'u']
+
+    if 'vb' not in config:
+        config['vb'] = False
+
+    if 'fresh' not in config:
+        config['fresh'] = False
+
+    if 'max_fft_size' not in config:
+        config['max_fft_size'] = 2**18
+
+    if 'ncores' not in config:
+        config['ncores'] = 1
+
+    if 'starting_roll' not in config:
+        config['starting_roll'] = 0
+
+    if 'star_stamp_size' not in config:
+        config['star_stamp_size'] = 1000
+
+    return config
+
 def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
     '''
-    ra, dec: deg
-    im_xsize, im_ysize: arcsec
-    theta: galsim.Angle
+    ra, dec: image center in deg
+    im_xsize, im_ysize: image len in arcsec
+    theta: roll angle as galsim.Angle
 
     Use the roll angle theta to determine the box inscribing the rotated
     rectangular SCI image
@@ -114,8 +145,8 @@ def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
     dec_min = dec - new_Ly/2.
     dec_max = dec + new_Ly/2.
 
-    ra_bounds = [ra_min, ra_max] * u.deg
-    dec_bounds = [dec_min, dec_max] *u.deg
+    ra_bounds = [ra_min, ra_max]
+    dec_bounds = [dec_min, dec_max]
 
     return ra_bounds, dec_bounds
 
@@ -156,9 +187,10 @@ def make_obj(i, obj_type, obj, *args, **kwargs):
 
     try:
         obj_index = int(i)
-        logprint(f'Starting {obj_type} {i}')
+        if i % 100 == 0:
+            logprint(f'Starting {obj_type} {i}')
         stamp, truth = func(obj_index, obj, *args, **kwargs)
-        logprint(f'{obj_type} {i} completed succesfully')
+        # logprint(f'{obj_type} {i} completed succesfully')
 
     except galsim.errors.GalSimError:
         logprint(f'{obj_type} {i} has failed, skipping...')
@@ -189,12 +221,17 @@ def combine_objs(make_obj_outputs, full_image, truth_catalog, exp_num,
         try:
             full_image[bounds] += stamp[bounds]
         except galsim.errors.GalSimBoundsError as e:
-            logprint(f'obj {i} out of bounds. Skipping.')
+            pass
+            # logprint(f'obj {i} out of bounds. Skipping.')
 
         if exp_num == 0:
             if len(truth_catalog) == 0:
                 truth_catalog = Table(truth)
             else:
+                truth_catalog.add_row(truth)
+        else:
+            # for objects that were not in the first exposure
+            if truth['id'] not in truth_catalog['id']:
                 truth_catalog.add_row(truth)
 
     return full_image, truth_catalog
@@ -266,33 +303,26 @@ def main(args):
     config_file = args.config_file
     config = utils.read_yaml(config_file)
 
-    # required
-    target_name = config['target_name']
+    config = set_config_defaults(config)
 
-    if 'run_name' in config:
-        run_name = config['run_name']
-    else:
-        run_name = 'quicktest'
+    target_name = config['target_name']
+    run_name = config['run_name']
+    bands = config['bands']
+    starting_roll = config['starting_roll'] * galsim.degrees
+    max_fft_size = config['max_fft_size']
+    ncores = config['ncores']
+    fresh = config['fresh']
+    overwrite = config['overwrite']
+    vb = config['vb']
 
     run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}')
 
     # WARNING: cleans all existing files in run_dir!
-    if 'fresh' in config:
-        if config['fresh'] is True:
-            try:
-                utils.rm_tree(run_dir)
-            except OSError:
-                pass
-
-    if 'overwrite' in config:
-        overwrite = config['overwrite']
-    else:
-        overwrite = False
-
-    if 'vb' in config:
-        vb = config['vb']
-    else:
-        vb = False
+    if vb is True:
+        try:
+            utils.rm_tree(run_dir)
+        except OSError:
+            pass
 
     # setup logger
     logdir = run_dir
@@ -304,22 +334,7 @@ def main(args):
     # dict of independent seeds for given types
     seeds = setup_seeds(config)
 
-    if 'max_fft_size' not in config:
-        max_fft_size = 2**18
-    else:
-        max_fft_size = config['max_fft_size']
-
     gs_params = galsim.GSParams(maximum_fft_size=max_fft_size)
-
-    if 'ncores' in config:
-        ncores = config['ncores']
-    else:
-        ncores = 1
-
-    if 'starting_roll' in config:
-        starting_roll = config['starting_roll'] * galsim.degrees
-    else:
-        starting_roll = 0 * galsim.degrees
 
     # Dict for pivot wavelengths
     piv_dict = {
@@ -344,11 +359,6 @@ def main(args):
         )
 
     pix_scale = bandpass.plate_scale.value
-
-    if 'bands' in config:
-        bands = config['bands']
-    else:
-        bands = ['b', 'lum', 'g', 'r', 'nir', 'u']
 
     exp_time = config['exp_time'] # seconds
     n_exp = config['n_exp']
@@ -606,7 +616,7 @@ def main(args):
 
             sci_img_bounds = sci_img.bounds
 
-            # Step ?: Update the PSF to account for roll angle
+            # Update the PSF to account for roll angle
             psf_roll = psf_sim.rotate(theta)
 
             # Step 5: Setup image bounds & cluster halo
@@ -620,6 +630,15 @@ def main(args):
                 sci_img_size_y_arcsec,
                 theta
                 )
+
+            # TODO: use cornish for actual overlap. For now, use a
+            # sufficiently large buffer
+            ra_buff = .015
+            ra_bounds[0] -= ra_buff
+            ra_bounds[1] += ra_buff
+            dec_buff = ra_buff / 2.
+            dec_bounds[0] -= dec_buff
+            dec_bounds[1] += dec_buff
 
             ra_bounds *= u.deg
             dec_bounds *= u.deg
@@ -648,6 +667,8 @@ def main(args):
 
                 logprint(f'Adding {Nstars} stars')
 
+                star_stamp_size = config['star_stamp_size']
+
                 # NOTE: in progress...
                 with Pool(ncores) as pool:
                     batch_indices = utils.setup_batches(Nstars, ncores)
@@ -668,7 +689,8 @@ def main(args):
                                 ra_bounds,
                                 dec_bounds,
                                 gs_params,
-                                logprint
+                                star_stamp_size,
+                                logprint,
                             ] for k in range(ncores))
                         ),
                         sci_img,
@@ -759,6 +781,9 @@ def main(args):
             hdr['dither_dec'] = dither_dec # in pixels
             hdr['roll_theta'] = theta.deg # in deg
             hdr['dark'] = Path(dark_fname).name
+
+            # TODO/QUESTION: For an unknown reason, BZERO is getting
+            # set to 2^15 for an unknown reason unless we do this...
 
             # add WCS info to header
             wcs.writeToFitsHeader(hdr, bounds=sci_img_bounds)
