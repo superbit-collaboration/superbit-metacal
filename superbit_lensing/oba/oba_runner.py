@@ -420,7 +420,7 @@ class OBARunner(object):
             target_name=self.target_name,
             )
 
-        runner.go(self.logprint, overwrite=overwrite, rerun=rerun)
+        runner.go(self.logprint, overwrite=overwrite)
 
         return
 

@@ -228,8 +228,10 @@ def setup_oba_dirs(root_dir, target_name, overwrite=False):
 
     # copy over GAIA cat(s)
     gaia_dir = io_manager.GAIA_DIR
+    utils.make_dir(gaia_dir)
+
     local_gaia_dir = Path(utils.MODULE_DIR) / f'oba/data/gaia/'
-    gaia_files = glob(str(local_cals_dir / '*.fits*'))
+    gaia_files = glob(str(local_gaia_dir / '*.fits*'))
 
     for gaia_file in gaia_files:
         outfile = outdir / Path(gaia_file).name
@@ -241,6 +243,8 @@ def setup_oba_dirs(root_dir, target_name, overwrite=False):
                 outfile.unlink()
             else:
                 continue
+
+        shutil.copy(cal_file, outfile)
 
     return target_dir / 'imsim'
 

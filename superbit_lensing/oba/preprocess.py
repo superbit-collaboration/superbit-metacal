@@ -172,12 +172,8 @@ class PreprocessRunner(object):
             bindx = band2index(band)
 
             # NOTE: This glob is safe as OBA files have a fixed convention
-            ipdb.set_trace()
             search = str(orig / f'{self.target_name}*_{bindx}_*.fits.{cext}')
-            raw_files = glob(
-                os.path.join(
-                    )
-                )
+            raw_files = glob(search)
 
             Nraw = len(raw_files)
             if Nraw == 0:

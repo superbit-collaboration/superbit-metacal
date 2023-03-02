@@ -318,12 +318,19 @@ def parse_sci_image_file(image_file):
     # remove file ext
     features[-1] = features[-1].replace('.fits', '')
 
+    if features[-1] == 'cal':
+        # in this case, we're dealing with a calibrated image file
+        offset = 1
+    else:
+        # should be a raw
+        offset = 0
+
     # We define them relative to the end to allow for _'s in a target_name
     im_pars = {
-        'target_name': '_'.join(features[0:-3]),
-        'exp_time': int(features[-3]),
-        'band': index2band(int(features[-2])),
-        'utc': int(features[-1])
+        'target_name': '_'.join(features[0:-3-offset]),
+        'exp_time': int(features[-3-offset]),
+        'band': index2band(int(features[-2-offset])),
+        'utc': int(features[-1-offset])
         }
 
     return im_pars
