@@ -10,6 +10,7 @@ OBA_BITMASK = {
     'hot_pixel': 2,
     'cosmic_ray': 3,
     'satellite': 4,
+    'bright_star': 5,
     # ...
 }
 

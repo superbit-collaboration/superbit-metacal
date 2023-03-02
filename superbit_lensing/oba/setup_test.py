@@ -169,8 +169,8 @@ class HenSimsTestPrepper(TestPrepper):
     Prepper for realistic SuperBIT sims stored in `hen`
     '''
 
-    def __init__(self, target_name, bands, skip_existing=True,
-                 strehl_ratio=100):
+    def __init__(self, target_name, bands, run_name='quicktest',
+                 skip_existing=True, strehl_ratio=100, sim_dir=None):
         '''
         target_name: str
             The name of the target to run the OBA on
@@ -182,8 +182,18 @@ class HenSimsTestPrepper(TestPrepper):
             The Strehl ratio of the sims (100 is perfect focus)
         '''
 
+        utils.check_type('run_name', run_name, str)
+        self.run_name = run_name
+
         utils.check_type('strehl_ratio', strehl_ratio, (int, float))
         self.strehl_ratio = strehl_ratio
+
+        if sim_dir is None:
+            sim_dir = Path(
+                '/home/sweveret/repos/superbit-metacal/tests/ajay/'
+                )
+        utils.check_type('sim_dir', sim_dir, Path)
+        self.sim_dir = sim_dir
 
         super(HenSimsTestPrepper, self).__init__(
             target_name, bands, skip_existing=skip_existing
@@ -222,7 +232,7 @@ class HenSimsTestPrepper(TestPrepper):
             target_dir = io_manager.RAW_DATA
 
         target_dir = target_dir.resolve()
-        source_dir = f'/home/gill/sims/data/sims/{self.target_name}/'
+        source_dir = self.sim_dir / self.run_name / self.target_name
         target_dir = str(target_dir)
         logprint(f'Using raw target dir {target_dir}')
 

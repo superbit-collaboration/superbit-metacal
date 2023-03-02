@@ -91,8 +91,14 @@ def main(args):
 
         # guaranteed to be set due to default structure of OBAConfig
         test_type = config['test']['type']
+
         skip_existing = config['test']['skip_existing']
         logprint(f'Skipping compression of test files: {skip_existing}')
+
+        kwargs = {'skip_existing': skip_existing}
+        if test_type == 'hen':
+            kwargs['run_name']: config['test']['run_name']
+            kwargs['sim_dir']: config['test']['sim_dir']
 
         logprint(
             f'\nTEST == TRUE; Starting test prepper with type {test_type}\n'
@@ -102,7 +108,7 @@ def main(args):
             test_type,
             target_name,
             bands,
-            skip_existing=skip_existing
+            **kwargs
         )
 
         prepper.go(io_manager, overwrite=overwrite, logprint=logprint)

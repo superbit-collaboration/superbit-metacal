@@ -62,6 +62,15 @@ class IOManager(object):
     OBA_CLUSETRS/{TARGET_NAME}/out/
 
     ----------------------------------------------------------------------
+    GAIA catalog(s)
+
+    We put a curated GAIA catalog here that has stellar positions and
+    estimated fluxes for each SuperBIT filter in ADU/s; used for bright
+    star masking
+
+    GAIA_DIR: /data/bit/gaia/
+
+    ----------------------------------------------------------------------
     Permanent OBA outputs
 
     OBA results root dir:
@@ -107,10 +116,13 @@ class IOManager(object):
         'CAL_DATA',
         'RAW_DATA',
         'RAW_TARGET',
+        'GAIA_DIR',
         'OBA_DIR',
         'OBA_TARGET',
         'OBA_RESULTS',
         ]
+
+    gaia_filename = 'gaia_superbit_fluxes.fits'
 
     def __init__(self, root_dir=None, target_name=None):
         '''
@@ -153,6 +165,7 @@ class IOManager(object):
             'RAW_DATA': 'data/bit/science_images/',
             # NOTE: old definition
             'RAW_TARGET': None,
+            'GAIA_DIR': 'data/bit/gaia/',
             'OBA_DIR': 'home/bit/oba_temp/',
             'OBA_TARGET': None,
             'OBA_RESULTS': 'data/bit/oba_results/',
@@ -204,6 +217,11 @@ class IOManager(object):
     @property
     def RAW_TARGET(self):
         name = 'RAW_TARGET'
+        return self._check_dir(name)
+
+    @property
+    def GAIA_DIR(self):
+        name = 'GAIA_DIR'
         return self._check_dir(name)
 
     @property

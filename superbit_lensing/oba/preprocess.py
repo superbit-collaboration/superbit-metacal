@@ -158,6 +158,7 @@ class PreprocessRunner(object):
         bands = self.bands
         cext = self._compression_ext
 
+        Nimages = 0
         for band in bands:
             logprint(f'Starting band {band}')
             self.images[band] = []
@@ -171,9 +172,10 @@ class PreprocessRunner(object):
             bindx = band2index(band)
 
             # NOTE: This glob is safe as OBA files have a fixed convention
+            ipdb.set_trace()
+            search = str(orig / f'{self.target_name}*_{bindx}_*.fits.{cext}')
             raw_files = glob(
                 os.path.join(
-                    str(orig), f'{self.target_name}*_{bindx}_*.fits.{cext}'
                     )
                 )
 
@@ -182,6 +184,8 @@ class PreprocessRunner(object):
                 logprint(f'WARNING: found zero raw files for band {band}')
                 logprint('Skipping')
                 continue
+            else:
+                Nimages += Nraw
 
             logprint(f'Found the following {Nraw} raw files for band {band}:')
             for i, raw in enumerate(raw_files):
@@ -197,6 +201,10 @@ class PreprocessRunner(object):
                 out_name = Path(raw_file).name
                 out_file = dest / out_name
                 self.images[band].append(out_file)
+
+        # make sure that at least *one* image was found!
+        if Nimages == 0:
+            raise OSError('No images found for the OBA to run on!')
 
         return
 

@@ -226,6 +226,22 @@ def setup_oba_dirs(root_dir, target_name, overwrite=False):
 
             shutil.copy(cal_file, outfile)
 
+    # copy over GAIA cat(s)
+    gaia_dir = io_manager.GAIA_DIR
+    local_gaia_dir = Path(utils.MODULE_DIR) / f'oba/data/gaia/'
+    gaia_files = glob(str(local_cals_dir / '*.fits*'))
+
+    for gaia_file in gaia_files:
+        outfile = outdir / Path(gaia_file).name
+
+        # only copy cals over if they don't already exist, unless
+        # overwrite is true
+        if outfile.is_file():
+            if overwrite is True:
+                outfile.unlink()
+            else:
+                continue
+
     return target_dir / 'imsim'
 
 def main(args):
