@@ -1,4 +1,7 @@
 from pathlib import Path
+from glob import glob
+import numpy as np
+from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
 import astropy.units as u
 import fitsio
@@ -32,6 +35,7 @@ class StarmaskRunner(object):
 
     _mask_spike_min_len = 20
     _mask_spike_max_len = 200
+    _mask_spike_width = 6
     _mask_spike_slope = 1 # pixels / ADU
 
     def __init__(self, run_dir, gaia_cat, bands, target_name=None,
@@ -51,7 +55,7 @@ class StarmaskRunner(object):
             run_dir
         flux_col_base: str
             The base of the column name for the fluxes to use in
-            the passed gaia_cat; will have "_{band}" appended to it
+            the passed gaia_cat; will have "_{band}_s" appended to it
             NOTE: As specified above, flux units must be ADU/s!
         flux_threshold: float
             The flux threshold (in ADU )
@@ -173,10 +177,10 @@ class StarmaskRunner(object):
             logprint(f'Starting band {band}')
 
             images = self.images[band]
-            flux_col = f'{self.flux_col_base}_{band}'
+            flux_col = f'{self.flux_col_base}_{band}_s'
 
             for image in images:
-                im_pars = oba_io.parse_image(image, 'sci')
+                im_pars = oba_io.parse_image_file(image, 'sci')
                 exp_time = im_pars['exp_time']
 
                 star_fluxes = self.stars[flux_col] * exp_time
@@ -220,12 +224,20 @@ class StarmaskRunner(object):
 
                 stars = self.bright_stars[image]
 
-                for star in stars:
+                Nstars = len(stars)
+                for i, star in enumerate(stars):
+                    if i % 1 == 0:
+                        logprint(f'Starting star {i+1} of {Nstars}')
                     self._add_mask(star, msk, wcs, band)
+
+            import matplotlib.pyplot as plt
+            plt.imshow(msk, origin='lower')
+            plt.colorbar()
+            plt.show()
 
         return
 
-    def _add_mask(self, star, msk, wcs, band):
+    def _add_mask(self, star, msk, wcs, band, origin=0):
         '''
         Add a bright star mask for the given star on a given image
 
@@ -237,38 +249,117 @@ class StarmaskRunner(object):
             The image's WCS
         band: str
             The name of the image band
+        origin: int
+            The origin to use for the WCS
         '''
 
+        # The search radius to check for masking around a stellar
+        # position, in pixels
+        search_radius = np.max([
+            self._mask_aperture_max_rad,
+            self._mask_spike_max_len
+        ])
+
         mask_val = self.mask_val
+
+        flux = star[f'{self.flux_col_base}_{band}_s']
 
         ra = star[self.ra_tag] * u.deg
         dec = star[self.dec_tag] * u.deg
         star_world = SkyCoord(ra, dec)
 
-        ipdb.set_trace()
         # origin is 0 as we will be working on numpy arrays
-        star_im = wcs.world_to_image(star_world, origin=0)
+        star_im = wcs.all_world2pix(
+            # star_world.ra.deg, star_world.dec.deg, 0
+            ra, dec, origin
+        )
 
-        flux = star[f'{self.flux_col_base}_{band}']
+        # rounded to nearest pixel
+        ra_im_pix = np.round(star_im[0])
+        dec_im_pix = np.round(star_im[1])
 
         # NOTE: Nx & Ny are flipped due to numpy vs. FITS
         # indexing conventions
-        Nx = image.shape[1]
-        Ny = image.shape[0]
+        Nx = msk.shape[1]
+        Ny = msk.shape[0]
+        # startx = origin
+        # starty = origin
+        # endx = startx + Nx
+        # endy = starty + Ny
+        # x = np.arange(startx, endx)
+        # y = np.arange(starty, endy)
+        # X, Y = np.meshgrid(x, y)
 
-        startx = np.round(wcs.origin.x)
-        starty = np.round(wcs.origin.y)
-        endx = startx + Nx
-        endy = starty + Ny
+        rad = search_radius # pix
+        startx = np.max([0, ra_im_pix - rad])
+        endx = np.min([Nx, ra_im_pix + rad])
+        starty = np.max([0, dec_im_pix - rad])
+        endy = np.min([Nx, dec_im_pix + rad])
 
-        x = np.arange(startx, endx)
-        y = np.arange(starty, endy)
+        x = np.arange(startx, endx, dtype=int)
+        y = np.arange(starty, endy, dtype=int)
+
+        if (len(x) == 0) or (len(y) == 0):
+            # no pixels overlap with the image
+            return
+
         X, Y = np.meshgrid(x, y)
+
+        # get mask params for this star
+        aperture_size, spike_size, spike_width = self._get_mask_sizes(flux)
 
         # start with aperture mask
         diff_x = X - star_im[0]
         diff_y = Y - star_im[1]
         dist = np.sqrt(diff_x**2 + diff_y**2)
+
+        # now do spike mask
+        right = np.where(
+            (diff_x > 0) & (diff_x < spike_size) &
+            (abs(diff_y) < spike_width/2.)
+            )
+        top = np.where(
+            (diff_y > 0) & (diff_y < spike_size) &
+            (abs(diff_x) < spike_width/2.)
+            )
+        left = np.where(
+            (diff_x > -spike_size) & (diff_x < 0) &
+            (abs(diff_y) < spike_width/2.)
+            )
+        bottom = np.where(
+            (diff_y > -spike_size) & (diff_y < 0) &
+            (abs(diff_x) < spike_width/2.)
+            )
+
+        if (len(X[dist < aperture_size]) > 0) or \
+           (len(Y[dist < aperture_size]) > 0):
+            ipdb.set_trace()
+        else:
+            return
+
         msk[dist < aperture_size] = mask_val
+        msk[right] = mask_val
+        msk[left] = mask_val
+        msk[top] = mask_val
+        msk[bottom] = mask_val
 
         return
+
+    def _get_mask_sizes(self, flux):
+        '''
+        TODO: actually implement something clever!
+        '''
+
+        mask_tup = (
+            np.mean([
+                self._mask_aperture_min_rad,
+                self._mask_aperture_max_rad
+                ]),
+            np.mean([
+                self._mask_spike_min_len,
+                self._mask_spike_max_len
+                ]),
+            self._mask_spike_width
+            )
+
+        return mask_tup
