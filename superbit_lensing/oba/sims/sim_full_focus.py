@@ -790,6 +790,7 @@ def main(args):
 
             # TODO/QUESTION: For an unknown reason, BZERO is getting
             # set to 2^15 for an unknown reason unless we do this...
+            # hdr['BZERO'] = 0
 
             # add WCS info to header
             wcs.writeToFitsHeader(hdr, bounds=sci_img_bounds)
@@ -811,7 +812,7 @@ def main(args):
                 overwrite=overwrite
                 )
 
-            logprint(f'Image simulation complete for {target_name}, {band}, {strehl}.\n')
+            logprint(f'Image simulation complete for {target_name}, {band}\n')
 
         if add_stars is True:
             if truth_star_cat is None:
