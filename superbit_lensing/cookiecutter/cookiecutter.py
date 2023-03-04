@@ -9,6 +9,7 @@ import astropy.units as u
 from astropy.table import Table
 import glob
 from time import time
+import copy
 
 from superbit_lensing import utils
 from .config import CookieCutterConfig
@@ -326,6 +327,8 @@ class CookieCutter(object):
         meta = np.empty(
             Nsources * len(images),
             dtype=[('object_id', int),
+                   ('xcen', int),
+                   ('ycen', int),
                    ('start_pos', int),
                    ('end_pos', int),
                    ('sky_bkg', float),
@@ -429,9 +432,10 @@ class CookieCutter(object):
                         continue
 
                     try:
-                        out = self._compute_obj_slices(
-                            imageObj.image, obj
-                            )
+                        object_positions = self._compute_image_pos(imageObj.image,obj)
+                        out = self._compute_obj_slices(object_positions, obj[self.config['input']['boxsize_tag']])
+                        meta[info_index]['xcen'] = object_positions[0]
+                        meta[info_index]['ycen'] = object_positions[1]
                         image_slice, cutout_slice, cutout_size = out
 
                     except NoOverlapError:
@@ -574,8 +578,8 @@ class CookieCutter(object):
             try:
                 if indx % progress == 0:
                     self.logprint(f'{indx} of {Nsources}')
-
-                slices = self._compute_obj_slices(image, obj)
+                object_positions = self._compute_image_pos(image,obj)
+                slices = self._compute_obj_slices(object_positions, obj[self.config['input']['boxsize_tag']])
                 image_slice, cutout_slice, cutout_size = slices
 
                 # if a slice is returned, then allocate the full boxsize^2
@@ -589,25 +593,11 @@ class CookieCutter(object):
 
         return Npix, skip_list
 
-    def _compute_obj_slices(self, image, obj):
-        '''
-        Compute the image & cutout slices corrresponding to the given obj
-
-        image: fitsio.hdu.image.ImageHDU
-            A FITS Image HDU object
-        obj: np.recarray row, astropy.Table row
-            The object being considered
-
-        returns: (image_slice, cutout_slice, cutout_size)
-            A tuple of the slices needed to correctly grab the object
-            cutout in the original image and the cutout box respectively,
-            as well as the total cutout size in pixels
-        '''
-
+    def _compute_image_pos(self, image, obj):
         id_tag = self.config['input']['id_tag']
         ra_tag = self.config['input']['ra_tag']
         dec_tag = self.config['input']['dec_tag']
-        boxsize_tag = self.config['input']['boxsize_tag']
+        
 
         ra_unit = u.Unit(self.config['input']['ra_unit'])
         dec_unit = u.Unit(self.config['input']['dec_unit'])
@@ -624,8 +614,23 @@ class CookieCutter(object):
 
         # NOTE: reversed as numpy arrays have opposite convention!
         object_pos_in_image_array = object_pos_in_image[-1::-1]
+        return object_pos_in_image_array
+    
+    def _compute_obj_slices(self, object_pos_in_image_array, boxsize):
+        '''
+        Compute the image & cutout slices corrresponding to the given obj
 
-        boxsize = obj[boxsize_tag]
+        image: fitsio.hdu.image.ImageHDU
+            A FITS Image HDU object
+        obj: np.recarray row, astropy.Table row
+            The object being considered
+
+        returns: (image_slice, cutout_slice, cutout_size)
+            A tuple of the slices needed to correctly grab the object
+            cutout in the original image and the cutout box respectively,
+            as well as the total cutout size in pixels
+        '''
+        #boxsize = obj[boxsize_tag]
         cutout_shape = (boxsize, boxsize)
         cutout_size = boxsize**2
 
@@ -718,6 +723,59 @@ class CookieCutter(object):
         raise NotImplementedError('get_cutouts() not yet implemented!')
 
         return
+
+    def reconstruct_image(self, cutoutType = 'IMAGE', extnumbers=None,filename=None):
+        '''
+        cutoutType can by any of 'IMAGE' or 'MASK' (add new types if we implement them...)
+        '''
+
+        
+        # Look up the correct image extension.
+        # Get the old header
+        # build the correctly-sized and typed 2d array.
+        # Get the wcs.
+        # Read in the catalog
+        # for each catalog entry:
+        #   compute image coordinates
+        #   build cutout and image slices.
+        #   add background level + cutout flux to 2d image array
+        
+        if (filename is None) and (extnumber is not None):
+            extnumber = int(extnumber) # Avoiding needless silliness
+            extname = f'{cutoutType}{extnumber}'
+        if (filename is not None) and (extnumber is None):
+            filematch = [
+                filename in thing for thing in self._meta['imagefile']
+                ]
+            if len(filematch) == 1:
+                extnumber = filematch.index(True)
+                extname = f'{cutoutType}{extnumber}'
+            else:
+                raise ValueError(f'the provided file string, {filename}, is ' +
+                                 'not unique in the list of provided image files.')            
+        # At this stage we have the image header name.
+        # Reconstruct the original header.
+        cc_header = fitsio.read_header(self._cookiecutter_file,ext=extname)
+        orig_header = reconstruct_original_FITS_header(cc_header)
+        #wcs = WCS(orig_header)
+
+        image_size = [orig_header['NAXIS1'],orig_header['NAXIS2']]
+        if orig_header['BITPIX'] <0:
+            dtype = 'i{orig_header['BITPIX']//8}'
+        else:
+            dtype = 'u{orig_header['BITPIX']//8}'
+        new_image = np.zeros(image_size,dtype=dtype)
+        
+        # Now loop over objects in this image.
+        for ientry in self._meta:
+            in_image = (ientry['cc_ext'] == extnumber)
+            if in_image:
+                cutout = self.get_cutout(entry['object_id'], extnumber=extnumber,cutoutType=cutoutType)
+                image_slice, cutout_slice, cutout_size = _compute_obj_slices(object_pos_in_image_array, boxsize)
+                new_image[image_slice] = cutout[cutout_slice]
+                
+        return new_image, orig_header
+    
 
 class ImageLocator(object):
     '''
@@ -881,7 +939,28 @@ class NoOverlapError(ValueError):
     '''
     pass
 
-def remove_essential_FITS_keys(header, exclude_keys=None):
+
+def reconstruct_original_FITS_header(inheader):
+    # Old keys were stored with "ORIG_" prepended.
+    # Find all the keys that start with "ORIG_". Strip this off, and
+    #  replace any record in the current header.
+
+    header = copy.deepcopy(inheader)
+    keys = header.keys()
+
+    for ikey in keys:
+        if "ORIG_" in ikey:
+            new_keyname = ikey.split("ORIG_")[-1]
+            # Check to see if the new keyname is in the header.
+            if new_keyname in keys:
+                header[new_keyname] = header[ikey]
+            else:
+                new_record = fitsio.FITSRecord( {'name':new_keyname, 'value':header[ikey], 'comment':''})
+                header.add_record(new_record)
+    return header
+    
+
+def remove_essential_FITS_keys(header, exclude_keys=None, backup_keys = True):
     '''
     FITS format requries certain essential header keys that we want to remove
     when transfering header information, as they will no longer be true for the
@@ -894,6 +973,10 @@ def remove_essential_FITS_keys(header, exclude_keys=None):
     # NOTE: This doesn't fail if one of the keys is not in the header.
     # This is desirable for this application.
     for key in exclude_keys:
+        if backup_keys:
+            new_keyname = f'ORIG_{key}'
+            new_record = fitsio.FITSRecord( {'name':new_keyname, 'value':header[key], 'comment':f'original image value of {key}'})
+            header.add_record(new_record)
         header.delete(key)
 
     return header
