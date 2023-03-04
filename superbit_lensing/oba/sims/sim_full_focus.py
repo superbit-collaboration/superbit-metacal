@@ -113,6 +113,9 @@ def set_config_defaults(config):
     if 'star_stamp_size' not in config:
         config['star_stamp_size'] = 1000
 
+    if 'strehl_ratio' not in config:
+        config['strehl_ratio'] = 100
+
     return config
 
 def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
@@ -130,6 +133,8 @@ def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
 
     # NOTE: haven't made it robust to |theta| > 90
     assert abs(theta.deg) <= 90
+    if theta.deg > 90:
+        ipdb.set_trace()
 
     # original box lengths
     Lx = im_xsize.to(u.deg).value
@@ -310,23 +315,24 @@ def main(args):
     bands = config['bands']
     starting_roll = config['starting_roll'] * galsim.degrees
     max_fft_size = config['max_fft_size']
+    strehl_ratio = config['strehl_ratio']
     ncores = config['ncores']
     fresh = config['fresh']
     overwrite = config['overwrite']
     vb = config['vb']
 
-    run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}')
+    run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}/{target_name}/')
 
     # WARNING: cleans all existing files in run_dir!
-    if vb is True:
+    if fresh is True:
         try:
             utils.rm_tree(run_dir)
         except OSError:
             pass
 
     # setup logger
-    logdir = run_dir
-    logfile = str(logdir / f'{run_name}_sim.log')
+    logdir = run_dir / target_name
+    logfile = str(logdir / f'{run_name}_{target_name}_sim.log')
 
     log = utils.setup_logger(logfile, logdir=logdir)
     logprint = utils.LogPrint(log, vb=vb)
@@ -401,9 +407,6 @@ def main(args):
     dither_deg = pix_scale * dither_pix / 3600 # dither_deg
     dither_rng = np.random.default_rng(seeds['dithering'])
 
-    # only doing in-focus sims
-    strehl = 100
-
     if 'add_galaxies' in config:
         add_galaxies = config['add_galaxies']
     else:
@@ -474,18 +477,18 @@ def main(args):
             usemask=False
         )
 
-    for band in bands:
-        # We want to rotate the sky by (5 min + 1 min overhead) each
-        # new target
-        theta = starting_roll # already a galsim.Angle
-        rot_rate = 0.25 # deg / min
+    # We want to rotate the sky by (5 min + 1 min overhead) each
+    # new target. Each band inherits the last roll of the previous band
+    theta = starting_roll # already a galsim.Angle
+    rot_rate = 0.25 # deg / min
 
+    for band in bands:
         # pivot wavelength
         piv_wave = piv_dict[band]
 
         bandpass.transmission = get_transmission(band=band)
 
-        aberrations = get_zernike(band=band, strehl_ratio=strehl)
+        aberrations = get_zernike(band=band, strehl_ratio=strehl_ratio)
 
         optical_zernike_psf = galsim.OpticalPSF(
             lam=piv_wave,
@@ -552,8 +555,13 @@ def main(args):
             else:
                 rn = f'{run_name}/'
 
+            if strehl_ratio == 100:
+                sr = ''
+            else:
+                sr = f'{strehl_ratio}/'
+
             outdir = os.path.join(
-                utils.TEST_DIR, f'ajay/{rn}{target_name}/{band}/'
+                utils.TEST_DIR, f'ajay/{rn}{target_name}/{band}/{sr}'
                 )
             utils.make_dir(outdir)
 
@@ -772,7 +780,7 @@ def main(args):
             hdr = fits.Header()
             hdr['EXPTIME'] = int(exp_time)
             hdr['band'] = band
-            hdr['strehl'] = strehl
+            hdr['strehl'] = strehl_ratio
             hdr['stars'] = int(add_stars)
             hdr['galaxies'] = int(add_galaxies)
             hdr['TARGET_RA'] = ra.value # in deg
@@ -784,6 +792,7 @@ def main(args):
 
             # TODO/QUESTION: For an unknown reason, BZERO is getting
             # set to 2^15 for an unknown reason unless we do this...
+            # hdr['BZERO'] = 0
 
             # add WCS info to header
             wcs.writeToFitsHeader(hdr, bounds=sci_img_bounds)
@@ -805,7 +814,7 @@ def main(args):
                 overwrite=overwrite
                 )
 
-            logprint(f'Image simulation complete for {target_name}, {band}, {strehl}.\n')
+            logprint(f'Image simulation complete for {target_name}, {band}\n')
 
         if add_stars is True:
             if truth_star_cat is None:
@@ -829,11 +838,11 @@ def main(args):
 
     # merge truth cats & save
     if add_stars is True:
-        outfile = f'{run_dir}/truth_stars.fits'
+        outfile = f'{run_dir}/truth_stars_{target_name}.fits'
         truth_star_cat.write(outfile, overwrite=overwrite)
 
     if add_galaxies is True:
-        outfile = f'{run_dir}/truth_gals.fits'
+        outfile = f'{run_dir}/truth_gals_{target_name}.fits'
         truth_gal_cat.write(outfile, overwrite=overwrite)
 
     return 0

@@ -47,8 +47,9 @@ class TestPrepper(object):
         Handle any necessary test preparation on simulated
         inputs to the OBA module. For now, just the following:
 
-        (1) Copy simulation files to target_dir
-        (2) Compress simulated image files
+        (1) Make needed OBA dirs on local version of qcc
+        (2) Copy simulation files to target_dir
+        (3) Compress simulated image files
 
         io_manager: oba_io.IOManager
             An IOManager instance that defines all relevant OBA
@@ -169,8 +170,8 @@ class HenSimsTestPrepper(TestPrepper):
     Prepper for realistic SuperBIT sims stored in `hen`
     '''
 
-    def __init__(self, target_name, bands, skip_existing=True,
-                 strehl_ratio=100):
+    def __init__(self, target_name, bands, run_name='quicktest',
+                 skip_existing=True, strehl_ratio=100, sim_dir=None):
         '''
         target_name: str
             The name of the target to run the OBA on
@@ -182,8 +183,18 @@ class HenSimsTestPrepper(TestPrepper):
             The Strehl ratio of the sims (100 is perfect focus)
         '''
 
+        utils.check_type('run_name', run_name, str)
+        self.run_name = run_name
+
         utils.check_type('strehl_ratio', strehl_ratio, (int, float))
         self.strehl_ratio = strehl_ratio
+
+        if sim_dir is None:
+            sim_dir = Path(
+                '/home/sweveret/repos/superbit-metacal/tests/ajay/'
+                )
+        utils.check_type('sim_dir', sim_dir, Path)
+        self.sim_dir = sim_dir
 
         super(HenSimsTestPrepper, self).__init__(
             target_name, bands, skip_existing=skip_existing
@@ -222,20 +233,24 @@ class HenSimsTestPrepper(TestPrepper):
             target_dir = io_manager.RAW_DATA
 
         target_dir = target_dir.resolve()
-        source_dir = f'/home/gill/sims/data/sims/{self.target_name}/'
+        source_dir = self.sim_dir / self.run_name / self.target_name
         target_dir = str(target_dir)
         logprint(f'Using raw target dir {target_dir}')
 
         if not os.path.exists(target_dir):
             raise OSError(f'{target_dir} does not exist!')
 
-        logprint('Copying simulated images...')
+        logprint('Making OBA dirs...')
+        self.setup_oba_dirs(io_manager, overwrite=overwrite)
 
+        logprint('Copying simulated images...')
         # NOTE: unlike ImSim, the sims on `hen` are in band-specific
         # subdirectories, so copy across all bands
         for band in self.bands:
             band_source_dir = os.path.join(
-                source_dir, band, str(self.strehl_ratio)
+                # NOTE: we no longer use the strehl ratio in the dir structure
+                # source_dir, band, str(self.strehl_ratio)
+                source_dir, band
                 )
             self.copy_images(band_source_dir, target_dir, logprint)
 
@@ -243,6 +258,71 @@ class HenSimsTestPrepper(TestPrepper):
         self.compress_images(target_dir, logprint, overwrite=overwrite)
 
         logprint('\nCompleted test setup\n')
+
+        return
+
+    def setup_oba_dirs(self, io_manager, overwrite=False):
+        '''
+        Setup the expected OBA dir for raw science frames, as defined
+        in oba_io.py
+
+        overwrite: bool
+            Set to overwrite any test files that are to be copied to oba dirs
+        '''
+
+        utils.make_dir(io_manager.root_dir)
+
+        raw_dir = io_manager.RAW_DATA
+
+        # NOTE: OLD! The QCC will no longer have a targe_name dir for each target
+        target_dir = raw_dir
+        utils.make_dir(target_dir)
+
+        # calibration frames
+        cal_dirs = {
+            'darks': io_manager.DARKS,
+            'flats': io_manager.FLATS
+        }
+
+        # copy over test calibration master frames
+        for cal in ['darks', 'flats']:
+            cal_dir = cal_dirs[cal]
+            utils.make_dir(cal_dir)
+            local_cals_dir = Path(utils.MODULE_DIR) / f'oba/data/{cal}/'
+            cal_files = glob(str(local_cals_dir / '*.fits*'))
+
+            for cal_file in cal_files:
+                outfile = cal_dir / Path(cal_file).name
+
+                # only copy cals over if they don't already exist, unless
+                # overwrite is true
+                if outfile.is_file():
+                    if overwrite is True:
+                        outfile.unlink()
+                    else:
+                        continue
+
+                shutil.copy(cal_file, outfile)
+
+        # copy over GAIA cat(s)
+        gaia_dir = io_manager.GAIA_DIR
+        utils.make_dir(gaia_dir)
+
+        local_gaia_dir = Path(utils.MODULE_DIR) / f'oba/data/gaia/'
+        gaia_files = glob(str(local_gaia_dir / '*.fits*'))
+
+        for gaia_file in gaia_files:
+            outfile = gaia_dir / Path(gaia_file).name
+
+            # only copy cals over if they don't already exist, unless
+            # overwrite is true
+            if outfile.is_file():
+                if overwrite is True:
+                    outfile.unlink()
+                else:
+                    continue
+
+            shutil.copy(gaia_file, outfile)
 
         return
 

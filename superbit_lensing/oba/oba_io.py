@@ -47,7 +47,7 @@ class IOManager(object):
     OBA_DIR: /home/bit/oba_temp/
 
     NOTE: Only if a target_name is passed:
-    Temporary analysis dir for a given cluster target:
+    Temporary analysis dir for a given target name:
     OBA_TARGET: OBA_DIR/{TARGET_NAME}/
 
     Temporary analysis files per band for a given target:
@@ -62,16 +62,22 @@ class IOManager(object):
     OBA_CLUSETRS/{TARGET_NAME}/out/
 
     ----------------------------------------------------------------------
+    GAIA catalog(s)
+
+    We put a curated GAIA catalog here that has stellar positions and
+    estimated fluxes for each SuperBIT filter in ADU/s; used for bright
+    star masking
+
+    GAIA_DIR: /data/bit/gaia/
+
+    ----------------------------------------------------------------------
     Permanent OBA outputs
 
     OBA results root dir:
     OBA_RESULTS: /data/bit/oba_results/
 
-    OBA results for clusters:
-    OBA_RESULTS/clusters/
-
-    OBA results for a given cluster target:
-    OBA_RESULTS/clusters/{TARGET_NAME}/
+    OBA results for a given target:
+    OBA_RESULTS/{TARGET_NAME}/
 
     ----------------------------------------------------------------------
     Testing on a local device (i.e. *not* qcc)
@@ -95,7 +101,7 @@ class IOManager(object):
     # alternatively, can instantiate for a given target:
     io_manager = IOManager(root_dir=root_dir, target_name=target_name)
 
-    # returns {root_dir}/data/bit/science_images/clusters/{target_name}/
+    # returns {root_dir}/data/bit/science_images/{target_name}/
     target_dir = io_manager.RAW_TARGET
 
     '''
@@ -107,10 +113,13 @@ class IOManager(object):
         'CAL_DATA',
         'RAW_DATA',
         'RAW_TARGET',
+        'GAIA_DIR',
         'OBA_DIR',
         'OBA_TARGET',
         'OBA_RESULTS',
         ]
+
+    gaia_filename = 'gaia_superbit_fluxes.fits'
 
     def __init__(self, root_dir=None, target_name=None):
         '''
@@ -153,6 +162,7 @@ class IOManager(object):
             'RAW_DATA': 'data/bit/science_images/',
             # NOTE: old definition
             'RAW_TARGET': None,
+            'GAIA_DIR': 'data/bit/gaia/',
             'OBA_DIR': 'home/bit/oba_temp/',
             'OBA_TARGET': None,
             'OBA_RESULTS': 'data/bit/oba_results/',
@@ -204,6 +214,11 @@ class IOManager(object):
     @property
     def RAW_TARGET(self):
         name = 'RAW_TARGET'
+        return self._check_dir(name)
+
+    @property
+    def GAIA_DIR(self):
+        name = 'GAIA_DIR'
         return self._check_dir(name)
 
     @property
@@ -300,12 +315,19 @@ def parse_sci_image_file(image_file):
     # remove file ext
     features[-1] = features[-1].replace('.fits', '')
 
+    if features[-1] == 'cal':
+        # in this case, we're dealing with a calibrated image file
+        offset = 1
+    else:
+        # should be a raw
+        offset = 0
+
     # We define them relative to the end to allow for _'s in a target_name
     im_pars = {
-        'target_name': '_'.join(features[0:-3]),
-        'exp_time': int(features[-3]),
-        'band': index2band(int(features[-2])),
-        'utc': int(features[-1])
+        'target_name': '_'.join(features[0:-3-offset]),
+        'exp_time': int(features[-3-offset]),
+        'band': index2band(int(features[-2-offset])),
+        'utc': int(features[-1-offset])
         }
 
     return im_pars

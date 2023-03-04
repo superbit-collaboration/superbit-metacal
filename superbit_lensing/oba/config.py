@@ -20,6 +20,7 @@ class OBAConfig(ModuleConfig):
         'masking',
         'background',
         'astrometry',
+        'starmask',
         'coadd',
         'detection',
         'output',
@@ -42,6 +43,8 @@ class OBAConfig(ModuleConfig):
             # these are the main suite of sims we are using to test
             # the OBA on the `hen` SuperBIT machine
             'type': 'hen',
+            'run_name': None,
+            'sim_dir': '/home/sweveret/repos/superbit-metacal/tests/ajay/',
             # this tells the test prepper to skip compressing test images
             # if they are already present
             'skip_existing': True,

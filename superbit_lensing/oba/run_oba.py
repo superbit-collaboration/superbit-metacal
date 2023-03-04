@@ -17,11 +17,15 @@ def parse_args():
                        help='Filename for the on-board analysis configuration')
     parser.add_argument('-config_dir', type=str, default=None,
                         help='Directory of OBA pipeline config file')
+
     parser.add_argument('-root_dir', type=str, default=None,
                         help='Root directory for OBA run (if testing locally)')
     parser.add_argument('--test', action='store_true', default=False,
                         help='Set to indicate that this is a test run, ' +
                         'which will utilize the TestPrepper')
+    parser.add_argument('--fresh', action='store_true', default=False,
+                        help='Set to delete any existing files in the root_dir '
+                        'before running')
     # NOTE: --vb and --overwrite have been moved to the OBA config!
 
     return parser.parse_args()
@@ -35,6 +39,7 @@ def main(args):
     config_dir = args.config_dir
     root_dir = args.root_dir
     test = args.test
+    fresh = args.fresh
 
     #-----------------------------------------------------------------
     # config setup
@@ -55,11 +60,18 @@ def main(args):
     overwrite = run_options['overwrite']
     vb = run_options['vb']
 
+    if root_dir is None:
+        if test is True:
+            root_dir = Path(utils.get_test_dir()) / 'oba_test/'
+
     #-----------------------------------------------------------------
     # Logger setup
 
     # NOTE: log will be moved to target output dir eventually
-    logdir = (Path(utils.get_test_dir()) / 'oba_test').resolve()
+    if root_dir is not None:
+        logdir = root_dir
+    else:
+        logdir = Path('./')
     logfile = str(logdir / f'{target_name}_oba.log')
 
     log = utils.setup_logger(logfile, logdir=logdir)
@@ -83,6 +95,20 @@ def main(args):
     io_manager.print_dirs(logprint=logprint)
 
     #-----------------------------------------------------------------
+    # Cleanup for fresh runs
+
+    # we want it to match the QCC paths, relative to a local root dir
+    if fresh is True:
+        ipdb.set_trace()
+        target_dir = io_manager.OBA_TARGET
+        logprint(f'Deleting old OBA outputs for {target_name} as --fresh is True')
+        logprint(f'rm {target_dir}')
+        try:
+            shutil.rmtree(str(target_dir))
+        except FileNotFoundError as e:
+            logprint(f'OBA dir for target does not exist. Ignoring --fresh flag')
+
+    #-----------------------------------------------------------------
     # Test setup, if needed
 
     if test is True:
@@ -91,8 +117,14 @@ def main(args):
 
         # guaranteed to be set due to default structure of OBAConfig
         test_type = config['test']['type']
+
         skip_existing = config['test']['skip_existing']
         logprint(f'Skipping compression of test files: {skip_existing}')
+
+        kwargs = {'skip_existing': skip_existing}
+        if test_type == 'hen':
+            kwargs['run_name'] = str(config['test']['run_name'])
+            kwargs['sim_dir'] = Path(config['test']['sim_dir'])
 
         logprint(
             f'\nTEST == TRUE; Starting test prepper with type {test_type}\n'
@@ -102,7 +134,7 @@ def main(args):
             test_type,
             target_name,
             bands,
-            skip_existing=skip_existing
+            **kwargs
         )
 
         prepper.go(io_manager, overwrite=overwrite, logprint=logprint)

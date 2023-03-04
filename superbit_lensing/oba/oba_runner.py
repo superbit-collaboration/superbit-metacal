@@ -9,6 +9,7 @@ from cals import CalsRunner
 from masking import MaskingRunner
 from background import BackgroundRunner
 from astrometry import AstrometryRunner
+from starmask import StarmaskRunner
 from coadd import CoaddRunner
 from detection import DetectionRunner
 from output import OutputRunner
@@ -221,10 +222,11 @@ class OBARunner(object):
         2) Masking
         3) Background estimation
         4) Astrometry
-        5) Coaddition (single-band & detection image)
-        6) Source detection
-        7) Cookie-Cutter (output MEDS-like cutout format)
-        8) Compression & cleanup
+        5) Bright star mask (needs astrometry)
+        6) Coaddition (single-band & detection image)
+        7) Source detection
+        8) Cookie-Cutter (output MEDS-like cutout format)
+        9) Compression & cleanup
 
         NOTE: you can choose which subset of these steps to run using the
         `modules` field in the OBA config file, but in most instances this
@@ -252,6 +254,9 @@ class OBARunner(object):
 
         self.logprint('\nStarting astrometric registration')
         self.run_astrometry(overwrite=overwrite)
+
+        self.logprint('\nStarting bright star masking')
+        self.run_starmask(overwrite=overwrite)
 
         self.logprint('\nStarting coaddition')
         self.run_coaddition(overwrite=overwrite)
@@ -389,6 +394,33 @@ class OBARunner(object):
             )
 
         runner.go(self.logprint, overwrite=overwrite, rerun=rerun)
+
+        return
+
+    def run_starmask(self, overwrite=True):
+        '''
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        if 'starmask' not in self.modules:
+            self.logprint('Skipping bright star masking given config modules')
+            return
+
+        # rerun = self.config['astrometry']['rerun']
+        # search_radius = self.config['astrometry']['search_radius']
+
+        gaia_filename = self.io_manager.gaia_filename
+        gaia_cat = self.io_manager.GAIA_DIR / gaia_filename
+
+        runner = StarmaskRunner(
+            self.run_dir,
+            gaia_cat,
+            self.bands,
+            target_name=self.target_name,
+            )
+
+        runner.go(self.logprint, overwrite=overwrite)
 
         return
 
