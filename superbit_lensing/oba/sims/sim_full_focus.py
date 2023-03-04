@@ -133,6 +133,8 @@ def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
 
     # NOTE: haven't made it robust to |theta| > 90
     assert abs(theta.deg) <= 90
+    if theta.deg > 90:
+        ipdb.set_trace()
 
     # original box lengths
     Lx = im_xsize.to(u.deg).value
@@ -319,18 +321,18 @@ def main(args):
     overwrite = config['overwrite']
     vb = config['vb']
 
-    run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}')
+    run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}/{target_name}/')
 
     # WARNING: cleans all existing files in run_dir!
-    if vb is True:
+    if fresh is True:
         try:
             utils.rm_tree(run_dir)
         except OSError:
             pass
 
     # setup logger
-    logdir = run_dir
-    logfile = str(logdir / f'{run_name}_sim.log')
+    logdir = run_dir / target_name
+    logfile = str(logdir / f'{run_name}_{target_name}_sim.log')
 
     log = utils.setup_logger(logfile, logdir=logdir)
     logprint = utils.LogPrint(log, vb=vb)
@@ -475,12 +477,12 @@ def main(args):
             usemask=False
         )
 
-    for band in bands:
-        # We want to rotate the sky by (5 min + 1 min overhead) each
-        # new target
-        theta = starting_roll # already a galsim.Angle
-        rot_rate = 0.25 # deg / min
+    # We want to rotate the sky by (5 min + 1 min overhead) each
+    # new target. Each band inherits the last roll of the previous band
+    theta = starting_roll # already a galsim.Angle
+    rot_rate = 0.25 # deg / min
 
+    for band in bands:
         # pivot wavelength
         piv_wave = piv_dict[band]
 
@@ -836,11 +838,11 @@ def main(args):
 
     # merge truth cats & save
     if add_stars is True:
-        outfile = f'{run_dir}/truth_stars.fits'
+        outfile = f'{run_dir}/truth_stars_{target_name}.fits'
         truth_star_cat.write(outfile, overwrite=overwrite)
 
     if add_galaxies is True:
-        outfile = f'{run_dir}/truth_gals.fits'
+        outfile = f'{run_dir}/truth_gals_{target_name}.fits'
         truth_gal_cat.write(outfile, overwrite=overwrite)
 
     return 0
