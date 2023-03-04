@@ -47,7 +47,7 @@ class IOManager(object):
     OBA_DIR: /home/bit/oba_temp/
 
     NOTE: Only if a target_name is passed:
-    Temporary analysis dir for a given cluster target:
+    Temporary analysis dir for a given target name:
     OBA_TARGET: OBA_DIR/{TARGET_NAME}/
 
     Temporary analysis files per band for a given target:
@@ -76,11 +76,8 @@ class IOManager(object):
     OBA results root dir:
     OBA_RESULTS: /data/bit/oba_results/
 
-    OBA results for clusters:
-    OBA_RESULTS/clusters/
-
-    OBA results for a given cluster target:
-    OBA_RESULTS/clusters/{TARGET_NAME}/
+    OBA results for a given target:
+    OBA_RESULTS/{TARGET_NAME}/
 
     ----------------------------------------------------------------------
     Testing on a local device (i.e. *not* qcc)
@@ -104,7 +101,7 @@ class IOManager(object):
     # alternatively, can instantiate for a given target:
     io_manager = IOManager(root_dir=root_dir, target_name=target_name)
 
-    # returns {root_dir}/data/bit/science_images/clusters/{target_name}/
+    # returns {root_dir}/data/bit/science_images/{target_name}/
     target_dir = io_manager.RAW_TARGET
 
     '''

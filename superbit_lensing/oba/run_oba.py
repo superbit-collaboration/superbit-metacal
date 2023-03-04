@@ -95,20 +95,25 @@ def main(args):
     io_manager.print_dirs(logprint=logprint)
 
     #-----------------------------------------------------------------
+    # Cleanup for fresh runs
+
+    # we want it to match the QCC paths, relative to a local root dir
+    if fresh is True:
+        ipdb.set_trace()
+        target_dir = io_manager.OBA_TARGET
+        logprint(f'Deleting old OBA outputs for {target_name} as --fresh is True')
+        logprint(f'rm {target_dir}')
+        try:
+            shutil.rmtree(str(target_dir))
+        except FileNotFoundError as e:
+            logprint(f'OBA dir for target does not exist. Ignoring --fresh flag')
+
+    #-----------------------------------------------------------------
     # Test setup, if needed
 
     if test is True:
         # handle any needed setup for simulated inputs
         from setup_test import make_test_prepper
-
-        # we want it to match the QCC paths, relative to a local root dir
-        if fresh is True:
-            target_dir = root_dir / target_name
-            print(f'Deleting old test directory {str(target_name)}...')
-            try:
-                shutil.rmtree(str(root_dir))
-            except FileNotFoundError as e:
-                print('Test directory does not exist. Ignoring --fresh flag')
 
         # guaranteed to be set due to default structure of OBAConfig
         test_type = config['test']['type']
