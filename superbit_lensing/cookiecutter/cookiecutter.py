@@ -389,7 +389,7 @@ class CookieCutter(object):
                 im_percent = 100 * Npix / (image_shape[0] * image_shape[1])
                 self.logprint(f'image {im_name} needs {Npix} pixels; ' +
                               f'{pix_percent:.2f}% of max stamp pixels; ' +
-                              f'{im_percent:.2f} of full image')
+                              f'{im_percent:.2f}% of full image')
 
                 # one dimension for data, one dimension for composite MASK+SEG
                 science_image_dimensions = (1, Npix)
@@ -447,7 +447,10 @@ class CookieCutter(object):
 
                     image_cutout = np.zeros(cutout_shape, dtype=sci_dtype)
 
-                    sci_cutout = imageObj.image[image_slice].astype(sci_dtype)
+                    sci_cutout = imageObj.image[image_slice].astype(
+                        sci_dtype
+                        )
+
                     image_cutout[cutout_slice] = sci_cutout
 
                     science_output = image_cutout.flatten()
@@ -578,7 +581,20 @@ class CookieCutter(object):
                 slices = self._compute_obj_slices(image, obj)
                 image_slice, cutout_slice, cutout_size = slices
 
-                # if a slice is returned, then allocate the full boxsize^2
+                # NOTE: This fails if exactly 1 slice is empty unless we load
+                # the full array into memory first. This is an issue we have now
+                # flagged w/ fitiso:
+                # https://github.com/esheldon/fitsio/issues/359
+                for sl in image_slice:
+                    if sl.stop == sl.start:
+                        skip_list.append(indx)
+                        continue
+                for sl in cutout_slice:
+                    if sl.stop == sl.start:
+                        skip_list.append(indx)
+                        continue
+
+                # if a (nonempty!) slice is returned, then allocate the full boxsize^2
                 Npix += cutout_size
 
             except NoOverlapError:
@@ -627,11 +643,15 @@ class CookieCutter(object):
 
         boxsize = obj[boxsize_tag]
         cutout_shape = (boxsize, boxsize)
-        cutout_size = boxsize**2
 
         image_slice, cutout_slice = intersecting_slices(
             image_shape, cutout_shape, object_pos_in_image_array
         )
+
+        # cutout_nx = len(range(boxsize)[cutout_slice[0]])
+        # cutout_ny = len(range(boxsize)[cutout_slice[1]])
+        # cutout_size = cutout_nx * cutout_ny
+        cutout_size = boxsize**2
 
         return image_slice, cutout_slice, cutout_size
 
