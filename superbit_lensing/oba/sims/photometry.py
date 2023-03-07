@@ -10,7 +10,17 @@ from astropy.time import Time
 import astropy.coordinates as coord
 from astropy.constants import h, c, k_B
 from astropy.convolution import AiryDisk2DKernel
+from pathlib import Path
 
+OBA_SIM_DATA_DIR = Path(__file__).parent / 'data/'
+
+def get_transmission(band):
+    sim_dir = OBA_SIM_DATA_DIR
+
+    return np.genfromtxt(
+        sim_dir / f'instrument/bandpass/{band}_2023.csv',
+        delimiter=','
+        )[:, 2][1:]
 
 def t_given_nexp_SNR(source_count_rate,
                      read_noise,

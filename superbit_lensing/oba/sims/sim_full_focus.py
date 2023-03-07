@@ -5,6 +5,7 @@ import photometry as phot
 
 from stars import make_a_star
 from gals import make_a_galaxy
+from cluster import make_a_cluster_galaxy, sample_a_cluster, des2superbit
 
 # Packages
 from argparse import ArgumentParser
@@ -43,14 +44,6 @@ def parse_args():
                         help='The filepath of the simulation config file')
 
     return parser.parse_args()
-
-def get_transmission(band):
-    sim_dir = OBA_SIM_DATA_DIR
-
-    return np.genfromtxt(
-        sim_dir / f'instrument/bandpass/{band}_2023.csv',
-        delimiter=','
-        )[:, 2][1:]
 
 def get_zernike(band, strehl_ratio):
     sr = str(int(strehl_ratio))
@@ -93,7 +86,7 @@ def set_config_defaults(config):
         config['overwrite'] = False
 
     if 'bands' not in config:
-        config['bands'] = ['b', 'lum', 'g', 'r', 'nir', 'u']
+        config['bands'] = ['u', 'b', 'g', 'r', 'lum', 'nir']
 
     if 'vb' not in config:
         config['vb'] = False
@@ -180,7 +173,7 @@ def make_obj(i, obj_type, obj, *args, **kwargs):
 
     func_map = {
         'gal': make_a_galaxy,
-        # 'cluster_gal': make_cluster_galaxy,
+        'cluster_gal': make_a_cluster_galaxy,
         'star': make_a_star
     }
 
@@ -303,6 +296,42 @@ def setup_gals(n_gal_total_img, gal_rng):
 
     return gal_cat
 
+def setup_cluster(logm, z, ra, dec, telescope, camera, bandpass, exp_time, rng=None):
+    '''
+    Pick a redmapper cluster at similar logm & z. Then add SB ADU fluxes
+    '''
+
+    # NOTE: for now, we'll be hacky
+    cluster_dir = OBA_SIM_DATA_DIR / 'redmapper/'
+    clusters_file = cluster_dir / 'y3_gold_2.2.1_wide_sofcol_run2_redmapper_v6.4.22+2_lgt20_vl50_catalog.fit'
+    clusters = Table.read(clusters_file)
+
+    # NOTE: This needs to be the associated redmapper members catalog *matched*
+    # to DES GOLD, as we need morphological information in addition to photometry
+    members_file = cluster_dir / 'redmapper_members_gold_match.fits'
+    members = Table.read(members_file)
+
+    # pick 1 cluster
+    cluster = sample_a_cluster(clusters, logm, z, rng=rng)
+
+    # grab the member galaxies of that cluster
+    cluster_gals = join(
+        cluster, members, join_type='left', keys=['MEM_MATCH_ID'],
+        table_names=['cluster', 'member']
+        )
+
+    # only grab those with a greater than 50% membership probability
+    cluster_gals = cluster_gals[cluster_gals['P'] > 0.5]
+
+    # makes best guess at SB band fluxes given DES band fluxes
+    cluster_gals = des2superbit(cluster_gals, telescope, camera, bandpass, exp_time)
+
+    # keep member positions relative to cluster center, but offset to new target
+    cluster_gals['ra_sim'] = (cluster_gals['RA_member'] - cluster_gals['RA']) + ra
+    cluster_gals['dec_sim'] = (cluster_gals['DEC_member'] - cluster_gals['DEC']) + dec
+
+    return cluster_gals
+
 def main(args):
 
     config_file = args.config_file
@@ -331,7 +360,7 @@ def main(args):
             pass
 
     # setup logger
-    logdir = run_dir / target_name
+    logdir = run_dir
     logfile = str(logdir / f'{run_name}_{target_name}_sim.log')
 
     log = utils.setup_logger(logfile, logdir=logdir)
@@ -417,6 +446,11 @@ def main(args):
     else:
         add_stars = True
 
+    if 'add_cluster' in config:
+        add_cluster = config['add_cluster']
+    else:
+        add_cluster = True
+
     # setup galaxies
     if add_galaxies is True:
         gal_rng = np.random.default_rng(seeds['gals'])
@@ -431,6 +465,12 @@ def main(args):
         # will populate w/ a truth cat for each band
         truth_star_cat = None
 
+    if add_cluster is True:
+        cluster_rng = np.random.default_rng(seeds['cluster'])
+
+        # will populate w/ a truth cat for each band
+        truth_cluster_cat = None
+
     # Start main process
     row = np.where(targets['target'] == target_name)
 
@@ -439,7 +479,8 @@ def main(args):
     ra = target['ra'] * u.deg
     dec = target['dec'] * u.deg
     cluster_z = target['z']
-    mass = 10**(target['mass']) # solmass
+    logm = target['mass'] # log10 solmass
+    mass = 10**(logm) # solmass
     conc = target['c']
 
     # setup stars (query only for now)
@@ -454,6 +495,7 @@ def main(args):
 
     # setup gals (sampling positions only for now)
     if add_galaxies is True:
+        logprint('setting up galaxies...')
 
         # we use the larger box to handle roll angles
         sample_len = 1.01*(img_max_len / 2.).to(u.deg).value
@@ -477,6 +519,14 @@ def main(args):
             usemask=False
         )
 
+    # setup cluster (sample redmapper for similar M & z, then at SB fluxes)
+    if add_cluster is True:
+        logprint('Setting up cluster...')
+        cluster_cat = setup_cluster(
+            logm, cluster_z, ra.value, dec.value, telescope, camera, bandpass,
+            exp_time, rng=cluster_rng
+            )
+
     # We want to rotate the sky by (5 min + 1 min overhead) each
     # new target. Each band inherits the last roll of the previous band
     theta = starting_roll # already a galsim.Angle
@@ -486,7 +536,7 @@ def main(args):
         # pivot wavelength
         piv_wave = piv_dict[band]
 
-        bandpass.transmission = get_transmission(band=band)
+        bandpass.transmission = phot.get_transmission(band=band)
 
         aberrations = get_zernike(band=band, strehl_ratio=strehl_ratio)
 
@@ -506,6 +556,7 @@ def main(args):
         # setup truth cats for this band
         truth_gals = Table()
         truth_stars = Table()
+        truth_cluster = Table()
 
         # setup stellar fluxes
         if add_stars is True:
@@ -754,6 +805,44 @@ def main(args):
                 logprint('Done with galaxies')
                 logprint(f'Galaxies took {gal_time:.1f} s')
 
+            if add_cluster is True:
+
+                Ncluster_gals = len(cluster_cat)
+                logprint(f'Adding {Ncluster_gals} cluster galaxies')
+                logprint(f'Parallelizing across {ncores} cores')
+
+                start = time.time()
+
+                with Pool(ncores) as pool:
+                    batch_indices = utils.setup_batches(Ncluster_gals, ncores)
+
+                    sci_img, truth_cluster = combine_objs(
+                        pool.starmap(
+                            make_obj_runner,
+                            ([
+                                batch_indices[k],
+                                'cluster_gal',
+                                cluster_cat,
+                                band,
+                                wcs,
+                                psf_roll,
+                                camera,
+                                exp_time,
+                                pix_scale,
+                                gs_params,
+                                logprint,
+                            ] for k in range(ncores))
+                        ),
+                        sci_img,
+                        truth_cluster,
+                        exp_num,
+                        logprint
+                    )
+
+                gal_time = time.time() - start
+                logprint('Done with cluster galaxies')
+                logprint(f'Galaxies took {gal_time:.1f} s')
+
             # add shot noise on sky + sources
             # TODO: sort out why this turns sci_img to ints...
             noise = galsim.PoissonNoise(sky_level=0.0)
@@ -836,6 +925,16 @@ def main(args):
                     join_type='left',
                     )
 
+        if add_cluster is True:
+            if truth_cluster_cat is None:
+                truth_cluster_cat = truth_cluster.copy()
+            else:
+                truth_cluster_cat = join(
+                    truth_cluster_cat,
+                    truth_cluster,
+                    join_type='left',
+                    )
+
     # merge truth cats & save
     if add_stars is True:
         outfile = f'{run_dir}/truth_stars_{target_name}.fits'
@@ -844,6 +943,10 @@ def main(args):
     if add_galaxies is True:
         outfile = f'{run_dir}/truth_gals_{target_name}.fits'
         truth_gal_cat.write(outfile, overwrite=overwrite)
+
+    if add_cluster is True:
+        outfile = f'{run_dir}/truth_cluster_{target_name}.fits'
+        truth_cluster_cat.write(outfile, overwrite=overwrite)
 
     return 0
 
