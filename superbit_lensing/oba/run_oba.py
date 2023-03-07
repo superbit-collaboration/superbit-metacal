@@ -99,7 +99,6 @@ def main(args):
 
     # we want it to match the QCC paths, relative to a local root dir
     if fresh is True:
-        ipdb.set_trace()
         target_dir = io_manager.OBA_TARGET
         logprint(f'Deleting old OBA outputs for {target_name} as --fresh is True')
         logprint(f'rm {target_dir}')
