@@ -211,7 +211,7 @@ class OBARunner(object):
 
     @property
     def det_bands(self):
-        return self.config['coadd']['det_bands']
+        return self.config['run_options']['det_bands']
 
     def go(self, overwrite=False):
         '''
