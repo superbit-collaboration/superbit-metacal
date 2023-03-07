@@ -53,11 +53,10 @@ def main(args):
     raw_target_dir = io_manager.RAW_TARGET
     print(f'Confirmed; removing {target_name} images at {raw_target_dir}...')
 
-    search = str(raw_target_dir / f'{target_name}_*.fits')
+    # includes compressed images
+    search = str(raw_target_dir / f'{target_name}_*.fits*')
     target_images = glob(search)
 
-    ipdb.set_trace()
-    # utils.rm_tree(raw_target_dir)
     for image in target_images:
         print(f'Deleting image {image}')
         image = Path(image)

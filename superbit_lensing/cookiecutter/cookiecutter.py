@@ -308,6 +308,8 @@ class CookieCutter(object):
         sci_dtype = config['output']['sci_dtype']
         msk_dtype = config['output']['msk_dtype']
 
+        seg_type = config['segmentation']['type']
+
         overwrite = config['output']['overwrite']
 
         outfile = self.outfile
@@ -330,7 +332,8 @@ class CookieCutter(object):
                    ('end_pos', int),
                    ('sky_bkg', float),
                    ('sky_var', float),
-                   ('cc_ext', 'u1')])
+                   ('cc_ext', 'u1')]
+            )
 
         info_index = 0
 
@@ -344,6 +347,8 @@ class CookieCutter(object):
                               f'{Nimages}')
 
                 # handles all input image file parsing
+                # NOTE: sensible defaults are set in config.py for fields
+                # that are not set explicitly
                 imageObj = ImageLocator(
                     image_file=image['image_file'],
                     image_ext=image['image_ext'],
@@ -351,6 +356,12 @@ class CookieCutter(object):
                     weight_ext=image['weight_ext'],
                     mask_file=image['mask_file'],
                     mask_ext=image['mask_ext'],
+                    background_file=image['background_file'],
+                    background_ext=image['background_ext'],
+                    skyvar_file=image['skyvar_file'],
+                    skyvar_ext=image['skyvar_ext'],
+                    segmentation_file=image['segmentation_file'],
+                    segmentation_ext=image['segmentation_ext'],
                     input_dir=self.input_dir
                     )
 
@@ -372,8 +383,26 @@ class CookieCutter(object):
                     )
 
                 # place the file path info here
-                image_hdr['imfile'] = str(image['image_file'])
+                image_hdr['imfile'] = str(Path(image['image_file']).name)
                 image_hdr['imext'] = image['image_ext']
+
+                # if some checkimages are passed, save some statistics
+                # to the header
+                if imageObj.background is not None:
+                    wgt = imageObj.weight
+                    image_hdr['wgt_mu'] = np.mean(wgt[:,:])
+                    image_hdr['wgt_std'] = np.std(wgt[:,:])
+                    image_hdr['wgt_med'] = np.median(wgt[:,:])
+                if imageObj.background is not None:
+                    bkg = imageObj.background
+                    image_hdr['bkg_mu'] = np.mean(bkg[:,:])
+                    image_hdr['bkg_std'] = np.std(bkg[:,:])
+                    image_hdr['bkg_med'] = np.median(bkg[:,:])
+                if imageObj.skyvar is not None:
+                    skyvar = imageObj.skyvar
+                    image_hdr['skyvar_mu'] = np.mean(skyvar[:,:])
+                    image_hdr['skyvar_std'] = np.std(skyvar[:,:])
+                    image_hdr['skyvar_med'] = np.median(skyvar[:,:])
 
                 image_shape = imageObj.image.get_info()['dims']
 
@@ -408,8 +437,7 @@ class CookieCutter(object):
 
                 fits.create_image_hdu(
                     img=None,
-                    # TODO: make this more flexible!
-                    dtype='i1',
+                    dtype=msk_dtype,
                     dims=mask_image_dimensions,
                     extname=f'MASK{image_index}'
                     )
@@ -468,9 +496,9 @@ class CookieCutter(object):
                             )
 
                     # TODO / QUESTION: should we use mean or median for the following?
-                    if imageObj.skybkg is not None:
+                    if imageObj.background is not None:
                         sky_cutout = np.zeros_like(image_cutout)
-                        sky_cutout[cutout_slice] = imageObj.skybkg[image_slice]
+                        sky_cutout[cutout_slice] = imageObj.background[image_slice]
                         sky_bkg = np.median(sky_cutout)
                     else:
                         sky_bkg = None
@@ -483,36 +511,53 @@ class CookieCutter(object):
                         sky_var = None
 
                     if imageObj.weight is not None:
-                        # print('Weight extension currently not implemented!')
+                        print('Weight extension currently not implemented!')
                         weight = None
                         # weight_cutout = np.zeros_like(image_cutout)
                         # weight_cutout[cutout_slice] = imageObj.weight[image_slice]
                     else:
                         weight = None
 
-                    # TODO: This currently won't work if a mask is not provided
+                    # TODO: can generalize this post SuperBIT OBA
+                    # we treat the mask differently, as it is required
+                    mask_cutout = np.zeros_like(image_cutout)
                     if imageObj.mask is not None:
-                        mask_cutout = np.zeros_like(image_cutout)
                         mask_cutout[cutout_slice] = imageObj.mask[image_slice]
+
+                    if imageObj.segmentation is not None:
+                        seg_cutout = np.zeros_like(image_cutout)
+                        seg_cutout[cutout_slice] = imageObj.segmentation[image_slice]
                     else:
-                        weight = None
+                        seg_cutout = None
+
+                    if seg_cutout is not None:
+                        mask_output = self._combine_mask_and_seg(
+                            obj[id_tag], mask_cutout, seg_cutout, seg_type=seg_type
+                            )
+                    else:
+                        mask_output = mask_cutout
+
+                    # shouldn't happen, but just in case:
+                    msk_max_val = int(2**(8 * msk_dtype.itemsize))
+                    ipdb.set_trace()
+                    if (mask_output > msk_max_val).any():
+                        raise ValueError('The combined segmask has values '
+                                         f'above {msk_max_val}, which is the '
+                                         f'maximum value for a set msk_dtype '
+                                         f'of {msk_dtype}!')
+                    mask_output = mask_output.astype(msk_dtype)
 
                     # combine these into one bitplane.
                     # TODO: Update this line w/ extra info, such as coadd seg!
-                    # maskbits_output = mask_cutout + 2*mask_cutout
-                    maskbits_output = mask_cutout.astype(msk_dtype)
                     fits[f'MASK{image_index}'].write(
-                        maskbits_output, start=[0, pixels_written]
+                        mask_output, start=[0, pixels_written]
                         )
 
-                    meta[info_index]['object_id'] = obj[id_tag]
-                    # meta[info_index]['image_file'] = image['image_file']
-
                     # This is how we look up object positions to read later.
+                    meta[info_index]['object_id'] = obj[id_tag]
                     meta[info_index]['cc_ext'] = image_index
                     meta[info_index]['start_pos'] = pixels_written
-                    meta[info_index]['end_pos'] = pixels_written +\
-                        cutout_size
+                    meta[info_index]['end_pos'] = pixels_written + cutout_size
 
                     if sky_bkg is not None:
                         meta[info_index]['sky_bkg'] = sky_bkg
@@ -655,6 +700,62 @@ class CookieCutter(object):
 
         return image_slice, cutout_slice, cutout_size
 
+    def _combine_mask_and_seg(self, obj_id, mask, seg, seg_type='minimal'):
+        '''
+        Combine the mask and segmentation maps into an efficient single-map
+        representation
+
+        obj_id: int
+            The cutout object's ID (should be consistent w/ segmentation val)
+        mask: np.ndarray (shape = cutout_shape)
+            The mask cutout for a given source
+        seg: np.ndarray (shape = cutout_shape)
+            The segmentation cutout for a given source
+        seg_type: str
+            The type of segmentation map to use. Currently only one registered
+            type:
+            - minimal: Convert normal segmentation values (pix_val=object_id)
+              into the minimal set that can be reconstructed later on:
+              - 0: unassigned sky
+              - 1: this object (of the current stamp)
+              - 2: neighbor (contained in other cutouts)
+        '''
+
+        _allowed = ['minimal']
+
+        # these are the input SExtractor SEGMENTATION values
+        _sky = 0
+        _obj = obj_id
+
+        if seg_type not in _allowed:
+            raise ValueError(f'{seg_type} is not a registered segmentation '
+                             f'type! Must be one of the following: {_allowed}')
+
+        seg_obj = self.config['segmentation']['obj']
+        seg_neighbor = self.config['segmentation']['neighbor']
+
+        ipdb.set_trace()
+        for name, val in dict(
+                zip(
+                    ['obj', 'neighbor'],
+                    [seg_obj, seg_neighbor]
+                    )
+                ).items():
+            if val in mask:
+                raise ValueError(f'{name} of {val} is already present in '
+                                 'the mask!')
+
+        combined_mask = mask.copy()
+
+        if seg_type == 'minimal':
+            # NOTE: used to keep track of sky here as well, but not needed
+            if seg_neighbor in seg:
+                ipdb.set_trace()
+            combined_mask[seg == _obj] += seg_obj
+            combined_mask[(seg != _obj) & (seg != _sky)] = seg_neighbor
+
+        return combined_mask
+
     @property
     def meta(self):
         if self._meta is None:
@@ -745,10 +846,13 @@ class ImageLocator(object):
     with a CookieCutter ingested image
     '''
 
-    def __init__(self, image_file=None, image_ext=None, weight_file=None,
-                 weight_ext=None, mask_file=None, mask_ext=None,
-                 background_file=None, background_ext=None,
-                 skyvar_file=None, skyvar_ext=None, input_dir=None):
+    def __init__(self, image_file, image_ext=0, weight_file=None,
+                 weight_ext=0, mask_file=None, mask_ext=0,
+                 background_file=None, background_ext=0,
+                 skyvar_file=None, skyvar_ext=0, segmentation_file=None,
+                 segmentation_ext=0, input_dir=None):
+
+        # TODO: clean this up when there is time
 
         if input_dir is not None:
             image_file = Path(input_dir) / Path(image_file)
@@ -758,7 +862,11 @@ class ImageLocator(object):
             if mask_file is not None:
                 mask_file = Path(input_dir) / Path(mask_file)
             if background_file is not None:
-                background_file = Path(input_dir) / Path(mask_file)
+                background_file = Path(input_dir) / Path(background_file)
+            if skyvar_file is not None:
+                skyvar_file = Path(input_dir) / Path(skyvar_file)
+            if segmentation_file is not None:
+                segmentation_file = Path(input_dir) / Path(segmentation_file)
 
         else:
             image_file = Path(image_file)
@@ -768,39 +876,33 @@ class ImageLocator(object):
             if mask_file is not None:
                 mask_file = Path(mask_file)
             if background_file is not None:
-                background_file = Path(mask_file)
+                background_file = Path(background_file)
+            if skyvar_file is not None:
+                skyvar_file = Path(skyvar_file)
+            if segmentation_file is not None:
+                segmentation_file = Path(segmentation_file)
 
         self.input_dir = input_dir
 
         self._image_file = image_file
-        if image_ext is None:
-            self._image_ext = 0
-        else:
-            self._image_ext = image_ext
+        self._image_ext = image_ext
 
         self._weight_file = weight_file
-        if weight_ext is None:
-            self._weight_ext = 0
-        else:
-            self._weight_ext = weight_ext
+        self._weight_ext = weight_ext
 
         self._mask_file = mask_file
-        if mask_ext is None:
-            self._mask_ext = 0
-        else:
-            self._mask_ext = mask_ext
+        self._mask_ext = mask_ext
 
         self._background_file = background_file
-        if background_ext is None:
-            self._background_ext = 0
-        else:
-            self._background_ext = background_ext
+        self._background_ext = background_ext
 
         self._skyvar_file = skyvar_file
-        if skyvar_ext is None:
-            self._skyvar_ext = 0
-        else:
-            self._skyvar_ext = skyvar_ext
+        self._skyvar_ext = skyvar_ext
+
+        self._segmentation_file = segmentation_file
+        self._segmentation_ext = segmentation_ext
+
+        return
 
     @property
     def image(self):
@@ -821,7 +923,7 @@ class ImageLocator(object):
             return fitsio.FITS(self._mask_file, 'r')[self._mask_ext]
 
     @property
-    def skybkg(self):
+    def background(self):
         if self._background_file is None:
             return None
         else:
@@ -834,6 +936,12 @@ class ImageLocator(object):
         else:
             return fitsio.FITS(self._background_file, 'r')[self._skyvar_ext]
 
+    @property
+    def segmentation(self):
+        if self._segmentation_file is None:
+            return None
+        else:
+            return fitsio.FITS(self._segmentation_file, 'r')[self._segmentation_ext]
 
 #------------------------------------------------------------------------------
 # Some helper funcs relevant to CookieCutter

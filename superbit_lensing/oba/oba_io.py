@@ -261,8 +261,8 @@ def parse_image_file(image_file, image_type):
     Raw sci images and calibration images have different filename
     conventions:
 
-    SCI: {TARGET_NAME}_{EXP_TIME}_{BAND_INDEX}_{UTC}.fits
-    CAL: master_{TYPE}_{EXP_TIME}_{UTC}.fits
+    SCI: {TARGET_NAME}_{BAND_INDEX}_{UNIX_TIME}_{UNIX_TIME}.fits
+    CAL: master_{TYPE}_{EXP_TIME}_{UNIX_TIME}.fits
 
     image_file: pathlib.Path
         The filepath of the raw image. Can be a processed image as
