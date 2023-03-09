@@ -511,7 +511,7 @@ class CookieCutter(object):
                         sky_var = None
 
                     if imageObj.weight is not None:
-                        print('Weight extension currently not implemented!')
+                        # print('Weight extension currently not implemented!')
                         weight = None
                         # weight_cutout = np.zeros_like(image_cutout)
                         # weight_cutout[cutout_slice] = imageObj.weight[image_slice]
@@ -525,8 +525,18 @@ class CookieCutter(object):
                         mask_cutout[cutout_slice] = imageObj.mask[image_slice]
 
                     if imageObj.segmentation is not None:
+                        # TODO: It would be nice to generalize this, but it is a
+                        # common case that the segmentation map comes from a
+                        # different image than the rest (coadd vs. single-epoch)
+                        # NOTE: the segmentation WCS lives in a different ext as
+                        # it is coming from the detection coadd
+                        seg_wcs = imageObj.get_wcs('segmentation', ext=0)
+                        seg_out = self._compute_obj_slices(
+                            imageObj.segmentation, obj, seg_wcs
+                            )
+                        seg_slice, seg_cutout_slice, seg_cutout_size = seg_out
                         seg_cutout = np.zeros_like(image_cutout)
-                        seg_cutout[cutout_slice] = imageObj.segmentation[image_slice]
+                        seg_cutout[seg_cutout_slice] = imageObj.segmentation[seg_slice]
                     else:
                         seg_cutout = None
 
@@ -538,8 +548,7 @@ class CookieCutter(object):
                         mask_output = mask_cutout
 
                     # shouldn't happen, but just in case:
-                    msk_max_val = int(2**(8 * msk_dtype.itemsize))
-                    ipdb.set_trace()
+                    msk_max_val = int(2**(8 * np.dtype(msk_dtype).itemsize))
                     if (mask_output > msk_max_val).any():
                         raise ValueError('The combined segmask has values '
                                          f'above {msk_max_val}, which is the '
@@ -650,7 +659,7 @@ class CookieCutter(object):
 
         return Npix, skip_list
 
-    def _compute_obj_slices(self, image, obj):
+    def _compute_obj_slices(self, image, obj, wcs=None):
         '''
         Compute the image & cutout slices corrresponding to the given obj
 
@@ -658,6 +667,8 @@ class CookieCutter(object):
             A FITS Image HDU object
         obj: np.recarray row, astropy.Table row
             The object being considered
+        wcs: astropy.wcs.WCS
+            The image WCS, if it cannot be found in the passed image header
 
         returns: (image_slice, cutout_slice, cutout_size)
             A tuple of the slices needed to correctly grab the object
@@ -677,10 +688,13 @@ class CookieCutter(object):
             ra=obj[ra_tag]*ra_unit, dec=obj[dec_tag]*dec_unit
             )
 
-        image_wcs = WCS(image.read_header())
+        if wcs is None:
+            # default behavior is to grab it from the passed image header
+            wcs = WCS(image.read_header())
+
         image_shape = image.get_info()['dims']
 
-        x, y = image_wcs.world_to_pixel(coord)
+        x, y = wcs.world_to_pixel(coord)
         object_pos_in_image = [x.item(), y.item()]
 
         # NOTE: reversed as numpy arrays have opposite convention!
@@ -734,7 +748,6 @@ class CookieCutter(object):
         seg_obj = self.config['segmentation']['obj']
         seg_neighbor = self.config['segmentation']['neighbor']
 
-        ipdb.set_trace()
         for name, val in dict(
                 zip(
                     ['obj', 'neighbor'],
@@ -749,8 +762,6 @@ class CookieCutter(object):
 
         if seg_type == 'minimal':
             # NOTE: used to keep track of sky here as well, but not needed
-            if seg_neighbor in seg:
-                ipdb.set_trace()
             combined_mask[seg == _obj] += seg_obj
             combined_mask[(seg != _obj) & (seg != _sky)] = seg_neighbor
 
@@ -845,6 +856,16 @@ class ImageLocator(object):
     Lightweight container & access protocol for all input images associated
     with a CookieCutter ingested image
     '''
+
+    # the list of registered image types
+    _allowed_types = [
+        'image',
+        'weight',
+        'mask',
+        'background',
+        'skyvar',
+        'segmentation',
+    ]
 
     def __init__(self, image_file, image_ext=0, weight_file=None,
                  weight_ext=0, mask_file=None, mask_ext=0,
@@ -942,6 +963,32 @@ class ImageLocator(object):
             return None
         else:
             return fitsio.FITS(self._segmentation_file, 'r')[self._segmentation_ext]
+
+    def get_wcs(self, image_type, ext=0):
+        '''
+        In some cases, the WCS of an image will not live in the same extension as
+        the passed image data. In that case, you can request to get the WCS
+        from an arbitrary extension for a given image type
+
+        image_type: str
+            The name of the image type whose WCS you want to grab
+        ext: int
+            The image extension where the WCS lives
+        '''
+
+        utils.check_type('image_type', image_type, str)
+        utils.check_type('ext', ext, int)
+
+        if image_type not in self._allowed_types:
+            raise ValueError(f'{image_type} is not one of the allowed image ' +
+                             f'types; must be one of {self._allowed_types}')
+
+        image_file = getattr(self, f'_{image_type}_file')
+
+        # hdr = fitsio.FITS(image_file, 'r')[ext].read_header()
+        hdr = fitsio.read_header(image_file, ext=ext)
+
+        return WCS(hdr)
 
 #------------------------------------------------------------------------------
 # Some helper funcs relevant to CookieCutter
