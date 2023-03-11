@@ -129,17 +129,23 @@ def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
     '''
 
     # NOTE: haven't made it robust to |theta| > 90
-    assert abs(theta.deg) <= 90
-    if theta.deg > 90:
-        ipdb.set_trace()
+    # assert abs(theta.deg) <= 90
+    if np.pi/2 < theta.rad < 3*np.pi/2:
+        csign = -1.0
+    else:
+        csign = 1.0
+    if np.pi < theta.rad < 2*np.pi:
+        ssign = -1.0
+    else:
+        ssign = 1.0
 
     # original box lengths
     Lx = im_xsize.to(u.deg).value
     Ly = im_ysize.to(u.deg).value
 
     # compute the new, larger box
-    new_Lx = Ly * np.sin(theta.rad) + Lx * np.cos(theta.rad)
-    new_Ly = Lx * np.sin(theta.rad) + Ly * np.cos(theta.rad)
+    new_Lx = Ly * (ssign*np.sin(theta.rad)) + Lx * (csign*np.cos(theta.rad))
+    new_Ly = Lx * (ssign*np.sin(theta.rad)) + Ly * (csign*np.cos(theta.rad))
 
     ra_min = ra - new_Lx/2.
     ra_max = ra + new_Lx/2.
