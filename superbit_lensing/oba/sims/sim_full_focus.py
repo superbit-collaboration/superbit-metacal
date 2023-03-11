@@ -45,7 +45,9 @@ def parse_args():
 
     return parser.parse_args()
 
-def get_zernike(band, strehl_ratio):
+def get_zernike(band, strehl_ratio=None):
+    if strehl_ratio is None:
+        strehl_ratio = 100
     sr = str(int(strehl_ratio))
     fname = OBA_SIM_DATA_DIR / f'psf/{band}_{sr}.csv'
     return np.genfromtxt(
@@ -107,7 +109,9 @@ def set_config_defaults(config):
         config['star_stamp_size'] = 1000
 
     if 'strehl_ratio' not in config:
-        config['strehl_ratio'] = 100
+        # NOTE: needed to change this from 100 to handle simultaneous
+        # output formats between Ajay & Spencer
+        config['strehl_ratio'] = None
 
     return config
 
@@ -606,7 +610,7 @@ def main(args):
             else:
                 rn = f'{run_name}/'
 
-            if strehl_ratio == 100:
+            if strehl_ratio is None:
                 sr = ''
             else:
                 sr = f'{strehl_ratio}/'
@@ -935,17 +939,22 @@ def main(args):
                     join_type='left',
                     )
 
+    if strehl_ratio is None:
+        sr = ''
+    else:
+        sr = f'sr_{strehl_ratio}_'
+
     # merge truth cats & save
     if add_stars is True:
-        outfile = f'{run_dir}/truth_stars_{target_name}.fits'
+        outfile = f'{run_dir}/{sr}truth_stars_{target_name}.fits'
         truth_star_cat.write(outfile, overwrite=overwrite)
 
     if add_galaxies is True:
-        outfile = f'{run_dir}/truth_gals_{target_name}.fits'
+        outfile = f'{run_dir}/{sr}truth_gals_{target_name}.fits'
         truth_gal_cat.write(outfile, overwrite=overwrite)
 
     if add_cluster is True:
-        outfile = f'{run_dir}/truth_cluster_{target_name}.fits'
+        outfile = f'{run_dir}/{sr}truth_cluster_{target_name}.fits'
         truth_cluster_cat.write(outfile, overwrite=overwrite)
 
     return 0
