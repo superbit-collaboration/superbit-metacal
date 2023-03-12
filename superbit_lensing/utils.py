@@ -142,6 +142,13 @@ def read_yaml(yaml_file):
         return yaml.load(stream, Loader=loader)
 
 def write_yaml(yaml_dict, yaml_outfile):
+    '''
+    yaml_dict: dict
+        The dictionary to save to a yaml config file
+    yaml_outfile: str
+        The path of the output config file
+    '''
+
     with open(yaml_outfile, 'w') as yaml_file:
         yaml.dump(yaml_dict, yaml_file, default_flow_style=False)
 
