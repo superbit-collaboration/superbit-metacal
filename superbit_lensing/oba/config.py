@@ -44,16 +44,14 @@ class OBAConfig(ModuleConfig):
             # the OBA on the `hen` SuperBIT machine
             'type': 'hen',
             'run_name': None,
-            'sim_dir': '/home/sweveret/repos/superbit-metacal/tests/ajay/',
+            'sim_dir': None,
             # this tells the test prepper to skip compressing test images
             # if they are already present
             'skip_existing': True,
         },
         'masking': {
-            'types': {
-                'cosmic_rays': True,
-                'satellites': True,
-            },
+            'cosmic_rays': True,
+            'satellites': True,
         },
         'astrometry': {
             # can force the astrometry module to rerun the WCS solution even if

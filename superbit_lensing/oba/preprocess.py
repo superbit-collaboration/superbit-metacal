@@ -135,6 +135,9 @@ class PreprocessRunner(object):
             dirs.append(self.run_dir / b / 'coadd/')
             dirs.append(self.run_dir / b / 'out/')
 
+            # for images that fail during astrometry module
+            dirs.append(self.run_dir / b / 'failed/')
+
         for d in dirs:
             logprint(f'Creating directory {d}')
             utils.make_dir(d)

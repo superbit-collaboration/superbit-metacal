@@ -57,9 +57,9 @@ class IOManager(object):
 
     NOTE: ‘det’ is not an actual filter, but a combination of bands (derived)
 
-    Temporary output analysis files (coadds, MEDS, & logs for now)
+    Temporary output analysis files (FITS, configs, & logs for now)
     for a given band & target:
-    OBA_CLUSETRS/{TARGET_NAME}/out/
+    OBA_DIR/{TARGET_NAME}/out/
 
     ----------------------------------------------------------------------
     GAIA catalog(s)
@@ -261,7 +261,7 @@ def parse_image_file(image_file, image_type):
     Raw sci images and calibration images have different filename
     conventions:
 
-    SCI: {TARGET_NAME}_{BAND_INDEX}_{UNIX_TIME}_{UNIX_TIME}.fits
+    SCI: {TARGET_NAME}_{BAND_INDEX}_{EXP_TIME}_{UNIX_TIME}.fits
     CAL: master_{TYPE}_{EXP_TIME}_{UNIX_TIME}.fits
 
     image_file: pathlib.Path
@@ -325,8 +325,11 @@ def parse_sci_image_file(image_file):
     # We define them relative to the end to allow for _'s in a target_name
     im_pars = {
         'target_name': '_'.join(features[0:-3-offset]),
+        # TODO: Revert when ready!!
         'exp_time': int(features[-3-offset]),
         'band': index2band(int(features[-2-offset])),
+        # 'band': index2band(int(features[-3-offset])),
+        # 'exp_time': int(features[-2-offset]),
         'utc': int(features[-1-offset])
         }
 
