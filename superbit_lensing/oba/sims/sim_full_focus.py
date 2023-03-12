@@ -45,7 +45,9 @@ def parse_args():
 
     return parser.parse_args()
 
-def get_zernike(band, strehl_ratio):
+def get_zernike(band, strehl_ratio=None):
+    if strehl_ratio is None:
+        strehl_ratio = 100
     sr = str(int(strehl_ratio))
     fname = OBA_SIM_DATA_DIR / f'psf/{band}_{sr}.csv'
     return np.genfromtxt(
@@ -70,10 +72,14 @@ def setup_seeds(config):
     }
 
     Nseeds = len(seeds)
-    seeds_to_set = utils.generate_seeds(Nseeds, master_seed=master_seed)
+    seeds_to_set, master_seed = utils.generate_seeds(
+        Nseeds, master_seed=master_seed, return_master=True
+    )
 
     for key in seeds.keys():
         seeds[key] = seeds_to_set.pop()
+
+    seeds['master'] = master_seed
 
     return seeds
 
@@ -107,7 +113,9 @@ def set_config_defaults(config):
         config['star_stamp_size'] = 1000
 
     if 'strehl_ratio' not in config:
-        config['strehl_ratio'] = 100
+        # NOTE: needed to change this from 100 to handle simultaneous
+        # output formats between Ajay & Spencer
+        config['strehl_ratio'] = None
 
     return config
 
@@ -374,6 +382,11 @@ def main(args):
 
     # dict of independent seeds for given types
     seeds = setup_seeds(config)
+    master_seed = seeds['master']
+    logprint(f'Using master_seed of {master_seed}')
+
+    # guaranteed to need noise seed
+    noise_rng = np.random.default_rng(seeds['noise'])
 
     gs_params = galsim.GSParams(maximum_fft_size=max_fft_size)
 
@@ -511,7 +524,7 @@ def main(args):
             ra.value + sample_len,
             size=Ngals
             )
-        sampled_dec = np.random.uniform(
+        sampled_dec = gal_rng.uniform(
             dec.value - sample_len,
             dec.value + sample_len,
             size=Ngals
@@ -612,7 +625,7 @@ def main(args):
             else:
                 rn = f'{run_name}/'
 
-            if strehl_ratio == 100:
+            if strehl_ratio is None:
                 sr = ''
             else:
                 sr = f'{strehl_ratio}/'
@@ -851,7 +864,8 @@ def main(args):
 
             # add shot noise on sky + sources
             # TODO: sort out why this turns sci_img to ints...
-            noise = galsim.PoissonNoise(sky_level=0.0)
+            noise_dev = galsim.BaseDeviate(seeds['noise'])
+            noise = galsim.PoissonNoise(sky_level=0.0, rng=noise_dev)
             sci_img.addNoise(noise)
             sci_img = sci_img.array
 
@@ -900,7 +914,7 @@ def main(args):
             # Path checks
             Path(outdir).mkdir(parents=True, exist_ok=True)
 
-            output_fname = f'{outdir}/{target_name}_{exp_time}_{band_int}_{unix_time}.fits'
+            output_fname = f'{outdir}/{target_name}_{band_int}_{exp_time}_{unix_time}.fits'
 
             fits.writeto(
                 filename=output_fname,
@@ -941,17 +955,22 @@ def main(args):
                     join_type='left',
                     )
 
+    if strehl_ratio is None:
+        sr = ''
+    else:
+        sr = f'sr_{strehl_ratio}_'
+
     # merge truth cats & save
     if add_stars is True:
-        outfile = f'{run_dir}/truth_stars_{target_name}.fits'
+        outfile = f'{run_dir}/{sr}truth_stars_{target_name}.fits'
         truth_star_cat.write(outfile, overwrite=overwrite)
 
     if add_galaxies is True:
-        outfile = f'{run_dir}/truth_gals_{target_name}.fits'
+        outfile = f'{run_dir}/{sr}truth_gals_{target_name}.fits'
         truth_gal_cat.write(outfile, overwrite=overwrite)
 
     if add_cluster is True:
-        outfile = f'{run_dir}/truth_cluster_{target_name}.fits'
+        outfile = f'{run_dir}/{sr}truth_cluster_{target_name}.fits'
         truth_cluster_cat.write(outfile, overwrite=overwrite)
 
     return 0

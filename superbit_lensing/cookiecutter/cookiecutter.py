@@ -24,7 +24,8 @@ that it will allow for non-float dtypes, which significantly decreases the
 disk (and thus bandwidth) requirement. Metadata for each cutout source is also
 saved in a separate FITS extension
 
-The CookieCutter format was designed by Eric Huff of JPL
+The CookieCutter format was initially designed by Eric Huff & expanded upon
+by Spencer Everett
 '''
 
 # TODO:
