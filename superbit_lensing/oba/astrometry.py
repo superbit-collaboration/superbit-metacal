@@ -3,7 +3,7 @@ from glob import glob
 from astropy.io import fits
 from astropy.wcs import WCS
 import fitsio
-import os
+import shutil
 
 from superbit_lensing import utils
 from superbit_lensing.oba.oba_io import band2index
@@ -24,7 +24,7 @@ class AstrometryRunner(object):
     ext3: BKG (background)
     '''
 
-    def __init__(self, run_dir, bands, target_name=None, search_radius=10):
+    def __init__(self, run_dir, bands, target_name=None, search_radius=1):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -61,6 +61,12 @@ class AstrometryRunner(object):
         # by sci_cal filename
         self.wcs_solutions = {}
 
+        # this dictionary will store any images that fail to be astrometrically
+        # registered, indexed by band
+        self.failed = {}
+
+        self.Nfailed = 0
+
         return
 
     def go(self, logprint, rerun=False, overwrite=False):
@@ -74,7 +80,8 @@ class AstrometryRunner(object):
         (1) Register input images
         (2) Check for existing WCS solution
         (3) Run Astrometry.net
-        (4) If unsuccessful, modify image (e.g. filtering) and try again
+        (4) If unsuccessful, move calibrated image to the corresponding
+            {BAND}/failed/ dir
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -91,6 +98,10 @@ class AstrometryRunner(object):
         # NOTE: check for existing WCS solutions is done inside method
         logprint('Registering images...')
         self.register_images(logprint, overwrite=overwrite, rerun=rerun)
+
+        if self.Nfailed > 0:
+            logprint('Removing failed images...')
+            self.move_failed_images(logprint, overwrite=overwrite)
 
         return
 
@@ -199,7 +210,6 @@ class AstrometryRunner(object):
                     wcs_cmd_full += ' --overwrite'
 
                 # run Astrometry.net script
-                # os.system(wcs_cmd_full)
                 utils.run_command(wcs_cmd_full, logprint=logprint)
                 new_file_list = glob(f'{str(wcs_dir)}/*new*')
 
@@ -265,5 +275,45 @@ class AstrometryRunner(object):
         with fits.open(str(raw_image), mode='update') as raw:
             raw[0].header.update(wcs.to_header())
             raw.flush()
+
+        return
+
+    def move_failed_images(self, logprint, overwrite, out_dir='failed'):
+        '''
+        Move any images that failed astrometric registration from the `cal` to
+        `failed` directory for the given band
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        for band in self.bands:
+            logprint(f'Starting band {b}')
+
+            failed_dir = (self.run_dir / band / 'failed/').resolve()
+
+            for image in self.failed[band]:
+                logprint(f'Moving {image.name} to {str(dest_dir)}')
+                self._move_image(image, failed_dir)
+
+        return
+
+    @staticmethod
+    def _move_image(source, dest):
+        '''
+        Move a file from a source file to a destination directory
+
+        source: pathlib.Path
+            The image file to move
+        dest: pathlib.Path
+            The destination directory to move to
+        '''
+
+        utils.check_type('source', source, Path)
+        utils.check_type('dest', dest, Path)
+
+        shutil.move(str(source), str(dest))
 
         return
