@@ -1,0 +1,27 @@
+astrometry:
+  rerun: false
+  search_radius: 1
+cleanup:
+  clean_oba_dir: false
+detection: null
+masking:
+  cosmic_rays: false
+  satellites: false
+modules:
+- astrometry
+- starmask
+run_options:
+  bands:
+  - b
+  - r
+  det_bands:
+  - b
+  - r
+  overwrite: true
+  target_name: Abell2813
+  vb: true
+test:
+  run_name: wcs_fix_25k
+  sim_dir: /Users/sweveret/repos/superbit-metacal/tests/ajay/
+  skip_existing: true
+  type: hen
