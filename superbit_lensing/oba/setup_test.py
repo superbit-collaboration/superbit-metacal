@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 from glob import glob
 import shutil
+import fitsio
 
 from superbit_lensing import utils
 from superbit_lensing.oba.oba_io import band2index
@@ -108,6 +109,11 @@ class TestPrepper(object):
 
         for image in images:
             shutil.copy(image, target_dir)
+
+            # we will also update the headers here as well, to simulate the
+            # image checker
+            with fitsio.FITS(image, 'rw') as fits:
+                fits[0].write_key('IMG_QUAL', 'UNVERIFIED')
 
         return
 
