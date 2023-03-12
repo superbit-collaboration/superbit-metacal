@@ -914,7 +914,7 @@ def main(args):
             # Path checks
             Path(outdir).mkdir(parents=True, exist_ok=True)
 
-            output_fname = f'{outdir}/{target_name}_{exp_time}_{band_int}_{unix_time}.fits'
+            output_fname = f'{outdir}/{target_name}_{band_int}_{exp_time}_{unix_time}.fits'
 
             fits.writeto(
                 filename=output_fname,
