@@ -72,10 +72,14 @@ def setup_seeds(config):
     }
 
     Nseeds = len(seeds)
-    seeds_to_set = utils.generate_seeds(Nseeds, master_seed=master_seed)
+    seeds_to_set, master_seed = utils.generate_seeds(
+        Nseeds, master_seed=master_seed, return_master=True
+    )
 
     for key in seeds.keys():
         seeds[key] = seeds_to_set.pop()
+
+    seeds['master'] = master_seed
 
     return seeds
 
@@ -378,6 +382,8 @@ def main(args):
 
     # dict of independent seeds for given types
     seeds = setup_seeds(config)
+    master_seed = seeds['master']
+    logprint(f'Using master_seed of {master_seed}')
 
     # guaranteed to need noise seed
     noise_rng = np.random.default_rng(seeds['noise'])
