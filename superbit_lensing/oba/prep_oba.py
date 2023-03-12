@@ -11,12 +11,19 @@ import ipdb
 
 '''
 This script is used for preparing the SuperBIT onboard analysis (OBA) on the
-QCC flight computer. It expects a single string from the QCC commander that we
-parse for all needed information:
+QCC flight computer. It expects a target name and a series of integers for
+each SuperBIT band that define the following:
 
-1) ...
+1) How many images are required per-band for this target to run the OBA
+   (can be zero; will still analyze those bands & send down cutouts)
+2) Whether to ignore a given band in the OBA (by setting to -1)
 
-TODO: Write after talking w/ Emaad!
+In addition, the final argument `allow_unverified` is used to allow for some
+flexibility in what images can be accepted for the OBA. The fiducial plan is
+for all raw SCI images to be examined by a image checker that will set the
+header IMG_QUAL to one of ['GOOD', 'BAD', 'UNVERIFIED']. In the case that the
+image checker does not work or is not run on some images, you can choose to
+allow unverified images in the analysis
 '''
 
 def parse_args():
