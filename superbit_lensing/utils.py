@@ -147,7 +147,8 @@ def write_yaml(yaml_dict, yaml_outfile):
 
     return
 
-def generate_seeds(Nseeds, master_seed=None, seed_bounds=(0, 2**32-1)):
+def generate_seeds(Nseeds, master_seed=None, seed_bounds=(0, 2**32-1),
+                   return_master=False):
     '''
     generate a set of safe, independent seeds given a master seed
 
@@ -157,6 +158,8 @@ def generate_seeds(Nseeds, master_seed=None, seed_bounds=(0, 2**32-1)):
         A seed that initializes the SeedSequence, if desired
     seed_bounds: tuple of ints
         The min & max values for the seeds to be sampled from
+    return_master: bool
+        Return the master seed as well (in case it wasn't passed!)
     '''
 
     if (not isinstance(Nseeds, int)) or (Nseeds < 1):
@@ -183,7 +186,10 @@ def generate_seeds(Nseeds, master_seed=None, seed_bounds=(0, 2**32-1)):
         val = int(streams[k].integers(seed_bounds[0], seed_bounds[1]))
         seeds.append(val)
 
-    return seeds
+    if return_master is True:
+        return seeds, master_seed
+    else:
+        return seeds
 
 def check_req_params(config, params, defaults):
     '''
