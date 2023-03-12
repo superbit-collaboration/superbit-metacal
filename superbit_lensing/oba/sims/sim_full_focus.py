@@ -379,6 +379,9 @@ def main(args):
     # dict of independent seeds for given types
     seeds = setup_seeds(config)
 
+    # guaranteed to need noise seed
+    noise_rng = np.random.default_rng(seeds['noise'])
+
     gs_params = galsim.GSParams(maximum_fft_size=max_fft_size)
 
     # Dict for pivot wavelengths
@@ -515,7 +518,7 @@ def main(args):
             ra.value + sample_len,
             size=Ngals
             )
-        sampled_dec = np.random.uniform(
+        sampled_dec = gal_rng.uniform(
             dec.value - sample_len,
             dec.value + sample_len,
             size=Ngals
@@ -855,7 +858,8 @@ def main(args):
 
             # add shot noise on sky + sources
             # TODO: sort out why this turns sci_img to ints...
-            noise = galsim.PoissonNoise(sky_level=0.0)
+            noise_dev = galsim.BaseDeviate(seeds['noise'])
+            noise = galsim.PoissonNoise(sky_level=0.0, rng=noise_dev)
             sci_img.addNoise(noise)
             sci_img = sci_img.array
 
