@@ -84,6 +84,9 @@ class OBARunner(object):
 
         self.modules = self.config['modules']
 
+        if self.modules is None:
+            self.modules = []
+
         return
 
     def parse_bands(self):
@@ -339,7 +342,15 @@ class OBARunner(object):
             return
 
 
-        mask_types = self.config['masking']['types']
+        # had to rework this to have a consistent config depth
+        cosmics = self.config['masking']['cosmic_rays']
+        satellites = self.config['masking']['satellites']
+
+        mask_types = []
+        mtypes = ['cosmic_rays', 'satellites']
+        for mtype in mtypes:
+            if self.config['masking'][mtype] is True:
+                mask_types.append(mtype)
 
         runner = MaskingRunner(
             self.run_dir,
