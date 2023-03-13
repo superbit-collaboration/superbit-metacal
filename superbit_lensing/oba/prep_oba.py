@@ -153,7 +153,7 @@ def main(args):
 
     if failed is True:
         print(f'Failed: {base_msg}')
-        return 1
+        return 2
     else:
         print(base_msg)
 
@@ -168,6 +168,19 @@ def main(args):
     # Now update with our target-specific configuration
     config['run_options']['target_name'] = target_name
     config['run_options']['bands'] = use_bands
+
+    #-----------------------------------------------------------------
+    # Do any sanity checks needed to error *before* running the OBA
+    # to save headaches later on
+
+    det_bands = config['run_options']['det_bands']
+
+    for band in det_bands:
+        Ngood = acceptable_images[band]
+        if Ngood == 0:
+            print(f'Failed: det_bands={det_bands} but there are 0 acceptable ' +
+                  f'images for {band}')
+            return 3
 
     #-----------------------------------------------------------------
     # Write config to disk

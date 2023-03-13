@@ -54,7 +54,7 @@ class CoaddRunner(object):
             'config_file': (config_file, Path),
             'run_dir': (run_dir, Path),
             'bands': (bands, list),
-            'det_bands': (bands, list),
+            'det_bands': (det_bands, list),
             'sci_ext': (sci_ext, int),
             'wgt_ext': (wgt_ext, int)
         }
@@ -76,6 +76,11 @@ class CoaddRunner(object):
         # this dictionary will store the coadd image filepaths (sci & wgt)
         # indexed by both band and ext
         self.coadds = {}
+
+        # this keeps track of any bands that have no input images to coadd,
+        # in case you still requested it
+        # NOTE: won't work if it is a detection band!
+        self.skip = []
 
         self.outfile_base = f'{target_name}_coadd'
 
@@ -160,10 +165,19 @@ class CoaddRunner(object):
             Nimages = len(self.images[band])
             logprint(f'Found {Nimages} images')
 
-            # to keep consistent convention with other modules, store as Paths
-            for i, image in enumerate(self.images[band]):
-                image = Path(image)
-                self.images[band][i] = image
+            if Nimages > 0:
+                # to keep consistent convention with other modules, store as Paths
+                for i, image in enumerate(self.images[band]):
+                    image = Path(image)
+                    self.images[band][i] = image
+            else:
+                logprint(f'Adding {band} to the skip list')
+
+                if band in self.det_bands:
+                    raise OSError(f'Cannot skip band {band} as it is a ' +
+                                  'detection band!')
+
+                self.skip.append(band)
 
         return
 
@@ -200,6 +214,10 @@ class CoaddRunner(object):
 
         for band in self.bands:
             logprint(f'Starting band {band}')
+            if band in self.skip:
+                logprint('Skipping as no images were found')
+                continue
+
             self.coadds[band] = {}
 
             outdir = (self.run_dir / band / 'coadd/').resolve()
@@ -221,10 +239,10 @@ class CoaddRunner(object):
                 '.fits', '.wgt.fits'
                 )
 
-        if len(self.coadds) != len(self.bands):
+        if len(self.coadds) != (len(self.bands) - len(self.skip)):
             logprint('WARNING: The number of produced coadds does not ' +
-                          'equal the number of passed bands; something ' +
-                          'likely has failed!')
+                     'equal the number of passed bands (minus skips); ' +
+                     'something likely has failed!')
 
         return
 

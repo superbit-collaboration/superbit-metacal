@@ -67,17 +67,6 @@ class OBARunner(object):
         return
 
     def parse_config(self):
-        # TODO: Do additional parsing!
-        # if self.config_file is not None:
-        #     config = utils.read_yaml(self.config_file)
-        #     self.config = utils.parse_config(
-        #         config, self._req_fields, self._opt_fields
-        #         )
-        # else:
-        #     # make a very simple config consistent with a
-        #     # real data run
-        #     self.config = self._make_default_config()
-
         # NOTE: all parsing has been moved into the new OBAConfig class,
         # including default setting. See class for config def details
         self.config = OBAConfig(self.config_file)
