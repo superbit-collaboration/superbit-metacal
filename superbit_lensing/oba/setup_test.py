@@ -116,7 +116,7 @@ class TestPrepper(object):
                 fits[0].write_key('IMG_QUAL', 'UNVERIFIED')
                 fits[0].write_key('OBSTYPE', 'SCIENCE')
 
-                im_pars = parse_image_file(image)
+                im_pars = parse_image_file(image, 'sci')
                 band = im_pars['band']
                 bindx = band2index(band)
                 fits[0].write_key('FILTER', str(bindx))
@@ -316,7 +316,7 @@ class HenSimsTestPrepper(TestPrepper):
 
                 shutil.copy(cal_file, outfile)
 
-                with fitsio.FITS(outfile) as fits:
+                with fitsio.FITS(outfile, 'rw') as fits:
                     if cal == 'darks':
                         obstype = 'DARK'
                     elif cal == 'flats':

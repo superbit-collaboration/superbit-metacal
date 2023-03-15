@@ -338,7 +338,7 @@ def run_command(cmd, logprint=None, silent=False):
             stdout, stderr = process.communicate()
 
         except:
-            if silent is false:
+            if silent is False:
                 logprint('')
                 logprint('.....................ERROR....................')
                 logprint('')
