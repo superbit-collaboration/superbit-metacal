@@ -439,10 +439,11 @@ def main(args):
         )
 
     # the *sampled* area has to be bigger than this, to allow for rolls
-    img_max_len = np.max([
-        sci_img_size_x_arcsec.value, sci_img_size_y_arcsec.value
-        ]) * u.arcsec
-    sampled_img_area = (img_max_len**2).to(u.arcmin**2)
+    im_buffer = 30 # arcsec
+    img_radius = (im_buffer + np.sqrt(
+        sci_img_size_x_arcsec.value**2 + sci_img_size_y_arcsec.value**2
+        )) * u.arcsec
+    sampled_img_area = ((2*img_radius)**2).to(u.arcmin**2)
 
     n_gal_sqarcmin = 97.55 * (u.arcmin**-2)
 
@@ -534,19 +535,23 @@ def main(args):
 
         # we use the larger box to handle roll angles
         # first, use the diagonal which is ~20% larger. Then add buffer
-        ra_sample_len = 1.3*(1.2*img_max_len).to(u.deg).value
-        dec_sample_len = 1.3*(1.2*img_max_len / 2.).to(u.deg).value
+        # ra_sample_len = img_1.3*(1.2*img_max_len).to(u.deg).value
+        # dec_sample_len = 1.3*(1.2*img_max_len / 2.).to(u.deg).value
+
+        ra_radius = img_radius.to(u.deg).value
+        dec_radius = img_radius.to(u.deg).value
 
         sampled_ra = gal_rng.uniform(
-            ra.value - ra_sample_len,
-            ra.value + ra_sample_len,
+            ra.value - ra_radius,
+            ra.value + ra_radius,
             size=Ngals
             )
 
         sampled_dec = sample_uniform_dec(
-            dec.value - dec_sample_len,
-            dec.value + dec_sample_len,
-            N=Ngals
+            dec.value - dec_radius,
+            dec.value + dec_radius,
+            N=Ngals,
+            rng=gal_rng
             )
 
         gal_cat['ra'] = sampled_ra
@@ -731,25 +736,25 @@ def main(args):
             # NOTE: these define the minimum bounding box of the (possibly
             # rotated) image. This will allow us to skip galaxies
             # off of the current image more efficiently
-            ra_bounds, dec_bounds = compute_im_bounding_box(
-                ra_sim,
-                dec_sim,
-                sci_img_size_x_arcsec,
-                sci_img_size_y_arcsec,
-                theta
-                )
+            # ra_bounds, dec_bounds = compute_im_bounding_box(
+            #     ra_sim,
+            #     dec_sim,
+            #     sci_img_size_x_arcsec,
+            #     sci_img_size_y_arcsec,
+            #     theta
+            #     )
 
             # TODO: use cornish for actual overlap. For now, use a
             # sufficiently large buffer
-            ra_buff = .02
-            ra_bounds[0] -= ra_buff
-            ra_bounds[1] += ra_buff
-            dec_buff = ra_buff
-            dec_bounds[0] -= dec_buff
-            dec_bounds[1] += dec_buff
+            # ra_buff = .2
+            # ra_bounds[0] -= ra_buff
+            # ra_bounds[1] += ra_buff
+            # dec_buff = ra_buff
+            # dec_bounds[0] -= dec_buff
+            # dec_bounds[1] += dec_buff
 
-            ra_bounds *= u.deg
-            dec_bounds *= u.deg
+            # ra_bounds *= u.deg
+            # dec_bounds *= u.deg
 
             # setup NFW halo at the target position
             halo_pos = galsim.CelestialCoord(
@@ -794,8 +799,8 @@ def main(args):
                                 camera,
                                 exp_time,
                                 pix_scale,
-                                ra_bounds,
-                                dec_bounds,
+                                # ra_bounds,
+                                # dec_bounds,
                                 gs_params,
                                 star_stamp_size,
                                 logprint,
@@ -838,8 +843,8 @@ def main(args):
                                 exp_time,
                                 pix_scale,
                                 cosmos_plate_scale,
-                                ra_bounds,
-                                dec_bounds,
+                                # ra_bounds,
+                                # dec_bounds,
                                 gs_params,
                                 logprint
                             ] for k in range(ncores))
