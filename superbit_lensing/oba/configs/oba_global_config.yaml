@@ -1,11 +1,11 @@
 astrometry:
   rerun: false
-  search_radius: 1
+  search_radius: 1.0
 cleanup:
   clean_oba_dir: true
 masking:
   cosmic_rays: false
-  satellites: true
+  satellites: false
 modules:
 - preprocessing
 - cals
@@ -20,8 +20,6 @@ modules:
 run_options:
   det_bands:
   - b
-  - g
   - r
-  - lum
   overwrite: true
   vb: true
