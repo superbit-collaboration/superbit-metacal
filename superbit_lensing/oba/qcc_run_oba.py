@@ -194,7 +194,7 @@ def main(args):
     # Cleanup for fresh runs
 
     # we want it to match the QCC paths, relative to a local root dir
-    if fresh is True:
+    if (fresh is True) or (config['run_options']['fresh'] is True):
         target_dir = io_manager.OBA_TARGET
         logprint(f'Deleting old OBA outputs for {target_name} as --fresh is True')
         logprint(f'(copying config first to it isnt deleted)')

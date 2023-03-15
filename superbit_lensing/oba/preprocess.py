@@ -318,10 +318,11 @@ class PreprocessRunner(object):
                 logprint(f'Updating {image_name}; {i+1} of {Nimages}')
 
                 for key, val in self._header_info.items():
-                    hdr = fitsio.read_header(str(image))
+                    with fits.open(str(image)) as f:
+                        hdr = f[0].header
 
-                    # things have changed over time, so only add if the key
-                    # doesn't already exist
+                        # things have changed over time, so only add if the key
+                        # doesn't already exist
                     if key not in hdr:
                         fits.setval(str(image), key, value=val, ext=ext)
 

@@ -36,6 +36,7 @@ class OBAConfig(ModuleConfig):
     _opt_params = {
         'run_options': {
             'overwrite': False,
+            'fresh': False, # delete all previous OBA files on the QCC!
             'vb': False,
         },
         'modules': _default_modules,
