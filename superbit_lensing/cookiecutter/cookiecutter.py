@@ -25,7 +25,7 @@ that it will allow for non-float dtypes, which significantly decreases the
 disk (and thus bandwidth) requirement. Metadata for each cutout source is also
 saved in a separate FITS extension
 
-The CookieCutter format was designed by Eric Huff of JPL
+The CookieCutter format was designed by Eric Huff & Spencer Everett of JPL
 '''
 
 # TODO:
@@ -958,7 +958,6 @@ def reconstruct_original_FITS_header(inheader):
                 new_record = fitsio.FITSRecord( {'name':new_keyname, 'value':header[ikey], 'comment':''})
                 header.add_record(new_record)
     return header
-    
 
 def remove_essential_FITS_keys(header, exclude_keys=None, backup_keys = True):
     '''
