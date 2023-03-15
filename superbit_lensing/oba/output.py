@@ -163,9 +163,11 @@ class OutputRunner(object):
         # indexed by band
         self.config_files = {}
 
+        # if no images are found for a given band, add it to the skip list
+        self.skip = []
+
         self.det_coadd = self.run_dir / f'det/coadd/{target_name}_coadd_det.fits'
         self.det_cat = self.run_dir / f'det/cat/{target_name}_coadd_det_cat.fits'
-
 
         return
 
@@ -191,8 +193,8 @@ class OutputRunner(object):
 
         out_sci_dtype = self.out_sci_dtype
         out_msk_dtype = self.out_msk_dtype
-        logprint('Using output SCI dtype of {out_sci_dtype}')
-        logprint('Using output MSK dtype of {out_msk_dype}')
+        logprint(f'Using output SCI dtype of {out_sci_dtype}')
+        logprint(f'Using output MSK dtype of {out_msk_dtype}')
 
         logprint('Gathering input images...')
         self.gather_images(logprint)
@@ -251,6 +253,7 @@ class OutputRunner(object):
 
             if len(images) == 0:
                 logprint(f'WARNING: Zero raw images found; skipping')
+                self.skip.append(band)
 
             for image in images:
                 image = Path(image)
@@ -295,6 +298,10 @@ class OutputRunner(object):
 
         for band in self.bands:
             logprint(f'Starting band {band}')
+
+            if band in self.skip:
+                logprint(f'Skipping as no images were found')
+                continue
 
             band_dir = (run_dir / band).resolve()
 
@@ -391,6 +398,10 @@ class OutputRunner(object):
 
         for band in self.bands:
             logprint(f'Starting band {band}')
+
+            if band in self.skip:
+                logprint('Skipping as no images were found')
+                continue
 
             config_file = str(self.config_files[band])
             logprint(f'Using config file {config_file}')
