@@ -177,8 +177,8 @@ class AstrometryRunner(object):
                 # Attempt 1: Try with a larger search radius around expected
                 # RA and DEC (10 degrees by default)
                 hdu = fitsio.read_header(str(image))
-                target_ra = float(hdu['TARGET_RA'])
-                target_dec = float(hdu['TARGET_DEC'])
+                target_ra = float(hdu['TRG_RA'])
+                target_dec = float(hdu['TRG_DEC'])
 
                 wcs_dir = image.parents[1] / 'wcs/'
 

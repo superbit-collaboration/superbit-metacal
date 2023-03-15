@@ -325,11 +325,8 @@ def parse_sci_image_file(image_file):
     # We define them relative to the end to allow for _'s in a target_name
     im_pars = {
         'target_name': '_'.join(features[0:-3-offset]),
-        # TODO: Revert when ready!!
-        'exp_time': int(features[-3-offset]),
-        'band': index2band(int(features[-2-offset])),
-        # 'band': index2band(int(features[-3-offset])),
-        # 'exp_time': int(features[-2-offset]),
+        'band': index2band(int(features[-3-offset])),
+        'exp_time': int(features[-2-offset]),
         'utc': int(features[-1-offset])
         }
 
@@ -455,7 +452,7 @@ def get_raw_files(search_dir, target_name, band=None):
         ignore += f'{suffix},'
     ignore += ']'
 
-    fname_base = f'{target_name}_*{band_str}*{ignore}.fits'
+    fname_base = f'{target_name}*{band_str}*{ignore}.fits'
     image_base = search_dir / fname_base
 
     files = glob(

@@ -5,7 +5,7 @@ import shutil
 import fitsio
 
 from superbit_lensing import utils
-from superbit_lensing.oba.oba_io import band2index
+from superbit_lensing.oba.oba_io import parse_image_file, band2index
 
 import ipdb
 
@@ -114,6 +114,12 @@ class TestPrepper(object):
             # image checker
             with fitsio.FITS(image, 'rw') as fits:
                 fits[0].write_key('IMG_QUAL', 'UNVERIFIED')
+                fits[0].write_key('OBSTYPE', 'SCIENCE')
+
+                im_pars = parse_image_file(image)
+                band = im_pars['band']
+                bindx = band2index(band)
+                fits[0].write_key('FILTER', str(bindx))
 
         return
 
@@ -309,6 +315,13 @@ class HenSimsTestPrepper(TestPrepper):
                         continue
 
                 shutil.copy(cal_file, outfile)
+
+                with fitsio.FITS(outfile) as fits:
+                    if cal == 'darks':
+                        obstype = 'DARK'
+                    elif cal == 'flats':
+                        obstype = 'FLAT'
+                    fits[0].write_key('OBSTYPE', obstype)
 
         # copy over GAIA cat(s)
         gaia_dir = io_manager.GAIA_DIR

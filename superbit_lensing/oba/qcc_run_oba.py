@@ -29,6 +29,7 @@ python qcc_run_oba.py 1 /home/bit/configs/my_oba_config.yaml
 '''
 
 import shutil
+import os
 from pathlib import Path
 from argparse import ArgumentParser
 
@@ -135,7 +136,7 @@ def main(args):
             return 2
 
         config = OBAConfig(config_file)
-        target_name = config['target_name']
+        target_name = config['run_options']['target_name']
 
         # now we have what we need to setup the IO manager
         io_manager = IOManager(root_dir=root_dir, target_name=target_name)
@@ -253,12 +254,17 @@ def main(args):
 
     logprint(f'\nOBA for {target_name} has finished succesfully!')
 
-    # now prepare log for final move
+    #-----------------------------------------------------------------
+    # Prepare log for move to final output location
+
     log_dest = str(io_manager.OBA_RESULTS / target_name)
-    logprint(f'\nCopying log file to permanent storage at {log_dest}')
+    logprint(f'\nCopying (compressed) log file to permanent storage at {log_dest}')
+
+    compressed_logfile = compress_log(Path(logfile))
 
     log_name = Path(logfile).name
-    dest = Path(log_dest) / log_name
+    dest = Path(log_dest) / compressed_logfile.name
+
     if dest.is_file():
         if overwrite is False:
             logprint(f'Warning: {log_name} already exists at {log_dest} and ' +
@@ -266,20 +272,40 @@ def main(args):
         else:
             dest.unlink()
 
-    shutil.move(logfile, dest)
+    shutil.move(compressed_logfile, dest)
 
     return 0
 
+def compress_log(logfile, cmethod='bzip2', cargs='-z', cext='bz2'):
+    '''
+    Compress the OBA logfile for final storage on QCC permanent storage
+
+    logfile: pathlib.Path
+        The filepath of the log to compress
+    cmethod: str
+        The compression executable
+    cargs: str
+        The arguments to pass to the desired compression executable
+    cext: str
+        The file extension of the compressed file
+    '''
+
+    cmd = f'{cmethod} {cargs} {logfile}'
+
+    # we don't use utils.run_command() as it would pipe through a log, which
+    # we are currently compressing!
+    os.system(cmd)
+
+    logfile_ext = logfile.suffix
+    compressed_logfile = logfile.with_suffix(logfile_ext + f'.{cext}')
+
+    return compressed_logfile
+
 if __name__ == '__main__':
     args = parse_args()
-    # rc, logfile, dest = main(args)
     rc = main(args)
 
-    # now move logfile to final location
-    # if (logfile is not None) and (dest is not None):
-    #     shutil.move(logfile, dest)
-
     if rc == 0:
-        print('\nrun_oba.py completed without error\n')
+        print('\nqcc_run_oba.py completed without error\n')
     else:
-        print(f'\nrun_oba.py failed with rc={rc}\n')
+        print(f'\nqcc_run_oba.py failed with rc={rc}\n')

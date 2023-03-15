@@ -22,7 +22,9 @@ class PreprocessRunner(object):
     _header_info = {
         'GAIN': 0.343, # e- / ADU
         'SATURATE': 64600, # TODO: Should we lower this to be more realistic?
-        'SATUR_KEY': 'SATURATE' # sets the saturation key SExtractor looks for
+
+        # NOTE: Already the SExtractor default, and causes Hierarch warnings
+        # 'SATUR_KEY': 'SATURATE' # sets the saturation key SExtractor looks for
     }
 
     def __init__(self, raw_dir, run_dir, out_dir, bands, target_name=None):
@@ -316,6 +318,11 @@ class PreprocessRunner(object):
                 logprint(f'Updating {image_name}; {i+1} of {Nimages}')
 
                 for key, val in self._header_info.items():
-                    fits.setval(str(image), key, value=val, ext=ext)
+                    hdr = fitsio.read_header(str(image))
+
+                    # things have changed over time, so only add if the key
+                    # doesn't already exist
+                    if key not in hdr:
+                        fits.setval(str(image), key, value=val, ext=ext)
 
         return
