@@ -71,7 +71,7 @@ class StarmaskRunner(object):
 
     def __init__(self, run_dir, gaia_cat, bands, target_name=None,
                  flux_col_base='flux_adu', flux_threshold=1e6,
-                 sci_ext=0, msk_ext=2, bkg_ext=3,):
+                 sci_ext=0, wgt_ext=1, msk_ext=2, bkg_ext=3):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -274,6 +274,7 @@ class StarmaskRunner(object):
         '''
 
         sci_ext = self.sci_ext
+        wgt_ext = self.wgt_ext
         msk_ext = self.msk_ext
         bkg_ext = self.bkg_ext
 
@@ -286,34 +287,34 @@ class StarmaskRunner(object):
 
                 with fitsio.FITS(str(image), 'rw') as fits:
                     sci_hdr = fits[sci_ext].read_header()
+                    wgt_hdr = fits[wgt_ext].read_header()
                     msk_hdr = fits[msk_ext].read_header()
 
                     msk = fits[msk_ext].read()
+                    wgt = fits[wgt_ext].read()
                     bkg = fits[bkg_ext].read()
 
                     wcs = WCS(sci_hdr)
 
                     stars = self.bright_stars[image]
 
-                    # estimate the sky bkg of this image using the median of
-                    # the calibrated BKG checkimage. The 
+                    # estimate the sky var of this image using the median of
+                    # the inv_wgt**2
+                    sky_var = 1. / wgt
+                    sky_noise = np.median(np.sqrt(sky_var))
                     sky_level = np.median(bkg)
-                    sky_std = np.std(bkg)
-                    logprint(f'Using an estimated sky noise of {sky_noise:.2f} '
-                             f'ADU; sky_std = {sky_std:.2f}')
+                    logprint(f'Using an estimated sky noise of {sky_noise:.3f} '
+                             f'ADU; sky level = {sky_level:.2f}')
 
                     Nstars = len(stars)
                     for i, star in enumerate(stars):
-                        logprint(f'Starting bright star {i+1} of {Nstars}')
+                        flux = star[f'{self.flux_tag_base}_{band}'] # ADU
+                        logprint(f'Starting bright star {i+1} of {Nstars}; ' +
+                                 f'flux={flux:.1f} ADU')
                         self._add_mask(star, msk, wcs, band, sky_noise)
 
                     # now update FITs mask extension
                     fits[msk_ext].write(msk, header=msk_hdr)
-
-                    # sci = fits[sci_ext].read()
-                    # plt.imshow(msk, origin='lower')
-                    # plt.colorbar()
-                    # plt.show()
 
         return
 
@@ -404,8 +405,6 @@ class StarmaskRunner(object):
         diff_y = Y - star_im[1]
         dist = np.sqrt(diff_x**2 + diff_y**2)
         in_aperture = np.where(dist < aperture_size)
-
-        ipdb.set_trace()
 
         # account for stamp offset, and index flip
         in_aperture = (
