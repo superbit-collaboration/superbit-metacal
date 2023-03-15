@@ -14,6 +14,7 @@ from multiprocessing import Pool
 import pandas as pd
 import numpy as np
 from numpy.lib import recfunctions as rf
+import fitsio
 import galsim
 import sys
 import os
@@ -109,6 +110,9 @@ def set_config_defaults(config):
     if 'starting_roll' not in config:
         config['starting_roll'] = 0
 
+    if 'rot_rate' not in config:
+        rot_rate = 0.25 # deg / exp
+
     if 'star_stamp_size' not in config:
         config['star_stamp_size'] = 1000
 
@@ -132,8 +136,6 @@ def compute_im_bounding_box(ra, dec, im_xsize, im_ysize, theta):
         The new (conservative) ra/dec bounds, in deg
     '''
 
-    # NOTE: haven't made it robust to |theta| > 90
-    # assert abs(theta.deg) <= 90
     if np.pi/2 < theta.rad < 3*np.pi/2:
         csign = -1.0
     else:
@@ -260,7 +262,7 @@ def setup_stars(ra, dec, width_deg, height_deg):
 
     # we add some buffer to account for dithering & rolls
     # TODO: understand why it is so sensitive to the prefactor...
-    qsize = 1.1 * np.max([height_deg.value, width_deg.value])
+    qsize = 1.3 * np.max([height_deg.value, width_deg.value])
     gaia_cat = Vizier.query_region(
         coordinates=coordinates,
         height=qsize*u.deg,
@@ -289,7 +291,7 @@ def setup_stars(ra, dec, width_deg, height_deg):
 
     df_stars = df_stars.reset_index(drop=True)
 
-    star_cat = df_stars.to_records()
+    star_cat = Table(df_stars.to_records())
 
     return star_cat
 
@@ -304,9 +306,12 @@ def setup_gals(n_gal_total_img, gal_rng):
     cat_df = cat_df[cat_df['c10_sersic_fit_hlr'] < 50]
 
     # Randomly sample from galaxy catalog
-    gal_cat = cat_df.sample(
+    gal_cat = Table(cat_df.sample(
         n=n_gal_total_img, random_state=gal_rng
-        ).to_records()
+        ).to_records())
+
+    # TODO: understand why this happens...
+    gal_cat.remove_column('Unnamed: 0')
 
     return gal_cat
 
@@ -357,6 +362,7 @@ def main(args):
     run_name = config['run_name']
     bands = config['bands']
     starting_roll = config['starting_roll'] * galsim.degrees
+    rot_rate = config['rot_rate']
     max_fft_size = config['max_fft_size']
     strehl_ratio = config['strehl_ratio']
     ncores = config['ncores']
@@ -434,7 +440,6 @@ def main(args):
 
     # the *sampled* area has to be bigger than this, to allow for rolls
     img_max_len = np.max([
-    # img_max_len = np.min([
         sci_img_size_x_arcsec.value, sci_img_size_y_arcsec.value
         ]) * u.arcsec
     sampled_img_area = (img_max_len**2).to(u.arcmin**2)
@@ -454,6 +459,11 @@ def main(args):
     dither_pix = 100
     dither_deg = pix_scale * dither_pix / 3600 # dither_deg
     dither_rng = np.random.default_rng(seeds['dithering'])
+
+    if strehl_ratio is None:
+        sr_tag = ''
+    else:
+        sr_tag = f'sr_{strehl_ratio}_'
 
     if 'add_galaxies' in config:
         add_galaxies = config['add_galaxies']
@@ -512,31 +522,49 @@ def main(args):
 
         Nstars = len(star_cat)
 
+        # make initial truth cat (*all* sources that could possibly be drawn,
+        # but w/o all cols)
+        outfile = run_dir / f'initial_{sr_tag}truth_stars_{target_name}.fits'
+        # fitsio.write(outfile, star_cat, overwrite=overwrite)
+        star_cat.write(outfile, overwrite=overwrite)
+
     # setup gals (sampling positions only for now)
     if add_galaxies is True:
         logprint('setting up galaxies...')
 
         # we use the larger box to handle roll angles
-        sample_len = 1.01*(img_max_len / 2.).to(u.deg).value
+        # first, use the diagonal which is ~20% larger. Then add buffer
+        ra_sample_len = 1.3*(1.2*img_max_len).to(u.deg).value
+        dec_sample_len = 1.3*(1.2*img_max_len / 2.).to(u.deg).value
 
         sampled_ra = gal_rng.uniform(
-            ra.value - sample_len,
-            ra.value + sample_len,
-            size=Ngals
-            )
-        sampled_dec = gal_rng.uniform(
-            dec.value - sample_len,
-            dec.value + sample_len,
+            ra.value - ra_sample_len,
+            ra.value + ra_sample_len,
             size=Ngals
             )
 
-        gal_cat = rf.append_fields(
-            gal_cat,
-            ['ra', 'dec'],
-            [sampled_ra, sampled_dec],
-            dtypes=['float32'],
-            usemask=False
-        )
+        sampled_dec = sample_uniform_dec(
+            dec.value - dec_sample_len,
+            dec.value + dec_sample_len,
+            N=Ngals
+            )
+
+        gal_cat['ra'] = sampled_ra
+        gal_cat['dec'] = sampled_dec
+
+        # gal_cat = rf.append_fields(
+        #     l_cat,
+        #     ['ra', 'dec'],
+        #     [sampled_ra, sampled_dec],
+        #     dtypes=['float32'],
+        #     usemask=False
+        # )
+
+        # make initial truth cat (*all* sources that could possibly be drawn,
+        # but w/o all cols)
+        outfile = run_dir / f'initial_{sr_tag}truth_gals_{target_name}.fits'
+        # fitsio.write(outfile, gal_cat, overwrite=overwrite)
+        gal_cat.write(outfile, overwrite=overwrite)
 
     # setup cluster (sample redmapper for similar M & z, then at SB fluxes)
     if add_cluster is True:
@@ -546,10 +574,16 @@ def main(args):
             exp_time, rng=cluster_rng
             )
 
+        # make initial truth cat (*all* sources that could possibly be drawn,
+        # but w/o all cols)
+        outfile = run_dir / f'initial_{sr_tag}truth_cluster_{target_name}.fits'
+        cluster_cat.write(outfile, overwrite=overwrite)
+        # fitsio.write(outfile, cluster_cat, overwrite=overwrite)
+
     # We want to rotate the sky by (5 min + 1 min overhead) each
     # new target. Each band inherits the last roll of the previous band
     theta = starting_roll # already a galsim.Angle
-    rot_rate = 0.25 # deg / min
+    # rot_rate = 0.25 # deg / min
 
     for band in bands:
         # pivot wavelength
@@ -607,13 +641,14 @@ def main(args):
             # what is actually used below
             star_flux_adu = crate_adu_pix * exp_time * 1
 
-            star_cat = rf.append_fields(
-                star_cat,
-                f'flux_adu_{band}',
-                star_flux_adu,
-                dtypes='float32',
-                usemask=False
-            )
+            star_cat[f'flux_adu_{band}'] = star_flux_adu
+            # star_cat = rf.append_fields(
+            #     star_cat,
+            #     f'flux_adu_{band}',
+            #     star_flux_adu,
+            #     dtypes='float32',
+            #     usemask=False
+            # )
 
         for exp_num in range(n_exp):
 
@@ -625,13 +660,8 @@ def main(args):
             else:
                 rn = f'{run_name}/'
 
-            if strehl_ratio is None:
-                sr = ''
-            else:
-                sr = f'{strehl_ratio}/'
-
             outdir = os.path.join(
-                utils.TEST_DIR, f'ajay/{rn}{target_name}/{band}/{sr}'
+                utils.TEST_DIR, f'ajay/{rn}{target_name}/{band}/{sr_tag}'
                 )
             utils.make_dir(outdir)
 
@@ -711,10 +741,10 @@ def main(args):
 
             # TODO: use cornish for actual overlap. For now, use a
             # sufficiently large buffer
-            ra_buff = .015
+            ra_buff = .02
             ra_bounds[0] -= ra_buff
             ra_bounds[1] += ra_buff
-            dec_buff = ra_buff / 2.
+            dec_buff = ra_buff
             dec_bounds[0] -= dec_buff
             dec_bounds[1] += dec_buff
 
@@ -887,13 +917,14 @@ def main(args):
 
             # HEADERS
             hdr = fits.Header()
+            hdr['TARGET'] = target_name
             hdr['EXPTIME'] = int(exp_time)
             hdr['band'] = band
             hdr['strehl'] = strehl_ratio
             hdr['stars'] = int(add_stars)
             hdr['galaxies'] = int(add_galaxies)
-            hdr['TARGET_RA'] = ra.value # in deg
-            hdr['TARGET_DEC'] = dec.value # in deg
+            hdr['TRG_RA'] = ra.value # in deg
+            hdr['TRG_DEC'] = dec.value # in deg
             hdr['dither_ra'] = dither_ra # in pixels
             hdr['dither_dec'] = dither_dec # in pixels
             hdr['roll_theta'] = theta.deg # in deg
@@ -955,25 +986,40 @@ def main(args):
                     join_type='left',
                     )
 
-    if strehl_ratio is None:
-        sr = ''
-    else:
-        sr = f'sr_{strehl_ratio}_'
-
     # merge truth cats & save
     if add_stars is True:
-        outfile = f'{run_dir}/{sr}truth_stars_{target_name}.fits'
+        outfile = f'{run_dir}/{sr_tag}truth_stars_{target_name}.fits'
         truth_star_cat.write(outfile, overwrite=overwrite)
 
     if add_galaxies is True:
-        outfile = f'{run_dir}/{sr}truth_gals_{target_name}.fits'
+        outfile = f'{run_dir}/{sr_tag}truth_gals_{target_name}.fits'
         truth_gal_cat.write(outfile, overwrite=overwrite)
 
     if add_cluster is True:
-        outfile = f'{run_dir}/{sr}truth_cluster_{target_name}.fits'
+        outfile = f'{run_dir}/{sr_tag}truth_cluster_{target_name}.fits'
         truth_cluster_cat.write(outfile, overwrite=overwrite)
 
     return 0
+
+def sample_uniform_dec(d1, d2, N=1, rng=None):
+    '''
+    Sample N random DEC values from d1 to d2, accounting for curvature of sky.
+
+    d1 & d2 must be in deg
+    '''
+
+    if rng is None:
+        rng = np.random.default_rng()
+
+    d1, d2 = np.deg2rad(d1), np.deg2rad(d2)
+
+    # Uniform sampling from 0 to 1
+    P = rng.random(N)
+
+    # Can't use `sample_uniform()` as dec needs angular weighting
+    delta = np.arcsin(P * (np.sin(d2) - np.sin(d1)) +np.sin(d1))
+
+    return np.rad2deg(delta)
 
 if __name__ == '__main__':
     args = parse_args()
