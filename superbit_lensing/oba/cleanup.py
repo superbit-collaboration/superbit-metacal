@@ -1,4 +1,5 @@
 import shutil
+
 from pathlib import Path
 
 import ipdb
@@ -24,6 +25,10 @@ class CleanupRunner(object):
     (5) TODO: ...
     '''
 
+    _compression_method = 'bzip2'
+    _compression_args = '-z' # forces compression, don't keep orig file
+    _compression_ext = 'bz2'
+
     def __init__(self, run_dir, out_dir, bands, target_name=None,
                  clean_oba_dir=False):
         '''
@@ -38,7 +43,7 @@ class CleanupRunner(object):
             & run dirs
         clean_oba_dir: bool
             Set to delete the temporary OBA dir after output writing.
-            A bit dangerous!
+            NOTE: A bit dangerous!
         '''
 
         dir_args = {
@@ -80,6 +85,14 @@ class CleanupRunner(object):
         # indexed by band
         self.outputs = {}
 
+        # this dict will store the compressed (copied) per-band output files
+        # that are to be saved to permanent storage, indexed by band
+        self.compressed_outputs = {}
+
+        # this keeps track of any bands that have no input images to cleanup
+        # in case you still requested it
+        self.skip = []
+
         return
 
     def go(self, logprint, overwrite=False):
@@ -106,13 +119,14 @@ class CleanupRunner(object):
         self.gather_outputs(logprint)
 
         logprint('Compressing output files...')
-        self.compress_outputs(logprint)
+        self.compress_outputs(logprint, overwrite=overwrite)
 
         logprint('Writing output files to disk...')
-        self.write_outputs(logprint)
+        self.write_outputs(logprint, overwrite=overwrite)
 
-        logprint('Cleaning up OBA dir...')
-        self.cleanup(logprint)
+        if self.clean_oba_dir is True:
+            logprint('Cleaning up OBA dir...')
+            self.cleanup(logprint)
 
         return
 
@@ -123,65 +137,148 @@ class CleanupRunner(object):
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
-        overwrite: bool
-            Set to overwrite existing files
         '''
 
         target_name = self.target_name
-        out_dir = self.out_dir
 
         for band in self.bands:
             logprint(f'Starting band {band}')
             outputs = []
 
             band_dir = self.run_dir / band
-            out_dir = band_dir / 'out/'
+            band_out_dir = band_dir / 'out/'
 
             # CookieCutter cutout FITS file
-            cutouts = out_dir / f'{target_name}_{band}_cutouts.fits'
-            outputs.append(str(cutouts))
+            cutouts = band_out_dir / f'{target_name}_{band}_cutouts.fits'
+            if cutouts.is_file():
+                outputs.append(cutouts)
 
             # generated CookeCutter config file
-            cutouts_config = out_dir / f'{target_name}_{band}_cutouts.yaml'
-            outputs.append(str(cutouts_config))
+            cutouts_config = band_out_dir / f'{target_name}_{band}_cutouts.yaml'
+            if cutouts_config.is_file():
+                outputs.append(cutouts_config)
 
-            self.outputs[band] = outputs
+            Noutputs = len(outputs)
+            if Noutputs > 0:
+                self.outputs[band] = outputs
+                logprint(f'Found {Noutputs} output files')
+            else:
+                logprint('No output files found; skipping')
+                self.skip.append(band)
 
         # TODO: Add gathering for any additional desired output files here!
 
         return
 
-    def compress_outputs(self, logprint):
+    def compress_outputs(self, logprint, overwrite=False):
         '''
-        Copy final output files to a temporary directory & compress
+        Copy final output files to a temporary directory, compress, and then
+        send to the final destination in OBA_RESULTS
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        overwrite: bool
+            Set to overwrite existing files
         '''
+
+        cmethod = self._compression_method
+        cext = self._compression_ext
 
         # copy all of the output files
-        # tmp_dir = self.run_dir / 'tmp/'
-        # logprint(f'Compressing files in temporary dir {str(rmp_dir)}')
+        tmp_dir = self.run_dir / 'tmp/'
+        logprint(f'Compressing files in temporary dir {str(tmp_dir)}')
+        utils.make_dir(tmp_dir)
 
-        # for bands in self.bands:
-        #     logprint('Starting band {band}')
+        for band in self.bands:
+            logprint(f'Starting band {band}')
+            if band in self.skip:
+                logprint(f'Skipping as no output files were found')
+                continue
 
-            # for output in self.outputs[band]:
-                # logprint(f'Moving {output.name} to tmp')
-                # self._copy_file(output, tmp_dir)
+            self.compressed_outputs[band] = []
 
+            for output in self.outputs[band]:
+                tmp_outfile =  tmp_dir / output.name
+                if tmp_outfile.is_file():
+                    if overwrite is False:
+                        raise OSError(f'{tmp_outfile} already exists and '
+                                    'overwrite is False!')
+                    else:
+                        logprint(f'{tmp_outfile} exists; deleting as ' +
+                                    'overwrite is True')
+                        tmp_outfile.unlink()
 
-        # TODO: finish!
-        logprint('WARNING: compress_outputs() not yet implemented!')
+                logprint(f'Copying {output.name} to tmp dir')
+                self._copy_file(output, tmp_dir)
+
+                outfile_ext = tmp_outfile.suffix
+                compressed_outfile = tmp_outfile.with_suffix(outfile_ext + f'.{cext}')
+                if compressed_outfile.is_file():
+                    if overwrite is False:
+                        raise OSError(f'{compressed_outfile} already exists and '
+                                    'overwrite is False!')
+                    else:
+                        logprint(f'{compressed_outfile} exists; deleting as ' +
+                                    'overwrite is True')
+                        compressed_outfile.unlink()
+
+                logprint(f'Compressing {output.name} using {cmethod}')
+                self._compress_file(tmp_outfile, logprint)
+                self.compressed_outputs[band].append(compressed_outfile)
 
         return
 
-    def write_outputs(self, logprint):
-        # TODO: finish!
-        logprint('WARNING: write_outputs() not yet implemented!')
+    def write_outputs(self, logprint, overwrite=False):
+        '''
+        Write compressed output files to the final destination in permanent
+        storage
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        overwrite: bool
+            Set to overwrite existing files
+        '''
+
+        out_dir = self.out_dir
+        logprint(f'Saving compressed output files to {str(out_dir)}')
+
+        # just in case
+        utils.make_dir(out_dir)
+
+        for band in self.bands:
+            logprint(f'Starting band {band}')
+            if band in self.skip:
+                logprint('Skipping as no output files were found')
+                continue
+
+            for output in self.compressed_outputs[band]:
+                outfile = out_dir / output.name
+
+                if outfile.is_file():
+                    if overwrite is False:
+                        raise OSError(f'{outfile} already exists and '
+                                    'overwrite is False!')
+                    else:
+                        logprint(f'{outfile} exists; deleting as ' +
+                                    'overwrite is True')
+                        outfile.unlink()
+
+                self._copy_file(output, self.out_dir)
 
         return
 
     def cleanup(self, logprint):
-        # TODO: finish!
-        logprint('WARNING: cleanup() not yet implemented!')
+        '''
+        Cleanup the temporary OBA analysis directory
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        '''
+
+        run_dir = self.run_dir
+        logprint(f'Removing {self.target_name} OBA run directory at {run_dir}')
+
+        shutil.rmtree(str(run_dir))
 
         return
 
@@ -196,5 +293,25 @@ class CleanupRunner(object):
         '''
 
         shutil.copy(str(filename), str(dest))
+
+        return
+
+    def _compress_file(self, filename, logprint, overwrite=False):
+        '''
+        Compress a file & return the output filename
+
+        filename: str
+            The filename of the file to compress
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        '''
+
+        cmethod = self._compression_method
+        cargs = self._compression_args
+        cmd = f'{cmethod} {cargs} {filename}'
+
+        logprint(f'cmd = {cmd}')
+
+        utils.run_command(cmd, logprint=logprint)
 
         return
