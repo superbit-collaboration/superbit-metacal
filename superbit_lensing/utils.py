@@ -315,63 +315,57 @@ def decode(msg):
         print(f'Warning: message={msg} is not a string or bytes')
         return msg
 
-def run_command(cmd, logprint=None):
+def run_command(cmd, logprint=None, silent=False):
 
     if logprint is None:
         # Just remap to print then
         logprint = print
 
     args = [cmd.split()]
-    kwargs = {'stdout':subprocess.PIPE,
-              'stderr':subprocess.STDOUT,
-              # 'universal_newlines':True,
-              'bufsize':1}
+    kwargs = {
+        'stdout':subprocess.PIPE,
+        'stderr':subprocess.STDOUT,
+        'bufsize':1
+        }
 
     with subprocess.Popen(*args, **kwargs) as process:
         try:
             # for line in iter(process.stdout.readline, b''):
             for line in iter(process.stdout.readline, b''):
-                logprint(decode(line).replace('\n', ''))
+                if silent is False:
+                    logprint(decode(line).replace('\n', ''))
 
             stdout, stderr = process.communicate()
 
         except:
-            logprint('')
-            logprint('.....................ERROR....................')
-            logprint('')
+            if silent is false:
+                logprint('')
+                logprint('.....................ERROR....................')
+                logprint('')
 
-            logprint('\n'+decode(stderr))
-            # try:
-            #     logprint('\n'+decode(stderr))
-            # except AttributeError:
-            #     logprint('\n'+stderr)
+                logprint('\n'+decode(stderr))
 
             rc = process.poll()
-            raise subprocess.CalledProcessError(rc,
-                                                process.args,
-                                                output=stdout,
-                                                stderr=stderr)
-            # raise subprocess.CalledProcessError(rc, cmd)
+            raise subprocess.CalledProcessError(
+                rc,
+                process.args,
+                output=stdout,
+                stderr=stderr
+                )
 
         rc = process.poll()
 
-        # if rc:
-        #     stdout, stderr = process.communicate()
-        #     logprint('\n'+decode(stderr))
-            # return 1
 
         if rc:
             stdout, stderr = process.communicate()
-            logprint('\n'+decode(stderr))
-            # raise subprocess.CalledProcessError(rc, cmd)
-            raise subprocess.CalledProcessError(rc,
-                                                process.args,
-                                                output=stdout,
-                                                stderr=stderr)
-
-    # rc = popen.wait()
-
-    # rc = process.returncode
+            if silent is False:
+                logprint('\n'+decode(stderr))
+            raise subprocess.CalledProcessError(
+                rc,
+                process.args,
+                output=stdout,
+                stderr=stderr
+                )
 
     return rc
 
