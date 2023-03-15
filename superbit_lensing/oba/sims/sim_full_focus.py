@@ -111,7 +111,7 @@ def set_config_defaults(config):
         config['starting_roll'] = 0
 
     if 'rot_rate' not in config:
-        rot_rate = 0.25 # deg / exp
+        config['rot_rate'] = 0.25 # deg / exp
 
     if 'star_stamp_size' not in config:
         config['star_stamp_size'] = 1000
