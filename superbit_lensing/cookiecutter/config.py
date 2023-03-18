@@ -2,8 +2,6 @@ from superbit_lensing import utils
 from superbit_lensing.config import ModuleConfig
 from copy import deepcopy
 
-import ipdb
-
 class CookieCutterConfig(ModuleConfig):
 
     # these are top-level config fields
