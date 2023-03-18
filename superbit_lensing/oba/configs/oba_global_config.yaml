@@ -1,0 +1,27 @@
+astrometry:
+  rerun: false
+  search_radius: 1
+cleanup:
+  clean_oba_dir: true
+masking:
+  cosmic_rays: false
+  satellites: true
+modules:
+- preprocessing
+- cals
+- masking
+- background
+- astrometry
+- starmask
+- coadd
+- detection
+- output
+- cleanup
+run_options:
+  det_bands:
+  - b
+  - g
+  - r
+  - lum
+  overwrite: true
+  vb: true

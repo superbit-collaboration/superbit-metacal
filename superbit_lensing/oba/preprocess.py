@@ -22,7 +22,9 @@ class PreprocessRunner(object):
     _header_info = {
         'GAIN': 0.343, # e- / ADU
         'SATURATE': 64600, # TODO: Should we lower this to be more realistic?
-        'SATUR_KEY': 'SATURATE' # sets the saturation key SExtractor looks for
+
+        # NOTE: Already the SExtractor default, and causes Hierarch warnings
+        # 'SATUR_KEY': 'SATURATE' # sets the saturation key SExtractor looks for
     }
 
     def __init__(self, raw_dir, run_dir, out_dir, bands, target_name=None):
@@ -134,6 +136,9 @@ class PreprocessRunner(object):
             # dirs.append(self.run_dir / b / 'bkg/')
             dirs.append(self.run_dir / b / 'coadd/')
             dirs.append(self.run_dir / b / 'out/')
+
+            # for images that fail during astrometry module
+            dirs.append(self.run_dir / b / 'failed/')
 
         for d in dirs:
             logprint(f'Creating directory {d}')
@@ -313,6 +318,12 @@ class PreprocessRunner(object):
                 logprint(f'Updating {image_name}; {i+1} of {Nimages}')
 
                 for key, val in self._header_info.items():
-                    fits.setval(str(image), key, value=val, ext=ext)
+                    with fits.open(str(image)) as f:
+                        hdr = f[0].header
+
+                        # things have changed over time, so only add if the key
+                        # doesn't already exist
+                    if key not in hdr:
+                        fits.setval(str(image), key, value=val, ext=ext)
 
         return

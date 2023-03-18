@@ -453,4 +453,7 @@ class CalsRunner(object):
             'IMTYPE': 'MASK'
         }
 
+        for key, val in OBA_BITMASK.items():
+            msk_hdr[key] = val
+
         return msk, msk_hdr

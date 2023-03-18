@@ -29,7 +29,6 @@ The CookieCutter format was designed by Eric Huff & Spencer Everett of JPL
 '''
 
 # TODO:
-# - add obj positions to metadata!
 # - make inv function to recover original images!
 
 class CookieCutter(object):
@@ -96,8 +95,10 @@ class CookieCutter(object):
             if not isinstance(config, dict):
                 config = utils.read_yaml(str(config))
 
-        # also sets defaults for optional params
-        self.config = CookieCutterConfig(config)
+            # also sets defaults for optional params
+            self.config = CookieCutterConfig(config)
+        else:
+            self.config = None
 
         if (cookiecutter_file is None) and (config is not None):
             # Will initialize from config instead during go()
@@ -122,6 +123,9 @@ class CookieCutter(object):
         else:
             raise ValueError('You should pass only a cookie cutout file or a ' +
                              'config, not both.')
+
+        # metadata for the cutouts; will get populated later
+        self._meta = None
 
         if logprint is None:
             logprint = print
@@ -171,11 +175,8 @@ class CookieCutter(object):
             self._fits = None
 
         else:
-            # self._fits = fitsio.FITS(cc_file, 'r')
-            # return
-            # TODO: check that the above works!
-            raise NotImplementedError('Creating from a cookiecutter file ' +
-                                      'is not yet implemented!')
+            self._fits = fitsio.FITS(cc_file, 'r')
+            return
 
         return
 
@@ -221,6 +222,7 @@ class CookieCutter(object):
         self.catalog = rf.append_fields(
             catalog, 'boxsize', boxsizes, dtypes=['i4'], usemask=False
             )
+        self.config['input']['boxsize'] = 'boxsize'
 
         return
 
@@ -252,7 +254,7 @@ class CookieCutter(object):
 
         return radius
 
-    def register_images(self, progress=1000):
+    def register_images(self, progress=1000, print_skips=False):
         '''
         Use the config to initialize the CookieCutter structure and save obj
         stamps from each input file to a corrsponding set of FITS extensions
@@ -284,6 +286,8 @@ class CookieCutter(object):
         progress: int
             The number of objects stamps to write to the CookieCutter before
             printing out the progress update, if desired
+        print_skips: bool
+            Set to print out each time an obj is skipped due to no overlap
         '''
 
         utils.check_type('progress', progress, int)
@@ -309,6 +313,8 @@ class CookieCutter(object):
         sci_dtype = config['output']['sci_dtype']
         msk_dtype = config['output']['msk_dtype']
 
+        seg_type = config['segmentation']['type']
+
         overwrite = config['output']['overwrite']
 
         outfile = self.outfile
@@ -333,9 +339,16 @@ class CookieCutter(object):
                    ('end_pos', int),
                    ('sky_bkg', float),
                    ('sky_var', float),
-                   ('cc_ext', 'u1')])
+                   ('cc_ext', 'u1')]
+            )
+
+        # this keeps track of the *used* meta rows, as the actual number
+        # will be smaller due to objects not showing up in every image
+        meta_size = 0
 
         info_index = 0
+
+        total_start = time()
 
         with fitsio.FITS(outfile, 'rw') as fits:
 
@@ -346,7 +359,11 @@ class CookieCutter(object):
                 self.logprint(f'Starting image {im_name}; {image_index+1} of ' +
                               f'{Nimages}')
 
+                start = time()
+
                 # handles all input image file parsing
+                # NOTE: sensible defaults are set in config.py for fields
+                # that are not set explicitly
                 imageObj = ImageLocator(
                     image_file=image['image_file'],
                     image_ext=image['image_ext'],
@@ -354,6 +371,12 @@ class CookieCutter(object):
                     weight_ext=image['weight_ext'],
                     mask_file=image['mask_file'],
                     mask_ext=image['mask_ext'],
+                    background_file=image['background_file'],
+                    background_ext=image['background_ext'],
+                    skyvar_file=image['skyvar_file'],
+                    skyvar_ext=image['skyvar_ext'],
+                    segmentation_file=image['segmentation_file'],
+                    segmentation_ext=image['segmentation_ext'],
                     input_dir=self.input_dir
                     )
 
@@ -375,14 +398,32 @@ class CookieCutter(object):
                     )
 
                 # place the file path info here
-                image_hdr['imfile'] = str(image['image_file'])
+                image_hdr['imfile'] = str(Path(image['image_file']).name)
                 image_hdr['imext'] = image['image_ext']
+
+                # if some checkimages are passed, save some statistics
+                # to the header
+                if imageObj.weight is not None:
+                    wgt = imageObj.weight
+                    image_hdr['wgt_mu'] = np.mean(wgt[:,:])
+                    image_hdr['wgt_std'] = np.std(wgt[:,:])
+                    image_hdr['wgt_med'] = np.median(wgt[:,:])
+                if imageObj.background is not None:
+                    bkg = imageObj.background
+                    image_hdr['bkg_mu'] = np.mean(bkg[:,:])
+                    image_hdr['bkg_std'] = np.std(bkg[:,:])
+                    image_hdr['bkg_med'] = np.median(bkg[:,:])
+                if imageObj.skyvar is not None:
+                    skyvar = imageObj.skyvar
+                    image_hdr['skyvar_mu'] = np.mean(skyvar[:,:])
+                    image_hdr['skyvar_std'] = np.std(skyvar[:,:])
+                    image_hdr['skyvar_med'] = np.median(skyvar[:,:])
 
                 image_shape = imageObj.image.get_info()['dims']
 
                 # We know in advance how many cutout pixels we'll need to store
                 self.logprint(f'Determining memory requirement')
-                Npix, skip_list = self._compute_ext_Npix(
+                Npix, slice_info, skip_list = self._compute_slice_info(
                     imageObj.image, catalog, progress=progress
                     )
 
@@ -392,7 +433,7 @@ class CookieCutter(object):
                 im_percent = 100 * Npix / (image_shape[0] * image_shape[1])
                 self.logprint(f'image {im_name} needs {Npix} pixels; ' +
                               f'{pix_percent:.2f}% of max stamp pixels; ' +
-                              f'{im_percent:.2f} of full image')
+                              f'{im_percent:.2f}% of full image')
 
                 # one dimension for data, one dimension for composite MASK+SEG
                 science_image_dimensions = (1, Npix)
@@ -411,15 +452,13 @@ class CookieCutter(object):
 
                 fits.create_image_hdu(
                     img=None,
-                    # TODO: make this more flexible!
-                    dtype='i1',
+                    dtype=msk_dtype,
                     dims=mask_image_dimensions,
                     extname=f'MASK{image_index}'
                     )
 
-                start = time()
-
                 pixels_written = 0
+                sci_hdr_written = False
                 for indx, obj in enumerate(catalog):
                     if indx % progress == 0:
                         self.logprint(f'{indx} of {Nsources}')
@@ -427,93 +466,121 @@ class CookieCutter(object):
                     # TODO: validate!
                     if indx in skip_list:
                         # if there is no overlap in the image, skip this obj
-                        self.logprint(f'Object {indx} has no overlap in image ' +
-                                      f'{im_name}; skipping')
+                        if print_skips is True:
+                            self.logprint(f'Object {indx} has no overlap in ' +
+                                          f'image {im_name}; skipping')
                         continue
 
-                    try:
-                        object_positions = self._compute_image_pos(imageObj.image,obj)
-                        out = self._compute_obj_slices(object_positions, obj[self.config['input']['boxsize_tag']])
-                        meta[info_index]['xcen'] = object_positions[0]
-                        meta[info_index]['ycen'] = object_positions[1]
-                        image_slice, cutout_slice, cutout_size = out
+                    iobj, obj_pos, image_slice, cutout_slice, cutout_size = slice_info.pop(0)
+                    assert iobj == indx
 
-                    except NoOverlapError:
-                        # if there is no overlap in the image, skip this obj
-                        self.logprint(f'Object {indx} has no overlap in image ' +
-                                      f'{im_name}; skipping')
-
-                        # TODO: shouldn't have happened given above; check
-                        ipdb.set_trace()
-                        continue
-
-                    cutout_shape = (obj['boxsize'], obj['boxsize'])
+                    cutout_shape = (obj[boxsize_tag], obj[boxsize_tag])
 
                     image_cutout = np.zeros(cutout_shape, dtype=sci_dtype)
 
-                    sci_cutout = imageObj.image[image_slice].astype(sci_dtype)
+                    sci_cutout = imageObj.image[image_slice].astype(
+                        sci_dtype
+                        )
+
                     image_cutout[cutout_slice] = sci_cutout
 
                     science_output = image_cutout.flatten()
 
-                    if indx == 0:
-                        fits[f'IMAGE{image_index}'].write(
-                            science_output,
-                            start=[0, pixels_written],
-                            header=image_hdr
-                            )
-                    else:
-                        fits[f'IMAGE{image_index}'].write(
-                            science_output,
-                            start=[0, pixels_written]
-                            )
+                    fits[f'IMAGE{image_index}'].write(
+                        science_output,
+                        start=[0, pixels_written]
+                        )
+
+                    # NOTE: Due to some strange fitsio design choices, the image
+                    # headers have actually *not* been written yet! So do it
+                    # explicitly once
+                    if sci_hdr_written is False:
+                        fits[f'IMAGE{image_index}'].write_keys(image_hdr)
+                        sci_hdr_written = True
 
                     # TODO / QUESTION: should we use mean or median for the following?
-                    if imageObj.skybkg is not None:
-                        sky_cutout = np.zeros_like(image_cutout)
-                        sky_cutout[cutout_slice] = imageObj.skybkg[image_slice]
+                    if imageObj.background is not None:
+                        sky_cutout = np.zeros(cutout_shape)
+                        sky_cutout[cutout_slice] = imageObj.background[image_slice]
                         sky_bkg = np.median(sky_cutout)
                     else:
                         sky_bkg = None
 
+                    if imageObj.weight is not None:
+                        weight_cutout = np.zeros(cutout_shape)
+                        weight_cutout[cutout_slice] = imageObj.weight[image_slice]
+                        weight = np.mean(weight_cutout)
+                    else:
+                        weight = None
+
                     if imageObj.skyvar is not None:
-                        skyvar_cutout = np.zeros_like(image_cutout)
+                        skyvar_cutout = np.zeros(cutout_shape)
                         skyvar_cutout[cutout_slice] = imageObj.skyvar[image_slice]
                         sky_var = np.mean(sky_cutout)
+                    elif weight is not None:
+                        # for OBA at least, this is true
+                        safe_weight = weight_cutout.copy()
+                        safe_weight[safe_weight == 0] = np.inf
+                        sky_var = np.mean(1. / safe_weight)
                     else:
                         sky_var = None
 
-                    if imageObj.weight is not None:
-                        # print('Weight extension currently not implemented!')
-                        weight = None
-                        # weight_cutout = np.zeros_like(image_cutout)
-                        # weight_cutout[cutout_slice] = imageObj.weight[image_slice]
-                    else:
-                        weight = None
-
-                    # TODO: This currently won't work if a mask is not provided
+                    # TODO: can generalize this post SuperBIT OBA
+                    # we treat the mask differently, as it is required
+                    mask_cutout = np.zeros(cutout_shape)
                     if imageObj.mask is not None:
-                        mask_cutout = np.zeros_like(image_cutout)
                         mask_cutout[cutout_slice] = imageObj.mask[image_slice]
+
+                    if imageObj.segmentation is not None:
+                        # TODO: It would be nice to generalize this, but it is a
+                        # common case that the segmentation map comes from a
+                        # different image than the rest (coadd vs. single-epoch)
+                        # NOTE: the segmentation WCS lives in a different ext as
+                        # it is coming from the detection coadd
+                        seg_wcs = imageObj.get_wcs('segmentation', ext=0)
+                        seg_shape = imageObj.segmentation.get_info()['dims']
+
+                        seg_obj_positions = self._compute_image_pos(
+                            imageObj.segmentation, obj, wcs=seg_wcs
+                            )
+                        seg_out = self._compute_obj_slices(
+                            seg_shape, seg_obj_positions, obj[boxsize_tag]
+                            )
+                        seg_slice, seg_cutout_slice, seg_cutout_size = seg_out
+                        seg_cutout = np.zeros(cutout_shape)
+                        seg_cutout[seg_cutout_slice] = imageObj.segmentation[seg_slice]
                     else:
-                        weight = None
+                        seg_cutout = None
+
+                    if seg_cutout is not None:
+                        mask_output = self._combine_mask_and_seg(
+                            obj[id_tag], mask_cutout, seg_cutout, seg_type=seg_type
+                            )
+                    else:
+                        mask_output = mask_cutout
+
+                    # shouldn't happen, but just in case:
+                    msk_max_val = int(2**(8 * np.dtype(msk_dtype).itemsize))
+                    if (mask_output > msk_max_val).any():
+                        raise ValueError('The combined segmask has values '
+                                         f'above {msk_max_val}, which is the '
+                                         f'maximum value for a set msk_dtype '
+                                         f'of {msk_dtype}!')
+                    mask_output = mask_output.astype(msk_dtype)
 
                     # combine these into one bitplane.
                     # TODO: Update this line w/ extra info, such as coadd seg!
-                    # maskbits_output = mask_cutout + 2*mask_cutout
-                    maskbits_output = mask_cutout.astype(msk_dtype)
                     fits[f'MASK{image_index}'].write(
-                        maskbits_output, start=[0, pixels_written]
+                        mask_output, start=[0, pixels_written]
                         )
 
-                    meta[info_index]['object_id'] = obj[id_tag]
-                    # meta[info_index]['image_file'] = image['image_file']
-
                     # This is how we look up object positions to read later.
+                    meta[info_index]['object_id'] = obj[id_tag]
+                    meta[info_index]['xcen'] = obj_pos[0]
+                    meta[info_index]['ycen'] = obj_pos[1]
                     meta[info_index]['cc_ext'] = image_index
                     meta[info_index]['start_pos'] = pixels_written
-                    meta[info_index]['end_pos'] = pixels_written +\
-                        cutout_size
+                    meta[info_index]['end_pos'] = pixels_written + cutout_size
 
                     if sky_bkg is not None:
                         meta[info_index]['sky_bkg'] = sky_bkg
@@ -525,19 +592,30 @@ class CookieCutter(object):
                         meta[info_index]['sky_var'] = -1
 
                     pixels_written += cutout_size
-                    info_index = info_index+1
+                    meta_size += 1
+                    info_index += 1
 
-            end = time()
-            dT = end - start
-            self.logprint(f'Total stamp writing time: {dT:.1f}')
-            self.logprint(f'Writing time per image: {dT/Nimages:.1f} s')
+                end = time()
+                dT = end - start
+                self.logprint(
+                    f'Image {image_index+1} stamp writing time: {dT:.1f} s'
+                    )
 
+            total_end = time()
+            total_dT = total_end - total_start
+            self.logprint(f'Total stamp writing time: {total_dT:.1f}')
+            self.logprint(f'Writing time per image: {total_dT/Nimages:.1f} s')
+
+            # strip unused rows of meta
+            meta = meta[0:meta_size]
+
+            start = time()
 
             # NOTE: while we wanted this to be ext1, there are issues that
             # make it easier for it to be -1
-            start = time()
             fits.create_table_hdu(data=meta, extname='META')
             fits['META'].write(meta)
+
             end = time()
             dT = end - start
             self.logprint(f'Writing time for metadata: {dT:.1f} s')
@@ -547,10 +625,18 @@ class CookieCutter(object):
 
         return
 
-    def _compute_ext_Npix(self, image, catalog, progress=1000):
+    def _compute_slice_info(self, image, catalog, progress=1000):
         '''
-        Compute the number of pixels needed to allocate for a given
-        image extension
+        Compute all of the needed slice information per object for this image,
+        including:
+
+        - The number of cutout pixels needed to be allocated; Npix
+        - The slice information for objects *included* in the image:
+          - Object ID
+          - Object position (X,Y)
+          - Image slice
+          - Cutout slice
+          - Cutout size
 
         image: fitsio.hdu.image.ImageHDU
             A FITS Image HDU object
@@ -566,24 +652,56 @@ class CookieCutter(object):
         Npix: int
             The number of cutout pixels that need to be allocated for
             the given image extension
+        slice_info: tuple
+            A tuple of slice info for both image and cutout (see above)
         skip_list: list of int's
             A list of obj indices that should be skipped due to no overlap
         '''
 
         Nsources = len(catalog)
 
+        image_shape = image.get_info()['dims']
+        boxsize_tag = self.config['input']['boxsize_tag']
+
         Npix = 0
         skip_list = []
+        slice_info = []
         for indx, obj in enumerate(catalog):
             try:
                 if indx % progress == 0:
                     self.logprint(f'{indx} of {Nsources}')
-                object_positions = self._compute_image_pos(image,obj)
-                slices = self._compute_obj_slices(object_positions, obj[self.config['input']['boxsize_tag']])
+                obj_pos = self._compute_image_pos(image, obj)
+                slices = self._compute_obj_slices(
+                    image_shape, obj_pos, obj[boxsize_tag]
+                    )
                 image_slice, cutout_slice, cutout_size = slices
 
-                # if a slice is returned, then allocate the full boxsize^2
+                # NOTE: This fails if exactly 1 slice is empty unless we load
+                # the full array into memory first. This is an issue we have now
+                # flagged w/ fitiso:
+                # https://github.com/esheldon/fitsio/issues/359
+                # handle the slice(0,0) edge case
+                skip = False
+                for sl in image_slice:
+                    if sl.stop == sl.start:
+                        skip_list.append(indx)
+                        skip = True
+                for sl in cutout_slice:
+                    if sl.stop == sl.start:
+                        # only add once
+                        if skip is False:
+                            skip_list.append(indx)
+                            skip = True
+
+                if skip is True:
+                    continue
+
+                # if a (nonempty!) slice is returned, then allocate the full boxsize^2
                 Npix += cutout_size
+
+                slice_info.append(
+                    (indx, obj_pos, image_slice, cutout_slice, cutout_size)
+                    )
 
             except NoOverlapError:
                 # if there is no overlap in the image, do not add the stamp
@@ -591,13 +709,25 @@ class CookieCutter(object):
                 skip_list.append(indx)
                 continue
 
-        return Npix, skip_list
+        return Npix, slice_info, skip_list
 
-    def _compute_image_pos(self, image, obj):
+    def _compute_image_pos(self, image, obj, wcs=None):
+        '''
+        Compute the position of an object in pixel coordinates
+        given an image with a registered WCS
+
+        image: fitsio.hdu.image.ImageHDU
+            A FITS Image HDU object
+        obj: astropy.table.Row
+            A row of an astropy table
+        wcs: astropy.WCS
+            An astropy WCS instance, if you want to use one other tahn
+            the SCI image (such as the coadd segmap)
+        '''
+
         id_tag = self.config['input']['id_tag']
         ra_tag = self.config['input']['ra_tag']
         dec_tag = self.config['input']['dec_tag']
-        
 
         ra_unit = u.Unit(self.config['input']['ra_unit'])
         dec_unit = u.Unit(self.config['input']['dec_unit'])
@@ -606,48 +736,131 @@ class CookieCutter(object):
             ra=obj[ra_tag]*ra_unit, dec=obj[dec_tag]*dec_unit
             )
 
-        image_wcs = WCS(image.read_header())
+        if wcs is None:
+            # default behavior is to grab it from the passed image header
+            wcs = WCS(image.read_header())
+
         image_shape = image.get_info()['dims']
 
-        x, y = image_wcs.world_to_pixel(coord)
+        x, y = wcs.world_to_pixel(coord)
         object_pos_in_image = [x.item(), y.item()]
 
         # NOTE: reversed as numpy arrays have opposite convention!
         object_pos_in_image_array = object_pos_in_image[-1::-1]
+
         return object_pos_in_image_array
-    
-    def _compute_obj_slices(self, object_pos_in_image_array, boxsize):
+
+    def _compute_obj_slices(self, image_shape, object_pos_in_image_array,
+                            boxsize):
         '''
         Compute the image & cutout slices corrresponding to the given obj
 
-        image: fitsio.hdu.image.ImageHDU
-            A FITS Image HDU object
-        obj: np.recarray row, astropy.Table row
+        image_shape: tuple, list
+            The shape of the image we are grabbing cutouts from
+        obj_pos_in_image_array: np.recarray row, astropy.Table row
             The object being considered
+        boxsize:
 
         returns: (image_slice, cutout_slice, cutout_size)
             A tuple of the slices needed to correctly grab the object
             cutout in the original image and the cutout box respectively,
             as well as the total cutout size in pixels
         '''
-        #boxsize = obj[boxsize_tag]
+
         cutout_shape = (boxsize, boxsize)
-        cutout_size = boxsize**2
 
         image_slice, cutout_slice = intersecting_slices(
             image_shape, cutout_shape, object_pos_in_image_array
         )
 
+        cutout_size = boxsize**2
+
         return image_slice, cutout_slice, cutout_size
+
+    def _combine_mask_and_seg(self, obj_id, mask, seg, seg_type='minimal'):
+        '''
+        Combine the mask and segmentation maps into an efficient single-map
+        representation
+
+        obj_id: int
+            The cutout object's ID (should be consistent w/ segmentation val)
+        mask: np.ndarray (shape = cutout_shape)
+            The mask cutout for a given source
+        seg: np.ndarray (shape = cutout_shape)
+            The segmentation cutout for a given source
+        seg_type: str
+            The type of segmentation map to use. Currently only one registered
+            type:
+            - minimal: Convert normal segmentation values (pix_val=object_id)
+              into the minimal set that can be reconstructed later on:
+              - 0: unassigned sky
+              - 1: this object (of the current stamp)
+              - 2: neighbor (contained in other cutouts)
+        '''
+
+        _allowed = ['minimal']
+
+        # these are the input SExtractor SEGMENTATION values
+        _sky = 0
+        _obj = obj_id
+
+        if seg_type not in _allowed:
+            raise ValueError(f'{seg_type} is not a registered segmentation '
+                             f'type! Must be one of the following: {_allowed}')
+
+        seg_obj = self.config['segmentation']['obj']
+        seg_neighbor = self.config['segmentation']['neighbor']
+
+        for name, val in dict(
+                zip(
+                    ['obj', 'neighbor'],
+                    [seg_obj, seg_neighbor]
+                    )
+                ).items():
+            if val in mask:
+                raise ValueError(f'{name} of {val} is already present in '
+                                 'the mask!')
+
+        combined_mask = mask.copy()
+
+        if seg_type == 'minimal':
+            # NOTE: used to keep track of sky here as well, but not needed
+            combined_mask[seg == _obj] += seg_obj
+            combined_mask[(seg != _obj) & (seg != _sky)] = seg_neighbor
+
+        return combined_mask
 
     @property
     def meta(self):
         if self._meta is None:
-            self._meta = fitsio.read(
-                self._cookiecutter_file, ext='META'
-                )
+            # self._meta = fitsio.read(
+            #     self._cookiecutter_file, ext='META'
+            #     )
+            # should only happen if was instantiated with a file
+            self._meta = self._fits['META'].read()
 
         return self._meta
+
+    def clip_meta(self, start, end):
+        '''
+        Clip the metadata table to a given start & end row
+
+        start: int
+            The starting index for the new metadata table
+        end: int
+            The ending index for the new metadata table
+        '''
+
+        utils.check_type('start', start, int)
+        utils.check_type('end', end, int)
+
+        if end < start:
+            raise ValueError(f'Cannot clip the metadata table given the ' +
+                             f'bounds ({start}, {end})!')
+
+        self._meta = self._meta[start:end]
+
+        return
 
     # NOTE: this is for backwards compatibility. Base def is now meta
     @property
@@ -655,7 +868,7 @@ class CookieCutter(object):
         return self.meta
 
     def get_cutout(self, objectid, extnumber=None, filename=None,
-                   cutoutType='IMAGE'):
+                   cutout_type='IMAGE'):
         '''
         Request a single cutout of one object from one image.
         Must always provide:
@@ -671,22 +884,22 @@ class CookieCutter(object):
                      extensions in the raw file.
         ---------------
         Optional:
-        cutoutType: defaults to IMAGE; may also provide MASK.
+        cutout_type: defaults to IMAGE; may also provide MASK.
         '''
 
         # Construct the file extension from the requested cutout:
         if (filename is None) and (extnumber is not None):
             extnumber = int(extnumber) # Avoiding needless silliness
-            extname = f'{cutoutType}{extnumber}'
+            extname = f'{cutout_type}{extnumber}'
 
         # Look up the row in the table.
         if (filename is not None) and (extnumber is None):
             filematch = [
-                filename in thing for thing in self._meta['imagefile']
+                filename in thing for thing in self.meta['imagefile']
                 ]
             if len(filematch) == 1:
                 extnumber = filematch.index(True)
-                extname = f'{cutoutType}{extnumber}'
+                extname = f'{cutout_type}{extnumber}'
             else:
                 raise ValueError(f'the provided file string, {filename}, is ' +
                                  'not unique in the list of provided image files.')
@@ -701,18 +914,24 @@ class CookieCutter(object):
         # we should have arrived here with an extension name.
         # Now get the row from the table with the object info.
         # At this point, the extension name should exist.
-        row = (self._meta['object index'] == objectid) &\
-            (self._meta['extnumber'] == extnumber)
+        row = (self.meta['object_id'] == objectid) &\
+            (self.meta['cc_ext'] == extnumber)
         if np.sum(row) != 1:
-            raise ValueError(f'somehow, the object index {objectid} and image ' +
-                             'extension {extnumber} pairing does not exist, ' +
+            raise ValueError(f'somehow, the objectindex {objectid} and image ' +
+                             f'extension {extnumber} pairing does not exist, ' +
                              'or is not unique in your metadata')
-        entry = self._meta[row]
+        entry = self.meta[row]
 
-        with fitsio.FITS(self._cookiecutter_file, 'r') as fits:
-            cutout1d = fits[extname][row[startpos]:row[endpos]]
-            # NOTE: cutouts are always square.
-            cutout2d = cutout1d.reshape(int(np.sqrtcutout1d.size),int(np.sqrtcutout1d.size))
+        # are read as arrays
+        start = int(entry['start_pos'])
+        end = int(entry['end_pos'])
+        cutout1d = self._fits[extname][0,start:end]
+
+        # NOTE: cutouts are always square.
+        cutout2d = cutout1d.reshape(
+            int(np.sqrt(cutout1d.size)),
+            int(np.sqrt(cutout1d.size))
+            )
 
         return cutout2d
 
@@ -724,58 +943,90 @@ class CookieCutter(object):
 
         return
 
-    def reconstruct_image(self, cutoutType = 'IMAGE', extnumbers=None,filename=None):
+    def reconstruct_image(self, cutout_type='IMAGE', extnumber=None,
+                          filename=None):
         '''
-        cutoutType can by any of 'IMAGE' or 'MASK' (add new types if we implement them...)
+        cutout_type can by any of 'IMAGE' or 'MASK' (add new types if
+        we implement them...)
+
+        Look up the correct image extension.
+        Get the old header
+        build the correctly-sized and typed 2d array.
+        Get the wcs.
+        Read in the catalog
+        for each catalog entry:
+          compute image coordinates
+          build cutout and image slices.
+          add background level + cutout flux to 2d image array
         '''
 
-        
-        # Look up the correct image extension.
-        # Get the old header
-        # build the correctly-sized and typed 2d array.
-        # Get the wcs.
-        # Read in the catalog
-        # for each catalog entry:
-        #   compute image coordinates
-        #   build cutout and image slices.
-        #   add background level + cutout flux to 2d image array
-        
         if (filename is None) and (extnumber is not None):
             extnumber = int(extnumber) # Avoiding needless silliness
-            extname = f'{cutoutType}{extnumber}'
+            extname = f'{cutout_type}{extnumber}'
+
         if (filename is not None) and (extnumber is None):
             filematch = [
                 filename in thing for thing in self._meta['imagefile']
                 ]
+
             if len(filematch) == 1:
                 extnumber = filematch.index(True)
-                extname = f'{cutoutType}{extnumber}'
+                extname = f'{cutout_type}{extnumber}'
             else:
                 raise ValueError(f'the provided file string, {filename}, is ' +
-                                 'not unique in the list of provided image files.')            
+                                 'not unique in the list of provided image files.')
+
         # At this stage we have the image header name.
         # Reconstruct the original header.
-        cc_header = fitsio.read_header(self._cookiecutter_file,ext=extname)
+        cc_header = fitsio.read_header(self._cookiecutter_file, ext=extname)
         orig_header = reconstruct_original_FITS_header(cc_header)
-        #wcs = WCS(orig_header)
 
-        image_size = [orig_header['NAXIS1'],orig_header['NAXIS2']]
-        if orig_header['BITPIX'] <0:
-            dtype = 'i{orig_header['BITPIX']//8}'
+        # image_shape = (orig_header['NAXIS1'], orig_header['NAXIS2'])
+        # NOTE: reversed due to FITS vs numpy conventions
+        image_shape = (orig_header['NAXIS2'], orig_header['NAXIS1'])
+
+        if orig_header['BITPIX'] < 0:
+            dtype = f'i{orig_header["BITPIX"]//8}'
         else:
-            dtype = 'u{orig_header['BITPIX']//8}'
-        new_image = np.zeros(image_size,dtype=dtype)
-        
+            dtype = f'u{orig_header["BITPIX"]//8}'
+
+        new_image = np.zeros(image_shape, dtype=dtype)
+
+        meta_in_image = self.meta[self.meta['cc_ext'] == extnumber]
+
         # Now loop over objects in this image.
-        for ientry in self._meta:
-            in_image = (ientry['cc_ext'] == extnumber)
-            if in_image:
-                cutout = self.get_cutout(entry['object_id'], extnumber=extnumber,cutoutType=cutoutType)
-                image_slice, cutout_slice, cutout_size = _compute_obj_slices(object_pos_in_image_array, boxsize)
+        ipdb.set_trace()
+        for obj in meta_in_image:
+            # in_image = (obj['cc_ext'] == extnumber)
+            # if in_image:
+            cutout = self.get_cutout(
+                obj['object_id'],
+                extnumber=extnumber,
+                cutout_type=cutout_type
+                )
+
+            # guaranteed to be perfect square, for now
+            assert cutout.shape[0] == cutout.shape[1]
+            boxsize = cutout.shape[0]
+
+            # object_positions = self._compute_image_pos(image, obj)
+            obj_pos = (obj['xcen'], obj['ycen'])
+
+            try:
+                if obj['object_id'] == 2913:
+                    ipdb.set_trace()
+                slice_info = self._compute_obj_slices(
+                    image_shape, obj_pos, boxsize
+                    )
+                image_slice, cutout_slice, cutout_size = slice_info
+
                 new_image[image_slice] = cutout[cutout_slice]
-                
+            except NoOverlapError:
+                ipdb.set_trace()
+                print(f'No overlap for obj {obj["object_id"]}')
+
+        ipdb.set_trace()
         return new_image, orig_header
-    
 
 class ImageLocator(object):
     '''
@@ -783,10 +1034,23 @@ class ImageLocator(object):
     with a CookieCutter ingested image
     '''
 
-    def __init__(self, image_file=None, image_ext=None, weight_file=None,
-                 weight_ext=None, mask_file=None, mask_ext=None,
-                 background_file=None, background_ext=None,
-                 skyvar_file=None, skyvar_ext=None, input_dir=None):
+    # the list of registered image types
+    _allowed_types = [
+        'image',
+        'weight',
+        'mask',
+        'background',
+        'skyvar',
+        'segmentation',
+    ]
+
+    def __init__(self, image_file, image_ext=0, weight_file=None,
+                 weight_ext=0, mask_file=None, mask_ext=0,
+                 background_file=None, background_ext=0,
+                 skyvar_file=None, skyvar_ext=0, segmentation_file=None,
+                 segmentation_ext=0, input_dir=None):
+
+        # TODO: clean this up when there is time
 
         if input_dir is not None:
             image_file = Path(input_dir) / Path(image_file)
@@ -796,7 +1060,11 @@ class ImageLocator(object):
             if mask_file is not None:
                 mask_file = Path(input_dir) / Path(mask_file)
             if background_file is not None:
-                background_file = Path(input_dir) / Path(mask_file)
+                background_file = Path(input_dir) / Path(background_file)
+            if skyvar_file is not None:
+                skyvar_file = Path(input_dir) / Path(skyvar_file)
+            if segmentation_file is not None:
+                segmentation_file = Path(input_dir) / Path(segmentation_file)
 
         else:
             image_file = Path(image_file)
@@ -806,39 +1074,33 @@ class ImageLocator(object):
             if mask_file is not None:
                 mask_file = Path(mask_file)
             if background_file is not None:
-                background_file = Path(mask_file)
+                background_file = Path(background_file)
+            if skyvar_file is not None:
+                skyvar_file = Path(skyvar_file)
+            if segmentation_file is not None:
+                segmentation_file = Path(segmentation_file)
 
         self.input_dir = input_dir
 
         self._image_file = image_file
-        if image_ext is None:
-            self._image_ext = 0
-        else:
-            self._image_ext = image_ext
+        self._image_ext = image_ext
 
         self._weight_file = weight_file
-        if weight_ext is None:
-            self._weight_ext = 0
-        else:
-            self._weight_ext = weight_ext
+        self._weight_ext = weight_ext
 
         self._mask_file = mask_file
-        if mask_ext is None:
-            self._mask_ext = 0
-        else:
-            self._mask_ext = mask_ext
+        self._mask_ext = mask_ext
 
         self._background_file = background_file
-        if background_ext is None:
-            self._background_ext = 0
-        else:
-            self._background_ext = background_ext
+        self._background_ext = background_ext
 
         self._skyvar_file = skyvar_file
-        if skyvar_ext is None:
-            self._skyvar_ext = 0
-        else:
-            self._skyvar_ext = skyvar_ext
+        self._skyvar_ext = skyvar_ext
+
+        self._segmentation_file = segmentation_file
+        self._segmentation_ext = segmentation_ext
+
+        return
 
     @property
     def image(self):
@@ -859,7 +1121,7 @@ class ImageLocator(object):
             return fitsio.FITS(self._mask_file, 'r')[self._mask_ext]
 
     @property
-    def skybkg(self):
+    def background(self):
         if self._background_file is None:
             return None
         else:
@@ -872,6 +1134,38 @@ class ImageLocator(object):
         else:
             return fitsio.FITS(self._background_file, 'r')[self._skyvar_ext]
 
+    @property
+    def segmentation(self):
+        if self._segmentation_file is None:
+            return None
+        else:
+            return fitsio.FITS(self._segmentation_file, 'r')[self._segmentation_ext]
+
+    def get_wcs(self, image_type, ext=0):
+        '''
+        In some cases, the WCS of an image will not live in the same extension as
+        the passed image data. In that case, you can request to get the WCS
+        from an arbitrary extension for a given image type
+
+        image_type: str
+            The name of the image type whose WCS you want to grab
+        ext: int
+            The image extension where the WCS lives
+        '''
+
+        utils.check_type('image_type', image_type, str)
+        utils.check_type('ext', ext, int)
+
+        if image_type not in self._allowed_types:
+            raise ValueError(f'{image_type} is not one of the allowed image ' +
+                             f'types; must be one of {self._allowed_types}')
+
+        image_file = getattr(self, f'_{image_type}_file')
+
+        # hdr = fitsio.FITS(image_file, 'r')[ext].read_header()
+        hdr = fitsio.read_header(image_file, ext=ext)
+
+        return WCS(hdr)
 
 #------------------------------------------------------------------------------
 # Some helper funcs relevant to CookieCutter
@@ -941,9 +1235,11 @@ class NoOverlapError(ValueError):
 
 
 def reconstruct_original_FITS_header(inheader):
-    # Old keys were stored with "ORIG_" prepended.
-    # Find all the keys that start with "ORIG_". Strip this off, and
-    #  replace any record in the current header.
+    '''
+    Old keys were stored with "ORIG_" prepended.
+    Find all the keys that start with "ORIG_". Strip this off, and
+    replace any record in the current header.
+    '''
 
     header = copy.deepcopy(inheader)
     keys = header.keys()
@@ -955,11 +1251,17 @@ def reconstruct_original_FITS_header(inheader):
             if new_keyname in keys:
                 header[new_keyname] = header[ikey]
             else:
-                new_record = fitsio.FITSRecord( {'name':new_keyname, 'value':header[ikey], 'comment':''})
+                new_record = fitsio.FITSRecord(
+                    {
+                        'name': new_keyname,
+                        'value': header[ikey],
+                        'comment':''
+                    })
                 header.add_record(new_record)
+
     return header
 
-def remove_essential_FITS_keys(header, exclude_keys=None, backup_keys = True):
+def remove_essential_FITS_keys(header, exclude_keys=None, backup_keys=True):
     '''
     FITS format requries certain essential header keys that we want to remove
     when transfering header information, as they will no longer be true for the
@@ -974,11 +1276,18 @@ def remove_essential_FITS_keys(header, exclude_keys=None, backup_keys = True):
     for key in exclude_keys:
         if backup_keys:
             new_keyname = f'ORIG_{key}'
-            new_record = fitsio.FITSRecord( {'name':new_keyname, 'value':header[key], 'comment':f'original image value of {key}'})
+            new_record = fitsio.FITSRecord(
+                {
+                    'name': new_keyname,
+                    'value': header[key],
+                    'comment': f'original image value of {key}'
+                })
             header.add_record(new_record)
+
         header.delete(key)
 
     return header
 
-# Used by removeEssentialFitsKeys()
-ESSENTIAL_FITS_KEYS = ['SIMPLE', 'BITPIX', 'NAXIS', 'NAXIS1', 'NAXIS2', 'EXTEND']
+# Used by remove_essential_fits_keys()
+# TODO: determine what to do with EXTEND
+ESSENTIAL_FITS_KEYS = ['SIMPLE', 'BITPIX', 'NAXIS', 'NAXIS1', 'NAXIS2']#, 'EXTEND']

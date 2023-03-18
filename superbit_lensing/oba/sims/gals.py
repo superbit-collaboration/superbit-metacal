@@ -6,28 +6,48 @@ from astropy.table import Table, Row
 import ipdb
 
 def make_a_galaxy(indx, obj, band, wcs, psf, nfw_halo, camera, exp_time,
-                  pix_scale, cosmos_plate_scale, ra_bounds, dec_bounds,
-                  gs_params, logprint):
+                  # pix_scale, cosmos_plate_scale, ra_bounds, dec_bounds,
+                  pix_scale, cosmos_plate_scale, gs_params, logprint,
+                  pos_buffer=16):
     '''
     indx: source index
     gal: np.recarray row
     camera: container for needed camera quantities
+    pos_buffer: int
+        The number of pixels that a source can fall of the and still get
+        drawn
     '''
 
     if indx % 100 == 0:
         logprint(f'Starting {indx}')
 
     # determine if we should skip
-    ra_min, ra_max = ra_bounds
-    dec_min, dec_max = dec_bounds
+    # ra_min, ra_max = ra_bounds
+    # dec_min, dec_max = dec_bounds
 
     gal_ra = obj['ra']
     gal_dec = obj['dec']
 
-    if (ra_min.value > gal_ra) or (ra_max.value < gal_ra) or\
-       (dec_min.value > gal_dec) or (dec_max.value < gal_dec):
-        logprint(f'gal {indx} out of bounds. Skipping.')
-        return (None, None)
+    gal_ra *= galsim.degrees
+    gal_dec *= galsim.degrees
+
+    world_pos = galsim.CelestialCoord(gal_ra, gal_dec)
+    image_pos = wcs.toImage(world_pos)
+
+    Nx = camera.npix_H.value
+    Ny = camera.npix_V.value
+    for p, Nmax in [(image_pos.x, Nx), (image_pos.y, Ny)]:
+        if (p < 0) and (abs(p) > pos_buffer):
+            # logprint(f'gal {indx} out of bounds. Skipping.')
+            return (None, None)
+        elif (p > Nmax) and (abs(p-Nmax) > pos_buffer):
+            # logprint(f'gal {indx} out of bounds. Skipping.')
+            return (None, None)
+
+    # if (ra_min.value > gal_ra) or (ra_max.value < gal_ra) or\
+    #    (dec_min.value > gal_dec) or (dec_max.value < gal_dec):
+    #     logprint(f'gal {indx} out of bounds. Skipping.')
+    #     return (None, None)
 
     # Get its Sersic parameters
     gal_n_sersic_cosmos10 = obj['c10_sersic_fit_n']
@@ -60,12 +80,6 @@ def make_a_galaxy(indx, obj, band, wcs, psf, nfw_halo, camera, exp_time,
         q=obj['c10_sersic_fit_q'],
         beta=obj['c10_sersic_fit_phi']*galsim.radians
         )
-
-    gal_ra *= galsim.degrees
-    gal_dec *= galsim.degrees
-
-    world_pos = galsim.CelestialCoord(gal_ra, gal_dec)
-    image_pos = wcs.toImage(world_pos)
 
     # galaxy 2d position on sci img in arcsec
     gal_pos_cent_xasec = image_pos.x * pix_scale

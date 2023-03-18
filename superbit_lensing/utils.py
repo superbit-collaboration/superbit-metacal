@@ -142,12 +142,20 @@ def read_yaml(yaml_file):
         return yaml.load(stream, Loader=loader)
 
 def write_yaml(yaml_dict, yaml_outfile):
+    '''
+    yaml_dict: dict
+        The dictionary to save to a yaml config file
+    yaml_outfile: str
+        The path of the output config file
+    '''
+
     with open(yaml_outfile, 'w') as yaml_file:
         yaml.dump(yaml_dict, yaml_file, default_flow_style=False)
 
     return
 
-def generate_seeds(Nseeds, master_seed=None, seed_bounds=(0, 2**32-1)):
+def generate_seeds(Nseeds, master_seed=None, seed_bounds=(0, 2**32-1),
+                   return_master=False):
     '''
     generate a set of safe, independent seeds given a master seed
 
@@ -157,6 +165,8 @@ def generate_seeds(Nseeds, master_seed=None, seed_bounds=(0, 2**32-1)):
         A seed that initializes the SeedSequence, if desired
     seed_bounds: tuple of ints
         The min & max values for the seeds to be sampled from
+    return_master: bool
+        Return the master seed as well (in case it wasn't passed!)
     '''
 
     if (not isinstance(Nseeds, int)) or (Nseeds < 1):
@@ -183,7 +193,10 @@ def generate_seeds(Nseeds, master_seed=None, seed_bounds=(0, 2**32-1)):
         val = int(streams[k].integers(seed_bounds[0], seed_bounds[1]))
         seeds.append(val)
 
-    return seeds
+    if return_master is True:
+        return seeds, master_seed
+    else:
+        return seeds
 
 def check_req_params(config, params, defaults):
     '''
@@ -302,63 +315,57 @@ def decode(msg):
         print(f'Warning: message={msg} is not a string or bytes')
         return msg
 
-def run_command(cmd, logprint=None):
+def run_command(cmd, logprint=None, silent=False):
 
     if logprint is None:
         # Just remap to print then
         logprint = print
 
     args = [cmd.split()]
-    kwargs = {'stdout':subprocess.PIPE,
-              'stderr':subprocess.STDOUT,
-              # 'universal_newlines':True,
-              'bufsize':1}
+    kwargs = {
+        'stdout':subprocess.PIPE,
+        'stderr':subprocess.STDOUT,
+        'bufsize':1
+        }
 
     with subprocess.Popen(*args, **kwargs) as process:
         try:
             # for line in iter(process.stdout.readline, b''):
             for line in iter(process.stdout.readline, b''):
-                logprint(decode(line).replace('\n', ''))
+                if silent is False:
+                    logprint(decode(line).replace('\n', ''))
 
             stdout, stderr = process.communicate()
 
         except:
-            logprint('')
-            logprint('.....................ERROR....................')
-            logprint('')
+            if silent is False:
+                logprint('')
+                logprint('.....................ERROR....................')
+                logprint('')
 
-            logprint('\n'+decode(stderr))
-            # try:
-            #     logprint('\n'+decode(stderr))
-            # except AttributeError:
-            #     logprint('\n'+stderr)
+                logprint('\n'+decode(stderr))
 
             rc = process.poll()
-            raise subprocess.CalledProcessError(rc,
-                                                process.args,
-                                                output=stdout,
-                                                stderr=stderr)
-            # raise subprocess.CalledProcessError(rc, cmd)
+            raise subprocess.CalledProcessError(
+                rc,
+                process.args,
+                output=stdout,
+                stderr=stderr
+                )
 
         rc = process.poll()
 
-        # if rc:
-        #     stdout, stderr = process.communicate()
-        #     logprint('\n'+decode(stderr))
-            # return 1
 
         if rc:
             stdout, stderr = process.communicate()
-            logprint('\n'+decode(stderr))
-            # raise subprocess.CalledProcessError(rc, cmd)
-            raise subprocess.CalledProcessError(rc,
-                                                process.args,
-                                                output=stdout,
-                                                stderr=stderr)
-
-    # rc = popen.wait()
-
-    # rc = process.returncode
+            if silent is False:
+                logprint('\n'+decode(stderr))
+            raise subprocess.CalledProcessError(
+                rc,
+                process.args,
+                output=stdout,
+                stderr=stderr
+                )
 
     return rc
 

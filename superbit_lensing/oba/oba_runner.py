@@ -67,22 +67,14 @@ class OBARunner(object):
         return
 
     def parse_config(self):
-        # TODO: Do additional parsing!
-        # if self.config_file is not None:
-        #     config = utils.read_yaml(self.config_file)
-        #     self.config = utils.parse_config(
-        #         config, self._req_fields, self._opt_fields
-        #         )
-        # else:
-        #     # make a very simple config consistent with a
-        #     # real data run
-        #     self.config = self._make_default_config()
-
         # NOTE: all parsing has been moved into the new OBAConfig class,
         # including default setting. See class for config def details
         self.config = OBAConfig(self.config_file)
 
         self.modules = self.config['modules']
+
+        if self.modules is None:
+            self.modules = []
 
         return
 
@@ -211,7 +203,7 @@ class OBARunner(object):
 
     @property
     def det_bands(self):
-        return self.config['coadd']['det_bands']
+        return self.config['run_options']['det_bands']
 
     def go(self, overwrite=False):
         '''
@@ -339,7 +331,15 @@ class OBARunner(object):
             return
 
 
-        mask_types = self.config['masking']['types']
+        # had to rework this to have a consistent config depth
+        cosmics = self.config['masking']['cosmic_rays']
+        satellites = self.config['masking']['satellites']
+
+        mask_types = []
+        mtypes = ['cosmic_rays', 'satellites']
+        for mtype in mtypes:
+            if self.config['masking'][mtype] is True:
+                mask_types.append(mtype)
 
         runner = MaskingRunner(
             self.run_dir,

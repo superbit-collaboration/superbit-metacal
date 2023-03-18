@@ -47,7 +47,7 @@ class IOManager(object):
     OBA_DIR: /home/bit/oba_temp/
 
     NOTE: Only if a target_name is passed:
-    Temporary analysis dir for a given cluster target:
+    Temporary analysis dir for a given target name:
     OBA_TARGET: OBA_DIR/{TARGET_NAME}/
 
     Temporary analysis files per band for a given target:
@@ -57,9 +57,9 @@ class IOManager(object):
 
     NOTE: ‘det’ is not an actual filter, but a combination of bands (derived)
 
-    Temporary output analysis files (coadds, MEDS, & logs for now)
+    Temporary output analysis files (FITS, configs, & logs for now)
     for a given band & target:
-    OBA_CLUSETRS/{TARGET_NAME}/out/
+    OBA_DIR/{TARGET_NAME}/out/
 
     ----------------------------------------------------------------------
     GAIA catalog(s)
@@ -76,11 +76,8 @@ class IOManager(object):
     OBA results root dir:
     OBA_RESULTS: /data/bit/oba_results/
 
-    OBA results for clusters:
-    OBA_RESULTS/clusters/
-
-    OBA results for a given cluster target:
-    OBA_RESULTS/clusters/{TARGET_NAME}/
+    OBA results for a given target:
+    OBA_RESULTS/{TARGET_NAME}/
 
     ----------------------------------------------------------------------
     Testing on a local device (i.e. *not* qcc)
@@ -104,7 +101,7 @@ class IOManager(object):
     # alternatively, can instantiate for a given target:
     io_manager = IOManager(root_dir=root_dir, target_name=target_name)
 
-    # returns {root_dir}/data/bit/science_images/clusters/{target_name}/
+    # returns {root_dir}/data/bit/science_images/{target_name}/
     target_dir = io_manager.RAW_TARGET
 
     '''
@@ -264,8 +261,8 @@ def parse_image_file(image_file, image_type):
     Raw sci images and calibration images have different filename
     conventions:
 
-    SCI: {TARGET_NAME}_{EXP_TIME}_{BAND_INDEX}_{UTC}.fits
-    CAL: master_{TYPE}_{EXP_TIME}_{UTC}.fits
+    SCI: {TARGET_NAME}_{BAND_INDEX}_{EXP_TIME}_{UNIX_TIME}.fits
+    CAL: master_{TYPE}_{EXP_TIME}_{UNIX_TIME}.fits
 
     image_file: pathlib.Path
         The filepath of the raw image. Can be a processed image as
@@ -328,8 +325,8 @@ def parse_sci_image_file(image_file):
     # We define them relative to the end to allow for _'s in a target_name
     im_pars = {
         'target_name': '_'.join(features[0:-3-offset]),
-        'exp_time': int(features[-3-offset]),
-        'band': index2band(int(features[-2-offset])),
+        'band': index2band(int(features[-3-offset])),
+        'exp_time': int(features[-2-offset]),
         'utc': int(features[-1-offset])
         }
 
@@ -455,7 +452,7 @@ def get_raw_files(search_dir, target_name, band=None):
         ignore += f'{suffix},'
     ignore += ']'
 
-    fname_base = f'{target_name}_*{band_str}*{ignore}.fits'
+    fname_base = f'{target_name}*{band_str}*{ignore}.fits'
     image_base = search_dir / fname_base
 
     files = glob(

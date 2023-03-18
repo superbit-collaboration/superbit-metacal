@@ -1,11 +1,13 @@
 from pathlib import Path
 from glob import glob
+import numpy as np
 
 import ipdb
 
 from superbit_lensing import utils
 from superbit_lensing.cookiecutter import CookieCutter
 from oba_io import band2index
+from bitmask import OBA_BITMASK, OBA_BITMASK_DTYPE
 
 class OutputRunner(object):
     '''
@@ -39,6 +41,9 @@ class OutputRunner(object):
     ext2: SEG (segmentation; 0 if sky, NUMBER if pixel is assigned to an obj)
     '''
 
+    _out_sci_dtype_default = np.dtype('uint16')
+    _out_msk_dtype_default = OBA_BITMASK_DTYPE
+
     # The following dict defines the correspondance between our internal keys
     # to the desired output format config keys, in this case the CookieCutter.
     # Each internal key is used to map a given raw SCI exposure to its
@@ -51,6 +56,8 @@ class OutputRunner(object):
         'wgt_ext': 'weight_ext',
         'msk_file': 'mask_file',
         'msk_ext': 'mask_ext',
+        # 'skyvar_file': 'skyvar_file',
+        # 'skyvar_ext': 'skyvar_ext',
         'bkg_file': 'background_file',
         'bkg_ext': 'background_ext',
         'seg_file': 'segmentation_file',
@@ -63,11 +70,8 @@ class OutputRunner(object):
                  id_tag='NUMBER', boxsize_tag='boxsize',
                  ra_tag='ALPHAWIN_J2000', dec_tag='DELTAWIN_J2000',
                  ra_unit='deg', dec_unit='deg',
-                 out_sci_dtype='i2', out_msk_dtype='i1'):
+                 out_sci_dtype=None, out_msk_dtype=None):
         '''
-        # TODO: remove if we don't end up needing it!
-        # config_file: pathlib.Path
-        #     The filepath of the base CookieCutter config
         run_dir: pathlib.Path
             The OBA run directory for the given target
         bands: list of str's
@@ -110,7 +114,6 @@ class OutputRunner(object):
         '''
 
         args = {
-            # 'config_file': (config_file, Path),
             'run_dir': (run_dir, Path),
             'bands': (bands, list),
             'sci_ext': (sci_ext, int),
@@ -126,8 +129,6 @@ class OutputRunner(object):
             'dec_tag': (dec_tag, str),
             'ra_unit': (ra_unit, str),
             'dec_unit': (dec_unit, str),
-            'out_sci_dtype': (out_sci_dtype, str),
-            'out_msk_dtype': (out_msk_dtype, str),
         }
 
         for name, tup in args.items():
@@ -141,6 +142,17 @@ class OutputRunner(object):
         utils.check_type('target_name', target_name, str)
         self.target_name = target_name
 
+        dtype_args = {
+            'out_sci_dtype': out_sci_dtype,
+            'out_msk_dtype': out_msk_dtype,
+        }
+        for name, val in dtype_args.items():
+            if val is not None:
+                utils.check_type(name, val, np.dtype)
+            else:
+                default = getattr(self, f'_{name}_default')
+                setattr(self, name, default)
+
         for band in self.bands:
             utils.check_type('band', band, str)
 
@@ -153,9 +165,11 @@ class OutputRunner(object):
         # indexed by band
         self.config_files = {}
 
+        # if no images are found for a given band, add it to the skip list
+        self.skip = []
+
         self.det_coadd = self.run_dir / f'det/coadd/{target_name}_coadd_det.fits'
         self.det_cat = self.run_dir / f'det/cat/{target_name}_coadd_det_cat.fits'
-
 
         return
 
@@ -178,6 +192,11 @@ class OutputRunner(object):
         overwrite: bool
             Set to overwrite existing files
         '''
+
+        out_sci_dtype = self.out_sci_dtype
+        out_msk_dtype = self.out_msk_dtype
+        logprint(f'Using output SCI dtype of {out_sci_dtype}')
+        logprint(f'Using output MSK dtype of {out_msk_dtype}')
 
         logprint('Gathering input images...')
         self.gather_images(logprint)
@@ -236,6 +255,7 @@ class OutputRunner(object):
 
             if len(images) == 0:
                 logprint(f'WARNING: Zero raw images found; skipping')
+                self.skip.append(band)
 
             for image in images:
                 image = Path(image)
@@ -281,6 +301,10 @@ class OutputRunner(object):
         for band in self.bands:
             logprint(f'Starting band {band}')
 
+            if band in self.skip:
+                logprint(f'Skipping as no images were found')
+                continue
+
             band_dir = (run_dir / band).resolve()
 
             outdir = band_dir / 'out/'
@@ -292,6 +316,9 @@ class OutputRunner(object):
             config['output']['dir'] = str(outdir)
             config['output']['filename'] = str(outfile)
             config['output']['overwrite'] = overwrite
+
+            # set minimal segmentation values according to OBA bitmask
+            config['segmentation']
 
             # a dictionary indexed by raw SCI filepath
             images = self.images[band]
@@ -328,6 +355,10 @@ class OutputRunner(object):
         but we could require a config instead
         '''
 
+        # grab some of the needed segmask values from the OBA bitmask
+        oba_obj = OBA_BITMASK['seg_obj']
+        oba_neighbor = OBA_BITMASK['seg_neighbor']
+
         # we won't be using the full paths as we are setting a input dir
         det_cat = f'det/cat/{self.det_cat.name}'
 
@@ -343,9 +374,15 @@ class OutputRunner(object):
                 'ra_unit': self.ra_unit,
                 'dec_unit': self.dec_unit,
             },
+            'segmentation': {
+                # this will allow us to only use 3 values for the segmap
+                'type': 'minimal',
+                'obj': oba_obj,
+                'neighbor': oba_neighbor,
+            },
             'output': {
-                'sci_dtype': self.out_sci_dtype,
-                'msk_dtype': self.out_msk_dtype,
+                'sci_dtype': str(self.out_sci_dtype),
+                'msk_dtype': str(self.out_msk_dtype),
             },
             }
 
@@ -363,6 +400,10 @@ class OutputRunner(object):
 
         for band in self.bands:
             logprint(f'Starting band {band}')
+
+            if band in self.skip:
+                logprint('Skipping as no images were found')
+                continue
 
             config_file = str(self.config_files[band])
             logprint(f'Using config file {config_file}')

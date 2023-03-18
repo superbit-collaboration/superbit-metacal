@@ -1,7 +1,10 @@
 from pathlib import Path
 import os
 from glob import glob
+import numpy as np
 from astropy.wcs import WCS
+from astropy.coordinates import SkyCoord
+import astropy.units as u
 import fitsio
 
 from superbit_lensing import utils
@@ -54,7 +57,7 @@ class CoaddRunner(object):
             'config_file': (config_file, Path),
             'run_dir': (run_dir, Path),
             'bands': (bands, list),
-            'det_bands': (bands, list),
+            'det_bands': (det_bands, list),
             'sci_ext': (sci_ext, int),
             'wgt_ext': (wgt_ext, int)
         }
@@ -77,6 +80,11 @@ class CoaddRunner(object):
         # indexed by both band and ext
         self.coadds = {}
 
+        # this keeps track of any bands that have no input images to coadd,
+        # in case you still requested it
+        # NOTE: won't work if it is a detection band!
+        self.skip = []
+
         self.outfile_base = f'{target_name}_coadd'
 
         # these dicts are lists of image files (str's not Path's!) indexed
@@ -84,6 +92,17 @@ class CoaddRunner(object):
         # to SWarp
         self.sci_images = {}
         self.wgt_images = {}
+
+        # these dicts store a tuple of the bounding box of all images taken of
+        # a given band, indexed by band (first world, then coadd pixels)
+        self.ra_bounds = {}
+        self.dec_bounds = {}
+        self.x_bounds = {}
+        self.y_bounds = {}
+
+        # this dict stores the actual (Nx, Ny) size of each coadd image,
+        # indexed by band
+        self.coadd_size = {}
 
         return
 
@@ -96,10 +115,12 @@ class CoaddRunner(object):
 
         (1) Gather all target calibrated, bkg-subtracted sci images
         (2) Check that all images have a WCS solution
-        (3) Run SWarp for all target images of a given band, generating
+        (3) Determine coadd image sizes
+        (4) Run SWarp for all target images of a given band, generating
             maximal coadd images (i.e. full extent of all single-epoch
             exposures, which will have non-uniform depth)
-        (4) Create a detection coadd from a chosen subset of single-band coadds
+        (5) Create a detection coadd from a chosen subset of single-band coadds
+        (6) Collate new coadd checkimages
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -112,6 +133,9 @@ class CoaddRunner(object):
 
         logprint('Checking for image WCS solutions...')
         self.check_for_wcs(logprint)
+
+        logprint('Determining coadd image sizes...')
+        self.determine_coadd_sizes(logprint)
 
         logprint('Making single-band coadd images...')
         self.make_coadds(logprint, overwrite=overwrite)
@@ -160,10 +184,19 @@ class CoaddRunner(object):
             Nimages = len(self.images[band])
             logprint(f'Found {Nimages} images')
 
-            # to keep consistent convention with other modules, store as Paths
-            for i, image in enumerate(self.images[band]):
-                image = Path(image)
-                self.images[band][i] = image
+            if Nimages > 0:
+                # to keep consistent convention with other modules, store as Paths
+                for i, image in enumerate(self.images[band]):
+                    image = Path(image)
+                    self.images[band][i] = image
+            else:
+                logprint(f'Adding {band} to the skip list')
+
+                if band in self.det_bands:
+                    raise OSError(f'Cannot skip band {band} as it is a ' +
+                                  'detection band!')
+
+                self.skip.append(band)
 
         return
 
@@ -177,14 +210,177 @@ class CoaddRunner(object):
                 im_name = image.name
                 hdr = fitsio.read_header(str(image))
 
+                skip = False
                 try:
                     wcs = WCS(hdr)
 
                 except KeyError as e:
-                    raise KeyError(f'WCS for image {im_name} not found!')
+                    skip = True
 
                 if wcs is None:
-                    raise ValueError(f'WCS for image {im_name} is None!')
+                    skip = True
+
+                if skip is True:
+                    logprint(f'WCS for image {im_name} not found! Will skip ' +
+                             'during coaddition')
+
+                    self.images[band].remove(image)
+
+                    sci_image = f'{image}[{sci_ext}]'
+                    wgt_image = f'{image}[{wgt_ext}]'
+                    self.sci_images[band].remove(str(sci_image))
+                    self.wgt_images[band].remove(str(wgt_image))
+
+        return
+
+    def determine_coadd_sizes(self, logprint):
+        '''
+        For a set of single-epoch images, determine the coadd image size
+
+        NOTE: Images not in the detection coadd can be determined by SWarp
+        automatically, but all detection images must be the same size
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        '''
+
+        for band in self.bands:
+            logprint(f'Starting band {band}')
+            if band in self.skip:
+                logprint(f'Skipping as no images were found; size=(None None)')
+                ra_bounds[band] = (None, None)
+                dec_bounds[band] = (None, None)
+                continue
+
+            images = self.images[band]
+
+            min_ra = None
+            max_ra = None
+            min_dec = None
+            max_dec = None
+
+            # First, determine the bounding box of min/max RA & DEC
+            for image in images:
+                im, hdr = fitsio.read(str(image), header=True)
+
+                wcs = WCS(hdr)
+                im_shape = im.shape
+
+                # NOTE: np index ordering is opposite of FITS!
+                Nx, Ny = im_shape[1], im_shape[0]
+
+                corners = [
+                    (0, 0),
+                    (0, Ny),
+                    (Nx, 0),
+                    (Nx, Ny)
+                ]
+
+                for corner in corners:
+                    x, y = corner
+
+                    world_pos = wcs.pixel_to_world(x, y)
+                    ra = world_pos.ra.value
+                    dec = world_pos.dec.value
+
+                    if min_ra is None:
+                        min_ra = ra
+                    else:
+                        min_ra = np.min([ra, min_ra])
+                    if max_ra is None:
+                        max_ra = ra
+                    else:
+                        max_ra = np.max([ra, max_ra])
+
+                    if min_dec is None:
+                        min_dec = dec
+                    else:
+                        min_dec = np.min([dec, min_dec])
+                    if max_dec is None:
+                        max_dec = dec
+                    else:
+                        max_dec = np.max([dec, max_dec])
+
+            ra_bounds = (min_ra, max_ra)
+            dec_bounds = (min_dec, max_dec)
+            self.ra_bounds[band] = ra_bounds
+            self.dec_bounds[band] = dec_bounds
+
+            logprint(f'RA bounds: ({min_ra:.6f}, {max_ra:.6f})')
+            logprint(f'DEC bounds: ({min_dec:.6f}, {max_dec:.6f})')
+
+            # Next, we use the bounding box in world coords to determine how
+            # large each coadd needs to be in a single image plane of our
+            # given pixel scale
+            coadd_corners = [
+                (ra_bounds[0], dec_bounds[0]),
+                (ra_bounds[0], dec_bounds[1]),
+                (ra_bounds[1], dec_bounds[0]),
+                (ra_bounds[1], dec_bounds[1])
+            ]
+
+            # NOTE: a bit hacky since cornish isn't currently building. Use the
+            # first image per band to determine the pixel values at the
+            # boundaries. Some of these will be off of the image, but it should
+            # give us an accurate estimate of the total coadd image size
+            im, hdr = fitsio.read(str(self.images[band][0]), header=True)
+            wcs = WCS(hdr)
+
+            min_x = None
+            max_x = None
+            min_y = None
+            max_y = None
+            for corner in coadd_corners:
+                ra, dec = corner
+
+                im_pos = wcs.world_to_pixel(SkyCoord(ra*u.deg, dec*u.deg))
+                x, y = im_pos
+
+                if min_x is None:
+                    min_x = x
+                else:
+                    min_x = np.min([x, min_x])
+                if max_x is None:
+                    max_x = x
+                else:
+                    max_x = np.max([x, max_x])
+
+                if min_y is None:
+                    min_y = y
+                else:
+                    min_y = np.min([y, min_y])
+                if max_y is None:
+                    max_y = y
+                else:
+                    max_y = np.max([y, max_y])
+
+            self.x_bounds[band] = (min_x, max_x)
+            self.y_bounds[band] = (min_y, max_y)
+
+            Nx = int(np.ceil(max_x - min_x))
+            Ny = int(np.ceil(max_y - min_y))
+            self.coadd_size[band] = (Nx, Ny)
+
+            logprint(f'X bounds: ({min_x:.6f}, {max_x:.6f})')
+            logprint(f'Y bounds: ({min_y:.6f}, {max_y:.6f})')
+            logprint(f'Image size: ({Nx}, {Ny})')
+
+        # lastly, we need to homogenize the coadd sizes for all images used in
+        # the detection coadd
+        logprint(f'Homogenizing image sizes for the detection bands ' +
+                 f'{self.det_bands} (selecting maximum bounding box)')
+
+        det_xsize = 0
+        det_ysize = 0
+        for band in self.det_bands:
+            xsize, ysize = self.coadd_size[band]
+            det_xsize = np.max([xsize, det_xsize])
+            det_ysize = np.max([ysize, det_ysize])
+
+        for band in self.det_bands:
+            self.coadd_size[band] = (det_xsize, det_ysize)
+
+        logprint(f'Detection image size: ({det_xsize}, {det_ysize})')
 
         return
 
@@ -200,6 +396,10 @@ class CoaddRunner(object):
 
         for band in self.bands:
             logprint(f'Starting band {band}')
+            if band in self.skip:
+                logprint('Skipping as no images were found')
+                continue
+
             self.coadds[band] = {}
 
             outdir = (self.run_dir / band / 'coadd/').resolve()
@@ -221,10 +421,10 @@ class CoaddRunner(object):
                 '.fits', '.wgt.fits'
                 )
 
-        if len(self.coadds) != len(self.bands):
+        if len(self.coadds) != (len(self.bands) - len(self.skip)):
             logprint('WARNING: The number of produced coadds does not ' +
-                          'equal the number of passed bands; something ' +
-                          'likely has failed!')
+                     'equal the number of passed bands (minus skips); ' +
+                     'something likely has failed!')
 
         return
 
@@ -288,6 +488,14 @@ class CoaddRunner(object):
         outfile_arg = '-IMAGEOUT_NAME '+ str(outfile) + ' ' +\
                       '-WEIGHTOUT_NAME ' + str(weight_outfile)
 
+        if band in self.det_bands:
+            xsize, ysize = self.coadd_size[band]
+            size_arg = f'-IMAGE_SIZE {xsize},{ysize}'
+        else:
+            # single-band coadds *not* used in the detection image do not have
+            # to have the same size, so let SWarp decide automatically
+            size_arg = '-IMAGE_SIZE 0'
+
         if detection is False:
             # normal coadds are made from resampling from all single-epoch
             # exposures (& weights) for a given band & target
@@ -313,7 +521,13 @@ class CoaddRunner(object):
             ctype_arg = '-COMBINE_TYPE AVERAGE'
 
         cmd = ' '.join([
-            'swarp ', image_args, resamp_arg, outfile_arg, config_arg, ctype_arg
+            'swarp ',
+            image_args,
+            resamp_arg,
+            outfile_arg,
+            config_arg,
+            ctype_arg,
+            size_arg
             ])
 
         return cmd
@@ -392,4 +606,3 @@ class CoaddRunner(object):
             wgt_file.unlink()
 
         return
-

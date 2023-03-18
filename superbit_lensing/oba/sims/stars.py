@@ -6,7 +6,8 @@ from astropy.table import Table, Row
 import ipdb
 
 def make_a_star(indx, obj, band, wcs, psf, camera, exp_time, pix_scale,
-                ra_bounds, dec_bounds, gsparams, stamp_size, logprint):
+                # ra_bounds, dec_bounds, gsparams, stamp_size, logprint):
+                gsparams, stamp_size, logprint):
     '''
     Make a single GAIA star given inputs. Setup for multiprocessing
 
@@ -29,23 +30,33 @@ def make_a_star(indx, obj, band, wcs, psf, camera, exp_time, pix_scale,
     this_flux_adu = obj[f'flux_adu_{band}']
 
     # determine if we should skip
-    ra_min, ra_max = ra_bounds
-    dec_min, dec_max = dec_bounds
+    # ra_min, ra_max = ra_bounds
+    # dec_min, dec_max = dec_bounds
 
     star_ra = obj['RA_ICRS'] * galsim.degrees
     star_dec = obj['DE_ICRS'] * galsim.degrees
 
-    if (ra_min.value > star_ra.deg) or (ra_max.value < star_ra.deg) or\
-       (dec_min.value > star_dec.deg) or (dec_max.value < star_dec.deg):
-        logprint(f'star {indx} out of bounds. Skipping')
+    # if (ra_min.value > star_ra.deg) or (ra_max.value < star_ra.deg) or\
+    #    (dec_min.value > star_dec.deg) or (dec_max.value < star_dec.deg):
+    #     logprint(f'star {indx} out of bounds. Skipping')
 
-        return (None, None)
+    #     return (None, None)
 
     # Assign real position to the star on the sky
     world_pos = galsim.CelestialCoord(
         star_ra, star_dec
         )
     image_pos = wcs.toImage(world_pos)
+
+    Nx = camera.npix_H.value
+    Ny = camera.npix_V.value
+    for p, Nmax in [(image_pos.x, Nx), (image_pos.y, Ny)]:
+        if (p < 0) and (abs(p) > (stamp_size//2+1)):
+            # logprint(f'star {indx} out of bounds. Skipping.')
+            return (None, None)
+        elif (p > Nmax) and (abs(p-Nmax) > (stamp_size//2+1)):
+            # logprint(f'star {indx} out of bounds. Skipping.')
+            return (None, None)
 
     star = galsim.DeltaFunction(flux=this_flux_adu)
 
