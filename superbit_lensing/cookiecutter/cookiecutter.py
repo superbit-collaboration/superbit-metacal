@@ -174,6 +174,7 @@ class CookieCutter(object):
             self.catalog = catalog
 
             self.wcs_type = config['input']['wcs_type']
+            self.make_center_stamp = config['output']['make_center_stamp']
 
             self._fits = None
 
@@ -321,6 +322,9 @@ class CookieCutter(object):
 
         seg_type = config['segmentation']['type']
 
+        make_center_stamp = config['output']['make_center_stamp']
+        center_stamp_size = config['output']['center_stamp_size']
+
         overwrite = config['output']['overwrite']
 
         outfile = self.outfile
@@ -332,30 +336,40 @@ class CookieCutter(object):
             else:
                 raise OSError(f'{outfile} already exists and overwrite is False!')
 
+        meta_dtype = [
+            ('object_id', int),
+            ('xcen', float),
+            ('ycen', float),
+            ('start_pos', int),
+            ('end_pos', int),
+            ('sky_bkg', float),
+            ('sky_var', float),
+            ('cc_ext', 'u1')
+            ]
+
+        if make_center_stamp is True:
+            meta_dtype + [
+                # NOTE: boxsize info is not preserved otherwise in center stmap
+                ('boxsize', int),
+                ('in_center', bool)
+            ]
+
         # this will hold the object metadata for each cutout
         # NOTE: this means that there is Nexp rows for each object, where
         # Nexp is the number of exposures that the object stamp has at least one
         # interesecting pixel in the image
         meta = np.empty(
             Nsources * len(images),
-            dtype=[('object_id', int),
-                   ('xcen', float),
-                   ('ycen', float),
-                   ('start_pos', int),
-                   ('end_pos', int),
-                   ('sky_bkg', float),
-                   ('sky_var', float),
-                   ('cc_ext', 'u1')]
+            dtype=meta_dtype
             )
 
         # this keeps track of the *used* meta rows, as the actual number
         # will be smaller due to objects not showing up in every image
         meta_size = 0
 
-        info_index = 0
-
         total_start = time()
 
+        info_index = 0
         with fitsio.FITS(outfile, 'rw') as fits:
 
             Nimages = len(images)
@@ -447,7 +461,10 @@ class CookieCutter(object):
                 # We know in advance how many cutout pixels we'll need to store
                 self.logprint(f'Determining memory requirement')
                 Npix, slice_info, skip_list = self._compute_slice_info(
-                    imageObj.image, catalog, wcs=image_wcs, progress=progress
+                    imageObj.image,
+                    catalog,
+                    wcs=image_wcs,
+                    progress=progress,
                     )
 
                 # NOTE: This was the old way, which unnecessarily allocates
@@ -488,13 +505,19 @@ class CookieCutter(object):
                     mask_image_dimensions, dtype=msk_dtype
                     )
 
-                pixels_written = 0
+                if self.make_center_stamp is True:
+                    ipdb.set_trace()
+                    center_cutout = pass
+                    imageObj.image(center_slice)
+                    pixels_written = int(center_shape[0] * center_shape[1])
+                else:
+                    pixels_written = 0
+
                 sci_hdr_written = False
                 for indx, obj in enumerate(catalog):
                     if indx % progress == 0:
                         self.logprint(f'{indx} of {Nsources}')
 
-                    # TODO: validate!
                     if indx in skip_list:
                         # if there is no overlap in the image, skip this obj
                         if print_skips is True:
@@ -502,37 +525,17 @@ class CookieCutter(object):
                                           f'image {im_name}; skipping')
                         continue
 
-                    iobj, obj_pos, image_slice, cutout_slice, cutout_size = slice_info.pop(0)
+                    iobj, obj_pos, image_slice, cutout_slice, cutout_size, in_center = slice_info.pop(0)
                     assert iobj == indx
 
                     cutout_shape = (obj[boxsize_tag], obj[boxsize_tag])
 
                     image_cutout = np.zeros(cutout_shape, dtype=sci_dtype)
-
-                    sci_cutout = imageObj.image[image_slice].astype(
-                        sci_dtype
-                        )
+                    sci_cutout = imageObj.image[image_slice].astype(sci_dtype)
 
                     image_cutout[cutout_slice] = sci_cutout
 
                     science_output = image_cutout.flatten()
-
-                    # indexing for current cutout
-                    indx_start = pixels_written
-                    indx_end = pixels_written + cutout_size
-
-                    # fits[f'IMAGE{image_index}'].write(
-                    #     science_output,
-                    #     start=[0, pixels_written]
-                    #     )
-                    sci_array[0, indx_start:indx_end] = science_output
-
-                    # NOTE: Due to some strange fitsio design choices, the image
-                    # headers have actually *not* been written yet! So do it
-                    # explicitly once
-                    if sci_hdr_written is False:
-                        fits[f'IMAGE{image_index}'].write_keys(image_hdr)
-                        sci_hdr_written = True
 
                     # TODO / QUESTION: should we use mean or median for the following?
                     if imageObj.background is not None:
@@ -602,20 +605,11 @@ class CookieCutter(object):
                                          f'of {msk_dtype}!')
                     mask_output = mask_output.astype(msk_dtype).flatten()
 
-                    # combine these into one bitplane.
-                    # TODO: Update this line w/ extra info, such as coadd seg!
-                    # fits[f'MASK{image_index}'].write(
-                    #     mask_output, start=[0, pixels_written]
-                    #     )
-                    mask_array[0, indx_start:indx_end] = mask_output
-
                     # This is how we look up object positions to read later.
                     meta[info_index]['object_id'] = obj[id_tag]
                     meta[info_index]['xcen'] = obj_pos[0]
                     meta[info_index]['ycen'] = obj_pos[1]
                     meta[info_index]['cc_ext'] = image_index
-                    meta[info_index]['start_pos'] = pixels_written
-                    meta[info_index]['end_pos'] = pixels_written + cutout_size
 
                     if sky_bkg is not None:
                         meta[info_index]['sky_bkg'] = sky_bkg
@@ -626,19 +620,54 @@ class CookieCutter(object):
                     else:
                         meta[info_index]['sky_var'] = -1
 
-                    pixels_written += cutout_size
+                    if in_center is False:
+                        # This is for most objects; 1 cutout per object
+
+                        indx_start = pixels_written
+                        indx_end = pixels_written + cutout_size
+
+                        sci_array[0, indx_start:indx_end] = science_output
+                        mask_array[0, indx_start:indx_end] = mask_output
+
+                        meta[info_index]['start_pos'] = indx_start
+                        meta[info_index]['end_pos'] = indx_end
+
+                        if self.make_center_stamp is True:
+                            # these are needed to accomodate center stamps
+                            assert cutout_shape[0] == cutout_shape[1]
+                            meta[info_index]['boxsize'] = cutout_shape[0]
+                            meta[info_index]['in_center'] = False
+
+                        pixels_written += cutout_size
+
+                    else:
+                        # for objects in the central cutout, we still want to
+                        # store metadata but not write more pixels to the
+                        # CookieCutter
+
+                        # TODO: refactor point
+                        index_start, index_end = None, None
+
+                        meta[info_index]['start_pos'] = indx_start
+                        meta[info_index]['end_pos'] = indx_end
+
+                        # boxsize is not recoverable for stamps in the center
+                        assert cutout_shape[0] == cutout_shape[1]
+                        meta[info_index]['boxsize'] = cutout_shape[0]
+                        meta[info_index]['in_center'] = True
+
+                    # NOTE: Due to some strange fitsio design choices, the image
+                    # headers have actually *not* been written yet! So do it
+                    # explicitly once
+                    if sci_hdr_written is False:
+                        fits[f'IMAGE{image_index}'].write_keys(image_hdr)
+                        sci_hdr_written = True
+
                     meta_size += 1
                     info_index += 1
 
-                fits[f'IMAGE{image_index}'].write(
-                    sci_array,
-                    # start=[0, pixels_written]
-                    )
-
-                fits[f'MASK{image_index}'].write(
-                    mask_array,
-                    # start=[0, pixels_written]
-                    )
+                fits[f'IMAGE{image_index}'].write(sci_array)
+                fits[f'MASK{image_index}'].write(mask_array)
 
                 end = time()
                 dT = end - start
@@ -682,6 +711,7 @@ class CookieCutter(object):
           - Image slice
           - Cutout slice
           - Cutout size
+          - In center stamp (if requested)
 
         image: fitsio.hdu.image.ImageHDU
             A FITS Image HDU object
@@ -726,7 +756,21 @@ class CookieCutter(object):
             wcs_type=self.wcs_type
             )
 
-        Npix = 0
+        # pre-compute the central slice, if desired
+        if self.make_center_stamp is True:
+            center_slice = self._get_center_slice(wcs)
+            center_shape = (
+                center_slice[0].stop - center_slice[0].start,
+                center_slice[1].stop - center_slice[1].start
+                )
+            ipdb.set_trace()
+
+            # if saving the center stamp, only allocate the memory once
+            Npix = center_shape[0] * center_shape[1]
+
+        else:
+            Npix = 0
+
         skip_list = []
         slice_info = []
         for indx, obj in enumerate(catalog):
@@ -761,12 +805,33 @@ class CookieCutter(object):
                 if skip is True:
                     continue
 
-                # if a (nonempty!) slice is returned, then allocate the full boxsize^2
-                Npix += cutout_size
+                # now check if slice is in center slice, if desired
+                if self.make_center_stamp is True:
+                    # NOTE: we only consider a stamp *in* the center stamp
+                    # if it is *entirely* in the center stamp!
+                    in_center = True
+                    for i in range(2):
+                        if not is_slice1_contained_in_slice2(
+                                image_slice[i], center_slice[i]
+                                ):
+                            in_center = False
+                            break
+                else:
+                    in_center = False
+
+                    # if a (nonempty!) slice is returned, then allocate the full boxsize^2
+                    # if not already in the center stamp
+                    Npix += cutout_size
 
                 slice_info.append(
-                    (indx, obj_pos, image_slice, cutout_slice, cutout_size)
-                    )
+                    (indx,
+                     obj_pos,
+                     image_slice,
+                     cutout_slice,
+                     cutout_size,
+                     in_center
+                     )
+                )
 
             except NoOverlapError:
                 # if there is no overlap in the image, do not add the stamp
@@ -899,6 +964,34 @@ class CookieCutter(object):
         cutout_size = boxsize**2
 
         return image_slice, cutout_slice, cutout_size
+
+    def _get_center_slice(self, wcs):
+        '''
+        Compute the slice of the center stamp, given an image's WCS
+
+        wcs: astropy.WCS
+            A WCS instance for a given image
+        '''
+
+        x0, y0 = wcs.wcs.crpix
+
+        xsize, ysize = self.config['output']['center_stamp_size']
+
+        dx = xsize / 2.
+        dy = ysize / 2.
+
+        # round conservatively, if needed
+        xmin = int(np.floor(x0-dx))
+        xmax = int(np.ceil(x0+dx))
+        ymin = int(np.floor(y0-dy))
+        ymax = int(np.ceil(y0+dy))
+        xslice = slice(xmin, xmax)
+        yslice = slice(ymin, ymax)
+
+        # NOTE: flipped due to FITS vs numpy conventions
+        center_slice = (yslice, xslice)
+
+        return center_slice
 
     def _combine_mask_and_seg(self, obj_id, mask, seg, seg_type='minimal'):
         '''
@@ -1391,13 +1484,32 @@ def intersecting_slices(big_array_shape, small_array_shape, position):
 
     return big_slices, small_slices
 
+def is_slice1_contained_in_slice2(slice1, slice2):
+    '''
+    Determines if slice1 is *fully* containd in slice2. Mostly useful
+    for determining if an object should be considered part of the central
+    stamp
+
+    slice1: slice
+        The slice object we are testing
+    slice2: slice
+        The slice object we are comparing to
+    '''
+
+    start1, end1 = slice1.start, slice1.stop
+    start2, end2 = slice2.start, slice2.stop
+
+    if (start1 < start2) or (stop1 > stop2):
+        return False
+
+    return True
+
 class NoOverlapError(ValueError):
     '''
     Raised when determining the overlap of non-overlapping arrays
     in intersecting_slices()
     '''
     pass
-
 
 def reconstruct_original_FITS_header(inheader):
     '''

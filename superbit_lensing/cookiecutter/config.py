@@ -40,6 +40,8 @@ class CookieCutterConfig(ModuleConfig):
             'sci_dtype': None,
             'msk_dtype': None,
             'overwrite': False,
+            'make_center_stamp': False,
+            'center_stamp_size': (500, 500)
         },
     }
 
