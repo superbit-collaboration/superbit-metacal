@@ -1,22 +1,3 @@
-import numpy as np
-from numpy.lib import recfunctions as rf
-from pathlib import Path
-from glob import glob
-import fitsio
-from astropy.wcs import WCS
-from astropy.coordinates import SkyCoord
-from galsim import FitsWCS
-import astropy.units as u
-from astropy.table import Table
-import glob
-from time import time
-import copy
-
-from superbit_lensing import utils
-from .config import CookieCutterConfig
-
-import ipdb
-
 '''
 The CookieCutter class is essentially a "lite" version of the Multi-Object
 Data Structure (MEDS) format used by the SuperBIT onboard analysis (OBA).
@@ -29,8 +10,24 @@ saved in a separate FITS extension
 The CookieCutter format was designed by Eric Huff & Spencer Everett of JPL
 '''
 
-# TODO:
-# - make inv function to recover original images!
+import numpy as np
+from numpy.lib import recfunctions as rf
+from pathlib import Path
+from glob import glob
+import fitsio
+from astropy.wcs import WCS
+from astropy.coordinates import SkyCoord
+import galsim as gs
+import astropy.units as u
+from astropy.table import Table
+import glob
+from time import time
+import copy
+
+from superbit_lensing import utils
+from .config import CookieCutterConfig
+
+import ipdb
 
 class CookieCutter(object):
     '''
@@ -175,6 +172,8 @@ class CookieCutter(object):
 
             self.catalog_file = catalog_file
             self.catalog = catalog
+
+            self.wcs_type = config['input']['wcs_type']
 
             self._fits = None
 
@@ -340,8 +339,8 @@ class CookieCutter(object):
         meta = np.empty(
             Nsources * len(images),
             dtype=[('object_id', int),
-                   ('xcen', int),
-                   ('ycen', int),
+                   ('xcen', float),
+                   ('ycen', float),
                    ('start_pos', int),
                    ('end_pos', int),
                    ('sky_bkg', float),
@@ -399,7 +398,9 @@ class CookieCutter(object):
                 #         raise ValueError(f'Image {im_file} dtype of {this_dtype}' +
                 #                          f' is not consistent with {sci_dtype}!')
 
-                image_wcs = imageObj.get_wcs('image')
+                image_wcs = imageObj.get_wcs(
+                    'image', wcs_type=self.wcs_type
+                    )
                 image_hdr = remove_essential_FITS_keys(
                     imageObj.image.read_header()
                     )
@@ -409,16 +410,14 @@ class CookieCutter(object):
                     # NOTE: We use ext0 even though the segmentation map is in a
                     # different coadd ext as the WCS typically lives in ext0
                     seg_wcs = imageObj.get_wcs(
-                        'segmentation', ext=0
+                        'segmentation', ext=0, wcs_type=self.wcs_type
                         )
 
                     # pre-compute the image positions of the sources
                     # NOTE: This is *much* faster than individual WCS evals of
                     # SkyCoords in a loop!
-                    # NOTE: flipped due to FITS vs numpy conventions!
-                    seg_y, seg_x = seg_wcs.all_world2pix(
-                    # seg_x, seg_y = seg_wcs.all_world2pix(
-                        ra, dec, self.wcs_origin, ra_dec_order=True
+                    seg_x, seg_y = self._compute_image_pos(
+                        ra, dec, seg_wcs, wcs_type=self.wcs_type
                         )
 
                 # place the file path info here
@@ -449,7 +448,6 @@ class CookieCutter(object):
                 self.logprint(f'Determining memory requirement')
                 Npix, slice_info, skip_list = self._compute_slice_info(
                     imageObj.image, catalog, wcs=image_wcs, progress=progress
-                    # imageObj.image, catalog, image_pos=(x, y), progress=progress
                     )
 
                 # NOTE: This was the old way, which unnecessarily allocates
@@ -715,17 +713,17 @@ class CookieCutter(object):
         boxsize_tag = self.config['input']['boxsize_tag']
 
         if wcs is None:
-            wcs = WCS(image.read_header())
+            # best guess
+            wcs = self.get_wcs(
+                'image', ext=0, wcs_type=self.wcs_type
+                )
 
         # pre-compute the image positions of the sources
-        # NOTE: This is *much* faster than individual WCS evals of
-        # SkyCoords in a loop!
-        # NOTE: flipped due to FITS vs numpy conventions
-        y, x = wcs.all_world2pix(
+        x, y = self._compute_image_pos(
             catalog['ALPHAWIN_J2000'],
             catalog['DELTAWIN_J2000'],
-            self.wcs_origin,
-            ra_dec_order=True
+            wcs,
+            wcs_type=self.wcs_type
             )
 
         Npix = 0
@@ -736,10 +734,8 @@ class CookieCutter(object):
                 if indx % progress == 0:
                     self.logprint(f'{indx} of {Nsources}')
 
-                # obj_pos = self._compute_image_pos(
-                #     image, obj, wcs=wcs
-                #     )
                 obj_pos = [x[indx], y[indx]]
+
                 slices = self._compute_obj_slices(
                     image_shape, obj_pos, obj[boxsize_tag]
                     )
@@ -780,10 +776,65 @@ class CookieCutter(object):
 
         return Npix, slice_info, skip_list
 
-    def _compute_image_pos(self, image, obj, wcs=None):
+    def _compute_image_pos(self, ra, dec, wcs, wcs_type='astropy'):
         '''
         Compute the position of an object in pixel coordinates
         given an image with a registered WCS
+
+        NOTE: This method is much faster than the public method, as it
+        is vectorized on low-level datatypes
+
+        ra: np.ndarray
+            A vector of right ascension positions
+        dec: np.ndarray
+            A vector of declination positions
+        wcs: astropy.WCS OR galsim.FitsWCS
+            A WCS object, from either astropy or GalSim
+        wcs_type: str
+            The name of the WCS type. Must be one of 'astropy'
+            or 'galsim'
+
+        returns:
+        x: np.ndarray
+            The x position in image coords
+        y: np.ndarray
+            The y position in image coords
+        '''
+
+        _allowed_wcs = ['astropy', 'galsim']
+
+        if wcs_type == 'astropy':
+            # NOTE: flipped due to FITS vs numpy conventions!
+            y, x = wcs.all_world2pix(
+                ra, dec, self.wcs_origin, ra_dec_order=True
+                )
+        elif wcs_type == 'galsim':
+            # NOTE: have to do the slow way...
+            x = np.zeros_like(ra)
+            y = np.zeros_like(dec)
+            i = 0
+            for r, d in zip(ra, dec):
+                sc = gs.CelestialCoord(
+                    ra=r*gs.degrees, dec=d*gs.degrees
+                    )
+                im_pos = wcs.toImage(sc)
+
+                # NOTE: flipped due to FITS vs numpy conventions!
+                x[i] = im_pos.y
+                y[i] = im_pos.x
+                i += 1
+        else:
+            raise ValueError('wcs_type must be one of {_allowed_wcs}!')
+
+        return x, y
+
+    def compute_image_pos(self, image, obj, wcs=None):
+        '''
+        Compute the position of an object in pixel coordinates
+        given an image with a registered WCS
+
+        NOTE: This method is quite slow, but uses the typical high-level
+        astropy WCS interface
 
         image: fitsio.hdu.image.ImageHDU
             A FITS Image HDU object
@@ -1080,6 +1131,7 @@ class CookieCutter(object):
             assert cutout.shape[0] == cutout.shape[1]
             boxsize = cutout.shape[0]
 
+            # NOTE: much faster w/ vectorized operations
             # object_positions = self._compute_image_pos(image, obj)
             obj_pos = (obj['xcen'], obj['ycen'])
 
@@ -1244,7 +1296,7 @@ class ImageLocator(object):
 
             return self._segmentation
 
-    def get_wcs(self, image_type, ext=0):
+    def get_wcs(self, image_type, ext=0, wcs_type='astropy'):
         '''
         In some cases, the WCS of an image will not live in the same extension as
         the passed image data. In that case, you can request to get the WCS
@@ -1254,11 +1306,13 @@ class ImageLocator(object):
             The name of the image type whose WCS you want to grab
         ext: int
             The image extension where the WCS lives
+        wcs_type: str
+            The WCS object type to make. Can be one of 'astropy' or 'galsim'
         '''
 
         utils.check_type('image_type', image_type, str)
-
         utils.check_type('ext', ext, int)
+        utils.check_type('wcs_type', wcs_type, str)
 
         if image_type not in self._allowed_types:
             raise ValueError(f'{image_type} is not one of the allowed image ' +
@@ -1266,10 +1320,17 @@ class ImageLocator(object):
 
         image_file = getattr(self, f'_{image_type}_file')
 
-        # # hdr = fitsio.FITS(image_file, 'r')[ext].read_header()
-        hdr = fitsio.read_header(image_file, ext=ext)
 
-        return WCS(hdr)
+        _allowed_wcs = ['astropy', 'galsim']
+        if wcs_type == 'astropy':
+            hdr = fitsio.read_header(image_file, ext=ext)
+            wcs = WCS(hdr)
+        elif wcs_type == 'galsim':
+            wcs = gs.FitsWCS(str(image_file))
+        else:
+            raise ValueError(f'wcs_type must be one of {_allowed_wcs}!')
+
+        return wcs
 
 #------------------------------------------------------------------------------
 # Some helper funcs relevant to CookieCutter
