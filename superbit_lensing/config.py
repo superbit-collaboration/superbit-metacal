@@ -8,8 +8,6 @@ from argparse import ArgumentParser
 
 from superbit_lensing import utils
 
-import ipdb
-
 # TODO: Refactor: library modules should not have script functionality!
 parser = ArgumentParser()
 

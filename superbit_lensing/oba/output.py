@@ -56,6 +56,8 @@ class OutputRunner(object):
         'wgt_ext': 'weight_ext',
         'msk_file': 'mask_file',
         'msk_ext': 'mask_ext',
+        # 'skyvar_file': 'skyvar_file',
+        # 'skyvar_ext': 'skyvar_ext',
         'bkg_file': 'background_file',
         'bkg_ext': 'background_ext',
         'seg_file': 'segmentation_file',

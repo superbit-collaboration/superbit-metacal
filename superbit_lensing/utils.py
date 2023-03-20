@@ -13,7 +13,6 @@ from astropy.io import fits
 import astropy.wcs as wcs
 
 import pdb
-import ipdb
 
 class ForkedPdb(pdb.Pdb):
     """A Pdb subclass that may be used

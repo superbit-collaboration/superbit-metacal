@@ -2,8 +2,6 @@ from superbit_lensing import utils
 from superbit_lensing.config import ModuleConfig
 from copy import deepcopy
 
-import ipdb
-
 class CookieCutterConfig(ModuleConfig):
 
     # these are top-level config fields
@@ -29,6 +27,7 @@ class CookieCutterConfig(ModuleConfig):
             'dec_unit': 'deg',
             'boxsize tag': 'boxsize',
             'catalog_ext': 1, # FITS tables are not stored in primary
+            'wcs_type': 'astropy' # can be 'astropy' or 'galsim'
         },
         'segmentation': {
             'type': 'minimal',
