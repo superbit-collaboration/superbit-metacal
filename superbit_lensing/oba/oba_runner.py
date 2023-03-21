@@ -476,10 +476,15 @@ class OBARunner(object):
             self.logprint('Skipping output given config modules')
             return
 
+        make_center_stamp = self.config['output']['make_center_stamp']
+        center_stamp_size = self.config['output']['center_stamp_size']
+
         runner = OutputRunner(
             self.run_dir,
             self.bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            make_center_stamp=make_center_stamp,
+            center_stamp_size=center_stamp_size
             )
 
         runner.go(self.logprint, overwrite=overwrite)

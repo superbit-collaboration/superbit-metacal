@@ -61,6 +61,11 @@ class OBAConfig(ModuleConfig):
             # the search radius about the target position, in deg
             'search_radius': 1, # deg
         },
+        'output': {
+            # Use to make one big central stamp at the target center
+            'make_center_stamp': True,
+            'center_stamp_size': 512,
+        },
         'cleanup': {
             # NOTE: Will lose intermediate data products if you turn this on!
             'clean_oba_dir': False

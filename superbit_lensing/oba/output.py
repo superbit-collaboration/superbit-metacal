@@ -1,6 +1,7 @@
 from pathlib import Path
 from glob import glob
 import numpy as np
+import fitsio
 
 import ipdb
 
@@ -70,7 +71,8 @@ class OutputRunner(object):
                  id_tag='NUMBER', boxsize_tag='boxsize',
                  ra_tag='ALPHAWIN_J2000', dec_tag='DELTAWIN_J2000',
                  ra_unit='deg', dec_unit='deg',
-                 out_sci_dtype=None, out_msk_dtype=None):
+                 out_sci_dtype=None, out_msk_dtype=None,
+                 make_center_stamp=True, center_stamp_size=512):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -111,6 +113,10 @@ class OutputRunner(object):
             The numpy dtype for the output SCI stamps
         out_msk_dtype: str
             The numpy dtype for the output MSK stamps
+        make_center_stamp: bool
+            Set to True to make a single large stamp at the target center
+        center_stamp_size: int
+            If making a central stamp, set the size (for now, must be square)
         '''
 
         args = {
@@ -129,6 +135,8 @@ class OutputRunner(object):
             'dec_tag': (dec_tag, str),
             'ra_unit': (ra_unit, str),
             'dec_unit': (dec_unit, str),
+            'make_center_stamp': (make_center_stamp, bool),
+            'center_stamp_size': (center_stamp_size, int),
         }
 
         for name, tup in args.items():
@@ -170,6 +178,10 @@ class OutputRunner(object):
 
         self.det_coadd = self.run_dir / f'det/coadd/{target_name}_coadd_det.fits'
         self.det_cat = self.run_dir / f'det/cat/{target_name}_coadd_det_cat.fits'
+
+        # these get set if you want to make a center stamp at the target position
+        self.target_ra = None
+        self.target_dec = None
 
         return
 
@@ -239,6 +251,10 @@ class OutputRunner(object):
         if not self.det_coadd.is_file():
             raise OSError('Could not find det coadd {str(self.det_coadd})!')
 
+        if self.make_center_stamp is True:
+            target_ra = None
+            target_dec = None
+
         for band in self.bands:
             logprint(f'Starting band {band}')
             self.images[band] = {}
@@ -280,6 +296,25 @@ class OutputRunner(object):
                     }
 
                 self.images[band][Path(image)] = image_map
+
+                if self.make_center_stamp is True:
+                    hdr = fitsio.read_header(str(image))
+
+                    if target_ra is None:
+                        target_ra = hdr['TRG_RA']
+                    else:
+                        if hdr['TRG_RA'] != target_ra:
+                            raise ValueError('Inconsistent target RA values ' +
+                                             'between image headers!')
+                    if target_dec is None:
+                        target_dec = hdr['TRG_DEC']
+                    else:
+                        if hdr['TRG_DEC'] != target_dec:
+                            raise ValueError('Inconsistent target DEC values ' +
+                                             'between image headers!')
+
+        self.target_ra = target_ra
+        self.target_dec = target_dec
 
         return
 
@@ -383,6 +418,10 @@ class OutputRunner(object):
             'output': {
                 'sci_dtype': str(self.out_sci_dtype),
                 'msk_dtype': str(self.out_msk_dtype),
+                'make_center_stamp': self.make_center_stamp,
+                'center_stamp_size': self.center_stamp_size,
+                # The default is (None, None)
+                'center_stamp_pos': [self.target_ra, self.target_dec]
             },
             }
 
