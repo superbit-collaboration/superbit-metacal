@@ -1,7 +1,7 @@
 from pathlib import Path
 from glob import glob
 import os
-from astropy.io import fits
+import fitsio
 
 from superbit_lensing import utils
 from superbit_lensing.oba.oba_io import band2index
@@ -25,6 +25,13 @@ class PreprocessRunner(object):
 
         # NOTE: Already the SExtractor default, and causes Hierarch warnings
         # 'SATUR_KEY': 'SATURATE' # sets the saturation key SExtractor looks for
+    }
+
+    # some key names have been updated over time; check, but this should only
+    # be relevant for testing sims
+    _updated_keys = {
+        'TARGET_RA': 'TRG_RA',
+        'TARGET_DEC': 'TRG_DEC'
     }
 
     def __init__(self, raw_dir, run_dir, out_dir, bands, target_name=None):
@@ -317,13 +324,24 @@ class PreprocessRunner(object):
                 image_name = image.name
                 logprint(f'Updating {image_name}; {i+1} of {Nimages}')
 
-                for key, val in self._header_info.items():
-                    with fits.open(str(image)) as f:
-                        hdr = f[0].header
+                with fitsio.FITS(str(image), 'rw') as f:
+                    hdr = f[0].read_header()
 
+                    # remap any old keys to updated ones
+                    # NOTE: In principle, this should only matter for OBA
+                    # testing on older sims
+                    for old_key, new_key in self._updated_keys.items():
+                        if old_key in hdr:
+                            val = hdr[old_key]
+                            comment = hdr.get_comment(old_key)
+                            f[0].write_key(new_key, val, comment=comment)
+                            logprint(f'Replaced {old_key} with {new_key}')
+
+                    for key, val in self._header_info.items():
                         # things have changed over time, so only add if the key
                         # doesn't already exist
-                    if key not in hdr:
-                        fits.setval(str(image), key, value=val, ext=ext)
+                        if key not in hdr:
+                            # fits.setval(str(image), key, value=val, ext=ext)
+                            f[0].write_key(key, val)
 
         return
