@@ -1,25 +1,37 @@
-astrometry:
-  rerun: false
-  search_radius: 1.0
-cleanup:
-  clean_oba_dir: true
+run_options:
+  bands:
+  - u, b, g
+  det_bands:
+  - u, b, g
+  fresh: false
+  overwrite: true
+  target_name: Abell2813
+  vb: true
+
+modules:
+  - preprocessing
+  - cals
+  - masking
+  - background
+  - astrometry
+  - starmask
+  - coadd
+  - detection
+  - output
+  - cleanup
+
 masking:
   cosmic_rays: false
   satellites: false
-modules:
-- preprocessing
-- cals
-- masking
-- background
-- astrometry
-- starmask
-- coadd
-- detection
-- output
-- cleanup
-run_options:
-  det_bands:
-  - b
-  - r
-  overwrite: true
-  vb: true
+
+astrometry:
+  rerun: false
+  search_radius: 1
+
+output:
+  center_stamp_size: 512
+  make_center_stamp: true
+
+cleanup:
+  clean_oba_dir: false
+
