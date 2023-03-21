@@ -297,7 +297,7 @@ def parse_sci_image_file(image_file):
     Return a dictionary of SCI image parameters given a filename
 
     Raw sci image filename convention:
-    {TARGET_NAME}_{EXP_TIME}_{BAND_INDEX}_{UTC}.fits
+    {TARGET_NAME}_{BAND_INDEX}_{EXP_TIME}_{UTC}.fits
 
     image_file: pathlib.Path
         The filepath of the raw image. Can be a processed image as
