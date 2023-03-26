@@ -560,7 +560,7 @@ class CoaddRunner(object):
             # DES suggests using AVERAGE instead of CHI2 or WEIGHTED, though
             # we likely will use CLIPPED to handle cosmics & satellites since
             # we are not measuring shapes on our detection image
-            ctype_arg = '-COMBINE_TYPE {self.combine_type}'
+            ctype_arg = f'-COMBINE_TYPE {self.combine_type}'
 
         cmd = ' '.join([
             'swarp ',
