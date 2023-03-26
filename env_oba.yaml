@@ -1,4 +1,4 @@
-name: oba-test
+name: oba
 channels:
   - conda-forge
   - defaults
