@@ -29,6 +29,8 @@ class CalsRunner(object):
     ext2: MSK (mask; see bitmask.py for def)
     '''
 
+    _name = 'cals'
+
     # smallest numpy will allow is 1 byte
     _mask_dtype = OBA_BITMASK_DTYPE
 
@@ -45,7 +47,8 @@ class CalsRunner(object):
         ]
 
     def __init__(self, run_dir, darks_dir, flats_dir, bands, target_name=None,
-                 cal_dtype=np.dtype('float64'), allow_negatives=True):
+                 cal_dtype=np.dtype('float64'), allow_negatives=True,
+                 hp_threshold=1000):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -63,6 +66,9 @@ class CalsRunner(object):
         allow_negatives: bool
             Set to allow negative numbers in the calibration dtype (e.g.
             BITPIX = -64 instead of 64)
+        hp_threshold: int
+            The threshold value to use when defining a hot pixel for a
+            given master dark
         '''
 
         args = {
@@ -72,6 +78,7 @@ class CalsRunner(object):
             'bands': (bands, list),
             'cal_dtype': (cal_dtype, np.dtype),
             'allow_negatives': (allow_negatives, bool),
+            'hp_threshold': (hp_threshold, int)
         }
 
         for name, tup in args.items():
@@ -93,34 +100,7 @@ class CalsRunner(object):
         # with each raw exposure, indexed by raw sci filename
         self.cals = {}
 
-        # this dictionary will store the calibrated image arrays, indexed
-        # by raw sci filename
-        self.calibrated = {}
-
-        # this dictionary will store the hot pixel mask for each master dark
-        # frame (plus the "inactive region" mask), indexed by the dark filename
-        self.pixel_masks = {}
-
-        self.inactive_reg_mask = self._make_inactive_region_mask()
-
         return
-
-    def _make_inactive_region_mask(self):
-        '''
-        Mask the rows & cols of the CCD that are not exposed to light
-        '''
-
-        unmasked = OBA_BITMASK['unmasked']
-        inactive_val = OBA_BITMASK['inactive_region']
-
-        inactive_reg_mask = unmasked * np.ones(
-            self._image_shape, dtype=self._mask_dtype
-            )
-
-        for s in self._inactive_reg_slices:
-            inactive_reg_mask[s] = inactive_val
-
-        return inactive_reg_mask
 
     def go(self, logprint, overwrite=False):
         '''
@@ -131,10 +111,12 @@ class CalsRunner(object):
         (1) Assign the corresponding master dark & flat for each image
         (2) Create hot pixel mask using master dark (in addition to
             the "inactive region" mask)
-            NOTE: The current plan is to have a static master flat
         (3) Basic calibration: Cal = (Raw - Dark) / Flat
         (4) Write out calibrated images w/ original headers
                 - Includes wgt & msk image collation
+
+        NOTE: The above used to be individual steps, but we now do them
+        in succession to minimize memory footprint for the QCC
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -145,14 +127,28 @@ class CalsRunner(object):
         logprint('Assigning calibration frames...')
         self.assign_cals(logprint)
 
-        logprint('Creating hot pixel + "inactive region" masks...')
-        self.make_image_masks(logprint)
+        # NOTE: The following used to be separate calls across all images, but
+        # this can require a large memory footprint. So we do the loop here
+        # instead to prioritize memory over repeated computation
+        i = 1
+        Nfiles = len(self.cals)
+        for sci_file, cals in self.cals.items():
+            logprint(f'Starting {sci_file}; ({i} of {Nfiles})')
 
-        logprint('Applying calibrations to raw images...')
-        self.apply_cals(logprint)
+            logprint('Creating hot pixel + "inactive region" masks...')
+            dark_file = cals['dark']
 
-        logprint('Writing out calibrated images...')
-        self.write_calibrated_images(logprint, overwrite=overwrite)
+            mask = self.make_image_mask(dark_file, logprint)
+
+            logprint('Applying calibrations to raw image...')
+            cal = self.apply_cals(sci_file, logprint)
+
+            logprint('Writing out calibrated image...')
+            self.write_calibrated_image(
+                sci_file, cal, mask, logprint, overwrite=overwrite
+                )
+
+            i += 1
 
         logprint('Calibrations completed!')
 
@@ -262,52 +258,63 @@ class CalsRunner(object):
 
         return flat
 
-    def make_image_masks(self, logprint, threshold=1000):
+    def make_image_mask(self, dark_file, logprint):
         '''
-        Create the hot pixel & inactive region masks for each master dark
-        used for cals. Builds ontop of the inactive region mask set in
-        constructor. See bitmask.py for details
+        Create the hot pixel & inactive region masks for the given dark image
+        used for cals. Builds ontop of the inactive region mask. See bitmask.py
+        for pixel mask details
 
+        dark_file: pathlib.Path
+            The path to the given dark calibration file
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
-        threshold: int
-            The threshold value to use when defining a hot pixel for a
-            given master dark
         '''
 
-        utils.check_type('threshold', threshold, int)
+        threshold = self.hp_threshold
         logprint(f'Using a hot pixel threshold value of {threshold}')
 
         unmasked_val = OBA_BITMASK['unmasked']
         hot_pix_val = OBA_BITMASK['hot_pixel']
 
-        for sci_file, cals in self.cals.items():
+        dark = fitsio.read(str(dark_file))
 
-            dark_file = cals['dark']
-            dark = fitsio.read(str(dark_file))
+        if dark.shape != self._image_shape:
+            raise ValueError(f'dark shape {dark.shape} does not match ' +
+                                f'the SuperBIT image shape {self._image_shape}')
 
-            if dark.shape != self._image_shape:
-                raise ValueError(f'dark shape {dark.shape} does not match ' +
-                                 f'the SuperBIT image shape {self._image_shape}')
+        # start with the inactive region mask as the base
+        mask = self._make_inactive_region_mask()
 
-            # start with the inactive region mask as the base
-            mask = self.inactive_reg_mask.copy()
+        bad_pix = np.where(dark > threshold)
+        mask[bad_pix] = hot_pix_val
 
-            bad_pix = np.where(dark > threshold)
-            mask[bad_pix] = hot_pix_val
+        shape = mask.shape
+        Nbad = len(mask[mask != unmasked_val])
+        bad_frac = Nbad / (shape[0] * shape[1])
+        bad_perc = 100 * bad_frac
+        logprint(f'Mask for {dark_file.name} has {Nbad} bad pixels; ' +
+                    f'{bad_perc:.2f}%')
 
-            shape = mask.shape
-            Nbad = len(mask[mask != unmasked_val])
-            bad_frac = Nbad / (shape[0] * shape[1])
-            bad_perc = 100 * bad_frac
-            logprint(f'Mask for {dark_file.name} has {Nbad} bad pixels; ' +
-                     f'{bad_perc:.2f}%')
+        return mask
 
-            self.pixel_masks[dark_file] = mask
+    def _make_inactive_region_mask(self):
+        '''
+        Mask the rows & cols of the CCD that are not exposed to light
+        '''
 
-        return
+        unmasked = OBA_BITMASK['unmasked']
+        inactive_val = OBA_BITMASK['inactive_region']
 
-    def apply_cals(self, logprint):
+        inactive_reg_mask = unmasked * np.ones(
+            self._image_shape, dtype=self._mask_dtype
+            )
+
+        for s in self._inactive_reg_slices:
+            inactive_reg_mask[s] = inactive_val
+
+        return inactive_reg_mask
+
+    def apply_cals(self, raw_file, logprint):
         '''
         Apply basic calibrations given the registered cal frames
         to each raw sci image:
@@ -317,24 +324,28 @@ class CalsRunner(object):
         NOTE: Operation is performed for all pixels, regardless of
         the pixel mask
 
+        raw_file: pathlib.Path
+            The path to the input raw image file to calibrate
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
         '''
 
-        for image_file, cals in self.cals.items():
-            # NOTE: If we don't cast to higher precision here, will cause
-            # overflow as the raw files are u16!
-            dark = fitsio.read(cals['dark']).astype(self.cal_dtype)
-            flat = fitsio.read(cals['flat']).astype(self.cal_dtype)
-            raw = fitsio.read(image_file).astype(self.cal_dtype)
+        cals = self.cals[raw_file]
 
-            self.calibrated[image_file] = ((raw - dark) / flat)
+        # NOTE: If we don't cast to higher precision here, will cause
+        # overflow as the raw files are u16!
+        dark = fitsio.read(cals['dark']).astype(self.cal_dtype)
+        flat = fitsio.read(cals['flat']).astype(self.cal_dtype)
+        raw = fitsio.read(raw_file).astype(self.cal_dtype)
 
-        return
+        calibrated = ((raw - dark) / flat)
 
-    def write_calibrated_images(self, logprint, overwrite=False):
+        return calibrated
+
+    def write_calibrated_image(self, raw_file, cal, msk, logprint,
+                               overwrite=False):
         '''
-        Write out new calibrated images, inheriting the original
+        Write out new calibrated image, inheriting the original
         fits file headers
 
         The calibrated image fits extensions are as follows:
@@ -342,67 +353,68 @@ class CalsRunner(object):
         1: WGT (weight; 0 if masked, 1 otherwise)
         2: MSK (mask; 1 if masked, 0 otherwise)
 
+        raw_file: pathlib.Path
+            The path to the raw image file
+        cal: np.ndarray
+            The calibrated image to write
+        msk: np.ndarray
+            The mask of the calibrated image to write
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
         overwrite: bool
             Set to overwrite existing files
         '''
 
-        i = 1
-        Nfiles = len(self.calibrated)
-        for raw_file, cal in self.calibrated.items():
-            raw_dir = raw_file.parent
-            cal_dir = raw_dir / 'cal/'
+        raw_dir = raw_file.parent
+        cal_dir = raw_dir / 'cal/'
 
-            cal_name= raw_file.name.replace(
-                '.fits', '_cal.fits'
-                )
-            cal_file = cal_dir / cal_name
+        cal_name= raw_file.name.replace(
+            '.fits', '_cal.fits'
+            )
+        cal_file = cal_dir / cal_name
 
-            logprint(f'Writing {cal_file}; ({i} of {Nfiles})')
+        logprint(f'Writing to {cal_file}')
 
-            if os.path.exists(cal_file):
-                logprint(f'Warning: {cal_file} already exists')
-                if overwrite is True:
-                    logprint(f'Removing as overwrite is True')
-                    os.remove(cal_file)
-                else:
-                    raise OSError(f'{cal_file} already exists ' +
-                                  'and overwrite is False!')
+        if os.path.exists(cal_file):
+            logprint(f'Warning: {cal_file} already exists')
+            if overwrite is True:
+                logprint(f'Removing as overwrite is True')
+                os.remove(cal_file)
+            else:
+                raise OSError(f'{cal_file} already exists ' +
+                                'and overwrite is False!')
 
-            # we want to inherit the header of the raw file
-            cal_hdr = copy(fitsio.read_header(raw_file))
-            cal_hdr['IMTYPE'] = 'SCI_CAL'
+        # we want to inherit the header of the raw file
+        cal_hdr = copy(fitsio.read_header(raw_file))
+        cal_hdr['IMTYPE'] = 'SCI_CAL'
 
-            # NOTE: itemsize is in bytes
-            bitpix = str(self.cal_dtype.itemsize * 8)
-            if self.allow_negatives is True:
-                bitpix = f'-{bitpix}'
-            cal_hdr['BITPIX'] =  bitpix
+        # NOTE: itemsize is in bytes
+        bitpix = str(self.cal_dtype.itemsize * 8)
+        if self.allow_negatives is True:
+            bitpix = f'-{bitpix}'
+        cal_hdr['BITPIX'] =  bitpix
 
-            # TODO: do something more robust here!
-            # we do this hacky thing as the hen sims have BZERO=2^15...
-            if cal_hdr['BZERO'] != 0:
-                logprint(f'WARNING: BZERO = {cal_hdr["BZERO"]}; are you ' +
-                         'sure that is correct? Setting to zero for now...')
+        # TODO: do something more robust here!
+        # we do this hacky thing as the hen sims have BZERO=2^15...
+        if cal_hdr['BZERO'] != 0:
+            logprint(f'WARNING: BZERO = {cal_hdr["BZERO"]}; are you ' +
+                        'sure that is correct? Setting to zero for now...')
             cal_hdr['BZERO'] =  0
 
-            # create the weight & mask image for the calibrated file,
-            # based off of the hot pixel mask created for the associated
-            # dark file
-            wgt, wgt_hdr = self._make_wgt_image(raw_file)
-            msk, msk_hdr = self._make_msk_image(raw_file)
+        # create the weight & mask image for the calibrated file,
+        # based off of the hot pixel mask created for the associated
+        # dark file
+        wgt, wgt_hdr = self._make_wgt_image(msk)
+        msk, msk_hdr = self._make_msk_image(msk)
 
-            with fitsio.FITS(cal_file, 'rw') as fits:
-                fits.write(cal, header=cal_hdr)
-                fits.write(wgt, header=wgt_hdr)
-                fits.write(msk, header=msk_hdr)
-
-            i += 1
+        with fitsio.FITS(cal_file, 'rw') as fits:
+            fits.write(cal, header=cal_hdr)
+            fits.write(wgt, header=wgt_hdr)
+            fits.write(msk, header=msk_hdr)
 
         return
 
-    def _make_wgt_image(self, raw_image):
+    def _make_wgt_image(self, mask):
         '''
         Create the weight image for the input raw_file. Very simple
         at this stage:
@@ -411,19 +423,14 @@ class CalsRunner(object):
 
         NOTE: Must be run after cals have been assigned!
 
-        raw_image: pathlib.Path
-            The path of the raw image that we will create the
-            associated weight image for
+        mask: np.ndarray
+            The pixel mask of a given image
         '''
 
-        dark_file = self.cals[raw_image]['dark']
-        pixel_mask = self.pixel_masks[dark_file]
-
-        # At this stage, the weight map is just the logical not of
-        # the hot pixel mask
         # NOTE: While we want the weight map to be floats in the future,
         # we save disk space by using ints
-        wgt = (~pixel_mask).astype(np.uint8)
+        wgt = np.zeros(mask.shape, dtype=np.uint8)
+        wgt[mask == 0] = 1
 
         wgt_hdr = {
             'IMTYPE': 'WEIGHT'
@@ -431,29 +438,25 @@ class CalsRunner(object):
 
         return wgt, wgt_hdr
 
-    def _make_msk_image(self, raw_image):
+
+    def _make_msk_image(self, mask):
         '''
         Create the mask image for the input raw_file. Just the hot
         pixel mask & inactive region at this stage - more complex
         features like cosmic rays and satellite trails are handled later
 
         NOTE: Must be run after cals have been assigned!
+        NOTE: dtype set in bitmask.py
 
-        raw_image: pathlib.Path
-            The path of the raw image that we will create the
-            associated weight image for
+        mask: np.ndarray
+            The pixel mask of a given image
         '''
 
-        dark_file = self.cals[raw_image]['dark']
-
-        # NOTE: dtype set in bitmask.py
-        msk = self.pixel_masks[dark_file]
-
-        msk_hdr = {
+        mask_hdr = {
             'IMTYPE': 'MASK'
         }
 
         for key, val in OBA_BITMASK.items():
-            msk_hdr[key] = val
+            mask_hdr[key] = val
 
-        return msk, msk_hdr
+        return mask, mask_hdr

@@ -15,6 +15,7 @@ from detection import DetectionRunner
 from output import OutputRunner
 from cleanup import CleanupRunner
 
+from memory_profiler import profile
 import ipdb
 
 class OBARunner(object):
@@ -292,9 +293,12 @@ class OBARunner(object):
         else:
             skip_decompress = False
 
-        runner.go(
-            self.logprint, overwrite=overwrite, skip_decompress=skip_decompress
-            )
+        args = [self.logprint]
+        kwargs = {
+            'overwrite': overwrite,
+            'skip_decompress': skip_decompress
+            }
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -307,16 +311,21 @@ class OBARunner(object):
         if 'cals' not in self.modules:
             self.logprint('Skipping image calibrations given config modules')
             return
+        else:
+            hp_threshold = self.config['cals']['hp_threshold']
 
         runner = CalsRunner(
             self.run_dir,
             self.darks_dir,
             self.flats_dir,
             self.bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            hp_threshold=hp_threshold
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -348,7 +357,9 @@ class OBARunner(object):
             mask_types=mask_types
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -369,7 +380,9 @@ class OBARunner(object):
             target_name=self.target_name
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -393,7 +406,12 @@ class OBARunner(object):
             search_radius=search_radius,
             )
 
-        runner.go(self.logprint, overwrite=overwrite, rerun=rerun)
+        args = [self.logprint]
+        kwargs = {
+            'overwrite': overwrite,
+            'rerun': rerun
+            }
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -420,7 +438,9 @@ class OBARunner(object):
             target_name=self.target_name,
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -442,7 +462,9 @@ class OBARunner(object):
             target_name=self.target_name
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -462,7 +484,9 @@ class OBARunner(object):
             target_name=self.target_name
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -487,7 +511,9 @@ class OBARunner(object):
             center_stamp_size=center_stamp_size
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -512,5 +538,71 @@ class OBARunner(object):
             )
 
         runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
+
+        return
+
+    @profile
+    def module_runner(self, runner, args, kwargs, logprint):
+        '''
+        A light wrapper around a module runner to handle any exceptions
+        in a convenient way for the QCC
+
+        runner: {Module}Runner
+            A runner class for the given module. Must have a go() method
+            and name attribute
+        args: list
+            A list of runner.go() args
+        kwargs: dict
+            A dict of runner.go() kwargs
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing.
+            NOTE: A logprint is likely already in args or kwargs, but simpler
+            to require it here as well
+        '''
+
+        try:
+            runner.go(*args, **kwargs)
+
+        # NOTE: Normally not a great idea, but we need concise return codes
+        # during flight and can't expect full error messages
+        except Exception as e:
+            module_name = runner._name
+            logprint()
+            logprint('FAILED: The OBA failed during the go() method of ' +
+                     f'{module_name} with the following exception:')
+            logprint()
+            logprint(repr(e))
+            # this places the full trace in the log
+            logprint()
+            logprint.log.exception('ERROR')
+            logprint()
+            logprint('Aborting the rest of the OBA run')
+            logprint()
+
+            raise OBAError(module_name)
+
+        # NOTE: We explicitly delete the runner afterwards to immediately
+        # free up memory; there are some instances when the memory is not
+        # immediately cleared otherwise
+        del runner
+
+        return
+
+class OBAError(Exception):
+    '''
+    A custom exception that is raised if *any* error occures during a module
+    runner.go() method, as we cannot print out full error messages to the QCC
+    '''
+
+    def __init__(self, module_name):
+        '''
+        module_name: str
+            The name of the module where the exception occurred
+        '''
+
+        self.module_name = module_name
 
         return

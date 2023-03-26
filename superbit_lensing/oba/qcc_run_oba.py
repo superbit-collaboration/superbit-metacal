@@ -31,11 +31,12 @@ python qcc_run_oba.py 1 /home/bit/configs/my_oba_config.yaml
 import shutil
 import os
 from pathlib import Path
+from time import time
 from argparse import ArgumentParser
 
 from config import OBAConfig
 from oba_io import IOManager
-from oba_runner import OBARunner
+from oba_runner import OBARunner, OBAError
 from superbit_lensing import utils
 
 import ipdb
@@ -132,7 +133,7 @@ def main(args):
         # the config first and *then* setup the IO manager
 
         if not config_file.is_file():
-            print('Failed: OBA pipeline config file not found: {config_file}')
+            print(f'Failed: OBA pipeline config file not found: {config_file}')
             return 2
 
         config = OBAConfig(config_file)
@@ -238,10 +239,24 @@ def main(args):
             **kwargs
         )
 
+        start = time()
+
         prepper.go(io_manager, overwrite=overwrite, logprint=logprint)
+
+        end = time()
+        dT = end - start
+
+        logprint()
+        logprint(f'Test prepper tok {dT:.1f}s')
+        logprint()
 
     #-----------------------------------------------------------------
     # Run pipeline
+
+    start = time()
+
+    logprint()
+    logprint(f'Starting OBA for {target_name}')
 
     runner = OBARunner(
         config_file,
@@ -250,9 +265,25 @@ def main(args):
         test=test
         )
 
-    runner.go(overwrite=overwrite)
+    try:
+        runner.go(overwrite=overwrite)
 
-    logprint(f'\nOBA for {target_name} has finished succesfully!')
+        logprint(f'OBA for {target_name} has finished succesfully!')
+        rc = 0
+
+    except OBAError as e:
+        # NOTE: This is a catch-all that tells the run script that *something*
+        # failed in the specified module. This skips the rest of the pipeline
+        # running as well as tells this script to move the log (with the full
+        # error message) to its final output location to be downlinked
+
+        name = e.module_name
+        logprint(f'OBA for {target_name} has failed during the {name} module')
+        rc = 1
+
+    end = time()
+    dT = end - start
+    logprint(f'OBA took {dT:.1f}s')
 
     #-----------------------------------------------------------------
     # Prepare log for move to final output location
@@ -274,7 +305,7 @@ def main(args):
 
     shutil.move(compressed_logfile, dest)
 
-    return 0
+    return rc
 
 def compress_log(logfile, cmethod='bzip2', cargs='-z', cext='bz2'):
     '''

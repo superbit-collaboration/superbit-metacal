@@ -26,6 +26,8 @@ class DetectionRunner(object):
     ext2: SEG (segmentation; 0 if sky, NUMBER if pixel is assigned to an obj)
     '''
 
+    _name = 'detection'
+
     def __init__(self, config_file, run_dir, target_name=None,
                  sci_ext=0, wgt_ext=1):
         '''

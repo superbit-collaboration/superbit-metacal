@@ -24,6 +24,8 @@ class AstrometryRunner(object):
     ext3: BKG (background)
     '''
 
+    _name = 'astrometry'
+
     def __init__(self, run_dir, bands, target_name=None, search_radius=1):
         '''
         run_dir: pathlib.Path

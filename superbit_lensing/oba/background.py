@@ -33,6 +33,8 @@ class BackgroundRunner(object):
     ext3: BKG (background)
     '''
 
+    _name = 'background'
+
     def __init__(self, run_dir, bands, se_config, target_name=None,
                  sci_ext=0, wgt_ext=1, msk_ext=2, bkg_ext=3):
         '''

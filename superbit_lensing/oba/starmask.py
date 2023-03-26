@@ -29,6 +29,8 @@ class StarmaskRunner(object):
     ext3: BKG (background)
     '''
 
+    _name = 'starmask'
+
     # The following class variables define the relationship between a bright
     # star's flux and the mask component sizes, in pixels. This is based on
     # parameterized fits to high-resolution images of the SB PSF model,
@@ -48,7 +50,7 @@ class StarmaskRunner(object):
 
     _mask_spike_min_len = 1.41 # len (from center) in arcsec
     _mask_spike_max_len = None # len (from center) in arcsec
-    _mask_spike_width = 6
+    _mask_spike_width = 8
     _mask_spike_model_a = 0.0
     # _mask_spike_model_b = 0.00633375
     _mask_spike_model_b = 0.00118493

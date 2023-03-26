@@ -14,6 +14,8 @@ class PreprocessRunner(object):
     (OBA) preprocessing
     '''
 
+    _name = 'preprocessing'
+
     _compression_method = 'bzip2'
     _compression_args = '-dk' # forces decompression, keep orig file
     _compression_ext = 'bz2'
@@ -139,13 +141,15 @@ class PreprocessRunner(object):
         for b in self.bands:
             dirs.append(self.run_dir / b)
             dirs.append(self.run_dir / b / 'cal/')
-            # dirs.append(self.run_dir / b / 'masked/')
-            # dirs.append(self.run_dir / b / 'bkg/')
             dirs.append(self.run_dir / b / 'coadd/')
             dirs.append(self.run_dir / b / 'out/')
 
             # for images that fail during astrometry module
             dirs.append(self.run_dir / b / 'failed/')
+
+            # for any temporary file writing; useful for minimizing
+            # memory footprint
+            dirs.append(self.run_dir / b / 'tmp/')
 
         for d in dirs:
             logprint(f'Creating directory {d}')

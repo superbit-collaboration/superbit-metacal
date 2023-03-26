@@ -25,6 +25,8 @@ class MaskingRunner(object):
     ext2: MSK (mask; see bitmask.py for def)
     '''
 
+    _name = 'masking'
+
     # by default, do *all* masking steps
     # NOTE: hot pixels & "inactive region" masks are handled in cals
     _default_mask_types = [
@@ -86,9 +88,9 @@ class MaskingRunner(object):
                                  f'Must be one of {default_mtypes}')
         self.mask_types = mask_types
 
-        # this dictionary will store the mask arrays for each image, indexed
-        # by sci_cal filename
-        self.masks = {}
+        # this dictionary will store a list of calibrated image paths indexed
+        # by band
+        self.images = {}
 
         return
 
@@ -105,7 +107,9 @@ class MaskingRunner(object):
         (1) Initialize masks from calibrated image msk ext's
         (2) Cosmic rays
         (3) Satellite trails
-        (4) ...
+
+        NOTE: The above used to be individual steps, but we now do them
+        in succession to minimize memory footprint for the QCC
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -113,26 +117,48 @@ class MaskingRunner(object):
             Set to overwrite existing files
         '''
 
-        logprint('Initializing masks...')
-        self.initialize_masks(logprint)
+        logprint('Gathering input calibrated images...')
+        self.gather_images(logprint)
 
-        if 'cosmic_rays' in self.mask_types:
-            logprint('Masking cosmic rays...')
-            self.mask_cosmic_rays(logprint)
-        else:
-            logprint('Skipping cosmic ray masking given config file')
+        # NOTE: The following used to be separate calls across all images, but
+        # this can require a large memory footprint. So we do the loop here
+        # instead to prioritize memory over repeated computation
+        i = 1
+        for band in self.bands:
+            logprint('Starting band {band}')
 
-        if 'satellites' in self.mask_types:
-            logprint('Masking satellite trails...')
-            self.mask_satellite_trails(logprint)
-        else:
-            logprint('Skipping satellite trail masking given config file')
+            images = self.images[band]
+            Nfiles = len(images)
+
+            i = 1
+            for image in images:
+                logprint(f'Starting {image}; ({i} of {Nfiles})')
+
+                logprint('Reading original mask...')
+                mask = fitsio.read(str(image), ext=self.msk_ext)
+
+                if 'cosmic_rays' in self.mask_types:
+                    logprint('Masking cosmic rays...')
+                    mask = self.mask_cosmic_rays(image, mask, logprint)
+                else:
+                    logprint('Skipping cosmic ray masking given config file')
+
+                if 'satellites' in self.mask_types:
+                    logprint('Masking satellite trails...')
+                    mask = self.mask_satellite_trails(image, mask, logprint)
+                else:
+                    logprint('Skipping satellite trail masking given config file')
+
+                logprint('Updating image mask...')
+                self.update_mask(image, mask, logprint)
+
+                i += 1
 
         return
 
-    def initialize_masks(self, logprint):
+    def gather_images(self, logprint):
         '''
-        Initialize mask for each image using the MSK extension
+        Register all input images whose masks we will update
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -151,27 +177,21 @@ class MaskingRunner(object):
                 )
 
             Nimages = len(cal_files)
-            logprint(f'Found {Nimages} images')
-
-            for cal_file in cal_files:
-                msk = fitsio.read(cal_file, ext=msk_ext)
-                cal_name = Path(cal_file).name
-
-                # shouldn't happen, but check to be sure
-                cal_file = Path(cal_file)
-                if cal_file in self.masks:
-                    cal_name = cal_file.name
-                    raise ValueError(f'{cal_name} already has a ' +
-                                     'registered mask!')
-                self.masks[cal_file] = msk
+            logprint(f'Found {Nimages} calibrated images')
+            self.images[band] = cal_files
 
         return
 
-    def mask_cosmic_rays(self, logprint):
+    def mask_cosmic_rays(self, image_file, mask, logprint):
         '''
         Run a cosmic ray finder on each cal image and combine mask
         with self.masks entry
 
+        image_file: pathlib.Path
+            The path of the input image
+        mask: np.ndarray
+            The existing image mask. Need masking info so we don't treat
+             hot pixels, etc. as cosmic rays
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
         '''
@@ -181,63 +201,70 @@ class MaskingRunner(object):
 
         cosmic_val = OBA_BITMASK['cosmic_ray']
 
-        for band in self.bands:
-            logprint(f'Starting cosmic ray masking on band {band}')
+        logprint(f'Running lacosmic on {image_file.name}')
 
-            cal_dir = (self.run_dir / band / 'cal/').resolve()
-            bindx = band2index(band)
+        data, hdr = fitsio.read(
+            str(image_file), ext=sci_ext, header=True
+            )
+        gain = hdr['GAIN']
 
-            for cal_file in self.masks.keys():
-                logprint(f'Running lacosmic on {cal_file.name}')
+        # la cosmic won't understand our bitmask
+        mask = mask.astype(bool)
 
-                data, hdr = fitsio.read(
-                    str(cal_file), ext=sci_ext, header=True
-                    )
-                gain = hdr['GAIN']
+        start = time()
 
-                # need masking info so we don't treat hot pixels, etc.
-                # as cosmic rays
-                mask = fitsio.read(
-                    str(cal_file), ext=msk_ext
-                    )
+        # TODO: can we move some of these pars to a config?
+        data_cr_corr, cr_mask = lacosmic(
+            data=data.astype(np.float32),
+            contrast=self.cr_contrast,
+            cr_threshold=6,
+            neighbor_threshold=6,
+            mask=mask,
+            effective_gain=gain, # e-/ADU (0.343 for SB)
+            # TODO: generalize the readnoise val!
+            readnoise=2.08, # e- RMS
+            maxiter=2
+            )
 
-                # la cosmic won't understand our bitmask
-                mask = mask.astype(bool)
+        end = time()
+        dT = end - start
 
-                start = time()
+        logprint(f'Cosmic ray masking took {dT:.2f} s')
 
-                # TODO: can we move some of these pars to a config?
-                data_cr_corr, cr_mask = lacosmic(
-                    data=data.astype(np.float32),
-                    contrast=self.cr_contrast,
-                    cr_threshold=6,
-                    neighbor_threshold=6,
-                    mask=mask,
-                    effective_gain=gain, # e-/ADU (0.343 for SB)
-                    # TODO: generalize the readnoise val!
-                    readnoise=2.08, # e- RMS
-                    maxiter=2
-                    )
+        # OR cosmic ray mask with the existing mask on cal file
+        # TODO: confirm that the following works!
+        ipdb.set_trace()
+        cr_mask = cosmic_val * cr_mask.astype(OBA_BITMASK_DTYPE)
+        mask |= cr_mask
 
-                end = time()
-                dT = end - start
+        return mask
 
-                logprint(f'Cosmic ray masking took {dT:.2f} s')
-
-                # OR cosmic ray mask with the existing mask on cal file
-                # TODO: confirm that the following works!
-                ipdb.set_trace()
-                cr_mask = cosmic_val * cr_mask.astype(OBA_BITMASK_DTYPE)
-                self.masks[cal_file] |= cr_mask
-
-        return
-
-    def mask_satellite_trails(self, logprint):
+    def mask_satellite_trails(self, image_file, mask, logprint):
         '''
         TODO: Run a satellite trail finder on each cal image and combine mask
         with self.masks entry
         '''
 
         logprint('\nWARNING: Satellite trail masking not yet implemented!\n')
+
+        return mask
+
+    def update_mask(self, image_file, new_mask, logprint):
+        '''
+        Update the mask extension of the input image given the new mask
+
+        image_file: pathlib.Path
+            The path of the input image
+        new_mask: np.ndarray
+            The new image mask to write
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        '''
+
+        msk_ext = self.msk_ext
+
+        with fitsio.FITS(str(image_file), 'rw') as fits:
+            # overwrites existing image
+            fits[msk_ext].write(new_mask)
 
         return

@@ -25,6 +25,8 @@ class CleanupRunner(object):
     (5) TODO: ...
     '''
 
+    _name = 'cleanup'
+
     _compression_method = 'bzip2'
     _compression_args = '-z' # forces compression, don't keep orig file
     _compression_ext = 'bz2'
@@ -93,6 +95,9 @@ class CleanupRunner(object):
         # in case you still requested it
         self.skip = []
 
+        # the dir of temporary files for staging
+        self.tmp_dir = self.run_dir / 'tmp/'
+
         return
 
     def go(self, logprint, overwrite=False):
@@ -124,9 +129,8 @@ class CleanupRunner(object):
         logprint('Writing output files to disk...')
         self.write_outputs(logprint, overwrite=overwrite)
 
-        if self.clean_oba_dir is True:
-            logprint('Cleaning up OBA dir...')
-            self.cleanup(logprint)
+        logprint('Cleaning up OBA dir...')
+        self.cleanup(logprint)
 
         return
 
@@ -185,8 +189,10 @@ class CleanupRunner(object):
         cext = self._compression_ext
 
         # copy all of the output files
-        tmp_dir = self.run_dir / 'tmp/'
+        tmp_dir = self.tmp_dir
         logprint(f'Compressing files in temporary dir {str(tmp_dir)}')
+
+        # should already exist, but just to be safe
         utils.make_dir(tmp_dir)
 
         for band in self.bands:
@@ -275,10 +281,16 @@ class CleanupRunner(object):
             A LogPrint instance for simultaneous logging & printing
         '''
 
-        run_dir = self.run_dir
-        logprint(f'Removing {self.target_name} OBA run directory at {run_dir}')
+        if self.clean_oba_dir is True:
+            run_dir = self.run_dir
+            logprint(f'Removing {self.target_name} OBA run directory at {run_dir}')
 
-        shutil.rmtree(str(run_dir))
+            shutil.rmtree(str(run_dir))
+        else:
+            tmp_dir = self.tmp_dir
+            logprint(f'Only removing tmp dir {tmp_dir} as clean_oba_dir is False')
+
+            shutil.rmtree(str(tmp_dir))
 
         return
 
