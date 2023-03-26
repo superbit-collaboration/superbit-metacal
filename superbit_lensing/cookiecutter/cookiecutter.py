@@ -1087,9 +1087,6 @@ class CookieCutter(object):
     @property
     def meta(self):
         if self._meta is None:
-            # self._meta = fitsio.read(
-            #     self._cookiecutter_file, ext='META'
-            #     )
             # should only happen if was instantiated with a file
             self._meta = self._fits['META'].read()
 
