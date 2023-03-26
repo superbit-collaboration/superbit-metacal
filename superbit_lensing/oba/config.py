@@ -50,6 +50,10 @@ class OBAConfig(ModuleConfig):
             # if they are already present
             'skip_existing': True,
         },
+        'cals': {
+            # dark frame thresholding for hot pixel mask
+            'hp_threshold': 1000
+        },
         'masking': {
             'cosmic_rays': True,
             'satellites': True,
@@ -61,10 +65,22 @@ class OBAConfig(ModuleConfig):
             # the search radius about the target position, in deg
             'search_radius': 1, # deg
         },
+        'coadd': {
+            # the SWarp COMBINE_TYPE
+            'combine_type': 'CLIPPED'
+        },
         'output': {
             # Use to make one big central stamp at the target center
             'make_center_stamp': True,
             'center_stamp_size': 512,
+
+            # NOTE: "1d" is the standared CookieCutter output that is
+            # *likely* more optimized; it saves *only* the obj cutouts
+            # in a long 1D array (along w/ metadata). "2d" is an alt
+            # version that replaces the 1D arrays with the reconstructed
+            # 2D images, with 0's everywhere outside of the cutouts. This
+            # still compresses very nicely but eliminates overlapping pixels
+            'make_2d': True
         },
         'cleanup': {
             # NOTE: Will lose intermediate data products if you turn this on!

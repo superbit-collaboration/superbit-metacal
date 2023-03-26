@@ -1,8 +1,12 @@
 run_options:
   bands:
-  - u, b, g
+  - u
+  - b
+  - g
   det_bands:
-  - u, b, g
+  - u
+  - b
+  - g
   fresh: false
   overwrite: true
   target_name: Abell2813
@@ -28,9 +32,13 @@ astrometry:
   rerun: false
   search_radius: 1
 
+coadd:
+  combine_type: CLIPPED
+
 output:
   center_stamp_size: 512
   make_center_stamp: true
+  cc_type: 1d
 
 cleanup:
   clean_oba_dir: false

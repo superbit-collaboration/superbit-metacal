@@ -42,6 +42,8 @@ class OutputRunner(object):
     ext2: SEG (segmentation; 0 if sky, NUMBER if pixel is assigned to an obj)
     '''
 
+    _name = 'output'
+
     _out_sci_dtype_default = np.dtype('uint16')
     _out_msk_dtype_default = OBA_BITMASK_DTYPE
 
@@ -72,7 +74,8 @@ class OutputRunner(object):
                  ra_tag='ALPHAWIN_J2000', dec_tag='DELTAWIN_J2000',
                  ra_unit='deg', dec_unit='deg',
                  out_sci_dtype=None, out_msk_dtype=None,
-                 make_center_stamp=True, center_stamp_size=512):
+                 make_center_stamp=True, center_stamp_size=512,
+                 make_2d=False):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -117,6 +120,8 @@ class OutputRunner(object):
             Set to True to make a single large stamp at the target center
         center_stamp_size: int
             If making a central stamp, set the size (for now, must be square)
+        make_2d: bool
+            Set to make a 2D CookieCutter output file as well
         '''
 
         args = {
@@ -137,6 +142,7 @@ class OutputRunner(object):
             'dec_unit': (dec_unit, str),
             'make_center_stamp': (make_center_stamp, bool),
             'center_stamp_size': (center_stamp_size, int),
+            'make_2d': (make_2d, bool),
         }
 
         for name, tup in args.items():
@@ -429,10 +435,18 @@ class OutputRunner(object):
 
     def run_cookie_cutter(self, logprint, overwrite=False):
         '''
-        TODO: ...
+        Run the CookieCutter on the raw images, using source definitions
+        from the detection catalog
+
+        NOTE: Can optionally be run in "2D" mode, which will make an additional
+        FITS file that replaces the standard 1D arrays of reshaped cutouts with
+        the reconstructed 2D images, with areas outside of the stamps filled
+        with 0's that compress nicely
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
+        run2d: bool
+            Set to create a 2D cookiecutter file as well (see above)
         overwrite: bool
             Set to overwrite existing files
         '''
@@ -450,7 +464,21 @@ class OutputRunner(object):
             # NOTE: Can pass either the config file or the loaded config
             cutter = CookieCutter(config=config_file, logprint=logprint)
 
+            logprint()
             logprint('Starting...')
             cutter.go()
+            logprint()
+            logprint('Finished')
+
+            if self.make_2d is True:
+                logprint()
+                logprint('Creating 2D CookieCutter file as make_2d is True...')
+
+                config = utils.read_yaml(config_file)
+                outfile = config['output']['filename']
+                cutter.write_2d_cookiecutter(
+                    outfile,
+                    logprint=logprint
+                    )
 
         return

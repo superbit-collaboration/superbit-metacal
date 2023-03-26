@@ -33,8 +33,10 @@ class CoaddRunner(object):
     ext1: WGT (weight; 0 if masked, 1/sky_var otherwise)
     '''
 
+    _name = 'coadd'
+
     def __init__(self, config_file, run_dir, bands, det_bands,
-                 target_name=None, sci_ext=0, wgt_ext=1):
+                 target_name=None, sci_ext=0, wgt_ext=1, combine_type='CLIPPED'):
         '''
         config_file: pathlib.Path
             The filepath of the base SWarp config
@@ -51,6 +53,8 @@ class CoaddRunner(object):
             The science frame fits extension
         wgt_ext: int
             The weight frame fits extension
+        combine_type: str
+            The SWarp combine type to use
         '''
 
         args = {
@@ -59,7 +63,8 @@ class CoaddRunner(object):
             'bands': (bands, list),
             'det_bands': (det_bands, list),
             'sci_ext': (sci_ext, int),
-            'wgt_ext': (wgt_ext, int)
+            'wgt_ext': (wgt_ext, int),
+            'combine_type': (combine_type, str),
         }
 
         for name, tup in args.items():
@@ -248,8 +253,8 @@ class CoaddRunner(object):
             logprint(f'Starting band {band}')
             if band in self.skip:
                 logprint(f'Skipping as no images were found; size=(None None)')
-                ra_bounds[band] = (None, None)
-                dec_bounds[band] = (None, None)
+                self.ra_bounds[band] = (None, None)
+                self.dec_bounds[band] = (None, None)
                 continue
 
             images = self.images[band]
@@ -320,11 +325,11 @@ class CoaddRunner(object):
             ]
 
             # NOTE: a bit hacky since cornish isn't currently building. Use the
-            # first image per band to determine the pixel values at the
+            # last loaded image per band to determine the pixel values at the
             # boundaries. Some of these will be off of the image, but it should
             # give us an accurate estimate of the total coadd image size
-            im, hdr = fitsio.read(str(self.images[band][0]), header=True)
-            wcs = WCS(hdr)
+            # im, hdr = fitsio.read(str(self.images[band][0]), header=True)
+            # wcs = WCS(hdr)
 
             min_x = None
             max_x = None
@@ -335,6 +340,41 @@ class CoaddRunner(object):
 
                 im_pos = wcs.world_to_pixel(SkyCoord(ra*u.deg, dec*u.deg))
                 x, y = im_pos
+
+                # NOTE: as the single-epoch image we selected is likely rotated
+                # relative to RA/DEC, the projection of the bounding box on
+                # these axes will be too large. So rotate these values by the
+                # angle of the image, which we get from the CD matrix. See
+                # https://lweb.cfa.harvard.edu/~jzhao/SMA-FITS-CASA/docs/wcs88.pdf
+                cd = wcs.wcs.cd
+
+                sign_cdelta1_cdelta2 = np.sign(
+                    (cd[0,0] * cd[1,1]) - (cd[0,1] * cd[1,0])
+                    )
+
+                crota1 = np.arctan2(
+                    sign_cdelta1_cdelta2 * cd[0,1],
+                    cd[1,1]
+                    )
+
+                # NOTE: While this *should* be identical, we haven't found that
+                # to be true in practice...
+                crota2 = np.arctan2(
+                    -sign_cdelta1_cdelta2 * cd[1,0],
+                    cd[0,0]
+                    )
+
+                theta = -crota1
+                c = np.cos(theta)
+                s = np.sin(theta)
+
+                xy_rot = np.array([
+                    [c, -s],
+                    [s, c]
+                ]).dot(np.array([x, y]).T)
+
+                x = xy_rot[0]
+                y = xy_rot[1]
 
                 if min_x is None:
                     min_x = x
@@ -517,8 +557,10 @@ class CoaddRunner(object):
 
             image_args = f'{sci_im_args} -WEIGHT_IMAGE {wgt_im_args}'
 
-            # DES suggests using AVERAGE instead of CHI2 or WEIGHTED
-            ctype_arg = '-COMBINE_TYPE AVERAGE'
+            # DES suggests using AVERAGE instead of CHI2 or WEIGHTED, though
+            # we likely will use CLIPPED to handle cosmics & satellites since
+            # we are not measuring shapes on our detection image
+            ctype_arg = '-COMBINE_TYPE {self.combine_type}'
 
         cmd = ' '.join([
             'swarp ',
