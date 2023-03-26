@@ -125,8 +125,12 @@ class CookieCutter(object):
         # metadata for the cutouts; will get populated later
         self._meta = None
 
-        # TODO: Determine whether this is correct! See Issue #128
         self.wcs_origin = 0
+
+        # can keep a single image array cached in memory at once. Useful for
+        # speeding up the image reconstruction process
+        self._cached_image = None
+        self._cached_extname = None
 
         if logprint is None:
             logprint = print
@@ -381,14 +385,14 @@ class CookieCutter(object):
                 raise OSError(f'{outfile} already exists and overwrite is False!')
 
         meta_dtype = [
-            ('object_id', int),
+            ('object_id', 'u1'),
             ('xcen', float),
             ('ycen', float),
-            ('start_pos', int),
-            ('end_pos', int),
+            ('start_index', 'u1'),
+            ('end_index', 'u1'),
             ('sky_bkg', float),
             ('sky_var', float),
-            ('cc_ext', 'u1')
+            ('img_ext', 'u1')
             ]
 
         # this will hold the object metadata for each cutout
@@ -686,7 +690,7 @@ class CookieCutter(object):
                     meta[info_index]['object_id'] = obj[id_tag]
                     meta[info_index]['xcen'] = obj_pos[0]
                     meta[info_index]['ycen'] = obj_pos[1]
-                    meta[info_index]['cc_ext'] = image_index
+                    meta[info_index]['img_ext'] = image_index
 
                     if sky_bkg is not None:
                         meta[info_index]['sky_bkg'] = sky_bkg
@@ -703,8 +707,8 @@ class CookieCutter(object):
                     sci_array[0, indx_start:indx_end] = science_output
                     mask_array[0, indx_start:indx_end] = mask_output
 
-                    meta[info_index]['start_pos'] = indx_start
-                    meta[info_index]['end_pos'] = indx_end
+                    meta[info_index]['start_index'] = indx_start
+                    meta[info_index]['end_index'] = indx_end
 
                     pixels_written += cutout_size
 
@@ -1118,7 +1122,7 @@ class CookieCutter(object):
         return self.meta
 
     def get_cutout(self, objectid, extnumber=None, filename=None,
-                   cutout_type='IMAGE'):
+                   cutout_type='IMAGE', cache_image=False):
         '''
         Request a single cutout of one object from one image.
         Must always provide:
@@ -1133,8 +1137,12 @@ class CookieCutter(object):
                      does NOT correspond to the actual order of the fits
                      extensions in the raw file.
         ---------------
+
         Optional:
-        cutout_type: defaults to IMAGE; may also provide MASK.
+        cutout_type: str
+            Name of the cutout type. Defaults to IMAGE; may also provide MASK
+        cache_image: bool
+            Set to use and / or cache the current image in memory
         '''
 
         # Construct the file extension from the requested cutout:
@@ -1165,7 +1173,7 @@ class CookieCutter(object):
         # Now get the row from the table with the object info.
         # At this point, the extension name should exist.
         row = (self.meta['object_id'] == objectid) &\
-            (self.meta['cc_ext'] == extnumber)
+            (self.meta['img_ext'] == extnumber)
         if np.sum(row) != 1:
             raise ValueError(f'somehow, the objectindex {objectid} and image ' +
                              f'extension {extnumber} pairing does not exist, ' +
@@ -1173,20 +1181,55 @@ class CookieCutter(object):
         entry = self.meta[row]
 
         # are read as arrays
-        start = int(entry['start_pos'])
-        end = int(entry['end_pos'])
-        cutout1d = self._fits[extname][0,start:end]
+        start = int(entry['start_index'])
+        end = int(entry['end_index'])
+
+        if cache_image is True:
+            if (self._cached_image is None) or (self._cached_extname != extname):
+                self._cached_image = self._fits[extname].read()
+                self._cached_extname = extname
+
+            cutout1d = self._cached_image[0,start:end]
+        else:
+            cutout1d = self._fits[extname][0,start:end]
 
         # NOTE: cutouts are always square.
+        boxsize = np.sqrt(cutout1d.size)
         cutout2d = cutout1d.reshape(
-            int(np.sqrt(cutout1d.size)),
-            int(np.sqrt(cutout1d.size))
+            int(boxsize),
+            int(boxsize)
             )
 
         return cutout2d
 
+    def _get_cutout_by_index(self, obj_indx, cutout_type='IMAGE'):
+        '''
+        A private, faster version of get_cutout that does no checking and
+        access by internal meta index instead of obj_id
+
+        obj_indx: int
+            The index of the meta table corresponding to the object cutout
+        cutout_type: str
+            Name of the cutout type. Defaults to IMAGE; may also provide MASK
+        '''
+
+        obj = self.meta[obj_indx]
+        start = obj['start_index']
+        end = obj['end_index']
+
+        ext_number = obj['img_ext']
+        ext_name = f'{cutout_type}{ext_number}'
+
+        cutout1d = self._fits[ext_name][0,start:end]
+
+        # NOTE: cutouts are always square.
+        boxsize = int(np.sqrt(cutout1d.size))
+        cutout2d = cutout1d.reshape(boxsize, boxsize)
+
+        return cutout2d
+
     def get_cutouts(self, objectids=None, extnumbers=None, filenames=None,
-                    cutoutTypes=['IMAGE', 'MASK']):
+                     cutoutTypes=['IMAGE', 'MASK']):
 
         # Can specify all three, will try to find everything that matches at least one.
         raise NotImplementedError('get_cutouts() not yet implemented!')
@@ -1245,15 +1288,18 @@ class CookieCutter(object):
 
         new_image = np.zeros(image_shape, dtype=dtype)
 
-        meta_in_image = self.meta[self.meta['cc_ext'] == extnumber]
+        meta_indices = np.where(self.meta['img_ext'] == extnumber)
+        meta_in_image = self.meta[meta_indices]
+        Nmeta = len(meta_in_image)
 
         # Now loop over objects in this image.
-        for obj in meta_in_image:
+        for indx, obj in zip(meta_indices[0], meta_in_image):
 
-            cutout = self.get_cutout(
-                obj['object_id'],
-                extnumber=extnumber,
-                cutout_type=cutout_type
+            # passing the index explicitly saves *lots* of time
+            # over many iterations
+            cutout = self._get_cutout_by_index(
+                indx,
+                cutout_type
                 )
 
             # guaranteed to be perfect square, for now
@@ -1261,7 +1307,6 @@ class CookieCutter(object):
             boxsize = cutout.shape[0]
 
             # NOTE: much faster w/ vectorized operations
-            # object_positions = self._compute_image_pos(image, obj)
             obj_pos = (obj['xcen'], obj['ycen'])
 
             try:
@@ -1469,6 +1514,99 @@ class ImageLocator(object):
 
 #------------------------------------------------------------------------------
 # Some helper funcs relevant to CookieCutter
+
+def write_2d_cookiecutter(cc_file, out_file=None, logprint=None):
+    '''
+    Given a standard cookiecutter file, we can easily make an alternative
+    version of the cookiecutter which stores the 2D reconstructed
+    images of cutouts instead of the 1D array list of cutouts. While a larger
+    file, it *should* compress well with most of the image being 0's, and it has
+    the advantage of storing no overlapping pixel information
+
+    cc_file: str, pathlib.Path
+        The filepath to the already-written CookieCutter file
+    out_file: str, pathlib.Path
+        The filepath of the output 2D CookieCutter file (defaults w/ "_2d"
+        suffix)
+    logprint: utils.LogPrint
+        A LogPrint instance for simultaneous logging & printing
+    '''
+
+    if isinstance(cc_file, str):
+        cc_file = Path(cc_file)
+    if isinstance(out_file, str):
+        out_file = Path(out_file)
+
+    if out_file is None:
+        out_file = Path(
+            cc_file.replace('.fits', '_2d.fits')
+            )
+
+    if logprint is not None:
+        logprint(f'Writing 2D CookieCutter file to {out_file.name}, ' +
+                 f'using {cc_file.name} as input')
+
+    ipdb.set_trace()
+    cc = CookieCutter(cookiecutter_file=cc_file, logprint=logprint)
+    cc.initialize()
+
+    with fitsio.FITS(out_file, 'rw') as fits:
+        try:
+            for ext in range(len(cc._fits)):
+                image_hdr = cc._fits[ext].read_header()
+                ext_name = cc._fits[ext].get_extname()
+
+                if ext_name == f'IMAGE{ext}':
+                    cutout_type = 'IMAGE'
+                elif ext_name == f'MASK{ext}':
+                    cutout_type = 'MASK'
+                elif ext_name == 'META':
+                    cutout_type = 'META'
+                else:
+                    raise ValueError(
+                        f'Extension name {ext_name} not recognized!'
+                        )
+
+                if logprint is not None:
+                    img_file = Path(image_hdr['IMG_FILE']).name
+                    logprint(f'Reconstructing image {img_file}')
+
+                new_image, orig_hdr = cc.reconstruct_image(
+                    cutout_type=cutout_type, extnumber=ext
+                    )
+                image_dtype = new_image.dtype
+                image_shape = new_image.shape
+                ipdb.set_trace()
+
+                if cutout_type != 'META':
+                    # first, create the new HDU
+                    fits.create_image_hdu(
+                        img=new_image,
+                        dtype=image_dtype,
+                        dims=image_shape,
+                        extname=ext_name,
+                        header=image_hdr
+                        )
+
+                    # next, write the header
+                    fits[ext_name].write_keys(image_hdr)
+
+                    # finally, write the full 2D image
+                    fits[ext_name].write(sci_array)
+
+                else:
+                    fits.create_table_hdu(data=meta, extname='META')
+                    fits[ext_name].write(meta)
+
+        except Exception as e:
+            # we do this to cleanup the failed FITS writing
+            out_file.unlink()
+            raise e
+
+    if logprint is not None:
+        logprint('Done!')
+
+    return
 
 def intersecting_slices(big_array_shape, small_array_shape, position):
     '''

@@ -125,7 +125,7 @@ class MaskingRunner(object):
         # instead to prioritize memory over repeated computation
         i = 1
         for band in self.bands:
-            logprint('Starting band {band}')
+            logprint(f'Starting band {band}')
 
             images = self.images[band]
             Nfiles = len(images)
@@ -201,7 +201,8 @@ class MaskingRunner(object):
 
         cosmic_val = OBA_BITMASK['cosmic_ray']
 
-        logprint(f'Running lacosmic on {image_file.name}')
+        name = Path(image_file).name
+        logprint(f'Running lacosmic on {name}')
 
         data, hdr = fitsio.read(
             str(image_file), ext=sci_ext, header=True
@@ -209,7 +210,7 @@ class MaskingRunner(object):
         gain = hdr['GAIN']
 
         # la cosmic won't understand our bitmask
-        mask = mask.astype(bool)
+        la_mask = mask.astype(bool)
 
         start = time()
 
@@ -219,7 +220,7 @@ class MaskingRunner(object):
             contrast=self.cr_contrast,
             cr_threshold=6,
             neighbor_threshold=6,
-            mask=mask,
+            mask=la_mask,
             effective_gain=gain, # e-/ADU (0.343 for SB)
             # TODO: generalize the readnoise val!
             readnoise=2.08, # e- RMS
@@ -234,8 +235,9 @@ class MaskingRunner(object):
         # OR cosmic ray mask with the existing mask on cal file
         # TODO: confirm that the following works!
         ipdb.set_trace()
-        cr_mask = cosmic_val * cr_mask.astype(OBA_BITMASK_DTYPE)
-        mask |= cr_mask
+        # cr_mask = cosmic_val * cr_mask.astype(OBA_BITMASK_DTYPE)
+        # mask |= cr_mask
+        mask[cr_mask == True] += cosmic_val
 
         return mask
 
