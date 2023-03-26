@@ -17,7 +17,7 @@ class TestPrepper(object):
     '''
 
     _compression_method = 'bzip2'
-    _compression_args = '-zk' # forces compression, keep orig file
+    _compression_args = '-z' # forces compression, remove orig file
     _compression_ext = 'bz2'
 
     def __init__(self, target_name, bands, skip_existing=True):
@@ -108,8 +108,6 @@ class TestPrepper(object):
         images = glob(search)
 
         for image in images:
-            shutil.copy(image, target_dir)
-
             # we will also update the headers here as well, to simulate the
             # image checker
             with fitsio.FITS(image, 'rw') as fits:
@@ -120,6 +118,8 @@ class TestPrepper(object):
                 band = im_pars['band']
                 bindx = band2index(band)
                 fits[0].write_key('FILTER', str(bindx))
+
+            shutil.copy(image, target_dir)
 
         return
 
