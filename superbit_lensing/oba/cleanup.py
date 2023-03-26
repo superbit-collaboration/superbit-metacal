@@ -157,6 +157,11 @@ class CleanupRunner(object):
             if cutouts.is_file():
                 outputs.append(cutouts)
 
+            # generated 2D CookeCutter config file, if present
+            cutouts_2d = band_out_dir / f'{target_name}_{band}_cutouts_2d.fits'
+            if cutouts.is_file():
+                outputs.append(cutouts)
+
             # generated CookeCutter config file
             cutouts_config = band_out_dir / f'{target_name}_{band}_cutouts.yaml'
             if cutouts_config.is_file():
