@@ -233,10 +233,6 @@ class MaskingRunner(object):
         logprint(f'Cosmic ray masking took {dT:.2f} s')
 
         # OR cosmic ray mask with the existing mask on cal file
-        # TODO: confirm that the following works!
-        ipdb.set_trace()
-        # cr_mask = cosmic_val * cr_mask.astype(OBA_BITMASK_DTYPE)
-        # mask |= cr_mask
         mask[cr_mask == True] += cosmic_val
 
         return mask
