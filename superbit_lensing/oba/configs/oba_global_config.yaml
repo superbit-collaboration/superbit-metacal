@@ -9,7 +9,6 @@ run_options:
   - g
   fresh: false
   overwrite: true
-  target_name: Abell2813
   vb: true
 
 modules:
@@ -38,7 +37,7 @@ coadd:
 output:
   center_stamp_size: 512
   make_center_stamp: true
-  cc_type: 1d
+  make_2d: true
 
 cleanup:
   clean_oba_dir: false
