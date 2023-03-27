@@ -499,13 +499,15 @@ class OBARunner(object):
 
         make_center_stamp = self.config['output']['make_center_stamp']
         center_stamp_size = self.config['output']['center_stamp_size']
+        make_2d = self.config['output']['make_2d']
 
         runner = OutputRunner(
             self.run_dir,
             self.bands,
             target_name=self.target_name,
             make_center_stamp=make_center_stamp,
-            center_stamp_size=center_stamp_size
+            center_stamp_size=center_stamp_size,
+            make_2d=make_2d
             )
 
         args = [self.logprint]
