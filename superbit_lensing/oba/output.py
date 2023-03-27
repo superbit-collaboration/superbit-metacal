@@ -6,7 +6,7 @@ import fitsio
 import ipdb
 
 from superbit_lensing import utils
-from superbit_lensing.cookiecutter import CookieCutter
+from superbit_lensing.cookiecutter import CookieCutter, write_2d_cookiecutter
 from oba_io import band2index
 from bitmask import OBA_BITMASK, OBA_BITMASK_DTYPE
 
@@ -55,8 +55,9 @@ class OutputRunner(object):
     cookiecutter_keymap = {
         'sci_file': 'image_file',
         'sci_ext': 'image_ext',
-        'wgt_file': 'weight_file',
-        'wgt_ext': 'weight_ext',
+        # NOTE: we're going to skip the wgt map for actual OBA flight
+        # 'wgt_file': 'weight_file',
+        # 'wgt_ext': 'weight_ext',
         'msk_file': 'mask_file',
         'msk_ext': 'mask_ext',
         # 'skyvar_file': 'skyvar_file',
@@ -319,8 +320,9 @@ class OutputRunner(object):
                             raise ValueError('Inconsistent target DEC values ' +
                                              'between image headers!')
 
-        self.target_ra = target_ra
-        self.target_dec = target_dec
+        if self.make_center_stamp is True:
+            self.target_ra = target_ra
+            self.target_dec = target_dec
 
         return
 
@@ -475,10 +477,17 @@ class OutputRunner(object):
                 logprint('Creating 2D CookieCutter file as make_2d is True...')
 
                 config = utils.read_yaml(config_file)
-                outfile = config['output']['filename']
-                cutter.write_2d_cookiecutter(
-                    outfile,
+                cc_file = config['output']['filename']
+                try:
+                    cc_dir = config['output']['dir']
+                except KeyError:
+                    cc_dir = ''
+
+                cc_file = str(Path(cc_dir) / cc_file)
+
+                write_2d_cookiecutter(
+                    cc_file,
                     logprint=logprint
-                    )
+                )
 
         return
