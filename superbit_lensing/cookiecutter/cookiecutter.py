@@ -346,7 +346,8 @@ class CookieCutter(object):
             ]
 
         # need Table format for the loop over objs to work correctly below
-        catalog = Table(self.catalog)
+        # catalog = Table(self.catalog)
+        catalog = self.catalog
         Nsources = len(catalog)
 
         id_tag = config['input']['id_tag']
@@ -354,8 +355,11 @@ class CookieCutter(object):
         dec_tag = config['input']['dec_tag']
         boxsize_tag = config['input']['boxsize_tag']
 
+        # it is *much* faster to access a ndarray than the row of a recarray
         ra = catalog[ra_tag]
         dec = catalog[dec_tag]
+        boxsizes = catalog[boxsize_tag]
+        obj_ids = catalog[id_tag]
 
         ra_unit = u.Unit(config['input']['ra_unit'])
         dec_unit = u.Unit(config['input']['dec_unit'])
@@ -475,6 +479,8 @@ class CookieCutter(object):
                         ra, dec, seg_wcs, wcs_type=self.wcs_type
                         )
 
+                    seg_shape = imageObj.segmentation.get_info()['dims']
+
                 # place the file path info here
                 image_hdr.add_record({
                     'name': 'IMG_FILE',
@@ -535,7 +541,7 @@ class CookieCutter(object):
 
                 # NOTE: This was the old way, which unnecessarily allocates
                 # memory for stamps w/ no overlap in the given image
-                pix_percent = 100. * Npix / np.sum(catalog[boxsize_tag][:]**2)
+                pix_percent = 100. * Npix / np.sum(boxsizes**2)
                 im_percent = 100 * Npix / (image_shape[0] * image_shape[1])
                 self.logprint(f'image {im_name} needs {Npix} pixels; ' +
                               f'{pix_percent:.2f}% of max stamp pixels; ' +
@@ -589,7 +595,7 @@ class CookieCutter(object):
 
                 pixels_written = 0
                 sci_hdr_written = False
-                for indx, obj in enumerate(catalog):
+                for indx in range(Nsources):
                     if indx % progress == 0:
                         self.logprint(f'{indx} of {Nsources}')
 
@@ -600,11 +606,14 @@ class CookieCutter(object):
                                           f'image {im_name}; skipping')
                         continue
 
+                    boxsize = boxsizes[indx]
+                    obj_id = obj_ids[indx]
+
                     iobj, obj_pos, image_slice, cutout_slice, cutout_size =\
                         slice_info.pop(0)
                     assert iobj == indx
 
-                    cutout_shape = (obj[boxsize_tag], obj[boxsize_tag])
+                    cutout_shape = (boxsize, boxsize)
 
                     image_cutout = np.zeros(cutout_shape, dtype=sci_dtype)
 
@@ -613,29 +622,31 @@ class CookieCutter(object):
                         # stamp-subtracted one (more compressable)
                         sci_cutout = center_cutout
                     else:
-                        sci_cutout = imageObj.image[image_slice].astype(sci_dtype)
+                        sci_cutout = imageObj.image_array[image_slice].astype(sci_dtype)
 
                     image_cutout[cutout_slice] = sci_cutout
                     science_output = image_cutout.flatten()
 
-                    # TODO / QUESTION: should we use mean or median for the following?
                     if imageObj.background is not None:
                         sky_cutout = np.zeros(cutout_shape)
-                        sky_cutout[cutout_slice] = imageObj.background[image_slice]
-                        sky_bkg = np.median(sky_cutout)
+                        sky_cutout[cutout_slice] = imageObj.background_array[image_slice]
+                        # NOTE: While the median is most robust here, this is already the
+                        # the slowly-varying (course) sky bkg, & medians are very
+                        # expensive
+                        sky_bkg = np.mean(sky_cutout)
                     else:
                         sky_bkg = None
 
                     if imageObj.weight is not None:
                         weight_cutout = np.zeros(cutout_shape)
-                        weight_cutout[cutout_slice] = imageObj.weight[image_slice]
+                        weight_cutout[cutout_slice] = imageObj.weight_array[image_slice]
                         weight = np.mean(weight_cutout)
                     else:
                         weight = None
 
                     if imageObj.skyvar is not None:
                         skyvar_cutout = np.zeros(cutout_shape)
-                        skyvar_cutout[cutout_slice] = imageObj.skyvar[image_slice]
+                        skyvar_cutout[cutout_slice] = imageObj.skyvar_array[image_slice]
                         sky_var = np.mean(sky_cutout)
                     elif weight is not None:
                         # for OBA at least, this is true
@@ -649,7 +660,7 @@ class CookieCutter(object):
                     # we treat the mask differently, as it is required
                     mask_cutout = np.zeros(cutout_shape)
                     if imageObj.mask is not None:
-                        mask_cutout[cutout_slice] = imageObj.mask[image_slice]
+                        mask_cutout[cutout_slice] = imageObj.mask_array[image_slice]
 
                     if imageObj.segmentation is not None:
                         # TODO: It would be nice to generalize this, but it is a
@@ -657,22 +668,21 @@ class CookieCutter(object):
                         # different image than the rest (coadd vs. single-epoch)
                         # NOTE: the segmentation WCS lives in a different ext as
                         # it is coming from the detection coadd
-                        seg_shape = imageObj.segmentation.get_info()['dims']
 
                         seg_obj_pos = [seg_x[indx], seg_y[indx]]
                         seg_out = self._compute_obj_slices(
-                            seg_shape, seg_obj_pos, obj[boxsize_tag]
+                            seg_shape, seg_obj_pos, boxsize
                             )
 
                         seg_slice, seg_cutout_slice, seg_cutout_size = seg_out
                         seg_cutout = np.zeros(cutout_shape)
-                        seg_cutout[seg_cutout_slice] = imageObj.segmentation[seg_slice]
+                        seg_cutout[seg_cutout_slice] = imageObj.segmentation_array[seg_slice]
                     else:
                         seg_cutout = None
 
                     if seg_cutout is not None:
                         mask_output = self._combine_mask_and_seg(
-                            obj[id_tag], mask_cutout, seg_cutout, seg_type=seg_type
+                            obj_id, mask_cutout, seg_cutout, seg_type=seg_type
                             )
                     else:
                         mask_output = mask_cutout
@@ -687,7 +697,7 @@ class CookieCutter(object):
                     mask_output = mask_output.astype(msk_dtype).flatten()
 
                     # This is how we look up object positions to read later.
-                    meta[info_index]['object_id'] = obj[id_tag]
+                    meta[info_index]['object_id'] = obj_id
                     meta[info_index]['xcen'] = obj_pos[0]
                     meta[info_index]['ycen'] = obj_pos[1]
                     meta[info_index]['img_ext'] = image_index
@@ -824,19 +834,22 @@ class CookieCutter(object):
             wcs_type=self.wcs_type
             )
 
+        boxsizes = catalog[boxsize_tag]
+
         Npix = 0
 
         skip_list = []
         slice_info = []
-        for indx, obj in enumerate(catalog):
+        for indx in range(len(catalog)):
             try:
                 if indx % progress == 0:
                     self.logprint(f'{indx} of {Nsources}')
 
+                boxsize = boxsizes[indx]
                 obj_pos = [x[indx], y[indx]]
 
                 slices = self._compute_obj_slices(
-                    image_shape, obj_pos, obj[boxsize_tag]
+                    image_shape, obj_pos, boxsize
                     )
                 image_slice, cutout_slice, cutout_size = slices
 
@@ -876,6 +889,9 @@ class CookieCutter(object):
                 # to the allocated memory for this extension
                 skip_list.append(indx)
                 continue
+
+        # for speedups
+        skip_list = np.array(skip_list)
 
         return Npix, slice_info, skip_list
 
@@ -1381,26 +1397,32 @@ class ImageLocator(object):
         self._image_file = image_file
         self._image_ext = image_ext
         self._image = None
+        self._image_array = None
 
         self._weight_file = weight_file
         self._weight_ext = weight_ext
         self._weight = None
+        self._weight_array = None
 
         self._mask_file = mask_file
         self._mask_ext = mask_ext
         self._mask = None
+        self._mask_array = None
 
         self._background_file = background_file
         self._background_ext = background_ext
         self._background = None
+        self._background_array = None
 
         self._skyvar_file = skyvar_file
         self._skyvar_ext = skyvar_ext
         self._skyvar = None
+        self._skyvar_array = None
 
         self._segmentation_file = segmentation_file
         self._segmentation_ext = segmentation_ext
         self._segmentation = None
+        self._segmentation_array = None
 
         return
 
@@ -1412,6 +1434,18 @@ class ImageLocator(object):
                 )[self._image_ext]
 
         return self._image
+
+    @property
+    def image_array(self):
+        '''
+        Same as image(), but loads the *full* image into memory once
+        '''
+        if self._image_array is None:
+            self._image_array = fitsio.FITS(
+                self._image_file, 'r'
+                )[self._image_ext].read()
+
+        return self._image_array
 
     @property
     def weight(self):
@@ -1426,6 +1460,18 @@ class ImageLocator(object):
             return self._weight
 
     @property
+    def weight_array(self):
+        '''
+        Same as weight(), but loads the *full* weight into memory once
+        '''
+        if self._weight_array is None:
+            self._weight_array = fitsio.FITS(
+                self._weight_file, 'r'
+                )[self._weight_ext].read()
+
+        return self._weight_array
+
+    @property
     def mask(self):
         if self._mask_file is None:
             return None
@@ -1436,6 +1482,18 @@ class ImageLocator(object):
                     )[self._mask_ext]
 
             return self._mask
+
+    @property
+    def mask_array(self):
+        '''
+        Same as mask(), but loads the *full* mask into memory once
+        '''
+        if self._mask_array is None:
+            self._mask_array = fitsio.FITS(
+                self._mask_file, 'r'
+                )[self._mask_ext].read()
+
+        return self._mask_array
 
     @property
     def background(self):
@@ -1450,6 +1508,18 @@ class ImageLocator(object):
             return self._background
 
     @property
+    def background_array(self):
+        '''
+        Same as background(), but loads the *full* background into memory once
+        '''
+        if self._background_array is None:
+            self._background_array = fitsio.FITS(
+                self._background_file, 'r'
+                )[self._background_ext].read()
+
+        return self._background_array
+
+    @property
     def skyvar(self):
         if self._skyvar_file is None:
             return None
@@ -1462,6 +1532,18 @@ class ImageLocator(object):
             return self._skyvar
 
     @property
+    def skyvar_array(self):
+        '''
+        Same as skyvar(), but loads the *full* skyvar into memory once
+        '''
+        if self._skyvar_array is None:
+            self._skyvar_array = fitsio.FITS(
+                self._skyvar_file, 'r'
+                )[self._skyvar_ext].read()
+
+        return self._skyvar_array
+
+    @property
     def segmentation(self):
         if self._segmentation_file is None:
             return None
@@ -1472,6 +1554,18 @@ class ImageLocator(object):
                     )[self._segmentation_ext]
 
             return self._segmentation
+
+    @property
+    def segmentation_array(self):
+        '''
+        Same as segmentation(), but loads the *full* segmentation into memory once
+        '''
+        if self._segmentation_array is None:
+            self._segmentation_array = fitsio.FITS(
+                self._segmentation_file, 'r'
+                )[self._segmentation_ext].read()
+
+        return self._segmentation_array
 
     def get_wcs(self, image_type, ext=0, wcs_type='astropy'):
         '''
@@ -1512,7 +1606,8 @@ class ImageLocator(object):
 #------------------------------------------------------------------------------
 # Some helper funcs relevant to CookieCutter
 
-def write_2d_cookiecutter(cc_file, out_file=None, logprint=None):
+def write_2d_cookiecutter(cc_file, out_file=None, logprint=None,
+                          keep_1d_segmask=True):
     '''
     Given a standard cookiecutter file, we can easily make an alternative
     version of the cookiecutter which stores the 2D reconstructed
@@ -1527,6 +1622,9 @@ def write_2d_cookiecutter(cc_file, out_file=None, logprint=None):
         suffix)
     logprint: utils.LogPrint
         A LogPrint instance for simultaneous logging & printing
+    keep_1d_segmask: bool
+        Set to keep the seg-mask as the 1d cutout arrays (as the segmask is
+        only properly defined on cutouts, not full image)
     '''
 
     if isinstance(cc_file, str):
@@ -1535,15 +1633,15 @@ def write_2d_cookiecutter(cc_file, out_file=None, logprint=None):
         out_file = Path(out_file)
 
     if out_file is None:
+        ipdb.set_trace()
         out_file = Path(
-            cc_file.replace('.fits', '_2d.fits')
+            str(cc_file).replace('.fits', '_2d.fits')
             )
 
     if logprint is not None:
         logprint(f'Writing 2D CookieCutter file to {out_file.name}, ' +
                  f'using {cc_file.name} as input')
 
-    ipdb.set_trace()
     cc = CookieCutter(cookiecutter_file=cc_file, logprint=logprint)
     cc.initialize()
 
