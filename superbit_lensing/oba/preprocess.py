@@ -104,7 +104,6 @@ class PreprocessRunner(object):
             Set to overwrite existing files
         skip_decompress: bool
             Set to skip the raw file decompression if file already exists
-            (should only be used for test runs)
         '''
 
         logprint('Setting up temporary run directories...')
