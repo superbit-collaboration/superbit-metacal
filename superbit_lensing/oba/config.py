@@ -50,6 +50,10 @@ class OBAConfig(ModuleConfig):
             # if they are already present
             'skip_existing': True,
         },
+        'preprocessing': {
+            # skip the decompressing of raw files if already present in OBA dir
+            'skip_decompress': True
+            },
         'cals': {
             # dark frame thresholding for hot pixel mask
             'hp_threshold': 1000

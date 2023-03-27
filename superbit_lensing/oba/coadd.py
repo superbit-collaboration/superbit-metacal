@@ -54,7 +54,7 @@ class CoaddRunner(object):
         wgt_ext: int
             The weight frame fits extension
         combine_type: str
-            The SWarp combine type to use
+            The SWarp combine type to use for single-band exposures
         '''
 
         args = {
@@ -545,7 +545,7 @@ class CoaddRunner(object):
             image_args = f'{sci_im_args} -WEIGHT_IMAGE {wgt_im_args}'
 
             # use config value for single-band
-            ctype_arg = ''
+            ctype_arg = f'-COMBINE_TYPE {self.combine_type}'
 
         else:
             # detection coadds resample from the single-band coadds
@@ -557,10 +557,9 @@ class CoaddRunner(object):
 
             image_args = f'{sci_im_args} -WEIGHT_IMAGE {wgt_im_args}'
 
-            # DES suggests using AVERAGE instead of CHI2 or WEIGHTED, though
-            # we likely will use CLIPPED to handle cosmics & satellites since
-            # we are not measuring shapes on our detection image
-            ctype_arg = f'-COMBINE_TYPE {self.combine_type}'
+            # DES suggests using AVERAGE instead of CHI2 or WEIGHTED for
+            # detection image
+            ctype_arg = f'-COMBINE_TYPE MEAN'
 
         cmd = ' '.join([
             'swarp ',

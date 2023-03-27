@@ -279,6 +279,8 @@ class OBARunner(object):
         if 'preprocessing' not in self.modules:
             self.logprint('Skipping preprocessing given config modules')
             return
+        else:
+            skip_decompress = self.config['preprocessing']['skip_decompress']
 
         runner = PreprocessRunner(
             self.raw_dir,
@@ -287,11 +289,6 @@ class OBARunner(object):
             self.bands,
             target_name=self.target_name
             )
-
-        if self.test is True:
-            skip_decompress = True
-        else:
-            skip_decompress = False
 
         args = [self.logprint]
         kwargs = {
@@ -502,13 +499,15 @@ class OBARunner(object):
 
         make_center_stamp = self.config['output']['make_center_stamp']
         center_stamp_size = self.config['output']['center_stamp_size']
+        make_2d = self.config['output']['make_2d']
 
         runner = OutputRunner(
             self.run_dir,
             self.bands,
             target_name=self.target_name,
             make_center_stamp=make_center_stamp,
-            center_stamp_size=center_stamp_size
+            center_stamp_size=center_stamp_size,
+            make_2d=make_2d
             )
 
         args = [self.logprint]
@@ -544,7 +543,6 @@ class OBARunner(object):
 
         return
 
-    @profile
     def module_runner(self, runner, args, kwargs, logprint):
         '''
         A light wrapper around a module runner to handle any exceptions
