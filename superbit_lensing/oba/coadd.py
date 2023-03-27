@@ -559,7 +559,7 @@ class CoaddRunner(object):
 
             # DES suggests using AVERAGE instead of CHI2 or WEIGHTED for
             # detection image
-            ctype_arg = f'-COMBINE_TYPE MEAN'
+            ctype_arg = f'-COMBINE_TYPE AVERAGE'
 
         cmd = ' '.join([
             'swarp ',
