@@ -15,7 +15,6 @@ from detection import DetectionRunner
 from output import OutputRunner
 from cleanup import CleanupRunner
 
-from memory_profiler import profile
 import ipdb
 
 class OBARunner(object):
