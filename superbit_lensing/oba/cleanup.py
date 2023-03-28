@@ -175,7 +175,7 @@ class CleanupRunner(object):
                 cutouts = band_out_dir / f'{target_name}_{band}_cutouts.fits'
                 if cutouts.is_file():
                     outputs.append(cutouts)
-            elif (self.cc_type == '2d') or (self.cc_type == 'both'):
+            if (self.cc_type == '2d') or (self.cc_type == 'both'):
                 cutouts_2d = band_out_dir / f'{target_name}_{band}_cutouts_2d.fits'
                 if cutouts_2d.is_file():
                     outputs.append(cutouts_2d)
