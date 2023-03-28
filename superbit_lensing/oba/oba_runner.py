@@ -15,7 +15,6 @@ from detection import DetectionRunner
 from output import OutputRunner
 from cleanup import CleanupRunner
 
-from memory_profiler import profile
 import ipdb
 
 class OBARunner(object):
@@ -527,6 +526,7 @@ class OBARunner(object):
             return
         else:
             clean_oba_dir =  self.config['cleanup']['clean_oba_dir']
+            cc_type =  self.config['cleanup']['cc_type']
 
         runner = CleanupRunner(
             self.run_dir,
@@ -534,6 +534,7 @@ class OBARunner(object):
             self.bands,
             target_name=self.target_name,
             clean_oba_dir=clean_oba_dir,
+            cc_type=cc_type
             )
 
         runner.go(self.logprint, overwrite=overwrite)
