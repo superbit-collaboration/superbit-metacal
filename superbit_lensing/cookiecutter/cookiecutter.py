@@ -389,21 +389,21 @@ class CookieCutter(object):
                 raise OSError(f'{outfile} already exists and overwrite is False!')
 
         meta_dtype = [
-            ('object_id', 'u1'),
+            ('object_id', 'u4'),
             ('xcen', float),
             ('ycen', float),
-            ('start_index', 'u1'),
-            ('end_index', 'u1'),
+            ('start_index', 'u4'),
+            ('end_index', 'u4'),
             ('sky_bkg', float),
             ('sky_var', float),
-            ('img_ext', 'u1')
+            ('img_ext', 'u2')
             ]
 
         # this will hold the object metadata for each cutout
         # NOTE: this means that there is Nexp rows for each object, where
         # Nexp is the number of exposures that the object stamp has at least one
         # interesecting pixel in the image
-        meta = np.empty(
+        meta = np.zeros(
             Nsources * len(images),
             dtype=meta_dtype
             )
@@ -460,9 +460,16 @@ class CookieCutter(object):
                 image_wcs = imageObj.get_wcs(
                     'image', wcs_type=self.wcs_type
                     )
+
                 image_hdr = remove_essential_FITS_keys(
                     imageObj.image.read_header()
                     )
+                # a bit awkward, but we need a good number of the header fields
+                # when reconstructing the msk image later on
+                mask_hdr = copy.deepcopy(image_hdr)
+                # ipdb.set_trace()
+                for key in ESSENTIAL_FITS_KEYS:
+                    mask_hdr.delete(f'ORIGINAL_{key}')
 
                 # if making the segmask, we'll need this later
                 if imageObj.segmentation is not None:
@@ -482,33 +489,33 @@ class CookieCutter(object):
                     seg_shape = imageObj.segmentation.get_info()['dims']
 
                 # place the file path info here
-                image_hdr.add_record({
-                    'name': 'IMG_FILE',
-                    'value': str(Path(image['image_file']).name),
-                    'comment': 'The image that has been cookie-cut'
-                })
-                image_hdr.add_record({
-                    'name': 'IMG_EXT',
-                    'value': image['image_ext'],
-                    'comment': 'The extension of the cut image'
-                })
+                for hdr in [image_hdr, mask_hdr]:
+                    hdr.add_record({
+                        'name': 'IMG_FILE',
+                        'value': str(Path(image['image_file']).name),
+                        'comment': 'The image that has been cookie-cut'
+                    })
+                    hdr.add_record({
+                        'name': 'IMG_EXT',
+                        'value': image['image_ext'],
+                        'comment': 'The extension of the cut image'
+                    })
 
-                # NOTE: In principle, a "center" (but really "target") stamp
-                # could fall off of an image with a large enough dither, but
-                # let's ignore that for now (the slicing takes care of this)
-                image_hdr.add_record({
-                    'name': 'CEN_STMP',
-                    'value': make_center_stamp,
-                    'comment': 'Is there a center stamp'
-                })
+                    # NOTE: In principle, a "center" (but really "target") stamp
+                    # could fall off of an image with a large enough dither, but
+                    # let's ignore that for now (the slicing takes care of this)
+                    hdr.add_record({
+                        'name': 'CEN_STMP',
+                        'value': make_center_stamp,
+                        'comment': 'Is there a center stamp'
+                    })
 
-                if make_center_stamp is True:
-                    image_hdr['cen_id'] = center_stamp_id
-                    image_hdr.add_record({
-                        'name': 'CEN_ID',
-                        'value': center_stamp_id,
-                        'comment': 'Object ID of the center stamp'
-                        })
+                    if make_center_stamp is True:
+                        hdr.add_record({
+                            'name': 'CEN_ID',
+                            'value': center_stamp_id,
+                            'comment': 'Object ID of the center stamp'
+                            })
 
                 # if some checkimages are passed, save some statistics
                 # to the header
@@ -566,7 +573,8 @@ class CookieCutter(object):
                     img=None,
                     dtype=msk_dtype,
                     dims=mask_image_dimensions,
-                    extname=f'MASK{image_index}'
+                    extname=f'MASK{image_index}',
+                    # header=mask_hdr
                     )
 
                 # the arrays we will store the cutouts in
@@ -594,7 +602,7 @@ class CookieCutter(object):
                     ]
 
                 pixels_written = 0
-                sci_hdr_written = False
+                hdr_written = False
                 for indx in range(Nsources):
                     if indx % progress == 0:
                         self.logprint(f'{indx} of {Nsources}')
@@ -725,9 +733,11 @@ class CookieCutter(object):
                     # NOTE: Due to some strange fitsio design choices, the image
                     # headers have actually *not* been written yet! So do it
                     # explicitly once
-                    if sci_hdr_written is False:
+                    if hdr_written is False:
+                        # ipdb.set_trace()
                         fits[f'IMAGE{image_index}'].write_keys(image_hdr)
-                        sci_hdr_written = True
+                        # fits[f'MASK{image_index}'].write_keys(mask_hdr)
+                        hdr_written = True
 
                     # Subtract from the center stamp, if possible
                     if make_center_stamp is True:
@@ -1284,6 +1294,7 @@ class CookieCutter(object):
 
         # At this stage we have the image header name.
         # Reconstruct the original header.
+        ipdb.set_trace()
         cc_header = fitsio.read_header(self._cookiecutter_file, ext=extname)
         orig_header = reconstruct_original_FITS_header(cc_header)
 
@@ -1633,7 +1644,6 @@ def write_2d_cookiecutter(cc_file, out_file=None, logprint=None,
         out_file = Path(out_file)
 
     if out_file is None:
-        ipdb.set_trace()
         out_file = Path(
             str(cc_file).replace('.fits', '_2d.fits')
             )
@@ -1651,9 +1661,12 @@ def write_2d_cookiecutter(cc_file, out_file=None, logprint=None,
                 image_hdr = cc._fits[ext].read_header()
                 ext_name = cc._fits[ext].get_extname()
 
-                if ext_name == f'IMAGE{ext}':
+                # we save 2 CC ext's for each image ext
+                img_ext = ext // 2
+
+                if ext_name == f'IMAGE{img_ext}':
                     cutout_type = 'IMAGE'
-                elif ext_name == f'MASK{ext}':
+                elif ext_name == f'MASK{img_ext}':
                     cutout_type = 'MASK'
                 elif ext_name == 'META':
                     cutout_type = 'META'
@@ -1662,7 +1675,7 @@ def write_2d_cookiecutter(cc_file, out_file=None, logprint=None,
                         f'Extension name {ext_name} not recognized!'
                         )
 
-                if logprint is not None:
+                if (logprint is not None) and (ext%2 == 0):
                     img_file = Path(image_hdr['IMG_FILE']).name
                     logprint(f'Reconstructing image {img_file}')
 
@@ -1671,7 +1684,6 @@ def write_2d_cookiecutter(cc_file, out_file=None, logprint=None,
                     )
                 image_dtype = new_image.dtype
                 image_shape = new_image.shape
-                ipdb.set_trace()
 
                 if cutout_type != 'META':
                     # first, create the new HDU
@@ -1687,7 +1699,7 @@ def write_2d_cookiecutter(cc_file, out_file=None, logprint=None,
                     fits[ext_name].write_keys(image_hdr)
 
                     # finally, write the full 2D image
-                    fits[ext_name].write(sci_array)
+                    fits[ext_name].write(new_image)
 
                 else:
                     fits.create_table_hdu(data=meta, extname='META')
