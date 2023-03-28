@@ -88,7 +88,13 @@ class OBAConfig(ModuleConfig):
         },
         'cleanup': {
             # NOTE: Will lose intermediate data products if you turn this on!
-            'clean_oba_dir': False
+            'clean_oba_dir': False,
+            # This sets the CookieCutter format type that is saved to permanent
+            # storage on the QCC. Options are:
+            # - "1d": Normal CC def
+            # - "2d": 2D IMAGE / 1D MASK version (eliminates overlapping pixels)
+            # - "both": copy both 1d & 2d (probably only useful for testing)
+            'cc_type': '1d'
         },
         }
 

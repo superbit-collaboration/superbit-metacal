@@ -464,12 +464,6 @@ class CookieCutter(object):
                 image_hdr = remove_essential_FITS_keys(
                     imageObj.image.read_header()
                     )
-                # a bit awkward, but we need a good number of the header fields
-                # when reconstructing the msk image later on
-                mask_hdr = copy.deepcopy(image_hdr)
-                # ipdb.set_trace()
-                for key in ESSENTIAL_FITS_KEYS:
-                    mask_hdr.delete(f'ORIGINAL_{key}')
 
                 # if making the segmask, we'll need this later
                 if imageObj.segmentation is not None:
@@ -489,33 +483,32 @@ class CookieCutter(object):
                     seg_shape = imageObj.segmentation.get_info()['dims']
 
                 # place the file path info here
-                for hdr in [image_hdr, mask_hdr]:
-                    hdr.add_record({
-                        'name': 'IMG_FILE',
-                        'value': str(Path(image['image_file']).name),
-                        'comment': 'The image that has been cookie-cut'
-                    })
-                    hdr.add_record({
-                        'name': 'IMG_EXT',
-                        'value': image['image_ext'],
-                        'comment': 'The extension of the cut image'
-                    })
+                image_hdr.add_record({
+                    'name': 'IMG_FILE',
+                    'value': str(Path(image['image_file']).name),
+                    'comment': 'The image that has been cookie-cut'
+                })
+                image_hdr.add_record({
+                    'name': 'IMG_EXT',
+                    'value': image['image_ext'],
+                    'comment': 'The extension of the cut image'
+                })
 
-                    # NOTE: In principle, a "center" (but really "target") stamp
-                    # could fall off of an image with a large enough dither, but
-                    # let's ignore that for now (the slicing takes care of this)
-                    hdr.add_record({
-                        'name': 'CEN_STMP',
-                        'value': make_center_stamp,
-                        'comment': 'Is there a center stamp'
-                    })
+                # NOTE: In principle, a "center" (but really "target") stamp
+                # could fall off of an image with a large enough dither, but
+                # let's ignore that for now (the slicing takes care of this)
+                image_hdr.add_record({
+                    'name': 'CEN_STMP',
+                    'value': make_center_stamp,
+                    'comment': 'Is there a center stamp'
+                })
 
-                    if make_center_stamp is True:
-                        hdr.add_record({
-                            'name': 'CEN_ID',
-                            'value': center_stamp_id,
-                            'comment': 'Object ID of the center stamp'
-                            })
+                if make_center_stamp is True:
+                    image_hdr.add_record({
+                        'name': 'CEN_ID',
+                        'value': center_stamp_id,
+                        'comment': 'Object ID of the center stamp'
+                        })
 
                 # if some checkimages are passed, save some statistics
                 # to the header
@@ -574,7 +567,6 @@ class CookieCutter(object):
                     dtype=msk_dtype,
                     dims=mask_image_dimensions,
                     extname=f'MASK{image_index}',
-                    # header=mask_hdr
                     )
 
                 # the arrays we will store the cutouts in
@@ -734,9 +726,7 @@ class CookieCutter(object):
                     # headers have actually *not* been written yet! So do it
                     # explicitly once
                     if hdr_written is False:
-                        # ipdb.set_trace()
                         fits[f'IMAGE{image_index}'].write_keys(image_hdr)
-                        # fits[f'MASK{image_index}'].write_keys(mask_hdr)
                         hdr_written = True
 
                     # Subtract from the center stamp, if possible
@@ -1260,7 +1250,7 @@ class CookieCutter(object):
         return
 
     def reconstruct_image(self, cutout_type='IMAGE', extnumber=None,
-                          filename=None):
+                          filename=None, print_skips=False):
         '''
         cutout_type can by any of 'IMAGE' or 'MASK' (add new types if
         we implement them...)
@@ -1294,11 +1284,15 @@ class CookieCutter(object):
 
         # At this stage we have the image header name.
         # Reconstruct the original header.
-        ipdb.set_trace()
         cc_header = fitsio.read_header(self._cookiecutter_file, ext=extname)
         orig_header = reconstruct_original_FITS_header(cc_header)
 
-        has_center_stamp = cc_header['CEN_STMP']
+        try:
+            has_center_stamp = cc_header['CEN_STMP']
+        except KeyError:
+            # can happen for MASK images
+            has_center_stamp = False
+
         if has_center_stamp is True:
             center_id = cc_header['CEN_ID']
 
@@ -1347,7 +1341,8 @@ class CookieCutter(object):
                     new_image[image_slice] = cutout[cutout_slice]
 
             except NoOverlapError:
-                print(f'No overlap for obj {obj["object_id"]}')
+                if print_skips is True:
+                    print(f'No overlap for obj {obj["object_id"]}')
 
         return new_image, orig_header
 
@@ -1675,35 +1670,49 @@ def write_2d_cookiecutter(cc_file, out_file=None, logprint=None,
                         f'Extension name {ext_name} not recognized!'
                         )
 
-                if (logprint is not None) and (ext%2 == 0):
+                if (logprint is not None) and (cutout_type == 'IMAGE'):
                     img_file = Path(image_hdr['IMG_FILE']).name
                     logprint(f'Reconstructing image {img_file}')
 
-                new_image, orig_hdr = cc.reconstruct_image(
-                    cutout_type=cutout_type, extnumber=ext
-                    )
-                image_dtype = new_image.dtype
-                image_shape = new_image.shape
+                if cutout_type == 'IMAGE':
+                    # first, reconstruct the original image at the cutouts
+                    new_image, orig_hdr = cc.reconstruct_image(
+                        cutout_type=cutout_type, extnumber=img_ext
+                        )
+                elif cutout_type == 'MASK':
+                    # NOTE: The CookieCutter segmask is *not* unique on a full
+                    # 2D image, only on the stamps! so keep as-is
+                    new_image = cc._fits[ext].read()
+                    orig_hdr = image_hdr
 
                 if cutout_type != 'META':
+                    image_dtype = new_image.dtype
+                    image_shape = new_image.shape
+
                     # first, create the new HDU
                     fits.create_image_hdu(
                         img=new_image,
                         dtype=image_dtype,
                         dims=image_shape,
                         extname=ext_name,
-                        header=image_hdr
+                        header=orig_hdr
                         )
 
                     # next, write the header
-                    fits[ext_name].write_keys(image_hdr)
+                    fits[ext_name].write_keys(orig_hdr)
 
                     # finally, write the full 2D image
                     fits[ext_name].write(new_image)
 
                 else:
-                    fits.create_table_hdu(data=meta, extname='META')
-                    fits[ext_name].write(meta)
+                    fits.create_table_hdu(
+                        data=cc.meta,
+                        extname='META',
+                        header=image_hdr
+                        )
+
+                    fits[ext_name].write_keys(image_hdr)
+                    fits[ext_name].write(cc.meta)
 
         except Exception as e:
             # we do this to cleanup the failed FITS writing

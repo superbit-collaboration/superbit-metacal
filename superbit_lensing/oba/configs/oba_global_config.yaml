@@ -41,4 +41,5 @@ output:
 
 cleanup:
   clean_oba_dir: false
+  cc_type: 1d
 
