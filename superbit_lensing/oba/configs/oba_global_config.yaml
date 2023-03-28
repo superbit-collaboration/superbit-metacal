@@ -1,45 +1,38 @@
+astrometry:
+  rerun: false
+  search_radius: 1
+cleanup:
+  cc_type: 1d
+  clean_oba_dir: false
+coadd:
+  combine_type: CLIPPED
+masking:
+  cosmic_rays: false
+  satellites: false
+modules:
+- preprocessing
+- cals
+- masking
+- background
+- astrometry
+- starmask
+- coadd
+- detection
+- output
+- cleanup
+output:
+  center_stamp_size: 512
+  make_2d: true
+  make_center_stamp: true
 run_options:
   bands:
   - u
   - b
   - g
+  - r
   det_bands:
-  - u
   - b
   - g
   fresh: false
   overwrite: true
   vb: true
-
-modules:
-  - preprocessing
-  - cals
-  - masking
-  - background
-  - astrometry
-  - starmask
-  - coadd
-  - detection
-  - output
-  - cleanup
-
-masking:
-  cosmic_rays: false
-  satellites: false
-
-astrometry:
-  rerun: false
-  search_radius: 1
-
-coadd:
-  combine_type: CLIPPED
-
-output:
-  center_stamp_size: 512
-  make_center_stamp: true
-  make_2d: true
-
-cleanup:
-  clean_oba_dir: false
-  cc_type: 1d
-
