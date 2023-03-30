@@ -36,7 +36,18 @@ class PreprocessRunner(object):
         'TARGET_DEC': 'TRG_DEC'
     }
 
-    def __init__(self, raw_dir, run_dir, out_dir, bands, target_name=None):
+    # image header key that is used to determine image quality
+    # is one of ['GOOD', 'BAD', 'UNVERIFIED'] for SuperBIT
+    _img_qual_key = 'IMG_QUAL'
+    _img_qual_allowed = ['BAD', 'GOOD', 'UNVERIFIED']
+    _img_qual_order = {
+        'BAD': 0,
+        'UNVERIFIED': 1,
+        'GOOD': 2
+    }
+
+    def __init__(self, raw_dir, run_dir, out_dir, bands, target_name=None,
+                 check_img_qual=True, min_img_qual='unverified'):
         '''
         raw_dir: pathlib.Path
             The directory containing the raw sci frames for the given target
@@ -49,6 +60,11 @@ class PreprocessRunner(object):
         target_name: str
             The name of the target. Default is to check the end of the raw
             & run dirs
+        check_img_qual: bool
+            Set to check for image quality when selecting images for OBA
+        min_img_qual: str
+            The minimum image quality value to process on. Must be either
+            "good" or "unverified" (case agnostic)
         '''
 
         dir_args = {
@@ -82,6 +98,19 @@ class PreprocessRunner(object):
         else:
             utils.check_type('target_name', target_name, str)
         self.target_name = target_name
+
+        utils.check_type('check_img_qual', check_img_qual, bool)
+        self.check_img_qual = check_img_qual
+
+        utils.check_type('min_img_qual', min_img_qual, str)
+        min_img_qual = min_img_qual.upper()
+        _allowed = self._img_qual_allowed
+        if min_img_qual.upper() not in _allowed:
+            raise ValueError(f'min_img_qual must be one of {_allowed}!')
+
+        # this maps the image quality state to an int we can compare
+        self.min_img_qual = min_img_qual
+        self.min_img_qual_val = self._img_qual_order[min_img_qual]
 
         # will get populated during call to go()
         self.images = {}
@@ -199,8 +228,37 @@ class PreprocessRunner(object):
                 Nimages += Nraw
 
             logprint(f'Found the following {Nraw} raw files for band {band}:')
+            remove_indices = []
             for i, raw in enumerate(raw_files):
                 logprint(f'{i}: {raw}')
+
+                if self.check_img_qual is True:
+                    # check if the image quality is acceptable, if desired
+                    min_qual = self.min_img_qual_val
+                    min_qual_val = self.min_img_qual_val
+                    raw_hdr = fitsio.read_header(raw)
+
+                    try:
+                        img_qual = raw_hdr[self._img_qual_key]
+                        img_qual_val = self._img_qual_order[img_qual]
+
+                        logprint(f'Quality: {img_qual}')
+
+                        if img_qual_val < min_qual_val:
+                            logprint(
+                                f'WARNING: Image quality does not meet the ' +\
+                                f'required standard of {min_qual}; skipping'
+                                )
+                            remove_indices.append(i)
+
+                    except KeyError as e:
+                        raise KeyError(f'IMG_QUAL must be in image header ' +\
+                                       'if check_img_qual is set to True!')
+
+            # wait to remove any images that do not satisfy requirements until
+            # *after* loop (and in reverse) to avoid indexing issues
+            for index in sorted(remove_indices, reverse=True):
+                del raw_files[index]
 
             for raw_file in raw_files:
                 logprint(f'Copying {raw_file} to {str(dest)}:')

@@ -31,11 +31,9 @@ output:
     print({target_name}: outer_key: [inner_key: old_val -> type(new_val)])
 '''
 
-import shutil
 from pathlib import Path
 from argparse import ArgumentParser
 from glob import glob
-import fitsio
 
 from superbit_lensing import utils
 from oba_io import IOManager
@@ -48,7 +46,7 @@ def parse_args():
 
     parser.add_argument('update_tokens', type=str,
                         help='The update tokens in the format of: ' +
-                        'target_name&outer_key&inner_key&new_val&val_type')
+                        '"target_name&outer_key&inner_key&new_val&val_type"')
 
     # NOTE: not registered by the QCC, just for testing locally
     parser.add_argument('-root_dir', type=str, default=None,

@@ -35,6 +35,7 @@ class OBAConfig(ModuleConfig):
     # NOTE: a parsed config file will use these defaults if not set by the user
     _opt_params = {
         'run_options': {
+            'min_image_quality': 'unverififed',
             'overwrite': False,
             'fresh': False, # delete all previous OBA files on the QCC!
             'vb': False,

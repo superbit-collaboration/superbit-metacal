@@ -280,13 +280,16 @@ class OBARunner(object):
             return
         else:
             skip_decompress = self.config['preprocessing']['skip_decompress']
+            min_img_qual = self.config['run_options']['min_image_quality']
 
         runner = PreprocessRunner(
             self.raw_dir,
             self.run_dir,
             self.out_dir,
             self.bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            check_img_qual=True,
+            min_img_qual=min_img_qual
             )
 
         args = [self.logprint]
