@@ -112,7 +112,7 @@ def main(args):
             if components[0] == key:
                 old_val = components[1]
                 components[1] = str(new_val)
-                new_line = ' '.join(components)
+                new_line = ' '.join(components)+'\n'
                 found_key = True
             else:
                 new_line = line
