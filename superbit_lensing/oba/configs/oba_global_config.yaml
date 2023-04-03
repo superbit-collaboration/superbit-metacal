@@ -1,11 +1,14 @@
 astrometry:
   rerun: false
   search_radius: 1
+cals:
+  ignore_flats: true
 cleanup:
   cc_type: 1d
   clean_oba_dir: false
 coadd:
   combine_type: CLIPPED
+  det_combine_type: WEIGHTED
 masking:
   cosmic_rays: false
   satellites: false
@@ -29,7 +32,6 @@ run_options:
   - u
   - b
   - g
-  - r
   det_bands:
   - b
   - g

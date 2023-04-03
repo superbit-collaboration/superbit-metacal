@@ -312,6 +312,7 @@ class OBARunner(object):
             return
         else:
             hp_threshold = self.config['cals']['hp_threshold']
+            ignore_flats = self.config['cals']['ignore_flats']
 
         runner = CalsRunner(
             self.run_dir,
@@ -319,7 +320,8 @@ class OBARunner(object):
             self.flats_dir,
             self.bands,
             target_name=self.target_name,
-            hp_threshold=hp_threshold
+            hp_threshold=hp_threshold,
+            ignore_flats=ignore_flats
             )
 
         args = [self.logprint]
@@ -453,12 +455,17 @@ class OBARunner(object):
             self.logprint('Skipping coaddition given config modules')
             return
 
+        combine_type = self.config['coadd']['combine_type']
+        det_combine_type = self.config['coadd']['det_combine_type']
+
         runner = CoaddRunner(
             self.configs['swarp'],
             self.run_dir,
             self.bands,
             self.det_bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            combine_type=combine_type,
+            det_combine_type=det_combine_type
             )
 
         args = [self.logprint]

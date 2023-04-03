@@ -170,9 +170,9 @@ def main(args):
     config['run_options']['bands'] = use_bands
 
     if allow_unverified is True:
-        config['run_options']['image_quality_min'] = 'unverified'
+        config['run_options']['min_image_quality'] = 'unverified'
     else:
-        config['run_options']['image_quality_min'] = 'good'
+        config['run_options']['min_image_quality'] = 'good'
 
     #-----------------------------------------------------------------
     # Do any sanity checks needed to error *before* running the OBA

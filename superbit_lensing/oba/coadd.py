@@ -36,7 +36,8 @@ class CoaddRunner(object):
     _name = 'coadd'
 
     def __init__(self, config_file, run_dir, bands, det_bands,
-                 target_name=None, sci_ext=0, wgt_ext=1, combine_type='CLIPPED'):
+                 target_name=None, sci_ext=0, wgt_ext=1, combine_type='CLIPPED',
+                 det_combine_type='AVERAGE'):
         '''
         config_file: pathlib.Path
             The filepath of the base SWarp config
@@ -55,6 +56,8 @@ class CoaddRunner(object):
             The weight frame fits extension
         combine_type: str
             The SWarp combine type to use for single-band exposures
+        det_combine_type: str
+            The SWarp combine type to use for the detection image
         '''
 
         args = {
@@ -65,6 +68,7 @@ class CoaddRunner(object):
             'sci_ext': (sci_ext, int),
             'wgt_ext': (wgt_ext, int),
             'combine_type': (combine_type, str),
+            'det_combine_type': (det_combine_type, str),
         }
 
         for name, tup in args.items():
@@ -417,6 +421,7 @@ class CoaddRunner(object):
             det_xsize = np.max([xsize, det_xsize])
             det_ysize = np.max([ysize, det_ysize])
 
+        self.coadd_size['det'] = (det_xsize, det_ysize)
         for band in self.det_bands:
             self.coadd_size[band] = (det_xsize, det_ysize)
 
@@ -528,13 +533,15 @@ class CoaddRunner(object):
         outfile_arg = '-IMAGEOUT_NAME '+ str(outfile) + ' ' +\
                       '-WEIGHTOUT_NAME ' + str(weight_outfile)
 
-        if band in self.det_bands:
-            xsize, ysize = self.coadd_size[band]
-            size_arg = f'-IMAGE_SIZE {xsize},{ysize}'
-        else:
+        # NOTE: we used to let SWarp determine the size automatically for bands
+        # not in the det image, but it doesnt' always seem to work correctly...
+        # if band in self.det_bands:
+        xsize, ysize = self.coadd_size[band]
+        size_arg = f'-IMAGE_SIZE {xsize},{ysize}'
+        # else:
             # single-band coadds *not* used in the detection image do not have
             # to have the same size, so let SWarp decide automatically
-            size_arg = '-IMAGE_SIZE 0'
+            # size_arg = '-IMAGE_SIZE 0'
 
         if detection is False:
             # normal coadds are made from resampling from all single-epoch
@@ -557,9 +564,7 @@ class CoaddRunner(object):
 
             image_args = f'{sci_im_args} -WEIGHT_IMAGE {wgt_im_args}'
 
-            # DES suggests using AVERAGE instead of CHI2 or WEIGHTED for
-            # detection image
-            ctype_arg = f'-COMBINE_TYPE AVERAGE'
+            ctype_arg = f'-COMBINE_TYPE {self.det_combine_type}'
 
         cmd = ' '.join([
             'swarp ',

@@ -57,7 +57,8 @@ class OBAConfig(ModuleConfig):
             },
         'cals': {
             # dark frame thresholding for hot pixel mask
-            'hp_threshold': 1000
+            'hp_threshold': 1000,
+            'ignore_flats': False
         },
         'masking': {
             'cosmic_rays': True,
@@ -71,8 +72,10 @@ class OBAConfig(ModuleConfig):
             'search_radius': 1, # deg
         },
         'coadd': {
-            # the SWarp COMBINE_TYPE
-            'combine_type': 'CLIPPED'
+            # the SWarp single-band coadd COMBINE_TYPE
+            'combine_type': 'CLIPPED',
+            # the SWarp detection coadd COMBINE_TYPE
+            'det_combine_type': 'WEIGHTED'
         },
         'output': {
             # Use to make one big central stamp at the target center

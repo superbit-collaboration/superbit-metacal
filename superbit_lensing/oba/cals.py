@@ -48,7 +48,7 @@ class CalsRunner(object):
 
     def __init__(self, run_dir, darks_dir, flats_dir, bands, target_name=None,
                  cal_dtype=np.dtype('float64'), allow_negatives=True,
-                 hp_threshold=1000):
+                 hp_threshold=1000, ignore_flats=False):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -69,6 +69,11 @@ class CalsRunner(object):
         hp_threshold: int
             The threshold value to use when defining a hot pixel for a
             given master dark
+        ignore_flats: bool
+            Set to ignore flat field corrections (i.e. assume a uniform
+            pixel response). This may be desired as the SuperBIT flats
+            have spatially-varying properties due to inconsistencies in
+            the filter wheel positions
         '''
 
         args = {
@@ -78,7 +83,8 @@ class CalsRunner(object):
             'bands': (bands, list),
             'cal_dtype': (cal_dtype, np.dtype),
             'allow_negatives': (allow_negatives, bool),
-            'hp_threshold': (hp_threshold, int)
+            'hp_threshold': (hp_threshold, int),
+            'ignore_flats': (ignore_flats, bool),
         }
 
         for name, tup in args.items():
@@ -181,7 +187,12 @@ class CalsRunner(object):
                 logprint(f'Grabbing cals for {image_base}; {i+1} of {Nimages}')
                 dark, flat = self.get_image_cals(image)
                 logprint(f'Using master dark file {dark.name}')
-                logprint(f'Using master flat file {flat.name}')
+
+                if self.ignore_flats is True:
+                    assert flat is None
+                    logprint(f'Using uniform flat file as ignore_flats is True')
+                else:
+                    logprint(f'Using master flat file {flat.name}')
 
                 self.cals[image] = {}
                 self.cals[image]['dark'] = dark
@@ -207,6 +218,9 @@ class CalsRunner(object):
 
         for name, cal in zip(['dark', 'flat'], [dark, flat]):
             if cal is None:
+                if (name == 'flat') and self.ignore_flats:
+                    # ok only if the ignore_flats setting is True
+                    continue
                 raise ValueError(f'No master {name} found for {image_file}!')
 
         return dark, flat
@@ -243,6 +257,9 @@ class CalsRunner(object):
         image_pars: dict
             The image file parameters, parsed by oba_io
         '''
+
+        if self.ignore_flats is True:
+            return None
 
         utc = image_pars['utc']
         im_type = 'cal'
@@ -324,6 +341,9 @@ class CalsRunner(object):
         NOTE: Operation is performed for all pixels, regardless of
         the pixel mask
 
+        NOTE: The division by the flat field is skipped if ignore_flats
+        is set to True
+
         raw_file: pathlib.Path
             The path to the input raw image file to calibrate
         logprint: utils.LogPrint
@@ -335,10 +355,13 @@ class CalsRunner(object):
         # NOTE: If we don't cast to higher precision here, will cause
         # overflow as the raw files are u16!
         dark = fitsio.read(cals['dark']).astype(self.cal_dtype)
-        flat = fitsio.read(cals['flat']).astype(self.cal_dtype)
         raw = fitsio.read(raw_file).astype(self.cal_dtype)
 
-        calibrated = ((raw - dark) / flat)
+        if self.ignore_flats is True:
+            calibrated = raw - dark
+        else:
+            flat = fitsio.read(cals['flat']).astype(self.cal_dtype)
+            calibrated = ((raw - dark) / flat)
 
         return calibrated
 
