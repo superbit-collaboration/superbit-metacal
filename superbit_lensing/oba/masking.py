@@ -223,7 +223,7 @@ class MaskingRunner(object):
             mask=la_mask,
             effective_gain=gain, # e-/ADU (0.343 for SB)
             # TODO: generalize the readnoise val!
-            readnoise=2.08, # e- RMS
+            readnoise=2.52, # e- RMS
             maxiter=2
             )
 
