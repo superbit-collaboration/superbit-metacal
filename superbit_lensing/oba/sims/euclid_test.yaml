@@ -1,0 +1,24 @@
+target_name: 'Abell2813'
+run_name: euclid_test
+# master_seed: 72396
+starting_roll: 0 # deg
+rot_rate: 0
+exp_time: 300
+n_exp: 3
+bands: ['lum']
+ncores: 8
+
+add_stars: True
+add_galaxies: True
+add_cluster: False
+
+# set if you want to specify the number instead of the default desnity
+ngals: 100
+
+star_stamp_size: 250
+
+overwrite: True
+fresh: True
+vb: True
+
+calibrated = True
