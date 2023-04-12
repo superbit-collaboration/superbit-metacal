@@ -46,6 +46,10 @@ class CalsRunner(object):
         np.s_[6389:, :]    # ~30 rows on the top of the detector
         ]
 
+    # use this if the SATURATE key is not present in image headers
+    _default_saturate = 65535
+    _saturate_key = 'SATURATE'
+
     def __init__(self, run_dir, darks_dir, flats_dir, bands, target_name=None,
                  cal_dtype=np.dtype('float64'), allow_negatives=True,
                  hp_threshold=1000, ignore_flats=False):
@@ -116,7 +120,7 @@ class CalsRunner(object):
 
         (1) Assign the corresponding master dark & flat for each image
         (2) Create hot pixel mask using master dark (in addition to
-            the "inactive region" mask)
+            the "inactive region" & saturation mask)
         (3) Basic calibration: Cal = (Raw - Dark) / Flat
         (4) Write out calibrated images w/ original headers
                 - Includes wgt & msk image collation
@@ -144,7 +148,7 @@ class CalsRunner(object):
             logprint('Creating hot pixel + "inactive region" masks...')
             dark_file = cals['dark']
 
-            mask = self.make_image_mask(dark_file, logprint)
+            mask = self.make_image_mask(sci_file, dark_file, logprint)
 
             logprint('Applying calibrations to raw image...')
             cal = self.apply_cals(sci_file, logprint)
@@ -251,8 +255,7 @@ class CalsRunner(object):
         '''
         Find the master flat closest in time to the passed image file
 
-        NOTE: The current plan is to have a single, static master flat,
-        though this method will work for more
+        NOTE: Flats now have band-dependence
 
         image_pars: dict
             The image file parameters, parsed by oba_io
@@ -266,7 +269,7 @@ class CalsRunner(object):
 
         # can set additional requirements to match on
         req = {
-            'exp_time': image_pars['exp_time']
+            'band': image_pars['band'],
         }
 
         flat = oba_io.closest_file_in_time(
@@ -275,14 +278,16 @@ class CalsRunner(object):
 
         return flat
 
-    def make_image_mask(self, dark_file, logprint):
+    def make_image_mask(self, sci_file, dark_file, logprint):
         '''
-        Create the hot pixel & inactive region masks for the given dark image
+        Create the hot pixel & saturation mask for the given sci & dark images
         used for cals. Builds ontop of the inactive region mask. See bitmask.py
         for pixel mask details
 
+        sci_file: pathlib.Path
+            The path to the given science file
         dark_file: pathlib.Path
-            The path to the given dark calibration file
+            The path to the corresponding dark calibration file
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
         '''
@@ -292,25 +297,42 @@ class CalsRunner(object):
 
         unmasked_val = OBA_BITMASK['unmasked']
         hot_pix_val = OBA_BITMASK['hot_pixel']
+        saturated_val = OBA_BITMASK['saturated']
 
+        sci, hdr = fitsio.read(str(sci_file), header=True)
         dark = fitsio.read(str(dark_file))
 
         if dark.shape != self._image_shape:
             raise ValueError(f'dark shape {dark.shape} does not match ' +
-                                f'the SuperBIT image shape {self._image_shape}')
+                             f'the SuperBIT image shape {self._image_shape}')
+        # we have to check this one due to the inactive region mask
+        if sci.shape != self._image_shape:
+            raise ValueError(f'sci shape {sci.shape} does not match ' +
+                             f'the SuperBIT image shape {self._image_shape}')
+
+        # look to see if the image specifies its saturation point
+        # (might instead be the start of the NL response)
+        try:
+            saturate = hdr[self._saturate_key]
+        except KeyError:
+            saturate = self._default_saturate
 
         # start with the inactive region mask as the base
         mask = self._make_inactive_region_mask()
 
-        bad_pix = np.where(dark > threshold)
-        mask[bad_pix] = hot_pix_val
+        hot_pix = np.where(dark > threshold)
+        mask[hot_pix] = hot_pix_val
+        saturated_pix = np.where(sci >= saturate)
+        mask[saturated_pix] = saturated_val
 
         shape = mask.shape
         Nbad = len(mask[mask != unmasked_val])
         bad_frac = Nbad / (shape[0] * shape[1])
         bad_perc = 100 * bad_frac
         logprint(f'Mask for {dark_file.name} has {Nbad} bad pixels; ' +
-                    f'{bad_perc:.2f}%')
+                 f'{bad_perc:.2f}%')
+        logprint(f'Hot pixels: {len(mask[hot_pix])}')
+        logprint(f'Saturated pixels: {len(mask[saturated_pix])}')
 
         return mask
 

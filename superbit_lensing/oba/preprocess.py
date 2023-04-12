@@ -23,7 +23,7 @@ class PreprocessRunner(object):
     # some useful detector meta data to be added to headers; should be static
     _header_info = {
         'GAIN': 0.343, # e- / ADU
-        'SATURATE': 64600, # TODO: Should we lower this to be more realistic?
+        'SATURATE': 65535, # 2^16-1 as we saturate before NL effects (gain < 1)
 
         # NOTE: Already the SExtractor default, and causes Hierarch warnings
         # 'SATUR_KEY': 'SATURATE' # sets the saturation key SExtractor looks for
