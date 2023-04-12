@@ -278,15 +278,18 @@ def setup_stars(ra, dec, width_deg, height_deg):
     df_stars['RA_ICRS'] = gaia_cat['RA_ICRS']
     df_stars['DE_ICRS'] = gaia_cat['DE_ICRS']
 
-    df_stars['FG'] = gaia_cat['FG']
+    #df_stars['FG'] = gaia_cat['FG']
+    df_stars['FRP'] = gaia_cat['FRP']
     df_stars['FBP'] = gaia_cat['FBP']
 
     df_stars['BPmag'] = (-2.5 * np.log10(gaia_cat['FBP'])) + 25.3861560855
-    df_stars['Gmag'] = (-2.5 * np.log10(gaia_cat['FG'])) + 25.7915509947
+    #df_stars['Gmag'] = (-2.5 * np.log10(gaia_cat['FG'])) + 25.7915509947
+    df_stars['RPmag'] = (-2.5 * np.log10(gaia_cat['FRP'])) + 25.1161
 
     df_stars.dropna()
 
-    df_stars = df_stars[df_stars['Gmag'] >= -5]
+    #df_stars = df_stars[df_stars['Gmag'] >= -5]
+    df_stars = df_stars[df_stars['RPmag'] >= -5]
     df_stars = df_stars[df_stars['BPmag'] >= -5]
 
     df_stars = df_stars.reset_index(drop=True)
@@ -618,8 +621,9 @@ def main(args):
 
         # setup stellar fluxes
         if add_stars is True:
-            if piv_wave > 600:
-                gaia_mag = 'Gmag'
+            if piv_wave > 640:
+                gaia_mag = 'RPmag'
+                #gaia_mag = 'Gmag'
             else:
                 gaia_mag = 'BPmag'
 
