@@ -12,8 +12,8 @@ add_stars: True
 add_galaxies: True
 add_cluster: False
 
-# set if you want to specify the number instead of the default desnity
-ngals: 100
+# set if you want to specify the number instead of the default density
+ngals: 1000
 
 star_stamp_size: 250
 
@@ -21,4 +21,4 @@ overwrite: True
 fresh: True
 vb: True
 
-calibrated = True
+calibrated: True
