@@ -369,8 +369,12 @@ def main(args):
     fresh = config['fresh']
     overwrite = config['overwrite']
     vb = config['vb']
-
-    run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}/{target_name}/')
+    if 'calibrated' in config.keys():
+        calibrated = config['calibrated'] #should be True/False
+    else:
+        calibrated =  False
+        
+    run_dir = Path(utils.TEST_DIR, f'euclid/{run_name}/{target_name}/')
 
     # WARNING: cleans all existing files in run_dir!
     if fresh is True:
@@ -666,7 +670,7 @@ def main(args):
                 rn = f'{run_name}/'
 
             outdir = os.path.join(
-                utils.TEST_DIR, f'ajay/{rn}{target_name}/{band}/{sr_tag}'
+                utils.TEST_DIR, f'euclid/{rn}{target_name}/{band}/{sr_tag}'
                 )
             utils.make_dir(outdir)
 
@@ -905,20 +909,24 @@ def main(args):
             sci_img = sci_img.array
 
             # Step 8: Add a dark frame
-            dark_dir = OBA_SIM_DATA_DIR / 'darks/minus10/'
-            darks = np.sort(glob.glob(str(dark_dir / '*.fits')))
-            dark_fname = np.random.choice(darks)
+            #dark_dir = OBA_SIM_DATA_DIR / 'darks/minus10/'
+            #darks = np.sort(glob.glob(str(dark_dir / '*.fits')))
+            #dark_fname = np.random.choice(darks)
 
             # we upcast for now, cast back later
-            dark = fits.getdata(dark_fname).astype('float32')
-            sci_img += dark
+            #dark = fits.getdata(dark_fname).astype('float32')
+            #sci_img += dark
 
             # limit the flux
             sci_img[sci_img >= (2**16)] = 2**16 - 1
             sci_img[sci_img < 0] = 0
 
-            # *now* cast to int16
-            sci_img = sci_img.astype('uint16')
+            if calibrated is False:
+                # *now* cast to int16
+                sci_img = sci_img.astype('uint16')
+            else:
+                sci_img = sci_img * camera.gain.value / exp_time
+                wgt_img = np.ones_like(sci_img)
 
             # HEADERS
             hdr = fits.Header()
@@ -933,7 +941,7 @@ def main(args):
             hdr['dither_ra'] = dither_ra # in pixels
             hdr['dither_dec'] = dither_dec # in pixels
             hdr['roll_theta'] = theta.deg # in deg
-            hdr['dark'] = Path(dark_fname).name
+            #hdr['dark'] = Path(dark_fname).name
 
             # TODO/QUESTION: For an unknown reason, BZERO is getting
             # set to 2^15 for an unknown reason unless we do this...
@@ -950,14 +958,20 @@ def main(args):
             # Path checks
             Path(outdir).mkdir(parents=True, exist_ok=True)
 
-            output_fname = f'{outdir}/{target_name}_{band_int}_{exp_time}_{unix_time}.fits'
+            output_fname = f'{outdir}/{target_name}_{band_int}_{exp_time}_{unix_time}_cal.fits'
 
-            fits.writeto(
-                filename=output_fname,
-                data=sci_img,
-                header=hdr,
-                overwrite=overwrite
-                )
+            if calibrated is True:
+                img_hdulist = fits.HDUList([fits.PrimaryHDU(data=sci_img,header=hdr),fits.ImageHDU(data=wgt_img)])
+            else:
+                img_hdulist = fits.HDUList([fits.PrimaryHDU(data=sci_img,header=hdr)])
+            img_hdulist.writeto(output_fname,overwrite=overwrite)
+            
+            #fits.writeto(
+            #    filename=output_fname,
+            #    data=sci_img,
+            #    header=hdr,
+            #    overwrite=overwrite
+            #    )
 
             logprint(f'Image simulation complete for {target_name}, {band}\n')
 
