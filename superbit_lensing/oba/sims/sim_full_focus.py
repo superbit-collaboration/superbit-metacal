@@ -369,6 +369,7 @@ def main(args):
     fresh = config['fresh']
     overwrite = config['overwrite']
     vb = config['vb']
+    calibrated = config['calibrated'] #should be True/False
 
     run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}/{target_name}/')
 
@@ -905,20 +906,23 @@ def main(args):
             sci_img = sci_img.array
 
             # Step 8: Add a dark frame
-            dark_dir = OBA_SIM_DATA_DIR / 'darks/minus10/'
-            darks = np.sort(glob.glob(str(dark_dir / '*.fits')))
-            dark_fname = np.random.choice(darks)
+            #dark_dir = OBA_SIM_DATA_DIR / 'darks/minus10/'
+            #darks = np.sort(glob.glob(str(dark_dir / '*.fits')))
+            #dark_fname = np.random.choice(darks)
 
             # we upcast for now, cast back later
-            dark = fits.getdata(dark_fname).astype('float32')
-            sci_img += dark
+            #dark = fits.getdata(dark_fname).astype('float32')
+            #sci_img += dark
 
             # limit the flux
             sci_img[sci_img >= (2**16)] = 2**16 - 1
             sci_img[sci_img < 0] = 0
 
-            # *now* cast to int16
-            sci_img = sci_img.astype('uint16')
+            if calibrated is False:
+                # *now* cast to int16
+                sci_img = sci_img.astype('uint16')
+            else:
+                sci_img = sci_img * camera.gain.value / exp_time
 
             # HEADERS
             hdr = fits.Header()
@@ -950,7 +954,7 @@ def main(args):
             # Path checks
             Path(outdir).mkdir(parents=True, exist_ok=True)
 
-            output_fname = f'{outdir}/{target_name}_{band_int}_{exp_time}_{unix_time}.fits'
+            output_fname = f'{outdir}/{target_name}_{band_int}_{exp_time}_{unix_time}_cal.fits'
 
             fits.writeto(
                 filename=output_fname,
