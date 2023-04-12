@@ -369,8 +369,9 @@ def main(args):
     fresh = config['fresh']
     overwrite = config['overwrite']
     vb = config['vb']
+    bkg_height= config['bkg_loc']
 
-    run_dir = Path(utils.TEST_DIR, f'ajay/{run_name}/{target_name}/')
+    run_dir = Path(utils.TEST_DIR, f'euclid_vis_v1/{run_name}/{target_name}/')
 
     # WARNING: cleans all existing files in run_dir!
     if fresh is True:
@@ -403,12 +404,15 @@ def main(args):
         'g': 596.79880208687230,
         'r': 640.32425638312820,
         'nir': 814.02475812251110,
-        'lum': 522.73829660009810
+        'lum': 522.73829660009810,
+        'vis': 7103.43 	#from http://svo2.cab.inta-csic.es/svo/theory/fps3/index.php?id=Euclid/VIS.vis&&mode=browse&gname=Euclid&gname2=VIS
     }
 
     # Initialize the camera, telescope, bandpass
-    camera = inst.Camera('imx455')
-    telescope = inst.Telescope('superbit')
+    #camera = inst.Camera('imx455')
+    #telescope = inst.Telescope('superbit')
+    camera = inst.Camera('vis')
+    telescope = inst.Telescope('euclid')
 
     bandpass = inst.Bandpass('bandpass')
     bandpass.wavelengths = camera.wavelengths
@@ -596,20 +600,28 @@ def main(args):
 
         bandpass.transmission = phot.get_transmission(band=band)
 
-        aberrations = get_zernike(band=band, strehl_ratio=strehl_ratio)
+        if band == 'vis':
+            psf_file = 'sed_true_26892756.os.fits'
+            psf_image = galsim.fits.read(psf_file, hdu=1)
+            psf_sim = galsim.InterpolatedImage(psf_image)
+            #psf_sim=galsim.Image(psf_image)
 
-        optical_zernike_psf = galsim.OpticalPSF(
-            lam=piv_wave,
-            diam=telescope.diameter.value,
-            aberrations=aberrations,
-            obscuration=0.38,
-            nstruts=4,
-            flux=1
-            )
+        else:
 
-        jitter_psf = galsim.Gaussian(sigma=0.05, flux=1)
+            aberrations = get_zernike(band=band, strehl_ratio=strehl_ratio)
 
-        psf_sim = galsim.Convolve([optical_zernike_psf, jitter_psf])
+            optical_zernike_psf = galsim.OpticalPSF(
+                lam=piv_wave,
+                diam=telescope.diameter.value,
+                aberrations=aberrations,
+                obscuration=telescope.obscuration,
+                nstruts=telescope.nstruts,
+                flux=1
+                )
+
+            jitter_psf = galsim.Gaussian(sigma=0.05, flux=1)
+
+            psf_sim = galsim.Convolve([optical_zernike_psf, jitter_psf])
 
         # setup truth cats for this band
         truth_gals = Table()
@@ -691,6 +703,7 @@ def main(args):
             # Step 3: Fill the science image with mean sky bkg (Gill et al. 2020)
             crate_sky_electron_pix = phot.crate_bkg(
                 illum_area=telescope.illum_area,
+                bkg_height=bkg_height, #add
                 bandpass=bandpass,
                 bkg_type='raw',
                 strength='ave'
@@ -908,10 +921,13 @@ def main(args):
             dark_dir = OBA_SIM_DATA_DIR / 'darks/minus10/'
             darks = np.sort(glob.glob(str(dark_dir / '*.fits')))
             dark_fname = np.random.choice(darks)
+            
 
             # we upcast for now, cast back later
             dark = fits.getdata(dark_fname).astype('float32')
-            sci_img += dark
+            #ipdb.set_trace()
+            #sci_img += dark
+            
 
             # limit the flux
             sci_img[sci_img >= (2**16)] = 2**16 - 1
