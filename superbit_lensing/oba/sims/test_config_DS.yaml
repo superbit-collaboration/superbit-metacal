@@ -9,7 +9,7 @@ n_exp: 4
 bands: ['vis']
 ncores: 12
 
-add_stars: False
+add_stars: True
 add_galaxies: True
 add_cluster: False
 
