@@ -85,7 +85,7 @@ def main():
             Set to make a 2D CookieCutter output file as well
     '''
     run_dir = Path('tests/euclid/euclid_test/Abell2813')
-    bands = ['lum']
+    bands = ['vis']
     target_name = "Abell2813"
     
     
