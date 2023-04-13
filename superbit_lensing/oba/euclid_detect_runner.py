@@ -31,8 +31,6 @@ def main():
     '''
     config_file = Path('superbit_lensing/oba/configs/sextractor/sb_sextractor_lum.config')
     run_dir = Path('tests/euclid/euclid_test/Abell2813')
-    bands = ['lum']
-    det_bands = ['lum']
     target_name = "Abell2813"
     
     
