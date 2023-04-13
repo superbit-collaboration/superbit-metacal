@@ -35,8 +35,7 @@ class EuclidOutputRunner(OutputRunner):
         #'seg_file': 'segmentation_file',
         #'seg_ext': 'segmentation_ext',
     }
-
-
+    
 def main():
     '''
         run_dir: pathlib.Path
@@ -105,10 +104,7 @@ def main():
             )
     runner.go(logprint=logprint)
     
-    return 0
-    
-    
-    
+    return 0    
 
 if __name__ == '__main__':
     #args = parse_args()
