@@ -471,6 +471,7 @@ BAND_INDEX = {
     4: 'r',
     5: 'nir',
     6: 'lum',
+    7: 'vis',
 }
 
 def band2index(band):
