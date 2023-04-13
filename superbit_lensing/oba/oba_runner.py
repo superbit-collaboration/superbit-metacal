@@ -282,6 +282,7 @@ class OBARunner(object):
             return
         else:
             skip_decompress = self.config['preprocessing']['skip_decompress']
+            check_img_qual = self.config['run_options']['check_image_quality']
             min_img_qual = self.config['run_options']['min_image_quality']
 
         runner = PreprocessRunner(
@@ -290,7 +291,7 @@ class OBARunner(object):
             self.out_dir,
             self.bands,
             target_name=self.target_name,
-            check_img_qual=True,
+            check_img_qual=check_img_qual,
             min_img_qual=min_img_qual
             )
 
