@@ -287,7 +287,7 @@ def crate_bkg(illum_area,
         bkg_crate_e_pix = bkg_crate_arcsec * bandpass.plate_scale.value**2
 
     elif bkg_height == 'L2':
-        bkg_crate_e_pix = 3.8
+        bkg_crate_e_pix = 0.1#3.8*10**(-10)
 
     else:
         raise ValueError("Background height type invalid.")
