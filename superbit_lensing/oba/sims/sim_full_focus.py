@@ -295,7 +295,7 @@ def setup_stars(ra, dec, width_deg, height_deg):
 
     return star_cat
 
-def setup_gals(n_gal_total_img, gal_rng):
+def setup_gals(n_gal_total_img, gal_rng,high_snr=True):
 
     cosmos_dir = OBA_SIM_DATA_DIR / 'cosmos_catalog/'
     cosmos_file = cosmos_dir / 'cosmos15_superbit2023_phot_shapes.csv'
@@ -304,6 +304,8 @@ def setup_gals(n_gal_total_img, gal_rng):
     # Filter the data for FLUX_RADIUS > than 0 and HLR < 50
     cat_df = cat_df[cat_df['FLUX_RADIUS'] >= 0]
     cat_df = cat_df[cat_df['c10_sersic_fit_hlr'] < 50]
+    if high_snr:
+        cat_df = cat_df[cat_df['mag_lum'] < 23.5]
 
     # Randomly sample from galaxy catalog
     gal_cat = Table(cat_df.sample(
@@ -411,7 +413,7 @@ def main(args):
         'r': 640.32425638312820,
         'nir': 814.02475812251110,
         'lum': 522.73829660009810,
-        'vis': 7103.43 	#from http://svo2.cab.inta-csic.es/svo/theory/fps3/index.php?id=Euclid/VIS.vis&&mode=browse&gname=Euclid&gname2=VIS
+        'vis': 710.343 	#from http://svo2.cab.inta-csic.es/svo/theory/fps3/index.php?id=Euclid/VIS.vis&&mode=browse&gname=Euclid&gname2=VIS
     }
 
     # Initialize the camera, telescope, bandpass
