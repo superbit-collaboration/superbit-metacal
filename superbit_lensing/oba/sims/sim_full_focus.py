@@ -609,7 +609,7 @@ def main(args):
         if band == 'vis':
             psf_file = 'sed_true_26892756.os.fits'
             psf_image = galsim.fits.read(psf_file, hdu=1)
-            psf_sim = galsim.InterpolatedImage(psf_image, scale=0.1/5)
+            psf_sim = galsim.InterpolatedImage(psf_image)
             #psf_sim=galsim.Image(psf_image)
 
         else:
