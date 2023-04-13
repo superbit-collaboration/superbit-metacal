@@ -2,10 +2,12 @@ from xml.dom import ValidationErr
 import numpy as np
 from astropy import units as u
 import pandas as pd
+from pathlib import Path
+
+from superbit_lensing import utils
 
 # instrument data path
-path = 'data/instrument/'
-
+path = f'{utils.MODULE_DIR}/oba/sims/data/instrument/'
 
 class Telescope:
     """Class to store telescope properties
