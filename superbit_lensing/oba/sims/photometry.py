@@ -12,13 +12,15 @@ from astropy.constants import h, c, k_B
 from astropy.convolution import AiryDisk2DKernel
 from pathlib import Path
 
+import ipdb
+
 OBA_SIM_DATA_DIR = Path(__file__).parent / 'data/'
 
 def get_transmission(band):
     sim_dir = OBA_SIM_DATA_DIR
 
     return np.genfromtxt(
-        sim_dir / f'instrument/bandpass/{band}_2023.csv',
+        sim_dir / f'instrument/bandpass/vis.csv',
         delimiter=','
         )[:, 2][1:]
 
@@ -216,11 +218,12 @@ def crate_from_flambda(flambda,
     illum_area *= u.cm**2
     wave_int = bandpass_wavelengths * u.nm
     flambda *= u.erg/u.s/u.cm**2/u.nm
-
+    #ipdb.set_trace()
     integrand = (illum_area
                  * flambda
                  * bandpass_transmission
                  * wave_int) / (h * c)
+        
 
     del_lam = ((np.max(wave_int) - np.min(wave_int)) / len(wave_int))
 
@@ -283,6 +286,9 @@ def crate_bkg(illum_area,
 
         bkg_crate_e_pix = bkg_crate_arcsec * bandpass.plate_scale.value**2
 
+    elif bkg_height == 'L2':
+        bkg_crate_e_pix = 3.8
+
     else:
         raise ValueError("Background height type invalid.")
 
@@ -338,6 +344,7 @@ def mean_flambda_from_mean_fnu(mean_fnu,
                                bandpass_transmission,
                                bandpass_wavelengths):
     mean_fnu *= (u.erg/u.s/u.cm**2/u.Hz)
+    #ipdb.set_trace()
     piv = pivot_wavelength(bandpass_transmission, bandpass_wavelengths) * u.nm
     mean_flambda = (c * mean_fnu / piv**2).to(u.erg/u.s/u.cm**2/u.nm)
     return mean_flambda.value
@@ -385,7 +392,7 @@ def pivot_wavelength(bandpass_transmission,
 
 
 def filt_trans(wave_min, wave_max):
-    wavelengths = np.arange(300, 1101, 1)
+    wavelengths = np.arange(4379.19, 9865.96, 1) #superbit: (300, 1101, 1)
     filter_transmission = np.zeros(len(wavelengths))
 
     for idx, wave in enumerate(wavelengths):

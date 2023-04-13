@@ -55,7 +55,14 @@ def make_a_galaxy(indx, obj, band, wcs, psf, nfw_halo, camera, exp_time,
     if gal_n_sersic_cosmos10 < 0.3:
         gal_n_sersic_cosmos10 = 0.3
 
-    crate_flux = obj[f'crates_{band}'] # galaxy count rate e/s
+    
+    #ipdb.set_trace()
+    #print(obj.keys())
+    if 'crates_{band}' in obj.keys():
+        crate_flux = obj[f'crates_{band}'] # galaxy count rate e/s
+    else:
+        crate_flux = obj[f'crates_lum']
+    
 
     flux_adu = int(
         crate_flux * exp_time * 1 / camera.gain.value
