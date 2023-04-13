@@ -23,3 +23,5 @@ star_stamp_size: 200
 overwrite: True
 fresh: False
 vb: True
+
+calibrated : True
