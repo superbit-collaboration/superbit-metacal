@@ -120,7 +120,7 @@ class IOManager(object):
         'OBA_RESULTS',
         ]
 
-    gaia_filename = 'gaia_dr3_min.fits'
+    gaia_filename = 'gaia_dr3_min_mag15.fits'
 
     def __init__(self, root_dir=None, target_name=None):
         '''
