@@ -150,7 +150,9 @@ class OBARunner(object):
 
         oba_results = self.io_manager.OBA_RESULTS
 
-        self.out_dir = oba_results / self.target_name
+        # NOTE: we used to include a target name dir, but removed by request
+        # self.out_dir = oba_results / self.target_name
+        self.out_dir = oba_results
 
         return
 
@@ -425,9 +427,6 @@ class OBARunner(object):
         if 'starmask' not in self.modules:
             self.logprint('Skipping bright star masking given config modules')
             return
-
-        # rerun = self.config['astrometry']['rerun']
-        # search_radius = self.config['astrometry']['search_radius']
 
         gaia_filename = self.io_manager.gaia_filename
         gaia_cat = self.io_manager.GAIA_DIR / gaia_filename

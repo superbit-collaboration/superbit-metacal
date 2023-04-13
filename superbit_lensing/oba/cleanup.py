@@ -18,11 +18,9 @@ class CleanupRunner(object):
     following:
 
     (1) CookieCutter output FITS file containing source stamps, masking
-        information, and metadata
-    (2) TODO: Coadd cluster center cutouts
-    (3) TODO: RAW_SCI or CAL_SCI image headers
-    (4) Log files & any intermediate and/or created config files
-    (5) TODO: ...
+        information, and metadata (can include cluster center cutouts)
+    (2) Optionally 2D CookieCutter file
+    (3) Log files & any intermediate and/or created config files
     '''
 
     _name = 'cleanup'

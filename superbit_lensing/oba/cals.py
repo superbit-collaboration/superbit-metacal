@@ -383,6 +383,15 @@ class CalsRunner(object):
             calibrated = raw - dark
         else:
             flat = fitsio.read(cals['flat']).astype(self.cal_dtype)
+
+            # NOTE: we definitely don't want to divide by 0, so check
+            # master flat for 0's or negatives. These are likely flagged
+            # pixels so we don't worry too much about it
+            bad = flat[flat <= 0]
+            if len(bad) > 0:
+                logprint(f'Found {len(bad)} flat pixels <=0; setting to 1')
+                flat[flat <= 0] = 1.
+
             calibrated = ((raw - dark) / flat)
 
         return calibrated

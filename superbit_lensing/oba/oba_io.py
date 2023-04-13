@@ -77,7 +77,8 @@ class IOManager(object):
     OBA_RESULTS: /data/bit/oba_results/
 
     OBA results for a given target:
-    OBA_RESULTS/{TARGET_NAME}/
+    NOTE: This used to include TARGET_NAME, but was removed by request
+    OBA_RESULTS
 
     ----------------------------------------------------------------------
     Testing on a local device (i.e. *not* qcc)
@@ -119,7 +120,7 @@ class IOManager(object):
         'OBA_RESULTS',
         ]
 
-    gaia_filename = 'gaia_superbit_fluxes.fits'
+    gaia_filename = 'gaia_dr3_min.fits'
 
     def __init__(self, root_dir=None, target_name=None):
         '''
@@ -336,8 +337,14 @@ def parse_cal_image_file(image_file):
     '''
     Return a dictionary of calibration image parameters given a filename
 
-    Raw calibration image filename convention:
-    master_{TYPE}_{EXP_TIME}_{UTC}.fits
+    NOTE: Flats & darks now have different filename conventions due to
+    band-dependence of flats
+
+    Flats convention:
+    master_flat_{BAND_INDEX}_{EXP_TIME}_{UTC}.fits
+
+    Darks convention:
+    master_dark_{EXP_TIME}_{UTC}.fits
 
     image_file: pathlib.Path
         The filepath of the calibration image
@@ -355,11 +362,23 @@ def parse_cal_image_file(image_file):
     features[-1] = features[-1].replace('.fits', '')
 
     # for a calibration frame, the 0th feature is just the str "master"
-    im_pars = {
-        'cal_type': features[1].lower(),
-        'exp_time': int(features[2]),
-        'utc': int(features[3])
-        }
+    cal_type = features[1].lower()
+
+    if cal_type == 'dark':
+        im_pars = {
+            'cal_type': cal_type,
+            'exp_time': int(features[2]),
+            'utc': int(features[3])
+            }
+    elif cal_type == 'flat':
+        im_pars = {
+            'cal_type': cal_type,
+            'band': index2band(int(features[2])),
+            'exp_time': int(features[3]),
+            'utc': int(features[4])
+            }
+    else:
+        raise ValueError(f'{cal_type} is not a valid calibaration type!')
 
     return im_pars
 
