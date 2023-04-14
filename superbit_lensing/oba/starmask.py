@@ -57,17 +57,17 @@ class StarmaskRunner(object):
     # _mask_spike_model_d = -2.25
 
     # NOTE: older model
-    # _mask_spike_model_a = 0.0
-    # _mask_spike_model_b = 0.00118493
-    # _mask_spike_model_c = 0.06926362
-    # _mask_spike_model_d = -1.94172
+    _mask_spike_model_a = 0.0
+    _mask_spike_model_b = 0.00118493
+    _mask_spike_model_c = 0.06926362
+    _mask_spike_model_d = -1.94172
 
     # NOTE: trying out replaced spike model
-    _mask_spike_model_a = 0
-    _mask_spike_model_b = 10635.139 / 7855385
-    # _mask_spike_model_c = -0.017945
-    _mask_spike_model_c = -0.0692659
-    _mask_spike_model_d = -2
+    # _mask_spike_model_a = 0
+    # _mask_spike_model_b = 10635.139 / 7855385
+    # _mask_spike_model_b = 0.00118493
+    # _mask_spike_model_c = 0.0692659
+    # _mask_spike_model_d = -2
 
     # Default estimated image noise properties, if none are passed.
     # These come from Ajay's paper:
@@ -481,6 +481,13 @@ class StarmaskRunner(object):
         # estimated noise level of the the image of a given band
         flux = star[f'{self.flux_tag_base}_{band}'] # ADU
         aperture_size, spike_size, spike_width = self._get_mask_sizes(flux, noise)
+
+        # NOTE: This part isn't working at the last second, so we'll revert to
+        # the previously better-working version w/o the scaling
+        # we will need them in pixels
+        # aperture_size /= self.pixel_scale
+        # spike_size /= self.pixel_scale
+        # spike_width /= self.pixel_scale
 
         # The search radius to check for masking around a stellar
         # position, in pixels
