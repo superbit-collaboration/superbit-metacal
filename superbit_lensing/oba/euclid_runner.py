@@ -40,7 +40,7 @@ class EuclidOutputRunner(OutputRunner):
 
 def main():
     config_file_swarp = Path('superbit_lensing/oba/configs/swarp/swarp.config')
-    run_dir = Path('tests/euclid/euclid_test/Abell2813')
+    run_dir = Path('tests/euclid/test_obj_wcs/Abell2813')
     bands = ['vis']
     det_bands = ['vis']
     target_name = "Abell2813"
@@ -61,7 +61,7 @@ def main():
             )
     coadder.go(logprint=logprint)
     
-    config_file_se = Path('superbit_lensing/oba/configs/sextractor/sextractor.config')
+    config_file_se = Path('superbit_lensing/oba/configs/sextractor/eu_sextractor_vis.config')
     detector = DetectionRunner(
             config_file_se,
             run_dir,
