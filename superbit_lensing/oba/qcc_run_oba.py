@@ -288,7 +288,7 @@ def main(args):
     #-----------------------------------------------------------------
     # Prepare log for move to final output location
 
-    log_dest = str(io_manager.OBA_RESULTS / target_name)
+    log_dest = str(io_manager.OBA_RESULTS)
     logprint(f'\nCopying (compressed) log file to permanent storage at {log_dest}')
 
     compressed_logfile = compress_log(Path(logfile))
