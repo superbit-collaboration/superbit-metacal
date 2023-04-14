@@ -51,14 +51,13 @@ def main(args):
     #-----------------------------------------------------------------
     # Load in existing global or target OBA config
 
-    config_type = config_type.lower()
     is_target = False
 
-    if config_type == 'global':
+    if config_type.lower() == 'global':
         config_file = Path(utils.MODULE_DIR) / 'oba/configs/oba_global_config.yaml'
-    elif config_type == 'swarp':
+    elif config_type.lower() == 'swarp':
         config_file = Path(utils.MODULE_DIR) / 'oba/configs/swarp/swarp.config'
-    elif 'sextractor' in config_type:
+    elif 'sextractor' in config_type.lower():
         config_file = Path(utils.MODULE_DIR) / f'oba/configs/sextractor/sb_{config_type}.config'
     else:
         # try to look for a pre-made target OBA config file produced by prep_oba.py
