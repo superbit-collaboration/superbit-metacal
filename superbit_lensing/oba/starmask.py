@@ -253,7 +253,7 @@ class StarmaskRunner(object):
         # so just pick one
         for band in self.bands:
             if len(self.images[band]) != 0:
-                image = self.images[self.bands[0]][0]
+                image = self.images[band][0]
                 break
         hdr = fitsio.read_header(str(image))
         target_ra, target_dec = hdr['TRG_RA'], hdr['TRG_DEC']
@@ -448,10 +448,12 @@ class StarmaskRunner(object):
                         flux = star[f'{self.flux_tag_base}_{band}'] # ADU
                         logprint(f'Starting bright star {i+1} of {Nstars}; ' +
                                  f'flux={flux:.1f} ADU')
-                        self._add_star_mask(star, msk, wgt, wcs, band, sky_noise)
+                        self._add_star_mask(
+                            star, msk, wgt, wcs, band, sky_noise
+                            )
 
                     # now update FITs weight & mask extensions
-                    fits[wgt_ext].write(msk, header=msk_hdr)
+                    fits[wgt_ext].write(wgt, header=msk_hdr)
                     fits[msk_ext].write(msk, header=msk_hdr)
 
         return

@@ -289,12 +289,13 @@ def main(args):
     # Prepare log for move to final output location
 
     log_dest = str(io_manager.OBA_RESULTS)
-    logprint(f'\nCopying (compressed) log file to permanent storage at {log_dest}')
 
     compressed_logfile = compress_log(Path(logfile))
 
     log_name = Path(logfile).name
     dest = Path(log_dest) / compressed_logfile.name
+
+    logprint(f'\nCopying (compressed) log file to permanent storage at {dest}')
 
     if dest.is_file():
         if overwrite is False:
