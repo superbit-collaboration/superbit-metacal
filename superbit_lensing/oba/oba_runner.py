@@ -15,6 +15,10 @@ from detection import DetectionRunner
 from output import OutputRunner
 from cleanup import CleanupRunner
 
+# NOTE: we have to do this to not overflow the QCC log
+import warnings
+warnings.filterwarnings('ignore')
+
 import ipdb
 
 class OBARunner(object):
