@@ -4,6 +4,7 @@ from scipy.optimize import minimize
 
 
 def generate_gal(i):
+    """Generates galaxies from the COSMOS catalog"""
     #cat
     cat = galsim.COSMOSCatalog(sample="25.2")
     gal = cat.makeGalaxy(i, gal_type='parametric')
@@ -14,56 +15,59 @@ def generate_gal(i):
     gal = gal.withFlux(gal_flux)
     return gal
 
-def galsimator(im_array):
-    image = galsim.Image(im_array,scale=0.1)
+def galsimator(im_array,scale=0.1):
+    """Transforms arrays into galsim image objects"""
+    image = galsim.Image(im_array)
     galsim_img = galsim.InterpolatedImage(image,x_interpolant='lanczos14')
     return galsim_img  
 
 def noise_image(size=51,sky_level=400):
+    """Generate a simple noise image with the same values"""
     rng = np.random.RandomState(1)
     noise=rng.normal(loc=sky_level,scale=np.sqrt(sky_level),size=[size,size])
     return noise 
 
 
-def model(flux,hlr,g1,g2,psfs,boxsize,scale):
+def model(flux,half_light_radius,g1,g2,sky_level,psf_objs,boxsize,scale):
     """
-        Creates a model to fit on n exposures, 
-        number of exposures is defined by how many psfs
+    Creates a model to fit on n exposures, 
+    number of exposures is defined by how many psfs
+
+    flux: float - galaxy flux
+    half_light_radius: float - galaxy half light radius 
+    g1,g2: galaxy ellipticity
+    sky_level: background level of image
+    boxsize: stamp size in pixels
+    scale: pixel scale
     """
     model_image_list = []
     for psf in psfs:
-
-        try:
-
-            gal = galsim.Gaussian(flux=flux,
+        gal = galsim.Gaussian(
+            flux=flux,
             half_light_radius = hlr
-            ).shear(
-                g1=g1,
-                g2=g2
-            )
-        except:
-            gal = galsim.Gaussian(flux=flux,
-            half_light_radius = hlr
-            ).shear(
-                g1=0.,
-                g2=0.
-            )
+        ).shear(
+            g1=g1,
+            g2=g2
+        )
 
-    model = galsim.Convolve([gal,psf])
+        model = galsim.Convolve([gal,psf]) + galsimator(sky_level*np.ones([boxsize,boxsize]))
 
-    model_array = model.drawImage(
-        nx=boxsize,
-        ny=boxsize,
-        scale=scale
-    ).array
-    model_image_list += [model_array]
+        model_array = model.drawImage(
+            nx=boxsize,
+            ny=boxsize,
+            scale=scale
+        ).array
+        model_image_list += [model_array]
 
-  
-    return model_image_list
+  return model_image_list
 
-def create_loss(model,images,psfs,boxsize,scale):
-    """creates a loss function that depends only on fitable parameters"""
-    return lambda theta :  sum((model(theta[0],theta[1],theta[2],theta[3],psfs,boxsize,scale) - images)**2)
+def create_loss(model,images,sky_level,psfs,boxsize,scale):
+  """creates a loss function that depends only on fitable parameters"""
+    def loss(theta):
+        l = sum(abs(model(theta[0],theta[1],theta[2],theta[3],sky_level,psfs,boxsize,scale) - images))
+        return l
+
+    return loss
 
 
 def get_metacal_type(deconv_gal,step,type_name):
