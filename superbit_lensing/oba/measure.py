@@ -53,6 +53,7 @@ def gaussian_model(flux,half_light_radius,g1,g2,sky_levels,psf_objs,boxsize ,pix
             ny=boxsize,
             scale=pixel_scale
         ).array
+        
         model_image_list += [model_array]
 
     return model_image_list
@@ -63,7 +64,10 @@ def create_loss(model,images,sky_levels,psf_objs,boxsize,pixel_scale=.1):
         """
         theta: flux, flr, g1, g2
         """
-        l = np.sum(abs(model(theta[0],theta[1],theta[2],theta[3],sky_levels = sky_levels,psf_objs=psf_objs,boxsize=boxsize,pixel_scale=pixel_scale) - images))
+        try:
+            l = np.sum(abs(model(theta[0],theta[1],theta[2],theta[3],sky_levels = sky_levels,psf_objs=psf_objs,boxsize=boxsize,pixel_scale=pixel_scale) - images))
+        except:
+            l = 1e30
 
         return l
 
