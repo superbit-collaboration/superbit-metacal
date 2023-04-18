@@ -64,7 +64,7 @@ def get_all_metacal(
     
     return obsdict
 
-def get_metacal_response(resdict,shear_type = 'g'):
+def get_metacal_response(resdict,shear_type = 'g',step=0.01):
     '''gets the shear response for ngmix-like results'''
 
     #noshear
