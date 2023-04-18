@@ -11,15 +11,15 @@ def measure_ellipticities(obsdict,method):
 
 def get_metacal_images(deconv_gal,step,type_name):
     if type_name == "noshear":
-        return deconv_gal.shear(g1=0,g2=0)
+        return deconv_gal.shear(g1=0.,g2=0.)
     elif type_name == "1p":
-        return deconv_gal.shear(g1=step,g2=0) 
+        return deconv_gal.shear(g1=step,g2=0.) 
     elif type_name == "2p":
-        return deconv_gal.shear(g1=0,g2=step)
+        return deconv_gal.shear(g1=0.,g2=step)
     elif type_name == "1m":
-        return deconv_gal.shear(g1=-step,g2=0)
+        return deconv_gal.shear(g1=-step,g2=0.)
     elif type_name == "2m":
-        return deconv_gal.shear(g1=0,g2=-step)
+        return deconv_gal.shear(g1=0.,g2=-step)
   
 def get_fixnoise(noise_image,step,type_name):
     sheared_noise = get_metacal_type(noise_image,step,type_name)
