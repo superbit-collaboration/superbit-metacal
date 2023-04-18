@@ -6,21 +6,20 @@ import ipdb
 def measure_ellipticities(obsdict,method):
     resdict = {}
     for key in obsdict.keys():
-        resdict += {key: method(pujobsdict[key])}
+        resdict += {key: method(obsdict[key])}
     return resdict
-
 
 def get_metacal_images(deconv_gal,step,type_name):
     if type_name == "noshear":
-        return deconv_gal.shear(0,0)
+        return deconv_gal.shear(g1=0,g2=0)
     elif type_name == "1p":
-        return deconv_gal.shear(step,0) 
+        return deconv_gal.shear(g1=step,g2=0) 
     elif type_name == "2p":
-        return deconv_gal.shear(0,step)
+        return deconv_gal.shear(g1=0,g2=step)
     elif type_name == "1m":
-        return deconv_gal.shear(-step,0)
+        return deconv_gal.shear(g1=-step,g2=0)
     elif type_name == "2m":
-        return deconv_gal.shear(0,-step)
+        return deconv_gal.shear(g1=0,g2=-step)
   
 def get_fixnoise(noise_image,step,type_name):
     sheared_noise = get_metacal_type(noise_image,step,type_name)
@@ -34,7 +33,7 @@ def get_all_metacal(
     reconv_psfs,
     noise_images=None,
     types=['noshear','1p','1m','2p','2m'],
-    step=0.01
+    step=0.01,
     fixnoise = True,
 ):
    
@@ -47,12 +46,13 @@ def get_all_metacal(
             psf = psfs[i]
             inv_psf = galsim.Deconvolve(psf)
             deconv_gal = galsim.Convolve([gal,inv_psf])
-            sheared_gal = get_metacal_type(deconv_gal,step,type_name=t)
-            reconv_galaxy = galsim.Convolve([sheared_gal,reconv_psf[i]])
+            sheared_gal = get_metacal_images(deconv_gal,step,type_name=t)
+            reconv_galaxy = galsim.Convolve([sheared_gal,reconv_psfs[i]])
             reconv_gals += [reconv_galaxy]
-        obsdict +={t: np.array(reconv_gals) }
+        obsdict[t] = {'obs' : reconv_gals,'psf' : psfs}
 
     if fixnoise == True:
+        #TODO finish this
         for t in types:
             fix_noises = []
             #set number of exp by gals, so it breaks if number is different
