@@ -975,12 +975,17 @@ def main(args):
 
             # Path checks
             Path(outdir).mkdir(parents=True, exist_ok=True)
+            cal_dir = os.path.join(outdir, 'cal')
+            os.makedirs(cal_dir, exist_ok=True)
 
-            output_fname = f'{outdir}/{target_name}_{band_int}_{exp_time}_{unix_time}_cal.fits'
+            #output_fname = f'{outdir}/{target_name}_{band_int}_{exp_time}_{unix_time}_cal.fits'
+
 
             if calibrated is True:
+                output_fname = f'{cal_dir}/{target_name}_{band_int}_{exp_time}_{unix_time}_cal.fits'
                 img_hdulist = fits.HDUList([fits.PrimaryHDU(data=sci_img,header=hdr),fits.ImageHDU(data=wgt_img)])
             else:
+                output_fname = f'{cal_dir}/{target_name}_{band_int}_{exp_time}_{unix_time}.fits'
                 img_hdulist = fits.HDUList([fits.PrimaryHDU(data=sci_img,header=hdr)])
             img_hdulist.writeto(output_fname,overwrite=overwrite)
             
