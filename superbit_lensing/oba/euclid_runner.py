@@ -62,9 +62,11 @@ def main():
     coadder.go(logprint=logprint)
     
     config_file_se = Path('superbit_lensing/oba/configs/sextractor/eu_sextractor_vis.config')
+    param_file_se = Path('superbit_lensing/oba/configs/sextractor/eu_sextractor.param')
     detector = DetectionRunner(
-            config_file_se,
-            run_dir,
+            config_file = config_file_se,
+            param_file = param_file_se,
+            run_dir = run_dir,
             target_name=target_name,
             )
     detector.go(logprint=logprint)
