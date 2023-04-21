@@ -188,19 +188,26 @@ class CalsRunner(object):
             for i, image in enumerate(images):
                 image = Path(image)
                 image_base = Path(image).name
-                logprint(f'Grabbing cals for {image_base}; {i+1} of {Nimages}')
-                dark, flat = self.get_image_cals(image)
-                logprint(f'Using master dark file {dark.name}')
 
-                if self.ignore_flats is True:
-                    assert flat is None
-                    logprint(f'Using uniform flat file as ignore_flats is True')
-                else:
-                    logprint(f'Using master flat file {flat.name}')
+                try:
+                    logprint(f'Grabbing cals for {image_base}; {i+1} of {Nimages}')
+                    dark, flat = self.get_image_cals(image)
 
-                self.cals[image] = {}
-                self.cals[image]['dark'] = dark
-                self.cals[image]['flat'] = flat
+                    logprint(f'Using master dark file {dark.name}')
+
+                    if self.ignore_flats is True:
+                        assert flat is None
+                        logprint(f'Using uniform flat file as ignore_flats is True')
+                    else:
+                        logprint(f'Using master flat file {flat.name}')
+
+                    self.cals[image] = {}
+                    self.cals[image]['dark'] = dark
+                    self.cals[image]['flat'] = flat
+
+                except ValueError as e:
+                    logprint(e)
+                    logprint('Removing image from OBA consideration')
 
         return
 
