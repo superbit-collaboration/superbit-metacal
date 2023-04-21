@@ -156,6 +156,7 @@ class AstrometryRunner(object):
 
         for band in self.bands:
             logprint(f'Starting band {band}')
+            self.failed[band] = []
 
             images = self.images[band]
 
@@ -212,14 +213,28 @@ class AstrometryRunner(object):
                     wcs_cmd_full += ' --overwrite'
 
                 # run Astrometry.net script
-                utils.run_command(wcs_cmd_full, logprint=logprint)
-                new_file_list = glob(f'{str(wcs_dir)}/*new*')
+                try:
+                    utils.run_command(wcs_cmd_full, logprint=logprint)
+                    new_file_list = glob(f'{str(wcs_dir)}/*new*')
 
-                if len(new_file_list) != 0: # Astrometry.net worked
-                    new_wcs = WCS(new_file_list[0])
-                    self.wcs_solutions[image] = new_wcs
-                else:
-                    raise Exception(f'solve-field failed for image {image_name}')
+                    if len(new_file_list) != 0: # Astrometry.net worked
+                        new_wcs = WCS(new_file_list[0])
+                        self.wcs_solutions[image] = new_wcs
+                        continue
+                    else:
+                        logprint(f'solve-field failed for image {image_name}')
+                        logprint(f'Will remove image from analysis')
+                        self.failed[band].append(image)
+                        self.Nfailed += 1
+                        continue
+
+                except ValueError as e:
+                    logprint(e)
+                    logprint(f'solve-field failed for image {image_name}')
+                    logprint(f'Will remove image from analysis')
+                    self.failed[band].append(image)
+                    self.Nfailed += 1
+                    continue
 
                 # NOTE: we need to copy the solved WCS to the RAW_SCI FITs file
                 # so that it is available during the CookieCutter step of the
@@ -280,7 +295,7 @@ class AstrometryRunner(object):
 
         return
 
-    def move_failed_images(self, logprint, overwrite, out_dir='failed'):
+    def move_failed_images(self, logprint, overwrite):
         '''
         Move any images that failed astrometric registration from the `cal` to
         `failed` directory for the given band
@@ -292,12 +307,12 @@ class AstrometryRunner(object):
         '''
 
         for band in self.bands:
-            logprint(f'Starting band {b}')
+            logprint(f'Starting band {band}')
 
             failed_dir = (self.run_dir / band / 'failed/').resolve()
 
             for image in self.failed[band]:
-                logprint(f'Moving {image.name} to {str(dest_dir)}')
+                logprint(f'Moving {image.name} to {str(failed_dir)}')
                 self._move_image(image, failed_dir)
 
         return
