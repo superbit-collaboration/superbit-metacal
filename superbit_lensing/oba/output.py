@@ -1,6 +1,8 @@
 from pathlib import Path
 from glob import glob
 import numpy as np
+from astropy.coordinates import SkyCoord
+import astropy.units as u
 import fitsio
 
 import ipdb
@@ -272,18 +274,21 @@ class OutputRunner(object):
 
             bindx = band2index(band)
 
-            images = glob(
-                str(band_dir / f'{target_name}*_{bindx}_*.fits')
+            # NOTE: We only send down cutouts of raw images whose cal images
+            # succeeded
+            cal_images = glob(
+                str(cal_dir / f'{target_name}*_{bindx}_*.fits')
                 )
 
-            if len(images) == 0:
-                logprint(f'WARNING: Zero raw images found; skipping')
+            if len(cal_images) == 0:
+                logprint(f'WARNING: Zero cal images found; skipping')
                 self.skip.append(band)
 
-            for image in images:
-                image = Path(image)
-                raw_name = image.name
-                cal_name = raw_name.replace('.fits', '_cal.fits')
+            for cal_image in cal_images:
+                cal_image = Path(cal_image)
+                cal_name = cal_image.name
+                raw_name = cal_name.replace('_cal.fits', '.fits')
+                raw_image = band_dir / raw_name
 
                 # NOTE: We use RAW_SCI instead of CAL_SCI for our main cutout
                 # NOTE: Later we will set the input dir in the CookieCutter
@@ -302,23 +307,36 @@ class OutputRunner(object):
                     'seg_ext': coadd_seg_ext,
                     }
 
-                self.images[band][Path(image)] = image_map
+                self.images[band][raw_image] = image_map
 
                 if self.make_center_stamp is True:
-                    hdr = fitsio.read_header(str(image))
+                    hdr = fitsio.read_header(str(raw_image))
 
+                    # NOTE: As SB saves the *pointing* position and not the
+                    # actual target position, we can only check that they are
+                    # close
+                    max_sep = 0.1 # deg
                     if target_ra is None:
                         target_ra = hdr['TRG_RA']
-                    else:
-                        if hdr['TRG_RA'] != target_ra:
-                            raise ValueError('Inconsistent target RA values ' +
-                                             'between image headers!')
                     if target_dec is None:
                         target_dec = hdr['TRG_DEC']
-                    else:
-                        if hdr['TRG_DEC'] != target_dec:
-                            raise ValueError('Inconsistent target DEC values ' +
-                                             'between image headers!')
+
+                    target_pos = SkyCoord(
+                        ra=target_ra*u.deg, dec=target_dec*u.deg
+                        )
+                    pos = SkyCoord(
+                        ra=hdr['TRG_RA']*u.deg, dec=hdr['TRG_DEC']*u.deg
+                        )
+
+                    sep = pos.separation(target_pos)
+                    logprint(f'Target offset {sep.to("arcsec"):.2f}')
+                    if sep.value > max_sep:
+                        sep.to('arcsec')
+                        sep_asec = sep.to('arcsec')
+                        raise ValueError(
+                            'Inconsistent target RA values between image ' +
+                            f'headers for a sep of {max_sep}! (found {sep_asec})'
+                            )
 
         if self.make_center_stamp is True:
             self.target_ra = target_ra
