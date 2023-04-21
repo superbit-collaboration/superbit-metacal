@@ -94,7 +94,7 @@ def main(args):
     # are required for a successful prepper run - but any images of that
     # band that *do* exist will still be analyzed. To skip the analysis
     # of any images for a given band, set the required number to -1
-    bands = ['u', 'b', 'g', 'r', 'lum', 'nir']
+    bands = ['u', 'b', 'g', 'r', 'nir', 'lum']
     use_bands = bands.copy()
 
     #-----------------------------------------------------------------
