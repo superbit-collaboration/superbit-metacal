@@ -4,7 +4,7 @@ import os
 import fitsio
 
 from superbit_lensing import utils
-from superbit_lensing.oba.oba_io import band2index
+from superbit_lensing.oba.oba_io import parse_image_file, band2index, OBA_TARGET_RENAME, OBA_IGNORE_LIST
 
 import ipdb
 
@@ -124,6 +124,8 @@ class PreprocessRunner(object):
 
         1) Setup the run_dir (and all subdirs)
         2) Copy raw sci frames from raw_dir to run_dir
+           - Cross-check ignore list
+           - Check for any file renaming
         3) Decompress raw files
         4) Update fits headers with useful info
 
@@ -193,7 +195,9 @@ class PreprocessRunner(object):
     def copy_raw_files(self, logprint):
         '''
         Copy raw sci frames to the temp OBA run directory for
-        a given target
+        a given target. In addition, check for any old files
+        corresponding to the new target name and remove any in
+        the ignore list
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -215,9 +219,19 @@ class PreprocessRunner(object):
 
             bindx = band2index(band)
 
-            # NOTE: This glob is safe as OBA files have a fixed convention
-            search = str(orig / f'{self.target_name}*_{bindx}_*.fits.{cext}')
-            raw_files = glob(search)
+            # NOTE: Some targets have inconsistent names, so consider those
+            target_names = [self.target_name]
+            old_names = [old for old in OBA_TARGET_RENAME[
+                OBA_TARGET_RENAME['new'] == self.target_name
+            ]['old']]
+
+            target_names += old_names
+
+            raw_files = []
+            for target_name in target_names:
+                # NOTE: This glob is safe as OBA files have a fixed convention
+                search = str(orig / f'{target_name}_{bindx}_*.fits.{cext}')
+                raw_files += glob(search)
 
             Nraw = len(raw_files)
             if Nraw == 0:
@@ -255,6 +269,17 @@ class PreprocessRunner(object):
                         raise KeyError(f'IMG_QUAL must be in image header ' +\
                                        'if check_img_qual is set to True!')
 
+                raw_name = Path(raw).name
+                ignore_list = [filename for filename in OBA_IGNORE_LIST['image_name']]
+                bad_sci = [bad for bad in OBA_IGNORE_LIST['bad_sci']]
+                if (raw_name in ignore_list) or \
+                   (raw_name.replace('.bz2', '') in ignore_list):
+                    indx = ignore_list.index(raw_name)
+                    # some in the ignore list are just for cals
+                    if bool(bad_sci[indx]) is True:
+                        logprint(f'Image in the OBA ignore list; skipping')
+                        remove_indices.append(i)
+
             # wait to remove any images that do not satisfy requirements until
             # *after* loop (and in reverse) to avoid indexing issues
             for index in sorted(remove_indices, reverse=True):
@@ -262,12 +287,28 @@ class PreprocessRunner(object):
 
             for raw_file in raw_files:
                 logprint(f'Copying {raw_file} to {str(dest)}:')
+
                 self._copy_file(
                     raw_file, str(dest), logprint=logprint
                     )
 
-                # add to internal image dict
                 out_name = Path(raw_file).name
+
+                # check if we need to rename
+                im_pars = parse_image_file(raw_file, 'sci')
+                if im_pars['target_name'] in old_names:
+                    old_file = str(dest / Path(raw_file).name)
+                    new_file = old_file.replace(
+                        im_pars['target_name'], self.target_name
+                        )
+                    logprint(f'Renaming file to {new_file}')
+                    self._move_file(
+                        old_file, new_file, logprint=logprint
+                        )
+
+                    out_name = Path(new_file).name
+
+                # add to internal image dict
                 out_file = dest / out_name
                 self.images[band].append(out_file)
 
@@ -315,7 +356,16 @@ class PreprocessRunner(object):
                         logprint('Keeping file as overwrite is False')
                         continue
 
-                self._decompress_file(image, logprint)
+                try:
+                    self._decompress_file(image, logprint)
+                except ValueError as e:
+                    # NOTE: this can happen when reading from a file that did
+                    # not complete downlink or otherwise errored
+                    logprint(f'Decompression failed with the following error:')
+                    logprint(e)
+                    logprint('Errors at this step are usually due to ' +
+                             'incomplete downlinking; removing file')
+                    os.remove(image)
 
         return
 
@@ -333,6 +383,28 @@ class PreprocessRunner(object):
         '''
 
         cmd = f'cp {orig_file} {dest}'
+
+        if logprint is not None:
+            logprint(f'cmd = {cmd}')
+
+        utils.run_command(cmd, logprint=logprint)
+
+        return
+
+    @staticmethod
+    def _move_file(orig_file, new_file, logprint=None):
+        '''
+        Input paths must be str's, not pathlib Paths at this point
+
+        orig_file: str
+            The filepath of the original file
+        new_file: str
+            The filepath of the new file
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        '''
+
+        cmd = f'mv {orig_file} {new_file}'
 
         if logprint is not None:
             logprint(f'cmd = {cmd}')
@@ -399,10 +471,8 @@ class PreprocessRunner(object):
                             logprint(f'Replaced {old_key} with {new_key}')
 
                     for key, val in self._header_info.items():
-                        # things have changed over time, so only add if the key
-                        # doesn't already exist
-                        if key not in hdr:
-                            # fits.setval(str(image), key, value=val, ext=ext)
-                            f[0].write_key(key, val)
+                        # NOTE: While some keys are already in the header, they
+                        # are not always the right value (e.g. GAIN)
+                        f[0].write_key(key, val)
 
         return

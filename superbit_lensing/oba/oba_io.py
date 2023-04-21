@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from glob import glob
 import numpy as np
+from astropy.table import Table
 
 from superbit_lensing import utils
 
@@ -265,6 +266,8 @@ def parse_image_file(image_file, image_type):
     SCI: {TARGET_NAME}_{BAND_INDEX}_{EXP_TIME}_{UNIX_TIME}.fits
     CAL: master_{TYPE}_{EXP_TIME}_{UNIX_TIME}.fits
 
+    NOTE: The files may or may not have have a .bz2 extension
+
     image_file: pathlib.Path
         The filepath of the raw image. Can be a processed image as
         long as it still follows the standard raw image filename
@@ -300,6 +303,8 @@ def parse_sci_image_file(image_file):
     Raw sci image filename convention:
     {TARGET_NAME}_{BAND_INDEX}_{EXP_TIME}_{UTC}.fits
 
+    NOTE: The file may or may not have have a .bz2 extension
+
     image_file: pathlib.Path
         The filepath of the raw image. Can be a processed image as
         long as it still follows the standard raw image filename
@@ -311,10 +316,18 @@ def parse_sci_image_file(image_file):
         image_file = Path(image_file)
 
     name = image_file.name
+    ext = image_file.suffix
     features = name.split('_')
 
     # remove file ext
-    features[-1] = features[-1].replace('.fits', '')
+    if ext == '.bz2':
+        compressed = True
+        features[-1] = features[-1].replace('.fits.bz2', '')
+    elif ext == '.fits':
+        compressed = False
+        features[-1] = features[-1].replace('.fits', '')
+    else:
+        raise ValueError(f'The extension {ext} must be fits or fits.bz2!')
 
     if features[-1] == 'cal':
         # in this case, we're dealing with a calibrated image file
@@ -328,7 +341,8 @@ def parse_sci_image_file(image_file):
         'target_name': '_'.join(features[0:-3-offset]),
         'band': index2band(int(features[-3-offset])),
         'exp_time': int(features[-2-offset]),
-        'utc': int(features[-1-offset])
+        'utc': int(features[-1-offset]),
+        'compressed': compressed
         }
 
     return im_pars
@@ -356,10 +370,18 @@ def parse_cal_image_file(image_file):
         image_file = Path(image_file)
 
     name = image_file.name
+    ext = image_file.suffix
     features = name.split('_')
 
     # remove file ext
-    features[-1] = features[-1].replace('.fits', '')
+    if ext == '.bz2':
+        compressed = True
+        features[-1] = features[-1].replace('.fits.bz2', '')
+    elif ext == '.fits':
+        compressed = False
+        features[-1] = features[-1].replace('.fits', '')
+    else:
+        raise ValueError(f'The extension {ext} must be fits or fits.bz2!')
 
     # for a calibration frame, the 0th feature is just the str "master"
     cal_type = features[1].lower()
@@ -368,14 +390,16 @@ def parse_cal_image_file(image_file):
         im_pars = {
             'cal_type': cal_type,
             'exp_time': int(features[2]),
-            'utc': int(features[3])
+            'utc': int(features[3]),
+            'compressed': compressed
             }
     elif cal_type == 'flat':
         im_pars = {
             'cal_type': cal_type,
             'band': index2band(int(features[2])),
             'exp_time': int(features[3]),
-            'utc': int(features[4])
+            'utc': int(features[4]),
+            'compressed': compressed
             }
     else:
         raise ValueError(f'{cal_type} is not a valid calibaration type!')
@@ -519,3 +543,13 @@ OBA_FILE_SUFFIXES = [
     '_cal',
     # TODO: finish!
 ]
+
+# The ignore list keeps track of images that the OBA should ignore even if the
+# image checker resulted in GOOD
+OBA_IGNORE_LIST_FILE = Path(utils.MODULE_DIR) / 'oba/data/ignore_list.csv'
+OBA_IGNORE_LIST = Table.read(OBA_IGNORE_LIST_FILE)
+
+# The target rename list keeps track of inconsistencies in the flight naming
+# of particular targets that should be considered a single target
+OBA_TARGET_RENAME_FILE = Path(utils.MODULE_DIR) / 'oba/data/target_rename.csv'
+OBA_TARGET_RENAME = Table.read(OBA_TARGET_RENAME_FILE)
