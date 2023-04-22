@@ -51,7 +51,7 @@ class ShearProfilePlotter(object):
 
         return alpha, sig_alpha
 
-    def plot_tan_profile(self, title=None, size=(10,22), label='annular',
+    def plot_tan_profile(self, title=None, size=(10,22), label='Lensing sample galaxies',
                          rbounds=(5, 750), show=False, outfile=None,
                          nfw_label=None, smoothing=False, plot_truth=True,
                          fill_between=True, xlim=None, ylim=None,
@@ -106,8 +106,8 @@ class ShearProfilePlotter(object):
         rcParams['ytick.minor.width'] = 1
         rcParams['ytick.direction'] = 'out'
 
-        fig, axs = plt.subplots(3, 1, figsize=size, sharex=True)
-        fig.subplots_adjust(hspace=0.1)
+        fig, axs = plt.subplots(3, 1, figsize=size, sharex=True, tight_layout=True)
+        #fig.subplots_adjust(hspace=0.1)
 
         axs[0].errorbar(radius, gtan, yerr=gtan_err, fmt='-o',
                         capsize=5, color='cornflowerblue', label=label)
@@ -123,14 +123,14 @@ class ShearProfilePlotter(object):
                 true_gtan = np.convolve(true_gtan, np.ones(5)/5, mode='valid')
                 true_radius = np.convolve(true_radius, np.ones(5)/5, mode='valid')
 
-            true_label = 'Reference NFW (resample)'
+            true_label = 'Reference NFW'
             axs[0].plot(true_radius, true_gtan, '-r', label=true_label)
 
             alpha, sig_alpha = self.get_alpha()
 
             txt = str(r'$\hat{\alpha}=%.4f~\sigma_{\hat{\alpha}}=%.4f$' % (alpha, sig_alpha))
             ann = axs[0].annotate(
-                txt, xy=[0.1,0.9], xycoords='axes fraction', fontsize=12,
+                txt, xy=[0.12,0.9], xycoords='axes fraction', fontsize=15,
                 bbox=dict(facecolor='white', edgecolor='cornflowerblue',
                           alpha=0.8,boxstyle='round,pad=0.3')
                 )
@@ -142,7 +142,7 @@ class ShearProfilePlotter(object):
         axs[0].tick_params(which='major', width=1.3, length=8)
         axs[0].tick_params(which='minor', width=0.8, length=4)
         # axs[0].set_ylim(-0.05, 0.60)
-        axs[0].legend()
+        axs[0].legend(fontsize=15, loc='upper right')
 
         # shear cut region
         if shear_cut is True:
@@ -175,7 +175,7 @@ class ShearProfilePlotter(object):
         axs[2].set_ylabel(r'$g_{\times}(\theta)$', fontsize=16)
         axs[2].tick_params(which='major', width=1.3, length=8)
         axs[2].tick_params(which='minor', width=0.8, length=4)
-        axs[2].legend()
+        axs[2].legend(fontsize=15, loc='upper right')
 
         # shear cut region
         if shear_cut is True:
@@ -191,7 +191,7 @@ class ShearProfilePlotter(object):
                 axes[i].set_ylim(yl[0], yl[1])
 
         if title is None:
-            axs[0].set_title(title, fontsize=14)
+            axs[0].set_title(title, fontsize=16)
 
         if outfile is not None:
             plt.savefig(outfile, bbox_inches='tight', dpi=300)
