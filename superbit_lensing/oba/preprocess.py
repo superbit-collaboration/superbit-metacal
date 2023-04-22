@@ -46,6 +46,13 @@ class PreprocessRunner(object):
         'GOOD': 2
     }
 
+    # these are for additional checks beyond the image checker
+    # NOTE: not all images may have these keys; skip those that don't
+    # NOTE: the tuple is of *allowed* values!
+    _extra_checks = {
+        'LOCKED': ('true', True)
+    }
+
     def __init__(self, raw_dir, run_dir, out_dir, bands, target_name=None,
                  check_img_qual=True, min_img_qual='unverified'):
         '''
@@ -246,11 +253,25 @@ class PreprocessRunner(object):
             for i, raw in enumerate(raw_files):
                 logprint(f'{i}: {raw}')
 
+                # first, cross-check the ignore list
+                raw_name = Path(raw).name
+                ignore_list = [filename for filename in OBA_IGNORE_LIST['image_name']]
+                bad_sci = [bad for bad in OBA_IGNORE_LIST['bad_sci']]
+                if (raw_name in ignore_list) or \
+                   (raw_name.replace('.bz2', '') in ignore_list):
+                    indx = ignore_list.index(raw_name)
+                    # some in the ignore list are just for cals
+                    if bool(bad_sci[indx]) is True:
+                        logprint(f'Image in the OBA ignore list; skipping')
+                        remove_indices.append(i)
+                        continue
+
+                # next, see if the image checker flagged it
+                raw_hdr = fitsio.read_header(raw)
                 if self.check_img_qual is True:
                     # check if the image quality is acceptable, if desired
                     min_qual = self.min_img_qual_val
                     min_qual_val = self.min_img_qual_val
-                    raw_hdr = fitsio.read_header(raw)
 
                     try:
                         img_qual = raw_hdr[self._img_qual_key]
@@ -264,27 +285,30 @@ class PreprocessRunner(object):
                                 f'required standard of {min_qual}; skipping'
                                 )
                             remove_indices.append(i)
+                            continue
 
                     except KeyError as e:
                         raise KeyError(f'IMG_QUAL must be in image header ' +\
                                        'if check_img_qual is set to True!')
 
-                raw_name = Path(raw).name
-                ignore_list = [filename for filename in OBA_IGNORE_LIST['image_name']]
-                bad_sci = [bad for bad in OBA_IGNORE_LIST['bad_sci']]
-                if (raw_name in ignore_list) or \
-                   (raw_name.replace('.bz2', '') in ignore_list):
-                    indx = ignore_list.index(raw_name)
-                    # some in the ignore list are just for cals
-                    if bool(bad_sci[indx]) is True:
-                        logprint(f'Image in the OBA ignore list; skipping')
-                        remove_indices.append(i)
+                # finally, see if it fails any defined extra checks
+                for key, allowed in self._extra_checks.items():
+                    if key in raw_hdr:
+                        val = raw_hdr[key]
+                        if val not in allowed:
+                            logprint(
+                                f'WARNING: {key}={val} does not satisfy one ' +\
+                                f'of the allowed values {allowed}; skipping'
+                                )
+                            remove_indices.append(i)
+                            continue
 
             # wait to remove any images that do not satisfy requirements until
             # *after* loop (and in reverse) to avoid indexing issues
             for index in sorted(remove_indices, reverse=True):
                 del raw_files[index]
 
+            logprint(f'Copying {len(raw_files)} to {str(dest)}')
             for raw_file in raw_files:
                 logprint(f'Copying {raw_file} to {str(dest)}:')
 
