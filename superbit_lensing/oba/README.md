@@ -75,7 +75,7 @@ python qcc_run_oba.py {OBA_MODE 0/1} {OBA_ARG TARGET_NAME/CONFIG_FILE} [-root_di
 ```
 You will almost always run in `OBA_MODE = 0` which just means pass the `TARGET_NAME` and it will figure out the rest using the config file we just made with `prep_oba.py`. If instead you want to pass a bespoke OBA config file you made for any reason, simply run in `OBA_MODE = 1` and then pass the config filepath instead of the target name.
 
-## OBA outputs
+## OBA Outputs
 
 The whole point of the OBA is to do all the hard reduction work on the QCC but only save the cutouts for an optimized weak-lensing sort of lossy data compression. This means that the default behaviour is to delete all intermediate data products in `ROOT_DIR/home/bit/oba_temp/{TARGET_NAME}` and save only the following to `ROOT_DIR/data/bit/oba_results/` (all `bzip2`'d):
 - OBA config file
@@ -84,7 +84,7 @@ The whole point of the OBA is to do all the hard reduction work on the QCC but o
 - - Will describe format later
 - - Can save `1d`, `2d`, or both (will describe later)
 
-To save useful intermediate data products for inspection such as the cutouts, look at the section on OBA tips below for the correct config setting
+To save useful intermediate data products for inspection such as the coadds, look at the section on OBA tips below for the correct config setting
 
 ## Temporary OBA directory structure
 
@@ -101,6 +101,7 @@ Each OBA run for a given `TARGET_NAME` will create a temporary directory at `ROO
 
 - Did you look at the config file before you ran? Are you sure it is doing what you want?
 - OBA fail for any reason in the middle? Look at the log to figure out which stage the failure happened at, and then remove any stages before it in the config field `modules` once you've resolved the issue
+   - Afraid you screwed something up & want to start over? Either run with the `--fresh` flag in `qcc_run_oba.py` or set `run_options['fresh']` to `true`
 - If you want to look at any intermediate data products such as the coadds, you'll want to make sure that the config field `cleanup['clean_oba_dir']` is `false` so it doesn't automatically delete the OBA temp dir. Otherwise it only saves the nominal OBA results (cutouts, logs, configs, etc.)
 - Coaddition really slow and you aren't on the QCC? Feel free to edit the `superbit_lensing/oba/configs/swarp/swarp.config` file to change `NTHREADS` to something larger (0 defaults to all available). **Don't** do this on QCC of course!
 - If you are running on early images or big foreground objects (likely for pretty pictures), you might want to allow `IMG_QUAL = BAD`. In that case, set the OBA config file `run_options['min_image_quality']` field to `bad`
