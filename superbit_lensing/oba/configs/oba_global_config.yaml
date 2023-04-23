@@ -2,7 +2,7 @@ astrometry:
   rerun: false
   search_radius: 1
 cals:
-  ignore_flats: true
+  ignore_flats: false
 cleanup:
   cc_type: 1d
   clean_oba_dir: false
@@ -34,7 +34,6 @@ run_options:
   - g
   det_bands:
   - b
-  - g
   fresh: false
   overwrite: true
   vb: true
