@@ -266,8 +266,16 @@ class PreprocessRunner(object):
                         remove_indices.append(i)
                         continue
 
-                # next, see if the image checker flagged it
-                raw_hdr = fitsio.read_header(raw)
+                # NOTE: We load in both to make sure the whole image is downloaded
+                try:
+                    raw, raw_hdr = fitsio.read(raw, header=True)
+                except OSError as e:
+                    logprint(e)
+                    logprint('Image failed to read - likely did not complete ' +\
+                             'downlink yet; skipping')
+                    remove_indices.append(i)
+                    continue
+
                 if self.check_img_qual is True:
                     # check if the image quality is acceptable, if desired
                     min_qual = self.min_img_qual_val
