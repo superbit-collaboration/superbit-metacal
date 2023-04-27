@@ -438,7 +438,7 @@ class MedsmakerModule(SuperBITModule):
         filepath = os.path.join(utils.get_module_dir(),
                                 'medsmaker',
                                 'scripts',
-                                'process_mocks.py')
+                                'process_2023.py')
 
         base = f'python {filepath} {mock_dir} {outfile}'
 
