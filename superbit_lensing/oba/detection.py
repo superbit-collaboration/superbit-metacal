@@ -271,7 +271,7 @@ class DetectionRunner(object):
         config_dir = Path(utils.MODULE_DIR) / 'oba/configs/sextractor/'
 
         # this sets the photometric parameters that SExtractor computes
-        param_file = str(config_dir / 'sb_sextractor.param')
+        param_file = str(config_dir / 'sb_sextractor_det.param')
         cmd += f' -PARAMETERS_NAME {param_file}'
 
         # this sets the detection filter
