@@ -90,7 +90,7 @@ def main(args):
 
     # Combine images, make a catalog.
     logprint('Making coadd & its catalog...')
-    #bm.make_coadd_catalog(source_selection=source_selection)
+    bm.get_detection_files()
 
     # Make single-exposure catalogs
     logprint('Making single-exposure catalogs...')
