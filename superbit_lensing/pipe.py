@@ -406,14 +406,14 @@ class GridTestModule(GalSimModule):
 
         return cmd
 
-class MedsmakerModule(SuperBITModule):
+class MedsmakerMockModule(SuperBITModule):
     _req_fields = ['mock_dir', 'outfile']
     _opt_fields = ['fname_base', 'run_name', 'outdir', 'psf_mode', 'psf_seed']
     _flag_fields = ['meds_coadd', 'source_select', 'select_truth_stars',
                     'overwrite', 'vb']
 
     def __init__(self, name, config):
-        super(MedsmakerModule, self).__init__(name, config)
+        super(MedsmakerMockModule, self).__init__(name, config)
 
         # ...
 
@@ -438,7 +438,7 @@ class MedsmakerModule(SuperBITModule):
         filepath = os.path.join(utils.get_module_dir(),
                                 'medsmaker',
                                 'scripts',
-                                'process_2023.py')
+                                'process_mocks.py')
 
         base = f'python {filepath} {mock_dir} {outfile}'
 
@@ -447,6 +447,49 @@ class MedsmakerModule(SuperBITModule):
         if 'run_name' not in self._config:
             run_name = run_options['run_name']
             options += f' -run_name={run_name}'
+
+        cmd = base + options
+
+        return cmd
+
+class MedsmakerModule(SuperBITModule):
+    _req_fields = ['target_name', 'bands', 'data_dir']
+    _opt_fields = ['outdir', 'psf_mode', 'psf_seed', 'star_config_dir']
+    _flag_fields = ['meds_coadd', 'select_truth_stars', 'overwrite', 'vb']
+
+    def __init__(self, name, config):
+        super(MedsmakerModule, self).__init__(name, config)
+
+        # ...
+
+        return
+
+    def run(self, run_options, logprint):
+        logprint(f'\nRunning module {self.name}\n')
+        logprint(f'config:\n{self._config}')
+
+        cmd = self._setup_run_command(run_options)
+
+        rc = self._run_command(cmd, logprint)
+
+        return rc
+
+    def _setup_run_command(self, run_options):
+
+        target_name = self._config['target_name']
+        bands = self._config['bands']
+        data_dir = self._config['data_dir']
+
+        filepath = os.path.join(
+            utils.get_module_dir(),
+            'medsmaker',
+            'scripts',
+            'process_2023.py'
+            )
+
+        base = f'python {filepath} {target_name} {bands} {data_dir}'
+
+        options = self._setup_options(run_options)
 
         cmd = base + options
 
@@ -835,6 +878,7 @@ MODULE_TYPES = {
     'galsim': GalSimModule,
     'grid_test': GridTestModule,
     'medsmaker': MedsmakerModule,
+    'medsmaker_mock': MedsmakerMockModule,
     'metacal': MetacalModule,
     'metacal_v2': MetacalModuleV2,
     'ngmix_fit': NgmixFitModule,

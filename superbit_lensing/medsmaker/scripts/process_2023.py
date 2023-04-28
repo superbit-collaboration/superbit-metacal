@@ -1,6 +1,6 @@
 import os,sys
 from pathlib import Path
-import glob
+from glob import glob
 import esutil as eu
 import meds
 from argparse import ArgumentParser
@@ -18,20 +18,20 @@ def parse_args():
 
     parser = ArgumentParser()
 
+    parser.add_argument('target_name', action='store', type=str, default=None,
+                        help='Name of target to make MEDS for')
+    parser.add_argument('bands', type=str,
+                        help='List of bands for MEDS (separated by commas)')
     parser.add_argument('data_dir', type=str,
                         help='Path to data all the way up to and including oba_temp ')
     parser.add_argument('-outdir', type=str, default=None,
                         help='Output directory for MEDS file')
-    parser.add_argument('-run_name', action='store', type=str, default=None,
-                        help='Name of target')
     parser.add_argument('-psf_mode', action='store', default='piff',
                         choices=['piff', 'psfex', 'true'],
                         help='model exposure PSF using either piff or psfex')
     parser.add_argument('-psf_seed', type=int, default=None,
                         help='Seed for chosen PSF estimation mode')
-    parser.add_argument('-bands', type=str, nargs='+',
-                        help='List of bands for MEDS')
-    parser.add_argument('-star_config_dir', type=str,
+    parser.add_argument('-star_config_dir', type=str, default=None,
                         help='Path to the directory containing the YAML configuration files for star processing')
     parser.add_argument('--select_truth_stars', action='store_true', default=False,
                         help='Set to match against truth catalog for PSF model fits')
@@ -45,6 +45,7 @@ def parse_args():
     return parser.parse_args()
 
 def main(args):
+    target_name = args.target_name
     data_dir = args.data_dir
     outdir = args.outdir
     psf_mode = args.psf_mode
@@ -54,11 +55,13 @@ def main(args):
     bands = args.bands
     star_config_dir = args.star_config_dir
     select_truth_stars = args.select_truth_stars
-    target_name = args.run_name
     vb = args.vb
 
-    if args.outdir is None:
-        outdir = mock_dir
+    if star_config_dir is None:
+        star_config_dir = str(Path(utils.MODULE_DIR, 'medsmaker/configs'))
+
+    # NOTE: Need to parse "band1,band2,etc." due to argparse struggling w/ lists
+    bands = bands.split(',')
 
     logfile = 'medsmaker.log'
     logdir = outdir
@@ -67,48 +70,63 @@ def main(args):
 
     for band in bands:
         logprint(f'Processing band {band}...')
+        if outdir is None:
+            band_outdir = Path(data_dir) / band / 'meds'
+        else:
+            band_outdir = outdir
+
+        # only makes it if it doesn't already exist
+        utils.make_dir(str(band_outdir))
 
         # Load the specific YAML file for the current band
-        yaml_file = f"{target_name}_{band}_starparams.yaml"
+        yaml_file = f'{target_name}_{band}_starparams.yaml'
         yaml_path = os.path.join(star_config_dir, yaml_file)
 
         # Check if the YAML file exists, if not use defaults
         if os.path.exists(yaml_path):
             star_params = read_yaml_file(yaml_path)
         else:
-            logprint(f"Warning: Configuration file {yaml_file} not
-            found in {star_config_dir}. Setting star_params to None.")
+            logprint(
+                f'Warning: Configuration file {yaml_file} not ' +\
+                'found in {star_config_dir}. Setting star_params to None'
+                )
             star_params = None
 
         # Load in the science frames
-        science = glob.glob(os.path.join(data_dir, target_name, band, 'cal') + '*.fits')
+        search = str(Path(data_dir) / target_name / band / 'cal' / '*.fits')
+        science = glob(search)
         logprint(f'Science frames: {science}')
         outfile = f'{target_name}_{band}_meds.fits'
-        outfile = os.path.join(outdir, outfile)
+        outfile = os.path.join(band_outdir, outfile)
 
         # Create an instance of BITMeasurement
         logprint('Setting up configuration...')
         bm = medsmaker.BITMeasurement(
-            image_files=science[0:2], data_dir=data_dir,
-            target_name=target_name, band=band, log=log, vb=vb,
+            science,
+            data_dir,
+            target_name,
+            band,
+            band_outdir,
+            log=log,
+            vb=vb
             )
 
         # Build a PSF model for each image.
         logprint('Making PSF models...')
 
         bm.make_psf_models(
-            star_params=star_params,
-            select_truth_stars=select_truth_stars
-            im_cats=im_cats,
+            select_truth_stars=select_truth_stars,
             use_coadd=use_coadd,
             psf_mode=psf_mode,
-            psf_seed=psf_seed
+            psf_seed=psf_seed,
+            star_params=star_params,
         )
 
         logprint('Making MEDS...')
 
         # Get detection source file & catalog
         logprint('Getting detection source files & catalogs...')
+        ipdb.set_trace()
         bm.get_detection_files()
 
         # Make the image_info struct.
@@ -121,6 +139,7 @@ def main(args):
         meds_config = bm.make_meds_config(use_coadd, psf_mode)
 
         # Create metadata for MEDS
+        # TODO: update this when we actually do photometric calibration!
         magzp = 30.
         meta = bm.meds_metadata(magzp, use_coadd)
 

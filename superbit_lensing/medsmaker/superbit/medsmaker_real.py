@@ -37,7 +37,6 @@ class BITMeasurement():
         self.data_dir = data_dir
         self.target_name = target_name
         self.outdir = outdir
-        self.work_dir = work_dir
         self.vb = vb
         # Adding this for nomenclature of truth file if config is not supplied
         self.band = band
@@ -60,7 +59,7 @@ class BITMeasurement():
         self.base_dir = filepath.parents[1]
 
         # If desired, set a tmp output directory
-        self._set_work_dir()
+        self._set_work_dir(work_dir)
 
         # Populate list of single-epoch image catalogs
         self._get_image_cats()
@@ -77,9 +76,11 @@ class BITMeasurement():
             self.work_dir = self.outdir
         else:
             self.work_dir = work_dir
+
         if not os.path.exists(self.work_dir):
             os.mkdir(self.work_dir)
 
+        return
 
     def _get_image_cats(self):
         '''
@@ -93,8 +94,8 @@ class BITMeasurement():
         top_dir = os.path.join(self.data_dir, self.target_name, self.band)
         imcats = glob.glob(os.path.join(top_dir, 'cat/*cal_cat.fits'))
 
-        if len(cat_files)==0:
-            raise f'No cat files found at location {cat_files}'
+        if len(imcats) == 0:
+            raise f'No cat files found at location {top_dir}'
         else:
             self.image_cats = imcats
 
@@ -150,6 +151,7 @@ class BITMeasurement():
                            'MIN_SIZE': 1.1,
                            'MAX_SIZE': 3.0,
                            'MIN_SNR': 20,
+                           'CLASS_STAR': 0.95,
                            'truthfilename': f'{self.target_name}_{self.band}_truth.fits'
                            }
             self.logprint(f"Using default star params: {star_params}")
@@ -243,7 +245,7 @@ class BITMeasurement():
             # isn't pipeline default
             truthdir = self.work_dir
             truthcat = glob.glob(''.join([truthdir,'*truth*.fits']))[0]
-            truthfilen = os.path.join(truthdir,truthcat)
+            truthfilen = os.path.join(truthdir, truthcat)
             if os.path.exists(truthfilen) == False:
                 raise(f'Star truth file {truthfilen} not found')
             self.logprint("using truth catalog %s" % truthfilen)
@@ -280,7 +282,7 @@ class BITMeasurement():
         output_dir = os.path.join(self.data_dir, 'piff-output')
         utils.make_dir(output_dir)
 
-        output_name = os.path.basename().replace('.fits', '.piff')
+        output_name = os.path.basename(im_file).replace('.fits', '.piff')
         output_path = os.path.join(output_dir, output_name)
 
         # update piff config w/ psf_seed
@@ -292,8 +294,8 @@ class BITMeasurement():
         utils.write_yaml(config, run_piff_config)
 
         # PIFF wants RA in hours, not degrees
-        ra  = fits.getval(imagefile, 'CRVAL1')/15.0
-        dec = fits.getval(imagefile, 'CRVAL2')
+        ra  = fits.getval(im_file, 'CRVAL1') / 15.0
+        dec = fits.getval(im_file, 'CRVAL2')
 
         if select_truth_stars is True:
             # This will break for any truth file nomenclature that
@@ -313,21 +315,24 @@ class BITMeasurement():
             if truthfile is not None:
                 self.logprint('using truth catalog %s' % truthfile)
 
+        else:
+            truthfile = None
 
+        ipdb.set_trace()
         psfcat_name = self._select_stars_for_psf(
-            sscat=im_cat_name,
+            sscat=im_cat,
             star_params=star_params,
             truthfile=truthfile
             )
 
         # Now run PIFF on that image and accompanying catalog
-        image_arg  = f'input.image_file_name={}'
+        image_arg  = f'input.image_file_name={im_file}'
         psfcat_arg = f'input.cat_file_name={psfcat_name}'
         coord_arg  = f'input.ra={ra} input.dec={dec}'
         output_arg = f'output.file_name={output_name} output.dir={output_dir}'
 
-        cmd = f'piffify {run_piff_config} {image_arg} \
-                    {psfcat_arg} {output_arg} {coord_arg}'
+        cmd = f'piffify {run_piff_config} {image_arg} {psfcat_arg} ' +\
+              f'{output_arg} {coord_arg}'
 
         self.logprint('piff cmd is ' + cmd)
         os.system(cmd)
