@@ -39,6 +39,8 @@ class BITMeasurement():
         self.outdir = outdir
         self.work_dir = work_dir
         self.vb = vb
+        # Adding this for nomenclature of truth file if config is not supplied
+        self.band = band
 
         self.image_cats = []
         self.detect_img_path = None
@@ -142,15 +144,16 @@ class BITMeasurement():
         image_cats  = self.image_cats
 
         if star_params is None:
-            star_keys = {'size_key':'FLUX_RAD','mag_key':'MAG_AUTO'}
-            star_params = {'CLASS_STAR':0.92,
-                            'MIN_MAG':22.6,
-                            'MAX_MAG':16,
-                            'MIN_SIZE':1.1,
-                            'MAX_SIZE':3.0,
-                            'MIN_SNR': 20
-                            }
+            star_keys = {'size_key': 'FLUX_RADIUS', 'mag_key': 'FLUX_APER'}
+            star_params = {'MIN_MAG': 22.6,
+                           'MAX_MAG': 16,
+                           'MIN_SIZE': 1.1,
+                           'MAX_SIZE': 3.0,
+                           'MIN_SNR': 20,
+                           'truthfilename': f'{self.target_name}_{self.band}_truth.fits'
+                           }
             self.logprint(f"Using default star params: {star_params}")
+
 
         if config_path is None:
             config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
@@ -296,19 +299,25 @@ class BITMeasurement():
             # This will break for any truth file nomenclature that
             # isn't pipeline default
             truthdir = self.work_dir
-            try:
-                truthcat = glob.glob(os.path.join(truthdir,'*coadd_stellar_locus.fits'))[0]
-            except OSError:
-                # old way
-                print('No truth star catalog found')
 
-            truthfilen = os.path.join(truthdir,truthcat)
-            self.logprint('using truth catalog %s' % truthfilen)
+            if 'truthfilepath' in star_params:
+                truthfile = star_params['truthfilepath']
+            else:
+                truthfilename = star_params.get('truthfilename', None)
+                if truthfilename:
+                    truthfile = os.path.join(truthdir, truthfilename)
+                else:
+                    print('No truth star catalog file specified')
+                    truthfile = None
+
+            if truthfile is not None:
+                self.logprint('using truth catalog %s' % truthfile)
+
 
         psfcat_name = self._select_stars_for_psf(
             sscat=im_cat_name,
             star_params=star_params,
-            truthfile=truthfilen
+            truthfile=truthfile
             )
 
         # Now run PIFF on that image and accompanying catalog

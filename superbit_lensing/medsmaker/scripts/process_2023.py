@@ -20,8 +20,6 @@ def parse_args():
 
     parser.add_argument('data_dir', type=str,
                         help='Path to data all the way up to and including oba_temp ')
-    parser.add_argument('outfile', type=str,
-                        help='Name of output MEDS file')
     parser.add_argument('-outdir', type=str, default=None,
                         help='Output directory for MEDS file')
     parser.add_argument('-run_name', action='store', type=str, default=None,
@@ -31,10 +29,12 @@ def parse_args():
                         help='model exposure PSF using either piff or psfex')
     parser.add_argument('-psf_seed', type=int, default=None,
                         help='Seed for chosen PSF estimation mode')
-    parser.add_argument('-bands', type=str, nargs='+'
+    parser.add_argument('-bands', type=str, nargs='+',
                         help='List of bands for MEDS')
     parser.add_argument('-star_config_dir', type=str,
                         help='Path to the directory containing the YAML configuration files for star processing')
+    parser.add_argument('--select_truth_stars', action='store_true', default=False,
+                        help='Set to match against truth catalog for PSF model fits')
     parser.add_argument('--meds_coadd', action='store_true', default=False,
                         help='Set to keep coadd cutout in MEDS file')
     parser.add_argument('--overwrite', action='store_true', default=False,
@@ -46,7 +46,6 @@ def parse_args():
 
 def main(args):
     data_dir = args.data_dir
-    outfile = args.outfile
     outdir = args.outdir
     psf_mode = args.psf_mode
     psf_seed = args.psf_seed
@@ -54,6 +53,7 @@ def main(args):
     overwrite = args.overwrite
     bands = args.bands
     star_config_dir = args.star_config_dir
+    select_truth_stars = args.select_truth_stars
     target_name = args.run_name
     vb = args.vb
 
@@ -71,29 +71,34 @@ def main(args):
         # Load the specific YAML file for the current band
         yaml_file = f"{target_name}_{band}_starparams.yaml"
         yaml_path = os.path.join(star_config_dir, yaml_file)
-        star_params = read_yaml_file(yaml_path)
+
+        # Check if the YAML file exists, if not use defaults
+        if os.path.exists(yaml_path):
+            star_params = read_yaml_file(yaml_path)
+        else:
+            logprint(f"Warning: Configuration file {yaml_file} not
+            found in {star_config_dir}. Setting star_params to None.")
+            star_params = None
 
         # Load in the science frames
         science = glob.glob(os.path.join(data_dir, target_name, band, 'cal') + '*.fits')
         logprint(f'Science frames: {science}')
+        outfile = f'{target_name}_{band}_meds.fits'
         outfile = os.path.join(outdir, outfile)
 
         # Create an instance of BITMeasurement
         logprint('Setting up configuration...')
         bm = medsmaker.BITMeasurement(
-            image_files=science[0:2], data_dir=mock_dir, data_dir=data_dir,
+            image_files=science[0:2], data_dir=data_dir,
             target_name=target_name, band=band, log=log, vb=vb,
             )
-
-        # Make single-exposure catalogs
-        logprint('Making single-exposure catalogs...')
-        im_cats = bm.make_exposure_catalogs(thresh=3)
 
         # Build a PSF model for each image.
         logprint('Making PSF models...')
 
         bm.make_psf_models(
             star_params=star_params,
+            select_truth_stars=select_truth_stars
             im_cats=im_cats,
             use_coadd=use_coadd,
             psf_mode=psf_mode,
@@ -102,14 +107,12 @@ def main(args):
 
         logprint('Making MEDS...')
 
-
-        # Combine images, make a catalog.
-        logprint('Making coadd & its catalog...')
+        # Get detection source file & catalog
+        logprint('Getting detection source files & catalogs...')
         bm.get_detection_files()
 
         # Make the image_info struct.
         image_info = bm.make_image_info_struct(use_coadd=use_coadd)
-
 
         # Make the object_info struct.
         obj_info = bm.make_object_info_struct()
