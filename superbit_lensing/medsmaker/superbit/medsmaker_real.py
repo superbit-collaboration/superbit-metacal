@@ -270,7 +270,7 @@ class BITMeasurement():
 
 
     def _make_piff_model(self, im_file, im_cat, config_path=None, psf_seed=None,
-                            select_truth_stars=False, star_params=None):
+                         select_truth_stars=False, star_params=None):
         '''
         Method to invoke PIFF for PSF modeling
         Returns a "PiffExtender" object with the get_rec() and get_cen()
@@ -318,7 +318,6 @@ class BITMeasurement():
         else:
             truthfile = None
 
-        ipdb.set_trace()
         psfcat_name = self._select_stars_for_psf(
             sscat=im_cat,
             star_params=star_params,
