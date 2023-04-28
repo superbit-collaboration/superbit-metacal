@@ -1,0 +1,7 @@
+# Star Parameters for Abell3571 in the b (1) filter
+CLASS_STAR: 0.92
+MIN_MAG: 22.6
+MAX_MAG: 16
+MIN_SIZE: 1.1
+MAX_SIZE: 3.0
+MIN_SNR: 20
