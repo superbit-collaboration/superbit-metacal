@@ -93,12 +93,15 @@ class BITMeasurement():
         Note that this assumes OBA convention for data organization:
         [target_name]/[band]/[cal, cat, coadd, etc.]
         '''
+        catdir = os.path.join(self.data_dir, self.target_name, self.band, 'cat')
+        #imcats = glob.glob(os.path.join(top_dir, 'cat/*cal_cat.fits'))
+        ims = self.image_files
+        cnames = map(lambda x:os.path.basename(x).replace('cal.fits',\
+                            'cal_cat.fits'), ims)
+        imcats = list(map(lambda x:os.path.join(catdir, x), cnames))
 
-        top_dir = os.path.join(self.data_dir, self.target_name, self.band)
-        imcats = glob.glob(os.path.join(top_dir, 'cat/*cal_cat.fits'))
-
-        if len(imcats) == 0:
-            raise f'No cat files found at location {top_dir}'
+        if os.path.exists(imcats[0]) == False:
+            raise f'No cat files found at location {catdir}'
         else:
             self.image_cats = imcats
 
@@ -415,10 +418,11 @@ class BITMeasurement():
             matches, starmatches, dist =\
                     star_matcher.match(ra=ss['ALPHAWIN_J2000'],
                         dec=ss['DELTAWIN_J2000'],
-                        radius=0.72/3600., maxmatch=1
+                        radius=1/3600., maxmatch=1
                         )
 
             # Save result to file, return filename
+            self.logprint(f'{len(dist)}/{len(ss)} objects matched to truth star catalog')
             ss=ss[matches]
             wg_stars = (ss['SNR_WIN']>star_params['MIN_SNR'])
             ss[wg_stars].write(outname,format='fits',overwrite=True)
@@ -426,6 +430,9 @@ class BITMeasurement():
         else:
             # Do more standard stellar locus matching
             # Would be great to have stellar_locus_params be more customizable...
+            # NOTE: this fails if all kw are not included. Should be a loop through
+            # keywords that are supplied, or there should be checking for mandatory
+            # keywords.
             outname = sscat.replace('.ldac','stars.ldac')
             self.logprint("Selecting stars on CLASS_STAR, SIZE and MAG...")
             wg_stars = (ss['CLASS_STAR']>star_params['CLASS_STAR']) & \
@@ -528,8 +535,6 @@ class BITMeasurement():
         '''
 
         pixel_scale = self.pix_scale
-
-        ipdb.set_trace()
         box_size_float = np.ceil(angular_size/pixel_scale)
 
         # Available box sizes to choose from -> 16 to 256 in increments of 2
@@ -595,7 +600,7 @@ class BITMeasurement():
         # Make catalogs for individual exposures
         self.make_exposure_catalogs(sextractor_config_path=config_path)
         # Build a PSF model for each image.
-        self.make_psf_models(select_truth_stars=select_truth_stars, im_cats=im_cats, use_coadd=False, psf_mode=psf_mode)
+        self.make_psf_models(select_truth_stars=select_truth_stars, use_coadd=False, psf_mode=psf_mode)
         # Make the image_info struct.
         image_info = self.make_image_info_struct()
         # Make the object_info struct.

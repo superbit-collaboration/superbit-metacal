@@ -71,7 +71,7 @@ def main(args):
     for band in bands:
         logprint(f'Processing band {band}...')
         if outdir is None:
-            band_outdir = Path(data_dir) / band / 'meds'
+            band_outdir = Path(data_dir) / target_name / band / 'meds'
         else:
             band_outdir = outdir
 
@@ -94,7 +94,7 @@ def main(args):
 
         # Load in the science frames
         search = str(Path(data_dir) / target_name / band / 'cal' / '*.fits')
-        science = glob(search)
+        science = glob(search)[0:2]
         logprint(f'Science frames: {science}')
         outfile = f'{target_name}_{band}_meds.fits'
         outfile = os.path.join(band_outdir, outfile)
@@ -149,6 +149,8 @@ def main(args):
         )
 
         logprint(f'Writing to {outfile}')
+        
+        medsObj.write(outfile)
 
     logprint('Done!')
 
