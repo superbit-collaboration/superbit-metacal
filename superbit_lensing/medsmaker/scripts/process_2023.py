@@ -126,7 +126,6 @@ def main(args):
 
         # Get detection source file & catalog
         logprint('Getting detection source files & catalogs...')
-        ipdb.set_trace()
         bm.get_detection_files()
 
         # Make the image_info struct.

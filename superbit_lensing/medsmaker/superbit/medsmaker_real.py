@@ -45,7 +45,10 @@ class BITMeasurement():
         self.detect_img_path = None
         self.detect_cat_path = None
         self.detection_cat = None
-        self.pix_scale = None
+        self.psf_models = None
+
+        # TODO: generalize
+        self.pix_scale = 0.141 # arcsec per pixel
 
         # Set up logger
         if log is None:
@@ -106,20 +109,20 @@ class BITMeasurement():
         [target_name]/[band]/[cal, cat, coadd, etc.]
         '''
 
-        det_dir = os.path.join(self.data_dir, self.target_name, self.band, 'det')
+        det_dir = os.path.join(self.data_dir, self.target_name, 'det')
         coadd_name = f'coadd/{self.target_name}_coadd_det.fits'
         coadd_cat_name = f'cat/{self.target_name}_coadd_det_cat.fits'
 
-        detection_img_path = os.path.join(top_dir, coadd_name)
-        detection_cat_path = os.path.join(top_dir, coadd_cat_name)
+        detection_img_path = os.path.join(det_dir, coadd_name)
+        detection_cat_path = os.path.join(det_dir, coadd_cat_name)
 
         if os.path.exists(detection_img_path) == False:
-            raise(f'No detection coadd found at {detection_image}')
+            raise(f'No detection coadd found at {detection_img_path}')
         else:
             self.detect_img_path = detection_img_path
 
-        if os.path.exists(detection_catalog) == False:
-            raise('No detection coadd found at {detection_image}; check name?')
+        if os.path.exists(detection_cat_path) == False:
+            raise('No detection coadd found at {detection_img_path}; check name?')
         else:
             self.detect_cat_path = detection_cat_path
             dcat = fits.open(detection_cat_path)
@@ -279,7 +282,9 @@ class BITMeasurement():
         First, let's get it to run on one, then we can focus on running list
         '''
 
-        output_dir = os.path.join(self.data_dir, 'piff-output')
+        output_dir = os.path.join(
+            self.data_dir, self.target_name, self.band, 'piff-output'
+            )
         utils.make_dir(output_dir)
 
         output_name = os.path.basename(im_file).replace('.fits', '.piff')
@@ -524,7 +529,8 @@ class BITMeasurement():
 
         pixel_scale = self.pix_scale
 
-        box_size_float = np.ceil( angular_size/pixel_scale)
+        ipdb.set_trace()
+        box_size_float = np.ceil(angular_size/pixel_scale)
 
         # Available box sizes to choose from -> 16 to 256 in increments of 2
         available_sizes = min_size * 2**(np.arange(np.ceil(np.log2(max_size)-np.log2(min_size)+1)).astype(int))
@@ -542,7 +548,7 @@ class BITMeasurement():
 
     def make_object_info_struct(self, catalog=None):
         if catalog is None:
-            catalog = Table.read(self.det_coadd_cat)
+            catalog = self.detection_cat
 
         ###
         ### Need to figure out a way to add redshifts here...
