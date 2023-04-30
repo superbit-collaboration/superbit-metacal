@@ -14,14 +14,14 @@ def parse_args():
 
     parser = ArgumentParser()
 
-    parser.add_argument('se_file', type=str,
-                        help='SExtractor catalog filename')
+    parser.add_argument('data_dir', type=str,
+                        help='Path to cluster data')
+    parser.add_argument('run_name', type=str,
+                        help='Run name (target name for real data)')
     parser.add_argument('mcal_file', type=str,
                         help='Metacal catalog filename')
     parser.add_argument('outfile', type=str,
                         help='Output selected source catalog filename')
-    parser.add_argument('-run_name', type=str, default=None,
-                        help='Name of simulation run')
     parser.add_argument('-outdir', type=str, default=None,
                         help='Output directory')
     parser.add_argument('-truth_file', type=str, default=None,
@@ -64,7 +64,7 @@ class AnnularCatalog():
 
         self.cat_info = cat_info
         self.annular_info = annular_info
-        self.se_file = cat_info['se_file']
+        self.detect_cat = cat_info['detect_cat']
         self.mcal_file = cat_info['mcal_file']
         self.outfile = cat_info['mcal_selected']
         self.outdir = cat_info['outdir']
@@ -83,7 +83,7 @@ class AnnularCatalog():
         else:
             self.outdir = ''
 
-        self.se_cat = Table.read(self.se_file, hdu=2)
+        self.se_cat = Table.read(self.detect_cat, hdu=2)
         self.mcal = Table.read(self.mcal_file)
         self.joined = None
         self.joined_gals = None
@@ -222,7 +222,7 @@ class AnnularCatalog():
 
             truth_name = ''.join([self.run_name,'_truth.fits'])
             truth_dir = self.outdir
-            truth_file = os.path.join(truth_dir,truth_name) 
+            truth_file = os.path.join(truth_dir,truth_name)
             self.cat_info['truth_file'] = truth_file
 
         else:
@@ -439,7 +439,8 @@ class AnnularCatalog():
 
         return
 
-    def run(self, overwrite=False, vb=False):
+    def run(self, overwrite, vb=False):
+
 
         # match master metacal catalog to source extractor cat
         self.join(overwrite=overwrite)
@@ -465,9 +466,9 @@ class AnnularCatalog():
 
 def main(args):
 
-    se_file = args.se_file
+    data_dir = args.data_dir
+    target_name = args.run_name
     mcal_file = args.mcal_file
-    run_name = args.run_name
     outfile = args.outfile
     outdir = args.outdir
     truth_file = args.truth_file
@@ -480,6 +481,7 @@ def main(args):
     overwrite = args.overwrite
     vb = args.vb
 
+
     # Define position args
     xy_cols = ['X_IMAGE_se', 'Y_IMAGE_se']
     shear_args = ['g1_Rinv', 'g2_Rinv']
@@ -487,10 +489,18 @@ def main(args):
     ## Get center of galaxy cluster for fitting
     ## Throw error if image can't be read in
 
+    detect_cat = os.path.join(data_dir, target_name,
+                                f'det/cat/{target_name}_coadd_det_cat.fits'
+                                )
+    detect_im = os.path.join(data_dir, target_name,
+                                f'det/coadd/{target_name}_coadd_det.fits'
+                                )
+    print(f'using detection catalog {detect_cat}')
+    print(f'using detection image {detect_im}')
+
     try:
-        coadd_im_name = os.path.join(outdir, f'{run_name}_mock_coadd.fits')
-        assert os.path.exists(coadd_im_name) is True
-        hdr = fits.getheader(coadd_im_name)
+        assert os.path.exists(detect_im) is True
+        hdr = fits.getheader(detect_im)
         xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
         coadd_center = [xcen, ycen]
         print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
@@ -506,9 +516,9 @@ def main(args):
     ## quality-selected galaxy catalog
 
     cat_info={
-        'se_file': se_file,
+        'detect_cat': detect_cat,
         'mcal_file': mcal_file,
-        'run_name': run_name,
+        'run_name': target_name,
         'mcal_selected': outfile,
         'outdir': outdir,
         'truth_file': truth_file,
