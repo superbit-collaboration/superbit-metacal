@@ -24,8 +24,10 @@ def parse_args():
                         help='Output selected source catalog filename')
     parser.add_argument('-outdir', type=str, default=None,
                         help='Output directory')
-    parser.add_argument('-truth_file', type=str, default=None,
-                        help='Truth file containing redshifts')
+    parser.add_argument('-cluster_redshift', type=str, default=None,
+                        help='Redshift of cluster')
+    parser.add_argument('-redshift_cat', type=str, default=None,
+                        help='File containing redshifts')
     parser.add_argument('-nfw_file', type=str, default=None,
                         help='Theory NFW shear catalog')
     parser.add_argument('-Nresample', type=int, default=10,
@@ -69,7 +71,8 @@ class AnnularCatalog():
         self.outfile = cat_info['mcal_selected']
         self.outdir = cat_info['outdir']
         self.run_name = cat_info['run_name']
-        self.truth_file = cat_info['truth_file']
+        self.redshift_cat = cat_info['redshift_cat']
+        self.cluster_redshift = cat_info['cluster_redshift']
         self.nfw_file = cat_info['nfw_file']
         self.Nresample = cat_info['Nresample']
 
@@ -83,15 +86,14 @@ class AnnularCatalog():
         else:
             self.outdir = ''
 
-        self.se_cat = Table.read(self.detect_cat, hdu=2)
+        self.det_cat = Table.read(self.detect_cat, hdu=2)
         self.mcal = Table.read(self.mcal_file)
         self.joined = None
         self.joined_gals = None
-        self.cluster_redshift = None
         self.selected = None
         self.outcat = None
 
-        self.Nse = len(self.se_cat)
+        self.Ndet = len(self.det_cat)
         self.Nmcal = len(self.mcal)
 
         return
@@ -103,24 +105,24 @@ class AnnularCatalog():
             'ALPHAWIN_J2000': 'ra',
             'DELTAWIN_J2000': 'dec',
             'NUMBER': 'id'
-        }
+            }
         for old, new in colmap.items():
-            self.se_cat.rename_column(old, new)
+            self.det_cat.rename_column(old, new)
 
         # TODO: Should we remove a few duplicate cols here?
 
         self.joined = join(
-            self.se_cat, self.mcal, join_type='inner',
+            self.det_cat, self.mcal, join_type='inner',
             keys=['id', 'ra', 'dec'], table_names=['se', 'mcal']
             )
 
-        Nmin = min([self.Nse, self.Nmcal])
+        Nmin = min([self.Ndet, self.Nmcal])
         Nobjs = len(self.joined)
 
         if (Nobjs != Nmin):
             raise ValueError('There was an error while joining the SE and mcal ' +
                              f'catalogs;' +
-                             f'\nlen(SE)={self.Nse}' +
+                             f'\nlen(SE)={self.Ndet}' +
                              f'\nlen(mcal)={self.Nmcal}' +
                              f'\nlen(joined)={Nobjs}'
                              )
@@ -145,50 +147,69 @@ class AnnularCatalog():
         return
 
 
-    def _redshift_select(self, truth_file, overwrite=False):
+    def _redshift_select(self, redshift_cat, overwrite=False):
         '''
         Select background galaxies from larger transformed shear catalog:
-            - Load in truth file
+            - Load in file containing redshifts
             - Select background galaxies behind galaxy cluster
             - Match in RA/Dec to transformed shear catalog
             - Filter self.r, self.gtan, self.gcross to be background-only
-            - Also store the number of galaxies injected into simulation
+            - If it's a forecast run, store the number of galaxies injected
+              into the simulation
         '''
 
         joined_cat = self.joined
 
         try:
-            truth = Table.read(truth_file, format='fits')
+            redshifts = Table.read(redshift_cat)
             #if vb is True:
-            print(f'Read in truth file {truth_file}')
+            print(f'Read in redshift catalog {redshift_cat}')
 
         except FileNotFoundError as fnf_err:
-            print(f'truth catalog {truth_file} not found, check name/type?')
+            print(f"Can't load redshift catalog {redshift_cat}, check name/type?")
             raise fnf_err
 
-        truth_gals = truth[truth['obj_class'] == 'gal']
-        self.n_truth_gals = len(truth_gals)
+        try:
+            # In case this is a forecasting run and the redshift catalog
+            # is actually a truth catalog
+            truth = redshifts
+            zcat_gals = truth[truth['obj_class'] == 'gal']
+            self.n_truth_gals = len(truth_gals)
+            cluster_gals = truth[truth['obj_class']=='cluster_gal']
+            cluster_redshift = np.mean(cluster_gals['redshift'])
+            self.cluster_redshift = cluster_redshift
+            ra_col = 'ra'; dec_col = 'dec'; z_col='redshift'
 
-        cluster_gals = truth[truth['obj_class']=='cluster_gal']
-        cluster_redshift = np.mean(cluster_gals['redshift'])
-        self.cluster_redshift = cluster_redshift
+        except:
+            # Assume real data -- need to have cluster redshift defined!
+            # And some basic RA/Dec columns
+            if self.cluster_redshift is None:
+                print('No cluster_redshift argument supplied; ' +\
+                        'no redshift cuts will be made')
+            ra_col = 'RA'; dec_col = 'DEC'; z_col='Redshift'
 
-        truth_matcher = htm.Matcher(16,
-                                        ra = truth_gals['ra'],
-                                        dec = truth_gals['dec']
-                                        )
+        if (~np.isin(ra_col, redshifts.colnames)) & (~np.isin(dec_col, redshifts.colnames)):
+            print(f'Redshift catalog missing columns {ra_col}, {dec_col}')
 
-        joined_file_ind, truth_ind, dist = truth_matcher.match(
+        zcat_gals = redshifts[redshifts[z_col] > 0]
+
+        z_matcher = htm.Matcher(16,
+                                ra = zcat_gals[ra_col],
+                                dec = zcat_gals[dec_col]
+                                )
+
+        joined_file_ind, z_ind, dist = z_matcher.match(
                                             ra = joined_cat['ra'],
                                             dec = joined_cat['dec'],
                                             maxmatch = 1,
                                             radius = 1./3600.
                                             )
 
-        print(f"# {len(dist)} of {len(joined_cat['ra'])} objects matched to truth galaxies")
+        print(f"# {len(dist)} of {len(joined_cat['ra'])}"+\
+                    " objects matched to redshift catalog objects")
 
         gals_joined_cat = joined_cat[joined_file_ind]
-        gals_joined_cat.add_column(truth_gals['redshift'][truth_ind])
+        gals_joined_cat.add_column(redshifts[z_col][z_ind], name='redshift')
 
         try:
             if self.run_name is None:
@@ -196,7 +217,9 @@ class AnnularCatalog():
             else:
                 p = f'{self.run_name}_'
 
-                outfile = os.path.join(self.outdir, f'{p}gals_joined_catalog.fits')
+                outfile = os.path.join(self.outdir,
+                                    f'{p}gals_joined_catalog.fits'
+                                    )
                 gals_joined_cat.write(outfile, overwrite=overwrite)
 
         except OSError as err:
@@ -207,29 +230,29 @@ class AnnularCatalog():
 
         return
 
+
     def make_table(self, overwrite=False):
         """
         - Remove foreground galaxies from sample using redshift info in truth file
         - Select from catalog on g_cov, T/T_psf, etc.
         - Correct g1/g2_noshear for the Rinv quantity (see Huff & Mandelbaum 2017)
-        - Save shear-response corrected ellipticities to an output table
+        - Save shear-respoNdet corrected ellipticities to an output table
         """
 
         # Access truth file name
         cat_info = self.cat_info
 
-        if cat_info['truth_file'] is None:
-
-            truth_name = ''.join([self.run_name,'_truth.fits'])
-            truth_dir = self.outdir
-            truth_file = os.path.join(truth_dir,truth_name)
-            self.cat_info['truth_file'] = truth_file
+        if cat_info['redshift_cat'] is None:
+            redshift_name = ''.join([self.run_name,'_redshifts.fits'])
+            redshift_dir = self.data_dir
+            redshift_cat = os.path.join(redshift_dir, redshift_name)
+            self.cat_info['redshift_cat'] = redshift_cat
 
         else:
-            truth_file = self.truth_file
+            redshift_cat = self.redshift_cat
 
         # Filter out foreground galaxies using redshifts in truth file
-        self._redshift_select(truth_file, overwrite=overwrite)
+        self._redshift_select(redshift_cat, overwrite=overwrite)
 
         # Apply selection cuts and produce responsivity-corrected shear moments
         # Return selection (quality) cuts
@@ -258,14 +281,15 @@ class AnnularCatalog():
 
         # TODO: It would be nice to move selection cuts
         # to a different file
-        min_Tpsf = 1.0
+        min_Tpsf = 0.5
         max_sn = 1000
         min_sn = 10
         min_T = 0.0
         max_T = 10
 
         if self.cluster_redshift is not None:
-            min_redshift = self.cluster_redshift
+            # Add in a little bit of a safety margin -- maybe a bad call for simulated data?
+            min_redshift = float(self.cluster_redshift) + 0.025
         else:
             min_redshift = 0
 
@@ -282,43 +306,43 @@ class AnnularCatalog():
 
         mcal = self.joined_gals
 
-        noshear_selection = mcal[(mcal['T_r_noshear']>=min_Tpsf*mcal['Tpsf_noshear'])\
-                                 & (mcal['T_r_noshear']<max_T)\
-                                 & (mcal['T_r_noshear']>=min_T)\
-                                 & (mcal['s2n_r_noshear']>min_sn)\
-                                 & (mcal['s2n_r_noshear']<max_sn)\
+        noshear_selection = mcal[(mcal['T_r_noshear'] >= min_Tpsf*mcal['Tpsf_noshear'])\
+                                 & (mcal['T_r_noshear'] < max_T)\
+                                 & (mcal['T_r_noshear'] >= min_T)\
+                                 & (mcal['s2n_r_noshear'] > min_sn)\
+                                 & (mcal['s2n_r_noshear'] < max_sn)\
                                  & (mcal['redshift'] > min_redshift)
                                  ]
 
-        selection_1p = mcal[(mcal['T_r_1p']>=min_Tpsf*mcal['Tpsf_1p'])\
-                            & (mcal['T_r_1p']<=max_T)\
-                            & (mcal['T_r_1p']>=min_T)\
-                            & (mcal['s2n_r_1p']>min_sn)\
-                            & (mcal['s2n_r_1p']<max_sn)\
+        selection_1p = mcal[(mcal['T_r_1p'] >= min_Tpsf*mcal['Tpsf_1p'])\
+                            & (mcal['T_r_1p'] <= max_T)\
+                            & (mcal['T_r_1p'] >= min_T)\
+                            & (mcal['s2n_r_1p'] > min_sn)\
+                            & (mcal['s2n_r_1p'] < max_sn)\
                             & (mcal['redshift'] > min_redshift)
                             ]
 
-        selection_1m = mcal[(mcal['T_r_1m']>=min_Tpsf*mcal['Tpsf_1m'])\
-                            & (mcal['T_r_1m']<=max_T)\
-                            & (mcal['T_r_1m']>=min_T)\
-                            & (mcal['s2n_r_1m']>min_sn)\
-                            & (mcal['s2n_r_1m']<max_sn)\
+        selection_1m = mcal[(mcal['T_r_1m'] >= min_Tpsf*mcal['Tpsf_1m'])\
+                            & (mcal['T_r_1m'] <= max_T)\
+                            & (mcal['T_r_1m'] >= min_T)\
+                            & (mcal['s2n_r_1m'] > min_sn)\
+                            & (mcal['s2n_r_1m'] < max_sn)\
                             & (mcal['redshift'] > min_redshift)
                             ]
 
-        selection_2p = mcal[(mcal['T_r_2p']>=min_Tpsf*mcal['Tpsf_2p'])\
-                            & (mcal['T_r_2p']<=max_T)\
-                            & (mcal['T_r_2p']>=min_T)\
-                            & (mcal['s2n_r_2p']>min_sn)\
-                            & (mcal['s2n_r_2p']<max_sn)\
+        selection_2p = mcal[(mcal['T_r_2p'] >= min_Tpsf*mcal['Tpsf_2p'])\
+                            & (mcal['T_r_2p'] <= max_T)\
+                            & (mcal['T_r_2p'] >= min_T)\
+                            & (mcal['s2n_r_2p'] > min_sn)\
+                            & (mcal['s2n_r_2p'] < max_sn)\
                             & (mcal['redshift'] > min_redshift)
                             ]
 
-        selection_2m = mcal[(mcal['T_r_2m']>=min_Tpsf*mcal['Tpsf_2m'])\
-                            & (mcal['T_r_2m']<=max_T)\
-                            & (mcal['T_r_2m']>=min_T)\
-                            & (mcal['s2n_r_2m']>min_sn)\
-                            & (mcal['s2n_2m']<max_sn)\
+        selection_2m = mcal[(mcal['T_r_2m'] >= min_Tpsf*mcal['Tpsf_2m'])\
+                            & (mcal['T_r_2m'] <= max_T)\
+                            & (mcal['T_r_2m'] >= min_T)\
+                            & (mcal['s2n_r_2m'] > min_sn)\
+                            & (mcal['s2n_2m'] <max_sn)\
                             & (mcal['redshift'] > min_redshift)
                             ]
 
@@ -338,6 +362,7 @@ class AnnularCatalog():
               f'<r22_gamma> = {r22_gamma}')
         print(f'# mean values <r11_S> = {r11_S} ' +\
               f'<r22_S> = {r22_S}')
+
         print(f'{len(noshear_selection)} objects passed selection criteria')
 
         # Populate the selCat attribute with "noshear"-selected catalog
@@ -407,11 +432,14 @@ class AnnularCatalog():
 
     def compute_tan_shear_profile(self, outfile, plotfile, Nresample,
                                   overwrite=False, vb=False):
+        '''
+        Run the Annular class in annular_jmac.py, and if an NFW truth file
+        is supplied, add nfw_info to the Annular.run() call. Then compute
+        cross/tan shear, & obtain single-realization shear profile
+        '''
 
         cat_info = self.cat_info
-
         annular_info = self.annular_info
-
 
         if self.nfw_file is not None:
 
@@ -429,18 +457,16 @@ class AnnularCatalog():
         else:
             nfw_info = None
 
-        # Runs the Annular class in annular_jmac.py
-        # Compute cross/tan shear, & obtain single-realization shear profile
-        annular = Annular(
-            cat_info, annular_info, nfw_info, run_name=self.run_name, vb=vb
-            )
 
+        annular = Annular(cat_info, annular_info,
+                            nfw_info, run_name=self.run_name, vb=vb
+                            )
         annular.run(outfile, plotfile, Nresample, overwrite=overwrite)
 
         return
 
-    def run(self, overwrite, vb=False):
 
+    def run(self, overwrite, vb=False):
 
         # match master metacal catalog to source extractor cat
         self.join(overwrite=overwrite)
@@ -459,10 +485,11 @@ class AnnularCatalog():
         Nresample = self.Nresample
 
         self.compute_tan_shear_profile(
-            outfile, plotfile, Nresample, overwrite=overwrite, vb=vb
-            )
+                outfile, plotfile, Nresample, overwrite=overwrite, vb=vb
+                )
 
         return
+
 
 def main(args):
 
@@ -471,7 +498,8 @@ def main(args):
     mcal_file = args.mcal_file
     outfile = args.outfile
     outdir = args.outdir
-    truth_file = args.truth_file
+    cluster_redshift = args.cluster_redshift
+    redshift_cat = args.redshift_cat
     nfw_file = args.nfw_file
     Nresample = args.Nresample
     rmin = args.rmin
@@ -521,11 +549,12 @@ def main(args):
         'run_name': target_name,
         'mcal_selected': outfile,
         'outdir': outdir,
-        'truth_file': truth_file,
+        'redshift_cat': redshift_cat,
+        'cluster_redshift': cluster_redshift,
         'nfw_file': nfw_file,
         'Nresample': Nresample,
         'nfw_seed': nfw_seed
-    }
+        }
 
     annular_info = {
         'rmin': rmin,
@@ -534,7 +563,7 @@ def main(args):
         'coadd_center': coadd_center,
         'xy_args': xy_cols,
         'shear_args': shear_args
-    }
+        }
 
     annular_cat = AnnularCatalog(cat_info, annular_info)
 

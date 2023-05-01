@@ -51,7 +51,7 @@ class ShearProfilePlotter(object):
 
         return alpha, sig_alpha
 
-    def plot_tan_profile(self, title=None, size=(10,22), label='Lensing sample galaxies',
+    def plot_tan_profile(self, title=None, label='Lensing sample galaxies',
                          rbounds=(5, 750), show=False, outfile=None,
                          nfw_label=None, smoothing=False, plot_truth=True,
                          fill_between=True, xlim=None, ylim=None,
@@ -106,8 +106,14 @@ class ShearProfilePlotter(object):
         rcParams['ytick.minor.width'] = 1
         rcParams['ytick.direction'] = 'out'
 
-        fig, axs = plt.subplots(3, 1, figsize=size, sharex=True, tight_layout=True)
-        #fig.subplots_adjust(hspace=0.1)
+        if plot_truth is True:
+            n_panels = 3
+            size = (9, 12)
+        else:
+            n_panels = 2
+            size=(9, 8)
+
+        fig, axs = plt.subplots(n_panels, 1, figsize=size, sharex=True, tight_layout=True)
 
         axs[0].errorbar(radius, gtan, yerr=gtan_err, fmt='-o',
                         capsize=5, color='cornflowerblue', label=label)
@@ -153,33 +159,34 @@ class ShearProfilePlotter(object):
             axs[0].axvspan(0, rmin+slop, facecolor='k', alpha=0.1)
 
         # gtan chi residuals
-        residuals = (gtan - true_gtan) / gtan_err
-        residual_errs = gtan_err / gtan_err # is 1 by def
-        axs[1].errorbar(radius, residuals, yerr=residual_errs, fmt='o',
-                        capsize=5, color='cornflowerblue', label=label)
-        axs[1].axhline(y=0, c="black", alpha=0.4, linestyle='--')
-        # axs[1].set_xlabel(r'$\theta$ (arcmin)', fontsize=16)
-        axs[1].set_ylabel(r'$g_{+}$ $\chi$-residuals', fontsize=16)
-        axs[1].tick_params(which='major', width=1.3, length=8)
-        axs[1].tick_params(which='minor', width=0.8, length=4)
+        if plot_truth is True:
+            residuals = (gtan - true_gtan) / gtan_err
+            residual_errs = gtan_err / gtan_err # is 1 by def
+            axs[1].errorbar(radius, residuals, yerr=residual_errs, fmt='o',
+                            capsize=5, color='cornflowerblue', label=label)
+            axs[1].axhline(y=0, c="black", alpha=0.4, linestyle='--')
+            # axs[1].set_xlabel(r'$\theta$ (arcmin)', fontsize=16)
+            axs[1].set_ylabel(r'$g_{+}$ $\chi$-residuals', fontsize=16)
+            axs[1].tick_params(which='major', width=1.3, length=8)
+            axs[1].tick_params(which='minor', width=0.8, length=4)
 
         # shear cut region
-        if shear_cut is True:
-            axs[1].axvspan(0, rmin+slop, facecolor='k', alpha=0.1)
+            if shear_cut is True:
+                axs[1].axvspan(0, rmin+slop, facecolor='k', alpha=0.1)
 
         # gcross
-        axs[2].errorbar(radius, gcross, yerr=gcross_err, fmt='d',
+        axs[-1].errorbar(radius, gcross, yerr=gcross_err, fmt='d',
                         capsize=5, color='cornflowerblue', label=label)
-        axs[2].axhline(y=0, c="black", alpha=0.4, linestyle='--')
-        axs[2].set_xlabel(r'$\theta$ (arcmin)', fontsize=16)
-        axs[2].set_ylabel(r'$g_{\times}(\theta)$', fontsize=16)
-        axs[2].tick_params(which='major', width=1.3, length=8)
-        axs[2].tick_params(which='minor', width=0.8, length=4)
-        axs[2].legend(fontsize=15, loc='upper right')
+        axs[-1].axhline(y=0, c="black", alpha=0.4, linestyle='--')
+        axs[-1].set_xlabel(r'$\theta$ (arcmin)', fontsize=16)
+        axs[-1].set_ylabel(r'$g_{\times}(\theta)$', fontsize=16)
+        axs[-1].tick_params(which='major', width=1.3, length=8)
+        axs[-1].tick_params(which='minor', width=0.8, length=4)
+        axs[-1].legend(fontsize=15, loc='upper right')
 
         # shear cut region
         if shear_cut is True:
-            axs[2].axvspan(0, rmin+slop, facecolor='k', alpha=0.1)
+            axs[-1].axvspan(0, rmin+slop, facecolor='k', alpha=0.1)
 
         if xlim is not None:
             for i in range(2):

@@ -514,4 +514,3 @@ def _compute_profile(shear_tab, rbins, nfw_tab=None):
         compute_shear_bias(profile_tab=table)
 
     return table
-
