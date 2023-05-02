@@ -183,10 +183,11 @@ class AnnularCatalog():
         except:
             # Assume real data -- need to have cluster redshift defined!
             # And some basic RA/Dec columns
+            ra_col = 'ALPHAWIN_J2000'; dec_col = 'DELTAWIN_J2000'           
             if self.cluster_redshift is None:
                 print('No cluster_redshift argument supplied; ' +\
                         'no redshift cuts will be made')
-            ra_col = 'RA'; dec_col = 'DEC'; z_col='Redshift'
+            
 
         if (~np.isin(ra_col, redshifts.colnames)) & (~np.isin(dec_col, redshifts.colnames)):
             print(f'Redshift catalog missing columns {ra_col}, {dec_col}')
