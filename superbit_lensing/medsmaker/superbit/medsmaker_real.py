@@ -285,9 +285,8 @@ class BITMeasurement():
         First, let's get it to run on one, then we can focus on running list
         '''
 
-        output_dir = os.path.join(
-            self.data_dir, self.target_name, self.band, 'piff-output'
-            )
+        output_dir = os.path.join(self.outdir, 'piff-output',
+                        os.path.basename(im_file).split('.fits')[0])
         utils.make_dir(output_dir)
 
         output_name = os.path.basename(im_file).replace('.fits', '.piff')
