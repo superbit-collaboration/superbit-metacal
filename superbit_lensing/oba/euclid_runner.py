@@ -40,10 +40,10 @@ class EuclidOutputRunner(OutputRunner):
 
 def main():
     config_file_swarp = Path('superbit_lensing/oba/configs/swarp/swarp.config')
-    run_dir = Path('tests/euclid/test_obj_wcs/Abell2813')
+    run_dir = Path('tests/euclid/null')
     bands = ['vis']
     det_bands = ['vis']
-    target_name = "Abell2813"
+    target_name = "null"
     
     
     log = utils.setup_logger("euclid_coadd_test.log", logdir="./")

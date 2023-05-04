@@ -173,8 +173,10 @@ class CoaddRunner(object):
 
         for band in self.bands:
             logprint(f'Starting band {band}')
-
+            
+             
             cal_dir = (self.run_dir / band / 'cal/').resolve()
+            print(cal_dir)
             bindx = band2index(band)
 
             self.images[band] = glob(
