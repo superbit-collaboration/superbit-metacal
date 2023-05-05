@@ -307,42 +307,42 @@ class AnnularCatalog():
 
         mcal = self.joined_gals
 
-        noshear_selection = mcal[(mcal['T_r_noshear'] >= min_Tpsf*mcal['Tpsf_noshear'])\
-                                 & (mcal['T_r_noshear'] < max_T)\
-                                 & (mcal['T_r_noshear'] >= min_T)\
-                                 & (mcal['s2n_r_noshear'] > min_sn)\
-                                 & (mcal['s2n_r_noshear'] < max_sn)\
+        noshear_selection = mcal[(mcal['T_noshear'] >= min_Tpsf*mcal['Tpsf_noshear'])\
+                                 & (mcal['T_noshear'] < max_T)\
+                                 & (mcal['T_noshear'] >= min_T)\
+                                 & (mcal['s2n_noshear'] > min_sn)\
+                                 & (mcal['s2n_noshear'] < max_sn)\
                                  & (mcal['redshift'] > min_redshift)
                                  ]
 
-        selection_1p = mcal[(mcal['T_r_1p'] >= min_Tpsf*mcal['Tpsf_1p'])\
-                            & (mcal['T_r_1p'] <= max_T)\
-                            & (mcal['T_r_1p'] >= min_T)\
-                            & (mcal['s2n_r_1p'] > min_sn)\
-                            & (mcal['s2n_r_1p'] < max_sn)\
+        selection_1p = mcal[(mcal['T_1p'] >= min_Tpsf*mcal['Tpsf_1p'])\
+                            & (mcal['T_1p'] <= max_T)\
+                            & (mcal['T_1p'] >= min_T)\
+                            & (mcal['s2n_1p'] > min_sn)\
+                            & (mcal['s2n_1p'] < max_sn)\
                             & (mcal['redshift'] > min_redshift)
                             ]
 
-        selection_1m = mcal[(mcal['T_r_1m'] >= min_Tpsf*mcal['Tpsf_1m'])\
-                            & (mcal['T_r_1m'] <= max_T)\
-                            & (mcal['T_r_1m'] >= min_T)\
-                            & (mcal['s2n_r_1m'] > min_sn)\
-                            & (mcal['s2n_r_1m'] < max_sn)\
+        selection_1m = mcal[(mcal['T_1m'] >= min_Tpsf*mcal['Tpsf_1m'])\
+                            & (mcal['T_1m'] <= max_T)\
+                            & (mcal['T_1m'] >= min_T)\
+                            & (mcal['s2n_1m'] > min_sn)\
+                            & (mcal['s2n_1m'] < max_sn)\
                             & (mcal['redshift'] > min_redshift)
                             ]
 
-        selection_2p = mcal[(mcal['T_r_2p'] >= min_Tpsf*mcal['Tpsf_2p'])\
-                            & (mcal['T_r_2p'] <= max_T)\
-                            & (mcal['T_r_2p'] >= min_T)\
-                            & (mcal['s2n_r_2p'] > min_sn)\
-                            & (mcal['s2n_r_2p'] < max_sn)\
+        selection_2p = mcal[(mcal['T_2p'] >= min_Tpsf*mcal['Tpsf_2p'])\
+                            & (mcal['T_2p'] <= max_T)\
+                            & (mcal['T_2p'] >= min_T)\
+                            & (mcal['s2n_2p'] > min_sn)\
+                            & (mcal['s2n_2p'] < max_sn)\
                             & (mcal['redshift'] > min_redshift)
                             ]
 
-        selection_2m = mcal[(mcal['T_r_2m'] >= min_Tpsf*mcal['Tpsf_2m'])\
-                            & (mcal['T_r_2m'] <= max_T)\
-                            & (mcal['T_r_2m'] >= min_T)\
-                            & (mcal['s2n_r_2m'] > min_sn)\
+        selection_2m = mcal[(mcal['T_2m'] >= min_Tpsf*mcal['Tpsf_2m'])\
+                            & (mcal['T_2m'] <= max_T)\
+                            & (mcal['T_2m'] >= min_T)\
+                            & (mcal['s2n_2m'] > min_sn)\
                             & (mcal['s2n_2m'] <max_sn)\
                             & (mcal['redshift'] > min_redshift)
                             ]
@@ -530,7 +530,12 @@ def main(args):
     try:
         assert os.path.exists(detect_im) is True
         hdr = fits.getheader(detect_im)
-        xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
+        #This is the image center:
+        # xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
+        #This is the BCG:
+        # xcen = 6372.7764; ycen = 5902.0156
+        #This is the X-ray center:
+        xcen = 6444.7982; ycen = 6309.1012        
         coadd_center = [xcen, ycen]
         print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
 
