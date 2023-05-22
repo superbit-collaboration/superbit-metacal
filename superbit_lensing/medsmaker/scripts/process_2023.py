@@ -111,6 +111,14 @@ def main(args):
             vb=vb
             )
 
+        # Make single-exposure catalogs
+        logprint('Making single-exposure catalogs...')
+        sextractor_config_path = str(Path(utils.MODULE_DIR,
+                                    'medsmaker/superbit/astro_config/')
+                                    )
+        im_cats = bm.make_exposure_catalogs(sextractor_config_path)
+
+
         # Build a PSF model for each image.
         logprint('Making PSF models...')
 
@@ -149,7 +157,7 @@ def main(args):
         )
 
         logprint(f'Writing to {outfile}')
-        
+
         medsObj.write(outfile)
 
     logprint('Done!')

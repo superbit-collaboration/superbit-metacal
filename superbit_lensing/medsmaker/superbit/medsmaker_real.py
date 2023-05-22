@@ -101,9 +101,54 @@ class BITMeasurement():
         imcats = list(map(lambda x:os.path.join(catdir, x), cnames))
 
         if os.path.exists(imcats[0]) == False:
-            raise f'No cat files found at location {catdir}'
+            print(f'No cat files found at location {catdir}')
         else:
             self.image_cats = imcats
+
+    def make_exposure_catalogs(self, sextractor_config_path):
+
+        if os.path.isdir(sextractor_config_path) is False:
+            raise f'{sextractor_config_path} does not exist, exiting'
+
+        for imagefile in self.image_files:
+            sexcat = self._run_sextractor(imagefile, sextractor_config_path)
+            self.image_cats.append(sexcat)
+
+        return
+
+    def _run_sextractor(self, image_file, sextractor_config_path):
+        '''
+        Utility method to invoke Source Extractor on supplied detection file
+        Returns: file path of catalog
+        '''
+        cpath = sextractor_config_path
+        cat_dir = os.path.join(self.data_dir, self.target_name, self.band, 'cat')
+        cat_name = os.path.basename(image_file).replace('cal.fits','cal_cat.fits')
+        cat_file = os.path.join(cat_dir, cat_name)
+
+        image_arg = f'"{image_file}[0]"'
+        weight_arg = f'-WEIGHT_IMAGE "{image_file}[1]" -WEIGHT_TYPE MAP_WEIGHT'
+        name_arg='-CATALOG_NAME ' + cat_file
+        config_arg = os.path.join(cpath, "sextractor.real.config")
+        param_arg = f'-PARAMETERS_NAME {os.path.join(cpath, "sextractor.param")}'
+        nnw_arg = f'-STARNNW_NAME {os.path.join(cpath, "default.nnw")}'
+        filter_arg = f'-FILTER_NAME {os.path.join(cpath, "default.conv")}'
+
+        bkg_name = image_file.replace('.fits','.sub.fits')
+        seg_name = image_file.replace('.fits','.sgm.fits')
+        checkname_arg = f'-CHECKIMAGE_NAME  {bkg_name},{seg_name}'
+
+        cmd = ' '.join([
+                    'sex', image_arg, weight_arg, name_arg,  checkname_arg,
+                    param_arg, nnw_arg, filter_arg, '-c', config_arg
+                    ])
+
+        self.logprint("sex cmd is " + cmd)
+
+        os.system(cmd)
+
+        print(f'cat_name_is {cat_file}')
+        return cat_file
 
 
     def get_detection_files(self):
