@@ -216,7 +216,9 @@ class BITMeasurement():
             psf_seed = utils.generate_seeds(1)
 
         Nim = len(image_files)
-
+        self.logprint(f'Nim = {Nim}')
+        self.logprint(f'len(image_cats)={len(image_cats)}')
+        self.logprint(f'image_cats = {image_cats}')
         assert(len(image_cats)==Nim)
 
         # Will be placed first
@@ -605,14 +607,14 @@ class BITMeasurement():
 
         obj_str = meds.util.get_meds_input_struct(catalog.size,\
                                                   extra_fields = [('KRON_RADIUS',np.float),('number',np.int),\
-                                                                  ('X_IMAGE',np.float),('Y_IMAGE',np.float)])
+                                                                  ('XWIN_IMAGE',np.float),('YWIN_IMAGE',np.float)])
         obj_str['id'] = catalog['NUMBER']
         obj_str['number'] = np.arange(catalog.size)+1
         obj_str['box_size'] = self._calculate_box_size(catalog['KRON_RADIUS'])
         obj_str['ra'] = catalog['ALPHAWIN_J2000']
         obj_str['dec'] = catalog['DELTAWIN_J2000']
-        obj_str['X_IMAGE'] = catalog['X_IMAGE']
-        obj_str['Y_IMAGE'] = catalog['Y_IMAGE']
+        obj_str['XWIN_IMAGE'] = catalog['XWIN_IMAGE']
+        obj_str['YWIN_IMAGE'] = catalog['YWIN_IMAGE']
         obj_str['KRON_RADIUS'] = catalog['KRON_RADIUS']
 
         return obj_str

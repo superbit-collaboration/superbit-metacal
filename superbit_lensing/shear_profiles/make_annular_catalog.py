@@ -450,7 +450,7 @@ class AnnularCatalog():
 
             nfw_info = {
                 'nfw_file': self.nfw_file,
-                'xy_args': ['x_image','y_image'],
+                'xy_args': ['xwin_image','ywin_image'],
                 'shear_args': ['nfw_g1','nfw_g2'],
                 'nfw_center': [nfw_truth_xcenter, nfw_truth_ycenter]
                 }
@@ -512,7 +512,7 @@ def main(args):
 
 
     # Define position args
-    xy_cols = ['X_IMAGE_se', 'Y_IMAGE_se']
+    xy_cols = ['XWIN_IMAGE_se', 'YWIN_IMAGE_se']
     shear_args = ['g1_Rinv', 'g2_Rinv']
 
     ## Get center of galaxy cluster for fitting

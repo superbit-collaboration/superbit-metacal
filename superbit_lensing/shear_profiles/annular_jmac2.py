@@ -331,8 +331,8 @@ def main(args):
 
 
     # Define annular args
-    x_arg = 'X_IMAGE_mcal'
-    y_arg = 'Y_IMAGE_mcal'
+    x_arg = 'XWIN_IMAGE_mcal'
+    y_arg = 'YWIN_IMAGE_mcal'
     weight_arg = 'weight'
 
     nfw_center = [5031,3353]

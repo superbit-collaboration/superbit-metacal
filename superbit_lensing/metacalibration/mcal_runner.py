@@ -537,8 +537,8 @@ class MetacalRunner(object):
         obj_info['ncutout'] = obj['ncutout']
         obj_info['ra'] = obj['ra']
         obj_info['dec'] = obj['dec']
-        obj_info['X_IMAGE'] = obj['X_IMAGE']
-        obj_info['Y_IMAGE'] = obj['Y_IMAGE']
+        obj_info['XWIN_IMAGE'] = obj['XWIN_IMAGE']
+        obj_info['YWIN_IMAGE'] = obj['YWIN_IMAGE']
 
         return obj_info
 
