@@ -1,19 +1,21 @@
 target_name: 'Abell2813'
-run_name: blink
-# master_seed: 72396
-starting_roll: 0 # deg
+run_name: test_obj_wcs
+master_seed: 72396
+starting_roll: 30 # deg
+rot_rate: 5 # deg / exp
 exp_time: 300
-n_exp: 8
-bands: ['b']
+n_exp: 2
+bands: ['u', 'b', 'g', 'r', 'lum', 'nir']
 ncores: 8
 
-add_stars: True 
-add_galaxies: False
+add_stars: True
+add_galaxies: True
+add_cluster: False
 
-# set if you want to specify the number instead of the default desnity
-# ngals: 0
+# set if you want to specify the number instead of the default density
+# ngals: 1000
 
-star_stamp_size: 1000
+star_stamp_size: 200
 
 overwrite: True
 fresh: True

@@ -1,10 +1,10 @@
 from pathlib import Path
 from glob import glob
 import os
-from astropy.io import fits
+import fitsio
 
 from superbit_lensing import utils
-from superbit_lensing.oba.oba_io import band2index
+from superbit_lensing.oba.oba_io import parse_image_file, band2index, OBA_TARGET_RENAME, OBA_IGNORE_LIST
 
 import ipdb
 
@@ -14,6 +14,8 @@ class PreprocessRunner(object):
     (OBA) preprocessing
     '''
 
+    _name = 'preprocessing'
+
     _compression_method = 'bzip2'
     _compression_args = '-dk' # forces decompression, keep orig file
     _compression_ext = 'bz2'
@@ -21,13 +23,38 @@ class PreprocessRunner(object):
     # some useful detector meta data to be added to headers; should be static
     _header_info = {
         'GAIN': 0.343, # e- / ADU
-        'SATURATE': 64600, # TODO: Should we lower this to be more realistic?
+        'SATURATE': 65535, # 2^16-1 as we saturate before NL effects (gain < 1)
 
         # NOTE: Already the SExtractor default, and causes Hierarch warnings
         # 'SATUR_KEY': 'SATURATE' # sets the saturation key SExtractor looks for
     }
 
-    def __init__(self, raw_dir, run_dir, out_dir, bands, target_name=None):
+    # some key names have been updated over time; check, but this should only
+    # be relevant for testing sims
+    _updated_keys = {
+        'TARGET_RA': 'TRG_RA',
+        'TARGET_DEC': 'TRG_DEC'
+    }
+
+    # image header key that is used to determine image quality
+    # is one of ['GOOD', 'BAD', 'UNVERIFIED'] for SuperBIT
+    _img_qual_key = 'IMG_QUAL'
+    _img_qual_allowed = ['BAD', 'GOOD', 'UNVERIFIED']
+    _img_qual_order = {
+        'BAD': 0,
+        'UNVERIFIED': 1,
+        'GOOD': 2
+    }
+
+    # these are for additional checks beyond the image checker
+    # NOTE: not all images may have these keys; skip those that don't
+    # NOTE: the tuple is of *allowed* values!
+    _extra_checks = {
+        'LOCKED': ('true', True)
+    }
+
+    def __init__(self, raw_dir, run_dir, out_dir, bands, target_name=None,
+                 check_img_qual=True, min_img_qual='unverified'):
         '''
         raw_dir: pathlib.Path
             The directory containing the raw sci frames for the given target
@@ -40,6 +67,11 @@ class PreprocessRunner(object):
         target_name: str
             The name of the target. Default is to check the end of the raw
             & run dirs
+        check_img_qual: bool
+            Set to check for image quality when selecting images for OBA
+        min_img_qual: str
+            The minimum image quality value to process on. Must be either
+            "good" or "unverified" (case agnostic)
         '''
 
         dir_args = {
@@ -74,6 +106,19 @@ class PreprocessRunner(object):
             utils.check_type('target_name', target_name, str)
         self.target_name = target_name
 
+        utils.check_type('check_img_qual', check_img_qual, bool)
+        self.check_img_qual = check_img_qual
+
+        utils.check_type('min_img_qual', min_img_qual, str)
+        min_img_qual = min_img_qual.upper()
+        _allowed = self._img_qual_allowed
+        if min_img_qual.upper() not in _allowed:
+            raise ValueError(f'min_img_qual must be one of {_allowed}!')
+
+        # this maps the image quality state to an int we can compare
+        self.min_img_qual = min_img_qual
+        self.min_img_qual_val = self._img_qual_order[min_img_qual]
+
         # will get populated during call to go()
         self.images = {}
         self.decompressed_images = {}
@@ -86,6 +131,8 @@ class PreprocessRunner(object):
 
         1) Setup the run_dir (and all subdirs)
         2) Copy raw sci frames from raw_dir to run_dir
+           - Cross-check ignore list
+           - Check for any file renaming
         3) Decompress raw files
         4) Update fits headers with useful info
 
@@ -95,7 +142,6 @@ class PreprocessRunner(object):
             Set to overwrite existing files
         skip_decompress: bool
             Set to skip the raw file decompression if file already exists
-            (should only be used for test runs)
         '''
 
         logprint('Setting up temporary run directories...')
@@ -132,13 +178,15 @@ class PreprocessRunner(object):
         for b in self.bands:
             dirs.append(self.run_dir / b)
             dirs.append(self.run_dir / b / 'cal/')
-            # dirs.append(self.run_dir / b / 'masked/')
-            # dirs.append(self.run_dir / b / 'bkg/')
             dirs.append(self.run_dir / b / 'coadd/')
             dirs.append(self.run_dir / b / 'out/')
 
             # for images that fail during astrometry module
             dirs.append(self.run_dir / b / 'failed/')
+
+            # for any temporary file writing; useful for minimizing
+            # memory footprint
+            dirs.append(self.run_dir / b / 'tmp/')
 
         for d in dirs:
             logprint(f'Creating directory {d}')
@@ -154,7 +202,9 @@ class PreprocessRunner(object):
     def copy_raw_files(self, logprint):
         '''
         Copy raw sci frames to the temp OBA run directory for
-        a given target
+        a given target. In addition, check for any old files
+        corresponding to the new target name and remove any in
+        the ignore list
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -176,9 +226,19 @@ class PreprocessRunner(object):
 
             bindx = band2index(band)
 
-            # NOTE: This glob is safe as OBA files have a fixed convention
-            search = str(orig / f'{self.target_name}*_{bindx}_*.fits.{cext}')
-            raw_files = glob(search)
+            # NOTE: Some targets have inconsistent names, so consider those
+            target_names = [self.target_name]
+            old_names = [old for old in OBA_TARGET_RENAME[
+                OBA_TARGET_RENAME['new'] == self.target_name
+            ]['old']]
+
+            target_names += old_names
+
+            raw_files = []
+            for target_name in target_names:
+                # NOTE: This glob is safe as OBA files have a fixed convention
+                search = str(orig / f'{target_name}_{bindx}_*.fits.{cext}')
+                raw_files += glob(search)
 
             Nraw = len(raw_files)
             if Nraw == 0:
@@ -189,17 +249,98 @@ class PreprocessRunner(object):
                 Nimages += Nraw
 
             logprint(f'Found the following {Nraw} raw files for band {band}:')
+            remove_indices = []
             for i, raw in enumerate(raw_files):
                 logprint(f'{i}: {raw}')
 
+                # first, cross-check the ignore list
+                raw_name = Path(raw).name
+                ignore_list = [filename for filename in OBA_IGNORE_LIST['image_name']]
+                bad_sci = [bad for bad in OBA_IGNORE_LIST['bad_sci']]
+                if (raw_name in ignore_list) or \
+                   (raw_name.replace('.bz2', '') in ignore_list):
+                    indx = ignore_list.index(raw_name)
+                    # some in the ignore list are just for cals
+                    if bool(bad_sci[indx]) is True:
+                        logprint(f'Image in the OBA ignore list; skipping')
+                        remove_indices.append(i)
+                        continue
+
+                # NOTE: We load in both to make sure the whole image is downloaded
+                try:
+                    raw, raw_hdr = fitsio.read(raw, header=True)
+                except OSError as e:
+                    logprint(e)
+                    logprint('Image failed to read - likely did not complete ' +\
+                             'downlink yet; skipping')
+                    remove_indices.append(i)
+                    continue
+
+                if self.check_img_qual is True:
+                    # check if the image quality is acceptable, if desired
+                    min_qual = self.min_img_qual_val
+                    min_qual_val = self.min_img_qual_val
+
+                    try:
+                        img_qual = raw_hdr[self._img_qual_key]
+                        img_qual_val = self._img_qual_order[img_qual]
+
+                        logprint(f'Quality: {img_qual}')
+
+                        if img_qual_val < min_qual_val:
+                            logprint(
+                                f'WARNING: Image quality does not meet the ' +\
+                                f'required standard of {min_qual}; skipping'
+                                )
+                            remove_indices.append(i)
+                            continue
+
+                    except KeyError as e:
+                        raise KeyError(f'IMG_QUAL must be in image header ' +\
+                                       'if check_img_qual is set to True!')
+
+                # finally, see if it fails any defined extra checks
+                for key, allowed in self._extra_checks.items():
+                    if key in raw_hdr:
+                        val = raw_hdr[key]
+                        if val not in allowed:
+                            logprint(
+                                f'WARNING: {key}={val} does not satisfy one ' +\
+                                f'of the allowed values {allowed}; skipping'
+                                )
+                            remove_indices.append(i)
+                            continue
+
+            # wait to remove any images that do not satisfy requirements until
+            # *after* loop (and in reverse) to avoid indexing issues
+            for index in sorted(remove_indices, reverse=True):
+                del raw_files[index]
+
+            logprint(f'Copying {len(raw_files)} to {str(dest)}')
             for raw_file in raw_files:
                 logprint(f'Copying {raw_file} to {str(dest)}:')
+
                 self._copy_file(
                     raw_file, str(dest), logprint=logprint
                     )
 
-                # add to internal image dict
                 out_name = Path(raw_file).name
+
+                # check if we need to rename
+                im_pars = parse_image_file(raw_file, 'sci')
+                if im_pars['target_name'] in old_names:
+                    old_file = str(dest / Path(raw_file).name)
+                    new_file = old_file.replace(
+                        im_pars['target_name'], self.target_name
+                        )
+                    logprint(f'Renaming file to {new_file}')
+                    self._move_file(
+                        old_file, new_file, logprint=logprint
+                        )
+
+                    out_name = Path(new_file).name
+
+                # add to internal image dict
                 out_file = dest / out_name
                 self.images[band].append(out_file)
 
@@ -247,7 +388,16 @@ class PreprocessRunner(object):
                         logprint('Keeping file as overwrite is False')
                         continue
 
-                self._decompress_file(image, logprint)
+                try:
+                    self._decompress_file(image, logprint)
+                except ValueError as e:
+                    # NOTE: this can happen when reading from a file that did
+                    # not complete downlink or otherwise errored
+                    logprint(f'Decompression failed with the following error:')
+                    logprint(e)
+                    logprint('Errors at this step are usually due to ' +
+                             'incomplete downlinking; removing file')
+                    os.remove(image)
 
         return
 
@@ -265,6 +415,28 @@ class PreprocessRunner(object):
         '''
 
         cmd = f'cp {orig_file} {dest}'
+
+        if logprint is not None:
+            logprint(f'cmd = {cmd}')
+
+        utils.run_command(cmd, logprint=logprint)
+
+        return
+
+    @staticmethod
+    def _move_file(orig_file, new_file, logprint=None):
+        '''
+        Input paths must be str's, not pathlib Paths at this point
+
+        orig_file: str
+            The filepath of the original file
+        new_file: str
+            The filepath of the new file
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        '''
+
+        cmd = f'mv {orig_file} {new_file}'
 
         if logprint is not None:
             logprint(f'cmd = {cmd}')
@@ -317,13 +489,22 @@ class PreprocessRunner(object):
                 image_name = image.name
                 logprint(f'Updating {image_name}; {i+1} of {Nimages}')
 
-                for key, val in self._header_info.items():
-                    with fits.open(str(image)) as f:
-                        hdr = f[0].header
+                with fitsio.FITS(str(image), 'rw') as f:
+                    hdr = f[0].read_header()
 
-                        # things have changed over time, so only add if the key
-                        # doesn't already exist
-                    if key not in hdr:
-                        fits.setval(str(image), key, value=val, ext=ext)
+                    # remap any old keys to updated ones
+                    # NOTE: In principle, this should only matter for OBA
+                    # testing on older sims
+                    for old_key, new_key in self._updated_keys.items():
+                        if old_key in hdr:
+                            val = hdr[old_key]
+                            comment = hdr.get_comment(old_key)
+                            f[0].write_key(new_key, val, comment=comment)
+                            logprint(f'Replaced {old_key} with {new_key}')
+
+                    for key, val in self._header_info.items():
+                        # NOTE: While some keys are already in the header, they
+                        # are not always the right value (e.g. GAIN)
+                        f[0].write_key(key, val)
 
         return

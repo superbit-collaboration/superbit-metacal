@@ -15,6 +15,10 @@ from detection import DetectionRunner
 from output import OutputRunner
 from cleanup import CleanupRunner
 
+# NOTE: we have to do this to not overflow the QCC log
+import warnings
+warnings.filterwarnings('ignore')
+
 import ipdb
 
 class OBARunner(object):
@@ -150,7 +154,9 @@ class OBARunner(object):
 
         oba_results = self.io_manager.OBA_RESULTS
 
-        self.out_dir = oba_results / self.target_name
+        # NOTE: we used to include a target name dir, but removed by request
+        # self.out_dir = oba_results / self.target_name
+        self.out_dir = oba_results
 
         return
 
@@ -278,23 +284,27 @@ class OBARunner(object):
         if 'preprocessing' not in self.modules:
             self.logprint('Skipping preprocessing given config modules')
             return
+        else:
+            skip_decompress = self.config['preprocessing']['skip_decompress']
+            check_img_qual = self.config['run_options']['check_image_quality']
+            min_img_qual = self.config['run_options']['min_image_quality']
 
         runner = PreprocessRunner(
             self.raw_dir,
             self.run_dir,
             self.out_dir,
             self.bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            check_img_qual=check_img_qual,
+            min_img_qual=min_img_qual
             )
 
-        if self.test is True:
-            skip_decompress = True
-        else:
-            skip_decompress = False
-
-        runner.go(
-            self.logprint, overwrite=overwrite, skip_decompress=skip_decompress
-            )
+        args = [self.logprint]
+        kwargs = {
+            'overwrite': overwrite,
+            'skip_decompress': skip_decompress
+            }
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -307,16 +317,23 @@ class OBARunner(object):
         if 'cals' not in self.modules:
             self.logprint('Skipping image calibrations given config modules')
             return
+        else:
+            hp_threshold = self.config['cals']['hp_threshold']
+            ignore_flats = self.config['cals']['ignore_flats']
 
         runner = CalsRunner(
             self.run_dir,
             self.darks_dir,
             self.flats_dir,
             self.bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            hp_threshold=hp_threshold,
+            ignore_flats=ignore_flats
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -348,7 +365,9 @@ class OBARunner(object):
             mask_types=mask_types
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -369,7 +388,9 @@ class OBARunner(object):
             target_name=self.target_name
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -393,7 +414,12 @@ class OBARunner(object):
             search_radius=search_radius,
             )
 
-        runner.go(self.logprint, overwrite=overwrite, rerun=rerun)
+        args = [self.logprint]
+        kwargs = {
+            'overwrite': overwrite,
+            'rerun': rerun
+            }
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -407,9 +433,6 @@ class OBARunner(object):
             self.logprint('Skipping bright star masking given config modules')
             return
 
-        # rerun = self.config['astrometry']['rerun']
-        # search_radius = self.config['astrometry']['search_radius']
-
         gaia_filename = self.io_manager.gaia_filename
         gaia_cat = self.io_manager.GAIA_DIR / gaia_filename
 
@@ -420,7 +443,9 @@ class OBARunner(object):
             target_name=self.target_name,
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -434,15 +459,22 @@ class OBARunner(object):
             self.logprint('Skipping coaddition given config modules')
             return
 
+        combine_type = self.config['coadd']['combine_type']
+        det_combine_type = self.config['coadd']['det_combine_type']
+
         runner = CoaddRunner(
             self.configs['swarp'],
             self.run_dir,
             self.bands,
             self.det_bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            combine_type=combine_type,
+            det_combine_type=det_combine_type
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -462,7 +494,9 @@ class OBARunner(object):
             target_name=self.target_name
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -476,13 +510,22 @@ class OBARunner(object):
             self.logprint('Skipping output given config modules')
             return
 
+        make_center_stamp = self.config['output']['make_center_stamp']
+        center_stamp_size = self.config['output']['center_stamp_size']
+        make_2d = self.config['output']['make_2d']
+
         runner = OutputRunner(
             self.run_dir,
             self.bands,
-            target_name=self.target_name
+            target_name=self.target_name,
+            make_center_stamp=make_center_stamp,
+            center_stamp_size=center_stamp_size,
+            make_2d=make_2d
             )
 
-        runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
 
         return
 
@@ -497,6 +540,7 @@ class OBARunner(object):
             return
         else:
             clean_oba_dir =  self.config['cleanup']['clean_oba_dir']
+            cc_type =  self.config['cleanup']['cc_type']
 
         runner = CleanupRunner(
             self.run_dir,
@@ -504,8 +548,74 @@ class OBARunner(object):
             self.bands,
             target_name=self.target_name,
             clean_oba_dir=clean_oba_dir,
+            cc_type=cc_type
             )
 
         runner.go(self.logprint, overwrite=overwrite)
+        args = [self.logprint]
+        kwargs = {'overwrite': overwrite}
+        self.module_runner(runner, args, kwargs, self.logprint)
+
+        return
+
+    def module_runner(self, runner, args, kwargs, logprint):
+        '''
+        A light wrapper around a module runner to handle any exceptions
+        in a convenient way for the QCC
+
+        runner: {Module}Runner
+            A runner class for the given module. Must have a go() method
+            and name attribute
+        args: list
+            A list of runner.go() args
+        kwargs: dict
+            A dict of runner.go() kwargs
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing.
+            NOTE: A logprint is likely already in args or kwargs, but simpler
+            to require it here as well
+        '''
+
+        try:
+            runner.go(*args, **kwargs)
+
+        # NOTE: Normally not a great idea, but we need concise return codes
+        # during flight and can't expect full error messages
+        except Exception as e:
+            module_name = runner._name
+            logprint()
+            logprint('FAILED: The OBA failed during the go() method of ' +
+                     f'{module_name} with the following exception:')
+            logprint()
+            logprint(repr(e))
+            # this places the full trace in the log
+            logprint()
+            logprint.log.exception('ERROR')
+            logprint()
+            logprint('Aborting the rest of the OBA run')
+            logprint()
+
+            raise OBAError(module_name)
+
+        # NOTE: We explicitly delete the runner afterwards to immediately
+        # free up memory; there are some instances when the memory is not
+        # immediately cleared otherwise
+        del runner
+
+        return
+
+class OBAError(Exception):
+    '''
+    A custom exception that is raised if *any* error occures during a module
+    runner.go() method, as we cannot print out full error messages to the QCC
+    '''
+
+    def __init__(self, module_name):
+        '''
+        module_name: str
+            The name of the module where the exception occurred
+        '''
+
+        self.module_name = module_name
 
         return

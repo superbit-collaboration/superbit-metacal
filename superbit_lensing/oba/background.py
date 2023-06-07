@@ -10,8 +10,6 @@ from superbit_lensing.oba.oba_io import band2index
 
 import ipdb
 
-# TODO: Handle output cat location!!
-
 class BackgroundRunner(object):
     '''
     Runner class for estimating the background light for calibrated
@@ -32,6 +30,8 @@ class BackgroundRunner(object):
     ext2: MSK (mask; 1 if masked, 0 otherwise)
     ext3: BKG (background)
     '''
+
+    _name = 'background'
 
     def __init__(self, run_dir, bands, se_config, target_name=None,
                  sci_ext=0, wgt_ext=1, msk_ext=2, bkg_ext=3):
@@ -270,7 +270,7 @@ class BackgroundRunner(object):
         config_dir = Path(utils.MODULE_DIR) / 'oba/configs/sextractor/'
 
         # this sets the photometric parameters that SExtractor computes
-        param_file = str(config_dir / 'sb_sextractor.param')
+        param_file = str(config_dir / 'sb_sextractor_bkg.param')
 
         # this sets the detection filter
         filter_file = str(config_dir / 'default.conv')

@@ -18,19 +18,21 @@ class CleanupRunner(object):
     following:
 
     (1) CookieCutter output FITS file containing source stamps, masking
-        information, and metadata
-    (2) TODO: Coadd cluster center cutouts
-    (3) TODO: RAW_SCI or CAL_SCI image headers
-    (4) Log files & any intermediate and/or created config files
-    (5) TODO: ...
+        information, and metadata (can include cluster center cutouts)
+    (2) Optionally 2D CookieCutter file
+    (3) Log files & any intermediate and/or created config files
     '''
+
+    _name = 'cleanup'
 
     _compression_method = 'bzip2'
     _compression_args = '-z' # forces compression, don't keep orig file
     _compression_ext = 'bz2'
 
+    _allowed_cc_types = ['1d', '2d', 'both']
+
     def __init__(self, run_dir, out_dir, bands, target_name=None,
-                 clean_oba_dir=False):
+                 cc_type='1d', clean_oba_dir=False):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -41,6 +43,12 @@ class CleanupRunner(object):
         target_name: str
             The name of the target. Default is to check the end of the raw
             & run dirs
+        cc_type: str
+            Sets the CookieCutter type to copy over to permanent storage on the
+            QCC. Options are:
+              - "1d": Normal CC def
+              - "2d": 2D IMAGE / 1D MASK version (eliminates overlapping pixels)
+              - "both": copy both 1d & 2d (probably only useful for testing)
         clean_oba_dir: bool
             Set to delete the temporary OBA dir after output writing.
             NOTE: A bit dangerous!
@@ -78,6 +86,12 @@ class CleanupRunner(object):
             utils.check_type('target_name', target_name, str)
         self.target_name = target_name
 
+        utils.check_type('cc_type', cc_type, str)
+        cc_type = cc_type.lower()
+        if cc_type.lower() not in self._allowed_cc_types:
+            raise ValueError(f'cc_type must be one of {self._allowed_cc_types}')
+        self.cc_type = cc_type
+
         utils.check_type('clean_oba_dir', clean_oba_dir, bool)
         self.clean_oba_dir = clean_oba_dir
 
@@ -92,6 +106,9 @@ class CleanupRunner(object):
         # this keeps track of any bands that have no input images to cleanup
         # in case you still requested it
         self.skip = []
+
+        # the dir of temporary files for staging
+        self.tmp_dir = self.run_dir / 'tmp/'
 
         return
 
@@ -124,9 +141,8 @@ class CleanupRunner(object):
         logprint('Writing output files to disk...')
         self.write_outputs(logprint, overwrite=overwrite)
 
-        if self.clean_oba_dir is True:
-            logprint('Cleaning up OBA dir...')
-            self.cleanup(logprint)
+        logprint('Cleaning up OBA dir...')
+        self.cleanup(logprint)
 
         return
 
@@ -149,9 +165,18 @@ class CleanupRunner(object):
             band_out_dir = band_dir / 'out/'
 
             # CookieCutter cutout FITS file
-            cutouts = band_out_dir / f'{target_name}_{band}_cutouts.fits'
-            if cutouts.is_file():
-                outputs.append(cutouts)
+            # NOTE: Depending on configuration, will send down either:
+            # - "1d", standard definition
+            # - "2d", alternative definition (no stamp overlaps)
+            # - "both" (for testing)
+            if (self.cc_type == '1d') or (self.cc_type == 'both'):
+                cutouts = band_out_dir / f'{target_name}_{band}_cutouts.fits'
+                if cutouts.is_file():
+                    outputs.append(cutouts)
+            if (self.cc_type == '2d') or (self.cc_type == 'both'):
+                cutouts_2d = band_out_dir / f'{target_name}_{band}_cutouts_2d.fits'
+                if cutouts_2d.is_file():
+                    outputs.append(cutouts_2d)
 
             # generated CookeCutter config file
             cutouts_config = band_out_dir / f'{target_name}_{band}_cutouts.yaml'
@@ -185,8 +210,10 @@ class CleanupRunner(object):
         cext = self._compression_ext
 
         # copy all of the output files
-        tmp_dir = self.run_dir / 'tmp/'
+        tmp_dir = self.tmp_dir
         logprint(f'Compressing files in temporary dir {str(tmp_dir)}')
+
+        # should already exist, but just to be safe
         utils.make_dir(tmp_dir)
 
         for band in self.bands:
@@ -275,10 +302,16 @@ class CleanupRunner(object):
             A LogPrint instance for simultaneous logging & printing
         '''
 
-        run_dir = self.run_dir
-        logprint(f'Removing {self.target_name} OBA run directory at {run_dir}')
+        if self.clean_oba_dir is True:
+            run_dir = self.run_dir
+            logprint(f'Removing {self.target_name} OBA run directory at {run_dir}')
 
-        shutil.rmtree(str(run_dir))
+            shutil.rmtree(str(run_dir))
+        else:
+            tmp_dir = self.tmp_dir
+            logprint(f'Only removing tmp dir {tmp_dir} as clean_oba_dir is False')
+
+            shutil.rmtree(str(tmp_dir))
 
         return
 

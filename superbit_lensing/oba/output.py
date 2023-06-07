@@ -1,11 +1,14 @@
 from pathlib import Path
 from glob import glob
 import numpy as np
+from astropy.coordinates import SkyCoord
+import astropy.units as u
+import fitsio
 
 import ipdb
 
 from superbit_lensing import utils
-from superbit_lensing.cookiecutter import CookieCutter
+from superbit_lensing.cookiecutter import CookieCutter, write_2d_cookiecutter
 from oba_io import band2index
 from bitmask import OBA_BITMASK, OBA_BITMASK_DTYPE
 
@@ -41,6 +44,8 @@ class OutputRunner(object):
     ext2: SEG (segmentation; 0 if sky, NUMBER if pixel is assigned to an obj)
     '''
 
+    _name = 'output'
+
     _out_sci_dtype_default = np.dtype('uint16')
     _out_msk_dtype_default = OBA_BITMASK_DTYPE
 
@@ -52,8 +57,9 @@ class OutputRunner(object):
     cookiecutter_keymap = {
         'sci_file': 'image_file',
         'sci_ext': 'image_ext',
-        'wgt_file': 'weight_file',
-        'wgt_ext': 'weight_ext',
+        # NOTE: we're going to skip the wgt map for actual OBA flight
+        # 'wgt_file': 'weight_file',
+        # 'wgt_ext': 'weight_ext',
         'msk_file': 'mask_file',
         'msk_ext': 'mask_ext',
         # 'skyvar_file': 'skyvar_file',
@@ -70,7 +76,9 @@ class OutputRunner(object):
                  id_tag='NUMBER', boxsize_tag='boxsize',
                  ra_tag='ALPHAWIN_J2000', dec_tag='DELTAWIN_J2000',
                  ra_unit='deg', dec_unit='deg',
-                 out_sci_dtype=None, out_msk_dtype=None):
+                 out_sci_dtype=None, out_msk_dtype=None,
+                 make_center_stamp=True, center_stamp_size=512,
+                 make_2d=False):
         '''
         run_dir: pathlib.Path
             The OBA run directory for the given target
@@ -111,6 +119,12 @@ class OutputRunner(object):
             The numpy dtype for the output SCI stamps
         out_msk_dtype: str
             The numpy dtype for the output MSK stamps
+        make_center_stamp: bool
+            Set to True to make a single large stamp at the target center
+        center_stamp_size: int
+            If making a central stamp, set the size (for now, must be square)
+        make_2d: bool
+            Set to make a 2D CookieCutter output file as well
         '''
 
         args = {
@@ -129,6 +143,9 @@ class OutputRunner(object):
             'dec_tag': (dec_tag, str),
             'ra_unit': (ra_unit, str),
             'dec_unit': (dec_unit, str),
+            'make_center_stamp': (make_center_stamp, bool),
+            'center_stamp_size': (center_stamp_size, int),
+            'make_2d': (make_2d, bool),
         }
 
         for name, tup in args.items():
@@ -170,6 +187,10 @@ class OutputRunner(object):
 
         self.det_coadd = self.run_dir / f'det/coadd/{target_name}_coadd_det.fits'
         self.det_cat = self.run_dir / f'det/cat/{target_name}_coadd_det_cat.fits'
+
+        # these get set if you want to make a center stamp at the target position
+        self.target_ra = None
+        self.target_dec = None
 
         return
 
@@ -239,6 +260,10 @@ class OutputRunner(object):
         if not self.det_coadd.is_file():
             raise OSError('Could not find det coadd {str(self.det_coadd})!')
 
+        if self.make_center_stamp is True:
+            target_ra = None
+            target_dec = None
+
         for band in self.bands:
             logprint(f'Starting band {band}')
             self.images[band] = {}
@@ -249,18 +274,21 @@ class OutputRunner(object):
 
             bindx = band2index(band)
 
-            images = glob(
-                str(band_dir / f'{target_name}*_{bindx}_*.fits')
+            # NOTE: We only send down cutouts of raw images whose cal images
+            # succeeded
+            cal_images = glob(
+                str(cal_dir / f'{target_name}*_{bindx}_*.fits')
                 )
 
-            if len(images) == 0:
-                logprint(f'WARNING: Zero raw images found; skipping')
+            if len(cal_images) == 0:
+                logprint(f'WARNING: Zero cal images found; skipping')
                 self.skip.append(band)
 
-            for image in images:
-                image = Path(image)
-                raw_name = image.name
-                cal_name = raw_name.replace('.fits', '_cal.fits')
+            for cal_image in cal_images:
+                cal_image = Path(cal_image)
+                cal_name = cal_image.name
+                raw_name = cal_name.replace('_cal.fits', '.fits')
+                raw_image = band_dir / raw_name
 
                 # NOTE: We use RAW_SCI instead of CAL_SCI for our main cutout
                 # NOTE: Later we will set the input dir in the CookieCutter
@@ -279,7 +307,40 @@ class OutputRunner(object):
                     'seg_ext': coadd_seg_ext,
                     }
 
-                self.images[band][Path(image)] = image_map
+                self.images[band][raw_image] = image_map
+
+                if self.make_center_stamp is True:
+                    hdr = fitsio.read_header(str(raw_image))
+
+                    # NOTE: As SB saves the *pointing* position and not the
+                    # actual target position, we can only check that they are
+                    # close
+                    max_sep = 0.1 # deg
+                    if target_ra is None:
+                        target_ra = hdr['TRG_RA']
+                    if target_dec is None:
+                        target_dec = hdr['TRG_DEC']
+
+                    target_pos = SkyCoord(
+                        ra=target_ra*u.deg, dec=target_dec*u.deg
+                        )
+                    pos = SkyCoord(
+                        ra=hdr['TRG_RA']*u.deg, dec=hdr['TRG_DEC']*u.deg
+                        )
+
+                    sep = pos.separation(target_pos)
+                    logprint(f'Target offset {sep.to("arcsec"):.2f}')
+                    if sep.value > max_sep:
+                        sep.to('arcsec')
+                        sep_asec = sep.to('arcsec')
+                        raise ValueError(
+                            'Inconsistent target RA values between image ' +
+                            f'headers for a sep of {max_sep}! (found {sep_asec})'
+                            )
+
+        if self.make_center_stamp is True:
+            self.target_ra = target_ra
+            self.target_dec = target_dec
 
         return
 
@@ -383,6 +444,10 @@ class OutputRunner(object):
             'output': {
                 'sci_dtype': str(self.out_sci_dtype),
                 'msk_dtype': str(self.out_msk_dtype),
+                'make_center_stamp': self.make_center_stamp,
+                'center_stamp_size': self.center_stamp_size,
+                # The default is (None, None)
+                'center_stamp_pos': [self.target_ra, self.target_dec]
             },
             }
 
@@ -390,10 +455,18 @@ class OutputRunner(object):
 
     def run_cookie_cutter(self, logprint, overwrite=False):
         '''
-        TODO: ...
+        Run the CookieCutter on the raw images, using source definitions
+        from the detection catalog
+
+        NOTE: Can optionally be run in "2D" mode, which will make an additional
+        FITS file that replaces the standard 1D arrays of reshaped cutouts with
+        the reconstructed 2D images, with areas outside of the stamps filled
+        with 0's that compress nicely
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
+        run2d: bool
+            Set to create a 2D cookiecutter file as well (see above)
         overwrite: bool
             Set to overwrite existing files
         '''
@@ -411,7 +484,28 @@ class OutputRunner(object):
             # NOTE: Can pass either the config file or the loaded config
             cutter = CookieCutter(config=config_file, logprint=logprint)
 
+            logprint()
             logprint('Starting...')
             cutter.go()
+            logprint()
+            logprint('Finished')
+
+            if self.make_2d is True:
+                logprint()
+                logprint('Creating 2D CookieCutter file as make_2d is True...')
+
+                config = utils.read_yaml(config_file)
+                cc_file = config['output']['filename']
+                try:
+                    cc_dir = config['output']['dir']
+                except KeyError:
+                    cc_dir = ''
+
+                cc_file = str(Path(cc_dir) / cc_file)
+
+                write_2d_cookiecutter(
+                    cc_file,
+                    logprint=logprint
+                )
 
         return

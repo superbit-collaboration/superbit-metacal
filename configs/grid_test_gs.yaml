@@ -4,7 +4,7 @@
 
 run_options:
   run_name: grid_test
-  ncores: 8
+  ncores: 1
   overwrite: True
   vb: True
 
@@ -49,7 +49,7 @@ image:
   pixel_scale: 0.141 # [arcsec / pixel]
 
 observation:
-  nexp: 2 # 18 is fiducial
+  nexp: 4 # 18 is fiducial
   exp_time: 600 # [s] # 600 is fiducial
 
 cluster:
@@ -88,18 +88,22 @@ galaxies:
   hlr_min: .3
   flux_min: 1e1
   flux_max: 1e3
-  # nobjs: None # used for random position sampling
+  nobjs: None # used for random position sampling
 
 position_sampling:
   galaxies:
     type: MixedGrid
     grid_type: HexGrid
     grid_spacing: 40 # arcsec
-    fraction: 0.8
+    fraction: 0.01
+    offset: [0, .705]
   stars:
     type: MixedGrid
-    fraction: 0.2
-  # TODO: fill in the rest of the required fields!
+    fraction: 0.99
+  # stars:
+  #   type: HexGrid
+  #   grid_spacing: 100 # arcsec
+  #   offset: [0, 1.41]
 
 shear:
   type: constant
@@ -114,7 +118,7 @@ output:
 
 seeds:
   # well pick new seeds every time
-  master: None
+  master: 72396
   noise: None
   dithering: None
   cluster_galaxies: None

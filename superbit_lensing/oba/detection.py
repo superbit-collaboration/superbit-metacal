@@ -26,6 +26,8 @@ class DetectionRunner(object):
     ext2: SEG (segmentation; 0 if sky, NUMBER if pixel is assigned to an obj)
     '''
 
+    _name = 'detection'
+
     def __init__(self, config_file, run_dir, target_name=None,
                  sci_ext=0, wgt_ext=1):
         '''
@@ -269,7 +271,7 @@ class DetectionRunner(object):
         config_dir = Path(utils.MODULE_DIR) / 'oba/configs/sextractor/'
 
         # this sets the photometric parameters that SExtractor computes
-        param_file = str(config_dir / 'sb_sextractor.param')
+        param_file = str(config_dir / 'sb_sextractor_det.param')
         cmd += f' -PARAMETERS_NAME {param_file}'
 
         # this sets the detection filter

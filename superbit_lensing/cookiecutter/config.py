@@ -40,8 +40,12 @@ class CookieCutterConfig(ModuleConfig):
             'sci_dtype': None,
             'msk_dtype': None,
             'overwrite': False,
+
+            # These are useful for adding a single large stamp
+            # around the central target
             'make_center_stamp': False,
-            'center_stamp_size': (500, 500)
+            'center_stamp_size': 512,
+            'center_stamp_pos': (None, None) # RA, DEC
         },
     }
 

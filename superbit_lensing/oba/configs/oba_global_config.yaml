@@ -1,8 +1,14 @@
 astrometry:
   rerun: false
-  search_radius: 1.0
+  search_radius: 1
+cals:
+  ignore_flats: false
 cleanup:
-  clean_oba_dir: true
+  cc_type: 1d
+  clean_oba_dir: false
+coadd:
+  combine_type: CLIPPED
+  det_combine_type: WEIGHTED
 masking:
   cosmic_rays: false
   satellites: false
@@ -17,9 +23,17 @@ modules:
 - detection
 - output
 - cleanup
+output:
+  center_stamp_size: 512
+  make_2d: true
+  make_center_stamp: true
 run_options:
+  bands:
+  - u
+  - b
+  - g
   det_bands:
   - b
-  - r
+  fresh: false
   overwrite: true
   vb: true

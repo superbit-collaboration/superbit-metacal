@@ -94,7 +94,7 @@ def main(args):
     # are required for a successful prepper run - but any images of that
     # band that *do* exist will still be analyzed. To skip the analysis
     # of any images for a given band, set the required number to -1
-    bands = ['u', 'b', 'g', 'r', 'lum', 'nir']
+    bands = ['u', 'b', 'g', 'r', 'nir', 'lum']
     use_bands = bands.copy()
 
     #-----------------------------------------------------------------
@@ -168,6 +168,11 @@ def main(args):
     # Now update with our target-specific configuration
     config['run_options']['target_name'] = target_name
     config['run_options']['bands'] = use_bands
+
+    if allow_unverified is True:
+        config['run_options']['min_image_quality'] = 'unverified'
+    else:
+        config['run_options']['min_image_quality'] = 'good'
 
     #-----------------------------------------------------------------
     # Do any sanity checks needed to error *before* running the OBA

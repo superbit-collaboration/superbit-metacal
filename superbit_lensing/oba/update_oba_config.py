@@ -31,11 +31,9 @@ output:
     print({target_name}: outer_key: [inner_key: old_val -> type(new_val)])
 '''
 
-import shutil
 from pathlib import Path
 from argparse import ArgumentParser
 from glob import glob
-import fitsio
 
 from superbit_lensing import utils
 from oba_io import IOManager
@@ -48,7 +46,7 @@ def parse_args():
 
     parser.add_argument('update_tokens', type=str,
                         help='The update tokens in the format of: ' +
-                        'target_name&outer_key&inner_key&new_val&val_type')
+                        '"target_name&outer_key&inner_key&new_val&val_type"')
 
     # NOTE: not registered by the QCC, just for testing locally
     parser.add_argument('-root_dir', type=str, default=None,
@@ -111,7 +109,9 @@ def main(args):
     #-----------------------------------------------------------------
     # this grabs the relevant type operator for proper type casting
 
-    if val_type in ['list', 'tuple']:
+    if val_type.lower() == 'none':
+        casted_val = None
+    elif val_type in ['list', 'tuple']:
         import ast
         casted_val = ast.literal_eval(new_val)
     else:
@@ -120,12 +120,26 @@ def main(args):
     # NOTE: the `modules` field works differently than the others
     if outer_key == 'modules':
         # ignore inner key
-        old_val = config[outer_key]
+        try:
+            old_val = config[outer_key]
+        except KeyError:
+            config[outer_key] = []
+            old_val = None
         inner_key = '(None)'
+
         config[outer_key] = casted_val
     else:
-        old_val = config[outer_key][inner_key]
-        config[outer_key][inner_key] = casted_val
+        try:
+            old_val = config[outer_key][inner_key]
+        except KeyError:
+            config[outer_key] = {}
+            old_val = None
+
+        # if the new val is None, delete the old entry
+        if (casted_val is None) and (old_val is not None):
+            del config[outer_key][inner_key]
+        else:
+            config[outer_key][inner_key] = casted_val
 
     utils.write_yaml(config, config_file)
 

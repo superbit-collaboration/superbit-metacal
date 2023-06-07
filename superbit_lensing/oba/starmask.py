@@ -4,6 +4,7 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
 from astropy.table import Table
+from astropy.coordinates import SkyCoord
 import astropy.units as u
 import fitsio
 import matplotlib.pyplot as plt
@@ -29,6 +30,8 @@ class StarmaskRunner(object):
     ext3: BKG (background)
     '''
 
+    _name = 'starmask'
+
     # The following class variables define the relationship between a bright
     # star's flux and the mask component sizes, in pixels. This is based on
     # parameterized fits to high-resolution images of the SB PSF model,
@@ -48,14 +51,23 @@ class StarmaskRunner(object):
 
     _mask_spike_min_len = 1.41 # len (from center) in arcsec
     _mask_spike_max_len = None # len (from center) in arcsec
-    _mask_spike_width = 6
-    _mask_spike_model_a = 0.0
+    _mask_spike_width = 8
     # _mask_spike_model_b = 0.00633375
-    _mask_spike_model_b = 0.00118493
     # _mask_spike_model_c = -1.75300
-    _mask_spike_model_c = 0.06926362
     # _mask_spike_model_d = -2.25
+
+    # NOTE: older model
+    _mask_spike_model_a = 0.0
+    _mask_spike_model_b = 0.00118493
+    _mask_spike_model_c = 0.06926362
     _mask_spike_model_d = -1.94172
+
+    # NOTE: trying out replaced spike model
+    # _mask_spike_model_a = 0
+    # _mask_spike_model_b = 10635.139 / 7855385
+    # _mask_spike_model_b = 0.00118493
+    # _mask_spike_model_c = 0.0692659
+    # _mask_spike_model_d = -2
 
     # Default estimated image noise properties, if none are passed.
     # These come from Ajay's paper:
@@ -68,6 +80,7 @@ class StarmaskRunner(object):
     _default_sky_bkg_nir = 0.18627355436655327 # ADU/s
 
     pixel_scale = 0.141 # arcsec / pixel
+    gain_key = 'GAIN'
 
     def __init__(self, run_dir, gaia_cat, bands, target_name=None,
                  flux_col_base='flux_adu', flux_threshold=1e6,
@@ -127,9 +140,6 @@ class StarmaskRunner(object):
         utils.check_type('target_name', target_name, str)
         self.target_name = target_name
 
-        self.stars = Table.read(str(self.gaia_cat))
-        self.Nstars = len(self.stars)
-
         # this dictionary will store the sci_cal image paths indexed by band
         self.images = {}
 
@@ -145,9 +155,13 @@ class StarmaskRunner(object):
         self.mask_val = OBA_BITMASK['bright_star']
 
         # NOTE: can generalize if needed
-        self.ra_tag  = 'RA_ICRS'
-        self.dec_tag = 'DE_ICRS'
+        self.ra_tag  = 'ra'
+        self.dec_tag = 'dec'
         self.flux_tag_base = 'flux_adu' # this is for actual ADU given exp time
+
+        # NOTE: this will get setup later when we know the target pos!
+        self.stars = None
+        self.Nstars = 0
 
         return
 
@@ -160,11 +174,13 @@ class StarmaskRunner(object):
         Currently planned steps:
 
         (1) Register input images & check for WCS solution
-        (2) Determine bright star list to mask for the given input GAIA
+        (2) Setup a conservative stellar catalog to consider, built from GAIA
+            and truncated for the target position. Guess at SB fluxes
+        (3) Determine bright star list to mask for the given input GAIA
             catalog and target field, as well as estimated bkg noise
-        (3) Build mask templates given star mag/flux in the relevant
+        (4) Build mask templates given star mag/flux in the relevant
             SuperBIT filters
-        (4) Apply masks to the MSK extension of the input images
+        (5) Apply masks to the WGT & MSK extension of the input images
 
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
@@ -178,14 +194,17 @@ class StarmaskRunner(object):
         logprint('Gathering images...')
         self.gather_images(logprint)
 
+        logprint('Setting up star catalog...')
+        self.setup_star_cat(logprint)
+
         logprint('Finding bright stars to mask...')
         self.find_bright_stars(logprint)
 
         logprint('Building mask templates...')
         self.build_mask_templates(logprint)
 
-        logprint('Updating image masks...')
-        self.update_masks(logprint)
+        logprint('Updating image weights & masks...')
+        self.update_exts(logprint)
 
         return
 
@@ -215,6 +234,123 @@ class StarmaskRunner(object):
 
         return
 
+    def setup_star_cat(self, logprint):
+        '''
+        Setup the star catalog to be used given the input gaia_cat as a base.
+        Make band and position cuts to dramatically reduce memory load
+
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        '''
+
+        logprint(f'Setting up the star catalog given input {self.gaia_cat}')
+
+        stars = Table.read(self.gaia_cat)
+        logprint(f'Input GAIA catalog has {len(stars)} stars')
+
+        # NOTE: don't have a super robust way to do this, but assume the
+        # TRG_{RA/DEC} is constant across images (or at least very close),
+        # so just pick one
+        for band in self.bands:
+            if len(self.images[band]) != 0:
+                image = self.images[band][0]
+                break
+        hdr = fitsio.read_header(str(image))
+        target_ra, target_dec = hdr['TRG_RA'], hdr['TRG_DEC']
+        logprint(f'Target is at ({target_ra:.5f}, {target_dec:.5f})')
+
+        # first, remove stars not sufficiently near the target
+        target_pos = SkyCoord(ra=target_ra*u.deg, dec=target_dec*u.deg)
+
+        # NOTE: already has unit (deg)
+        ra = stars[self.ra_tag]
+        dec = stars[self.dec_tag]
+
+        stellar_pos = SkyCoord(ra=ra, dec=dec)
+
+        separation = target_pos.separation(stellar_pos)
+
+        # we keep stars that are within 1.5x the longer CCD length
+        max_sep = 0.384 * 1.5 * u.deg
+        logprint(f'Max separation: {max_sep:.6f}')
+        stars = stars[separation < max_sep]
+        logprint(f'{len(stars)} stars remaining after separation cut')
+
+        logprint('Estimating SuperBIT fluxes for GAIA stars')
+        stars = self._add_sb_star_fluxes(stars, logprint)
+
+        self.stars = stars
+        self.Nstars = len(stars)
+
+        return
+
+    def _add_sb_star_fluxes(self, stars, logprint):
+        '''
+        Make a best-guess of the SuperBIT stellar fluxes in e/s
+        given the 2 GAIA bands
+
+        stars: astropy.Table
+            A table of GAIA stars
+        logprint: utils.LogPrint
+            A LogPrint instance for simultaneous logging & printing
+        '''
+
+        # we use this for the OBA sims, but useful here as well
+        from superbit_lensing.oba.sims import instrument as inst
+        from superbit_lensing.oba.sims import photometry as phot
+
+        camera = inst.Camera('imx455')
+        telescope = inst.Telescope('superbit')
+        bandpass = inst.Bandpass('bandpass')
+        bandpass.wavelengths = camera.wavelengths
+
+        piv_dict = {
+            'u': 395.35082727585194,
+            'b': 476.22025867791064,
+            'g': 596.79880208687230,
+            'r': 640.32425638312820,
+            'nir': 814.02475812251110,
+            'lum': 522.73829660009810
+        }
+
+        for band in self.bands:
+            logprint(f'Starting band {band}')
+            piv_wave = piv_dict[band]
+
+            if piv_wave > 640:
+                gaia_mag = 'phot_rp_mean_mag'
+            else:
+                gaia_mag = 'phot_bp_mean_mag'
+
+            bandpass_transmission = phot.get_transmission(band=band)
+
+            # Find counts to add for the star
+            logprint('Computing abmag_to_mean_fnu...')
+            mean_fnu_star_mag = phot.abmag_to_mean_fnu(
+                abmag=stars[gaia_mag].value
+                )
+
+            logprint('Computing mean_flambda_from_mean_fnu...')
+            mean_flambda = phot.mean_flambda_from_mean_fnu(
+                mean_fnu=mean_fnu_star_mag,
+                bandpass_transmission=bandpass_transmission,
+                bandpass_wavelengths=bandpass.wavelengths
+                )
+
+            logprint('Computing crate_from_mean_flambda...')
+            crate_electrons_pix = phot.crate_from_mean_flambda(
+                mean_flambda=mean_flambda,
+                illum_area=telescope.illum_area.value,
+                bandpass_transmission=bandpass_transmission,
+                bandpass_wavelengths=bandpass.wavelengths
+                )
+
+            # store as electrons per second, to be converted to ADU per image
+            # given the header GAIN
+            stars[f'flux_electrons_{band}_s'] = crate_electrons_pix
+
+        return stars
+
     def find_bright_stars(self, logprint):
         '''
         logprint: utils.LogPrint
@@ -229,25 +365,23 @@ class StarmaskRunner(object):
             logprint(f'Starting band {band}')
 
             images = self.images[band]
-            gaia_flux_col = f'{self.flux_col_base}_{band}_s' # ADU/s
+            gaia_flux_col = f'flux_electrons_{band}_s' # e-/s
             sb_flux_col = f'{self.flux_tag_base}_{band}' # ADU
 
             for image in images:
                 im_pars = oba_io.parse_image_file(image, 'sci')
                 exp_time = im_pars['exp_time']
+                gain = fitsio.read_header(str(image))[self.gain_key]
 
-                # estimate the stellar flux in this band & exposure time
-                star_fluxes = self.stars[gaia_flux_col] * exp_time
+                # estimate the stellar flux in this band with the given gain
+                # and exposure time
+                star_fluxes = self.stars[gaia_flux_col] / gain * exp_time
 
                 # only grab stars above the set threshold
                 bright_indices = np.where(star_fluxes > thresh)
                 bright_stars = self.stars[bright_indices]
                 bright_stars[sb_flux_col] = star_fluxes[bright_indices]
                 self.bright_stars[image] = bright_stars
-
-                # NOTE: this has been descoped in favor of image SKY_VAR estimates
-                # estimate the background noise in this band & exposure time
-                # self.sky_noise[image] = self.noise_dict[band] * exp_time
 
                 Nbright = len(self.bright_stars[image])
                 logprint(f'Found {Nbright} stars of {Nstars} in image {image.name}')
@@ -267,8 +401,10 @@ class StarmaskRunner(object):
 
         pass
 
-    def update_masks(self, logprint):
+    def update_exts(self, logprint):
         '''
+        Update the image weights & masks
+
         logprint: utils.LogPrint
             A LogPrint instance for simultaneous logging & printing
         '''
@@ -300,7 +436,8 @@ class StarmaskRunner(object):
 
                     # estimate the sky var of this image using the median of
                     # the inv_wgt**2
-                    sky_var = 1. / wgt
+                    # NOTE: want to ignore pixels w/ no weight
+                    sky_var = 1. / wgt[wgt != 0]
                     sky_noise = np.median(np.sqrt(sky_var))
                     sky_level = np.median(bkg)
                     logprint(f'Using an estimated sky noise of {sky_noise:.3f} '
@@ -311,14 +448,17 @@ class StarmaskRunner(object):
                         flux = star[f'{self.flux_tag_base}_{band}'] # ADU
                         logprint(f'Starting bright star {i+1} of {Nstars}; ' +
                                  f'flux={flux:.1f} ADU')
-                        self._add_mask(star, msk, wcs, band, sky_noise)
+                        self._add_star_mask(
+                            star, msk, wgt, wcs, band, sky_noise
+                            )
 
-                    # now update FITs mask extension
+                    # now update FITs weight & mask extensions
+                    fits[wgt_ext].write(wgt, header=msk_hdr)
                     fits[msk_ext].write(msk, header=msk_hdr)
 
         return
 
-    def _add_mask(self, star, msk, wcs, band, noise, origin=0):
+    def _add_star_mask(self, star, msk, wgt, wcs, band, noise, origin=0):
         '''
         Add a bright star mask for the given star on a given image
 
@@ -326,6 +466,8 @@ class StarmaskRunner(object):
             The properties of the star
         msk: np.ndarray
             The image's mask array that we want to update
+        wgt: np.ndarray
+            The image's weight array that we want to update (new masks as 0's)
         wcs: astropy.wcs.WCS
             The image's WCS
         band: str
@@ -341,6 +483,13 @@ class StarmaskRunner(object):
         # estimated noise level of the the image of a given band
         flux = star[f'{self.flux_tag_base}_{band}'] # ADU
         aperture_size, spike_size, spike_width = self._get_mask_sizes(flux, noise)
+
+        # NOTE: This part isn't working at the last second, so we'll revert to
+        # the previously better-working version w/o the scaling
+        # we will need them in pixels
+        # aperture_size /= self.pixel_scale
+        # spike_size /= self.pixel_scale
+        # spike_width /= self.pixel_scale
 
         # The search radius to check for masking around a stellar
         # position, in pixels
@@ -454,6 +603,13 @@ class StarmaskRunner(object):
         msk[top] = mask_val
         msk[bottom] = mask_val
 
+        # for the weights, make them 0 inside the star mask
+        wgt[in_aperture] = 0.
+        wgt[right] = 0.
+        wgt[left] = 0.
+        wgt[top] = 0.
+        wgt[bottom] = 0.
+
         return
 
     def _get_mask_sizes(self, flux, noise):
@@ -477,8 +633,7 @@ class StarmaskRunner(object):
         aperture_size = self._compute_aperture_rad(flux, noise)
         spike_len = self._compute_spike_len(flux, noise)
 
-        # TODO: do model fits!
-        spike_width = 4
+        spike_width = self._mask_spike_width
 
         return (aperture_size, spike_len, spike_width)
 
