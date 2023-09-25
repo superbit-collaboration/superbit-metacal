@@ -8,7 +8,7 @@ import superbit_lensing.utils as utils
 from superbit_lensing.medsmaker.superbit import medsmaker_real as medsmaker
 import yaml
 
-import ipdb
+import pdb
 
 def read_yaml_file(file_path):
     with open(file_path, 'r') as file:
@@ -32,7 +32,8 @@ def parse_args():
     parser.add_argument('-psf_seed', type=int, default=None,
                         help='Seed for chosen PSF estimation mode')
     parser.add_argument('-star_config_dir', type=str, default=None,
-                        help='Path to the directory containing the YAML configuration files for star processing')
+                        help='Path to the directory containing the YAML ' + \
+                             'configuration files for star processing')
     parser.add_argument('--select_truth_stars', action='store_true', default=False,
                         help='Set to match against truth catalog for PSF model fits')
     parser.add_argument('--meds_coadd', action='store_true', default=False,
@@ -93,11 +94,16 @@ def main(args):
             star_params = None
 
         # Load in the science frames
-        search = str(Path(data_dir) / target_name / band / 'cal' / '*.fits')
+        search = str(Path(data_dir) / target_name / band / 'cal' / '*cal.fits')
         science = glob(search)
         logprint(f'Science frames: {science}')
         outfile = f'{target_name}_{band}_meds.fits'
         outfile = os.path.join(band_outdir, outfile)
+
+        # Set up astromatic (sex & psfex & swarp) configs
+        sextractor_config_dir = str(Path(utils.MODULE_DIR,
+                                    'medsmaker/superbit/astro_config/')
+                                    )
 
         # Create an instance of BITMeasurement
         logprint('Setting up configuration...')
@@ -111,16 +117,19 @@ def main(args):
             vb=vb
             )
 
+        # Get detection source file & catalog
+        logprint('Making coadd...')
+        #bm.make_coadd_catalog(sex_config_dir=sextractor_config_dir)
+
+        # Set detection fule
+        bm.get_detection_files(use_band_coadd=True)
+
         # Make single-exposure catalogs
         logprint('Making single-exposure catalogs...')
-        sextractor_config_path = str(Path(utils.MODULE_DIR,
-                                    'medsmaker/superbit/astro_config/')
-                                    )
-        bm.make_exposure_catalogs(sextractor_config_path)
-
+        bm.make_exposure_catalogs(sextractor_config_dir)
         bm.get_image_cats()
 
-        # Build a PSF model for each image.
+        # Build  a PSF model for each image.
         logprint('Making PSF models...')
 
         bm.make_psf_models(
@@ -133,9 +142,6 @@ def main(args):
 
         logprint('Making MEDS...')
 
-        # Get detection source file & catalog
-        logprint('Getting detection source files & catalogs...')
-        bm.get_detection_files()
 
         # Make the image_info struct.
         image_info = bm.make_image_info_struct(use_coadd=use_coadd)
