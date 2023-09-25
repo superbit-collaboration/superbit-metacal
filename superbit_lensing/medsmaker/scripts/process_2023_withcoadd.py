@@ -119,7 +119,7 @@ def main(args):
 
         # Get detection source file & catalog
         logprint('Making coadd...')
-        #bm.make_coadd_catalog(sex_config_dir=sextractor_config_dir)
+        bm.make_coadd_catalog(sex_config_dir=sextractor_config_dir)
 
         # Set detection fule
         bm.get_detection_files(use_band_coadd=True)

@@ -93,8 +93,8 @@ class BITMeasurement():
         catdir = os.path.join(self.data_dir, self.target_name, self.band, 'cat')
         #imcats = glob.glob(os.path.join(top_dir, 'cat/*cal_cat.fits'))
         ims = self.image_files
-        cnames = map(lambda x:os.path.basename(x).replace('cal.fits',\
-                            'cal_cat.fits'), ims)
+        cnames = map(lambda x:os.path.basename(x).replace('*.fits',\
+                            '*_cat.fits'), ims)
         imcats = list(map(lambda x:os.path.join(catdir, x), cnames))
 
         if os.path.exists(imcats[0]) == False:
