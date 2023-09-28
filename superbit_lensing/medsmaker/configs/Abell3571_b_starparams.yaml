@@ -6,4 +6,4 @@ MAX_SIZE: 3.5
 MIN_SNR: 20
 
 # Path/name to truth file (NOT ACCURATE NAMING OR PATH YET)
-truthfilepath: '/Users/j.mccleary/Research/SuperBIT/real_data/Abell3571/b/coadd/Abell3571_b_star_cat.fits'
+truthfilepath: '/work/mccleary_group/superbit/real-data-2023/Abell3571/Abell3571_b_star_cat.fits'
