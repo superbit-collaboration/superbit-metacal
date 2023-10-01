@@ -1,0 +1,19 @@
+# Coadd input
+coadd_file: bullet_300s_band2_wcs.fits
+data_dir: /home/wslgeorgios/sex-tests/coadds/bullet
+
+# Directory containing SExtractor files (.config files, .nnw files, .conv files, etc.)
+config_dir: /home/wslgeorgios/superbit-metacal/superbit_lensing/medsmaker/superbit/astro_config
+
+# Script Parameters
+buffer_radius: 0.01 # Radius in which nearest neighbors are queried (degrees)
+n_neighbors: 5 # Number of nearest neighbors to query
+
+# Output Directory
+outdir: /home/wslgeorgios/sex-tests/outfiles
+
+# Modes of SExtractor to run (hot, cold, and/or default)
+modes: 
+  - hot
+  - cold
+#  - default
