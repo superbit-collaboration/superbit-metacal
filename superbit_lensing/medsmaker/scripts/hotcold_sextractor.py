@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import yaml
 import astropy.io.fits as fits
 from astropy.table import Table
 from astropy.coordinates import SkyCoord
@@ -9,18 +10,23 @@ from rtree import index
 
 class HotColdSExtractor:
 
-    def __init__(self, image_files, hc_config, target_name):
+    def __init__(self, image_files, hc_config, band, target_name):
+        # Load the YAML configuration file
+        with open(hc_config, 'r') as file:
+            config = yaml.safe_load(file)
+
         # Load in config arguments
-        self.coadd_file = hc_config['coadd_file']
-        self.data_dir = hc_config['data_dir']
-        self.config_dir = hc_config['config_dir']
-        self.outdir = hc_config['outdir']
-        self.modes = hc_config['modes']
-        self.buffer_radius = hc_config['buffer_radius']
-        self.n_neighbors = hc_config['n_neighbors']
+        self.coadd_file = config['coadd_file']
+        self.data_dir = config['data_dir']
+        self.config_dir = config['config_dir']
+        self.outdir = config['outdir']
+        self.modes = config['modes']
+        self.buffer_radius = config['buffer_radius']
+        self.n_neighbors = config['n_neighbors']
 
         self.target_name = target_name
         self.image_files = image_files
+        self.band = band
 
         # Initialize merged catalog and exclusion zone
         self.merged_data = []
@@ -104,6 +110,8 @@ class HotColdSExtractor:
 
         exposure_catalogs = []
 
+        self.outdir = os.path.join(self.data_dir, self.target_name, self.band, "cat")
+
         for imagefile in self.image_files:
             sexcat = self.run(imagefile)
             exposure_catalogs.append(sexcat)
@@ -115,7 +123,7 @@ class HotColdSExtractor:
         Wrapper script that runs SExtractor on the coadd image,
         and returns the catalog.
         '''
-        self.coadd_file = os.path.join(self.data_dir, self.target_name, "det", "coadd.fits")
+        self.coadd_file = os.path.join(self.data_dir, self.target_name, "det", "coadd", f"{self.target_name}_coadd.fits")
         self.outdir = os.path.join(self.data_dir, self.target_name, "det", "cat")
         self.run(self.coadd_file)
 
