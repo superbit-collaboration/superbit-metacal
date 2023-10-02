@@ -34,8 +34,6 @@ def parse_args():
     parser.add_argument('-star_config_dir', type=str, default=None,
                         help='Path to the directory containing the YAML ' + \
                              'configuration files for star processing')
-    parser.add_argument('--select_truth_stars', action='store_true', default=False,
-                        help='Set to match against truth catalog for PSF model fits')
     parser.add_argument('--meds_coadd', action='store_true', default=False,
                         help='Set to keep coadd cutout in MEDS file')
     parser.add_argument('--overwrite', action='store_true', default=False,
@@ -55,7 +53,6 @@ def main(args):
     overwrite = args.overwrite
     bands = args.bands
     star_config_dir = args.star_config_dir
-    select_truth_stars = args.select_truth_stars
     vb = args.vb
 
     if star_config_dir is None:
@@ -85,63 +82,67 @@ def main(args):
 
         # Check if the YAML file exists, if not use defaults
         if os.path.exists(yaml_path):
-            star_params = read_yaml_file(yaml_path)
+            star_config = read_yaml_file(yaml_path)
         else:
             logprint(
-                f'Warning: Configuration file {yaml_file} not ' +\
-                'found in {star_config_dir}. Setting star_params to None'
+                f'Warning: Configuration file {yaml_file} not ' +
+                f'found in {star_config_dir}. Setting "star_params" to None'
                 )
-            star_params = None
+            star_config = None
 
         # Load in the science frames
-        search = str(Path(data_dir) / target_name / band / 'cal' / '*clean.fits')
+        search = str(Path(data_dir) / target_name / band / 'cal' / '*cal.fits')
         science = glob(search)
-        logprint(f'Science frames: {science}')
+        logprint(f'\nUsing science frames: {science}\n')
+
+        # Define output MEDS name
         outfile = f'{target_name}_{band}_meds.fits'
         outfile = os.path.join(band_outdir, outfile)
 
         # Set up astromatic (sex & psfex & swarp) configs
-        sextractor_config_dir = str(Path(utils.MODULE_DIR,
-                                    'medsmaker/superbit/astro_config/')
-                                    )
+        astro_config_dir = str(Path(utils.MODULE_DIR,
+                               'medsmaker/superbit/astro_config/')
+                               )
 
         # Create an instance of BITMeasurement
         logprint('Setting up configuration...')
         bm = medsmaker.BITMeasurement(
-            science,
-            data_dir,
-            target_name,
-            band,
-            band_outdir,
-            log=log,
-            vb=vb
-            )
+             science,
+             data_dir,
+             target_name,
+             band,
+             band_outdir,
+             log=log,
+             vb=vb
+             )
 
         # Get detection source file & catalog
         logprint('Making coadd...')
-        bm.make_coadd_catalog(sex_config_dir=sextractor_config_dir)
+        bm.make_coadd_catalog(astro_config_dir)
 
-        # Set detection fule
-        bm.get_detection_files(use_band_coadd=True)
+        # Set detection file attributes
+        bm.set_detection_files(use_band_coadd=True)
+
+        # Also set single-band coadd name to detection
+        bm.coadd_img_file = bm.detect_img_path
 
         # Make single-exposure catalogs
         logprint('Making single-exposure catalogs...')
-        bm.make_exposure_catalogs(sextractor_config_dir)
-        bm.get_image_cats()
+        bm.make_exposure_catalogs(astro_config_dir)
+
+        # Set image catalogs attribute
+        bm.set_image_cats()
 
         # Build  a PSF model for each image.
         logprint('Making PSF models...')
-
         bm.make_psf_models(
-            select_truth_stars=select_truth_stars,
             use_coadd=use_coadd,
             psf_mode=psf_mode,
             psf_seed=psf_seed,
-            star_params=star_params,
-        )
+            star_config=star_config,
+            )
 
         logprint('Making MEDS...')
-
 
         # Make the image_info struct.
         image_info = bm.make_image_info_struct(use_coadd=use_coadd)
@@ -159,12 +160,11 @@ def main(args):
 
         # Finally, make and write the MEDS file.
         medsObj = meds.maker.MEDSMaker(
-        obj_info, image_info, config=meds_config,
-        psf_data=bm.psf_models, meta_data=meta
-        )
+                  obj_info, image_info, config=meds_config,
+                  psf_data=bm.psf_models, meta_data=meta
+                  )
 
         logprint(f'Writing to {outfile}')
-
         medsObj.write(outfile)
 
     logprint('Done!')

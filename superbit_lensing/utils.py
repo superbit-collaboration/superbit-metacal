@@ -14,6 +14,16 @@ import astropy.wcs as wcs
 import pdb
 import ipdb
 
+class AttrDict(dict):
+    '''
+    More convenient to access dict keys with dict.key than dict['key'],
+    so cast the input dict into a class!
+    '''
+
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
+
 class ForkedPdb(pdb.Pdb):
     """A Pdb subclass that may be used
     from a forked multiprocessing child
@@ -352,12 +362,10 @@ def get_pixel_scale(image_filename):
     for the input image. Returns pixel scale in arcsec/pixels.
 
     Input:
-
-    :image_filename: FITS image for which pixel scale is desired
+        image_filename: FITS image for which pixel scale is desired
 
     Return:
-
-    :pix_scale: image pixel scale in arcsec/pixels
+        pix_scale: image pixel scale in arcsec/pixels
 
     '''
 
@@ -377,11 +385,8 @@ def make_dir(d):
     '''
     Makes dir if it does not already exist
     '''
-
     if not os.path.exists(d):
         os.makedirs(d)
-
-    return
 
 def get_base_dir():
     '''

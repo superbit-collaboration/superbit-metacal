@@ -4,6 +4,10 @@ MAX_MAG: 21
 MIN_SIZE: 2
 MAX_SIZE: 3.5
 MIN_SNR: 20
+MAG_KEY: 'MAG_AUTO'
+SIZE_KEY: 'FWHM_IAMGE'
+SNR_KEY: 'SNR_WIN'
 
 # Path/name to truth file (NOT ACCURATE NAMING OR PATH YET)
-truthfilepath: '/work/mccleary_group/superbit/real-data-2023/Abell3571/Abell3571_b_star_cat.fits'
+use_truthstars: True
+truth_filename: '/work/mccleary_group/superbit/real-data-2023/Abell3571/Abell3571_b_star_cat.fits'
