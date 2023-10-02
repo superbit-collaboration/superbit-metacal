@@ -91,7 +91,7 @@ def main(args):
             star_config = None
 
         # Load in the science frames
-        search = str(Path(data_dir) / target_name / band / 'cal' / '*cal.fits')
+        search = str(Path(data_dir) / target_name / band / 'cal' / '*clean.fits')
         science = glob(search)
         logprint(f'\nUsing science frames: {science}\n')
 
@@ -118,6 +118,7 @@ def main(args):
 
         # Get detection source file & catalog
         logprint('Making coadd...')
+        bm.make_coadd_image(astro_config_dir)
         bm.make_coadd_catalog(astro_config_dir)
 
         # Set detection file attributes

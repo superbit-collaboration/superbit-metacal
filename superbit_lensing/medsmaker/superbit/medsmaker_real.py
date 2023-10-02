@@ -90,7 +90,6 @@ class BITMeasurement():
         imcats = list(map(lambda x:os.path.join(catdir, x), cnames))
 
         if os.path.exists(imcats[0]) == False:
-            pdb.set_trace()
             raise FileNotFoundError(f'No cat files found at location {catdir}')
         else:
             self.image_cats = imcats
@@ -107,7 +106,6 @@ class BITMeasurement():
         cat_dir = os.path.join(self.cluster_band_dir, 'cat')
         utils.make_dir(cat_dir)
         self.logprint(f'made catalog directory {cat_dir}')
-
         for image_file in self.image_files:
             sexcat = self._run_sextractor(image_file=image_file,
                                           config_dir=config_dir,
@@ -136,7 +134,7 @@ class BITMeasurement():
         if weight_file is not None:
             weight_arg = f'-WEIGHT_IMAGE {weight_file} -WEIGHT_TYPE MAP_WEIGHT'
         else:
-            weight_arg = '-WEIGHT_TYPE BACKGROUND'
+            weight_arg = '-WEIGHT_TYPE NONE'
 
         cmd = ' '.join([
                     'sex', image_arg, weight_arg, name_arg,  checkname_arg,
@@ -149,58 +147,73 @@ class BITMeasurement():
         print(f'cat_name is {cat_file} \n')
         return cat_file
 
-    def make_coadd_image(self, coadd_dir='./', config_dir='./',
-                              outfile_name='detection.fits',
-                              weightout_name='weight.fits'):
+    def make_coadd_image(self, config_dir=None):
         '''
         Runs SWarp on provided (reduced!) image files to make a coadd image
         for SEX and PSFEx detection.
         '''
-        # Make output directory if it doesn't exist
+        # Make output directory for coadd image if it doesn't exist
+        coadd_dir = os.path.join(self.cluster_band_dir, 'coadd')
         utils.make_dir(coadd_dir)
 
+        # Get an Astromatic config path
+        if config_dir is None:
+            config_dir = os.path.join(self.base_dir,
+                                      'superbit/astro_config/')
+
+        # Define coadd image & weight file names and paths
+        coadd_outname = f'{self.target_name}_coadd_{self.band}.fits'
+        coadd_file = os.path.join(coadd_dir, coadd_outname)
+        self.coadd_img_file = coadd_file
+
+        # Same for weights
+        weight_outname = coadd_outname.replace('.fits', '.weight.fits')
+        weight_file = os.path.join(coadd_dir, weight_outname)
+
         image_args = ' '.join(self.image_files)
-        detection_file = os.path.join(coadd_dir, outfile_name)
-        weight_file = os.path.join(coadd_dir, weightout_name)
         config_arg = f'-c {config_dir}/swarp.config'
         resamp_arg = f'-RESAMPLE_DIR {coadd_dir} '
-        outfile_arg = f'-IMAGEOUT_NAME {detection_file} ' + \
+        outfile_arg = f'-IMAGEOUT_NAME {coadd_file} ' + \
                       f'-WEIGHTOUT_NAME {weight_file} '
-
         cmd = ' '.join(['swarp ', image_args, resamp_arg, \
                         outfile_arg, config_arg])
         self.logprint('swarp cmd is ' + cmd)
         os.system(cmd)
 
 
-    def make_coadd_catalog(self, sex_config_dir=None,
-                           source_selection=False):
+    def make_coadd_catalog(self, config_dir=None):
         '''
         Wrapper for astromatic tools to make coadd detection image
         from provided exposures and return a coadd catalog
         '''
         # Get an Astromatic config path
-        if sex_config_dir is None:
-            sex_config_dir = os.path.join(self.base_dir,
+        if config_dir is None:
+            config_dir = os.path.join(self.base_dir,
                                            'superbit/astro_config/')
 
         # Where would single-band coadd be hiding?
         coadd_dir = os.path.join(self.cluster_band_dir, 'coadd')
 
         # Define coadd image & weight file names and paths
-        coadd_outname = f'{self.target_name}_coadd_{self.band}.fits'
-        weight_outname = coadd_outname.replace('.fits', '.weight.fits')
 
+        '''
 
         # Make the single-band coadd
         self.make_coadd_image(coadd_dir=coadd_dir,
                                   config_dir=sex_config_dir,
                                   outfile_name=coadd_outname,
                                   weightout_name=weight_outname)
+        '''
 
-        # Set coadd filepath
-        self.coadd_img_file = os.path.join(coadd_dir, coadd_outname)
+        # Set coadd filepath if it hasn't been set
+        coadd_outname = f'{self.target_name}_coadd_{self.band}.fits'
+        weight_outname = coadd_outname.replace('.fits', '.weight.fits')
         weight_filepath = os.path.join(coadd_dir, weight_outname)
+
+        try:
+            self.coadd_img_file
+        except AttributeError:
+            self.coadd_img_file = os.path.join(coadd_dir, coadd_outname)
 
         # Set pixel scale
         self.pix_scale = utils.get_pixel_scale(self.coadd_img_file)
@@ -209,7 +222,7 @@ class BITMeasurement():
         cat_name = self._run_sextractor(self.coadd_img_file,
                                         weight_file=weight_filepath,
                                         cat_dir=coadd_dir,
-                                        config_dir=sex_config_dir)
+                                        config_dir=config_dir)
         try:
             le_cat = fits.open(cat_name)
             try:
@@ -217,10 +230,6 @@ class BITMeasurement():
             except:
                 self.catalog = le_cat[1].data
 
-            if source_selection is True:
-                self.logprint("selecting sources")
-                self._select_sources_from_catalog(fullcat=le_cat,
-                                                  catname=cat_name)
         except Exception as e:
             self.logprint("coadd catalog could not be loaded; check name?")
             raise(e)
@@ -288,7 +297,7 @@ class BITMeasurement():
                            'use_truthstars': False
                            }
             self.logprint(f"Using default star params: {star_config}")
-            star_config = utils.AttrDict(star_config)
+            #star_config = utils.AttrDict(star_config)
 
         if config_path is None:
             config_path = os.path.join(self.base_dir, 'superbit/astro_config/')
