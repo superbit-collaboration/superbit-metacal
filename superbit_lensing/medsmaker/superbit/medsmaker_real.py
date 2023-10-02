@@ -132,7 +132,8 @@ class BITMeasurement():
         checkname_arg = f'-CHECKIMAGE_NAME  {bkg_name},{seg_name}'
 
         if weight_file is not None:
-            weight_arg = f'-WEIGHT_IMAGE {weight_file} -WEIGHT_TYPE MAP_WEIGHT'
+            weight_arg = f'-WEIGHT_IMAGE "{weight_file}[1]" ' + \
+                         '-WEIGHT_TYPE MAP_WEIGHT'
         else:
             weight_arg = '-WEIGHT_TYPE NONE'
 
@@ -180,6 +181,36 @@ class BITMeasurement():
         self.logprint('swarp cmd is ' + cmd)
         os.system(cmd)
 
+        # Join weight file with image file in an MEF
+        self.augment_coadd_image()
+
+    def augment_coadd_image(self, add_sgm=False):
+        '''
+        Something of a utility function to add weight and sgm extensions to
+        a single-band coadd, should the need arise
+        '''
+
+        coadd_im_file  = self.coadd_img_file
+        coadd_wt_file  = coadd_im_file.replace('.fits', '.weight.fits')
+        coadd_sgm_file = coadd_im_file.replace('.fits', '.sgm.fits')
+
+        # Now, have to combine the weight and image file into one.
+        im = fits.open(coadd_im_file, mode='append'); im[0].name = 'SCI'
+        if im.__contains__('WGT') == True:
+            self.logprint(f"\n Coadd image {coadd_im_file} already contains " +
+                          "an extension named 'WGT', skipping...\n")
+        else:
+            wt = fits.open(coadd_wt_file); wt[0].name = 'WGT'
+            im.append(wt[0])
+
+        if add_sgm == True:
+            sgm = fits.open(coadd_sgm_file); sgm[0].name = 'SEG'
+            im.append(sgm[0])
+
+        # Save; use writeto b/c flush and close don't update the SCI extension
+        im.writeto(coadd_im_file, overwrite=True)
+        im.close()
+
 
     def make_coadd_catalog(self, config_dir=None):
         '''
@@ -194,21 +225,10 @@ class BITMeasurement():
         # Where would single-band coadd be hiding?
         coadd_dir = os.path.join(self.cluster_band_dir, 'coadd')
 
-        # Define coadd image & weight file names and paths
-
-        '''
-
-        # Make the single-band coadd
-        self.make_coadd_image(coadd_dir=coadd_dir,
-                                  config_dir=sex_config_dir,
-                                  outfile_name=coadd_outname,
-                                  weightout_name=weight_outname)
-        '''
-
         # Set coadd filepath if it hasn't been set
         coadd_outname = f'{self.target_name}_coadd_{self.band}.fits'
-        weight_outname = coadd_outname.replace('.fits', '.weight.fits')
-        weight_filepath = os.path.join(coadd_dir, weight_outname)
+        #weight_outname = coadd_outname.replace('.fits', '.weight.fits')
+        #weight_filepath = os.path.join(coadd_dir, weight_outname)
 
         try:
             self.coadd_img_file
@@ -220,7 +240,7 @@ class BITMeasurement():
 
         # Run SExtractor on coadd
         cat_name = self._run_sextractor(self.coadd_img_file,
-                                        weight_file=weight_filepath,
+                                        weight_file=self.coadd_img_file,
                                         cat_dir=coadd_dir,
                                         config_dir=config_dir)
         try:
@@ -404,7 +424,7 @@ class BITMeasurement():
                         '-OUTCAT_NAME', outcat_name, autoselect_arg]
                         )
         self.logprint("psfex cmd is " + cmd)
-        os.system(cmd)
+        #os.system(cmd)
 
         return psfex.PSFEx(psfex_model_file)
 
@@ -574,34 +594,35 @@ class BITMeasurement():
         # is particularly long
 
         image_files = []; weight_files = []
-
+        pdb.set_trace()
         for img in self.image_files:
                 bkgsub_name = img.replace('.fits','.sub.fits')
                 image_files.append(bkgsub_name)
 
         if use_coadd == True:
-            coadd_im = self.coadd_img_file.replace('.fits', '.sub.fits')
+            coadd_im = self.coadd_img_file
             image_files.insert(0, coadd_im)
-            coadd_weight = self.coadd_img_file.replace('.fits', '.weight.fits')
+            # The coadd_img file is also the weight image (contained as ext=1)
+            coadd_weight = self.coadd_img_file
             weight_files.insert(0, coadd_weight)
 
         # If used, will be put first
-        Nim = len(self.image_files)
+        Nim = len(image_files)
         image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
 
         i=0
         for image_file in range(Nim):
 
-            image_file = self.image_files[i]
+            image_file = image_files[i]
 
             image_info[i]['image_path']  =  image_file
             image_info[i]['image_ext']   =  0
-            image_info[i]['weight_path'] =  image_file
+            image_info[i]['weight_path'] =  coadd_weight
             image_info[i]['weight_ext']  =  1
-            image_info[i]['bmask_path']  =  image_file
-            image_info[i]['bmask_ext']   =  2
-            image_info[i]['seg_path']    =  self.detect_img_path
-            image_info[i]['seg_ext']     =  2
+            #image_info[i]['bmask_path']  =  self.detect_img_path
+            #image_info[i]['bmask_ext']   =  1
+            image_info[i]['seg_path']    =  coadd_im.replace('.fits', '.sgm.fits')
+            image_info[i]['seg_ext']     =  0
 
             # The default is for 0 offset between the internal numpy arrays
             # and the images, but we use the FITS standard of a (1,1) origin.

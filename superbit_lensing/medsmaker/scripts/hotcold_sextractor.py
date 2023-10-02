@@ -57,7 +57,7 @@ class HotColdSExtractor:
         if cold_cat and hot_cat and os.path.exists(cold_cat) and os.path.exists(hot_cat):
             # Define output catalog name
             base_name = os.path.basename(imagefile)
-            outname = base_name.replace('.fits', '_cat' + '_merged'+'.fits')  
+            outname = base_name.replace('.fits', '_cat' + '_merged'+'.fits')
             # Merge the catalogs
             print(f"Merging catalogs {cold_cat} and {hot_cat}")
             self._merge_catalogs(cold_cat, hot_cat, self.buffer_radius, self.n_neighbors, outname)
@@ -117,7 +117,7 @@ class HotColdSExtractor:
             exposure_catalogs.append(sexcat)
 
         return exposure_catalogs
-    
+
     def make_coadd_catalog(self):
         '''
         Wrapper script that runs SExtractor on the coadd image,
@@ -138,7 +138,6 @@ class HotColdSExtractor:
         # Define Arguments for SExtractor command
         image_arg =             f'"{image}[0]"'
         weight_arg =            f'-WEIGHT_IMAGE "{image}[1]" -WEIGHT_TYPE MAP_WEIGHT'
-        weight_type_arg =       '-WEIGHT_TYPE MAP_WEIGHT'
         name_arg =              f'-CATALOG_NAME {cat_file}'
         param_arg =             f'-PARAMETERS_NAME {os.path.join(cpath, "sextractor.param")}'
         nnw_arg =               f'-STARNNW_NAME {os.path.join(cpath, "default.nnw")}'
@@ -157,7 +156,7 @@ class HotColdSExtractor:
             filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "gauss_5.0_9x9.conv")}'
             aper_name =         os.path.join(self.outdir, f"{aper_name_base}.cold.fits")
         elif mode == "default":
-            config_arg =        f'-c {os.path.join(cpath, "sextractor.config")}'
+            config_arg =        f'-c {os.path.join(cpath, "sextractor.real.config")}'
             filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "default.conv")}'
             aper_name =         os.path.join(self.outdir, f"{aper_name_base}.default.fits")
 
@@ -165,7 +164,7 @@ class HotColdSExtractor:
 
         # Make the SExtractor command
         cmd = ' '.join([
-            'sex', image_arg, weight_arg, weight_type_arg, name_arg,  checktype_arg, checkname_arg,
+            'sex', image_arg, weight_arg, name_arg,  checktype_arg, checkname_arg,
             param_arg, nnw_arg, filter_arg, config_arg
                         ])
 
@@ -213,10 +212,10 @@ class HotColdSExtractor:
         for i, cold_source in enumerate(cold_data):
             # Convert the cold source parameters to a SkyCoord object
             cold_coord = SkyCoord(cold_source['ALPHAWIN_J2000'], cold_source['DELTAWIN_J2000'], unit='deg')
-            
+
             # Create an ellipse for the cold source
             try:
-                ellipse = self.create_ellipse(cold_coord.ra.deg, cold_coord.dec.deg, cold_source['A_WORLD']*kron_min_radius_cold, 
+                ellipse = self.create_ellipse(cold_coord.ra.deg, cold_coord.dec.deg, cold_source['A_WORLD']*kron_min_radius_cold,
                                 cold_source['B_WORLD']*kron_min_radius_cold, cold_source['THETA_IMAGE'])
                 # Add a check here to see if the ellipse was created successfully
                 if ellipse is None:
@@ -258,10 +257,10 @@ class HotColdSExtractor:
 
             # Get the list of 5 nearest cold sources
             nearest_sources_ids = list(cold_idx.nearest(hot_buffer_bounds.bounds, n_neighbors))
-            
+
             # Get the actual nearest cold sources
             nearest_sources = [self.exclusion_zones[i] for i in nearest_sources_ids if 0 <= i < len(self.exclusion_zones)]
-            
+
             if not any(source.contains(hot_object) or source.intersects(hot_object) for source in nearest_sources):
                 self.merged_data.append(hot_source)
         print('Hot sources referenced to exclusion zone, merging catalogs')
@@ -269,5 +268,3 @@ class HotColdSExtractor:
         merged_table = Table(rows=self.merged_data)
         hdu = fits.BinTableHDU(merged_table)
         hdu.writeto(os.path.join(self.outdir, outname), overwrite=True)
-
-

@@ -1,0 +1,18 @@
+# Stellar locus parameters
+MIN_MAG: 27
+MAX_MAG: 21
+MIN_SIZE: 2
+MAX_SIZE: 3.5
+MIN_SNR: 20
+MAG_KEY: 'MAG_AUTO'
+SIZE_KEY: 'FWHM_IAMGE'
+SNR_KEY: 'SNR_WIN'
+
+# Match against a reference star catalog?
+use_truthstars: True
+# Name of star catalog to use
+truth_filename: '/Users/j.mccleary/Research/SuperBIT/real_data/MACSJ1931/MACSJ1931_gaia_starcat.fits'
+# RA & Dec column names of truthcat
+truth_ra_key: 'ALPHAWIN_J2000'
+truth_dec_key: 'DELTAWIN_J2000'
+cat_hdu: 2

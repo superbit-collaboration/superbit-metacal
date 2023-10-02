@@ -105,7 +105,7 @@ def main(args):
                                )
 
         # Create an instance of BITMeasurement
-        logprint('Setting up configuration...')
+        logprint('Setting up configuration...\n')
         bm = medsmaker.BITMeasurement(
              science,
              data_dir,
@@ -116,26 +116,25 @@ def main(args):
              vb=vb
              )
 
-        # Get detection source file & catalog
-        logprint('Making coadd...')
+        # Get detection source file & catalog        
+        logprint('Making coadd...\n')
         bm.make_coadd_image(astro_config_dir)
+        bm.augment_coadd_image()
+
+        logprint('Making coadd catalog...\n')
         bm.make_coadd_catalog(astro_config_dir)
 
         # Set detection file attributes
         bm.set_detection_files(use_band_coadd=True)
 
-        # Also set single-band coadd name to detection
-        bm.coadd_img_file = bm.detect_img_path
-
-        # Make single-exposure catalogs
-        logprint('Making single-exposure catalogs...')
+        logprint('Making single-exposure catalogs... \n')
         bm.make_exposure_catalogs(astro_config_dir)
 
         # Set image catalogs attribute
         bm.set_image_cats()
 
         # Build  a PSF model for each image.
-        logprint('Making PSF models...')
+        logprint('Making PSF models... \n')
         bm.make_psf_models(
             use_coadd=use_coadd,
             psf_mode=psf_mode,
@@ -143,7 +142,7 @@ def main(args):
             star_config=star_config,
             )
 
-        logprint('Making MEDS...')
+        logprint('Making MEDS... \n')
 
         # Make the image_info struct.
         image_info = bm.make_image_info_struct(use_coadd=use_coadd)
@@ -159,13 +158,14 @@ def main(args):
         magzp = 30.
         meta = bm.meds_metadata(magzp, use_coadd)
 
+        pdb.set_trace()
         # Finally, make and write the MEDS file.
         medsObj = meds.maker.MEDSMaker(
                   obj_info, image_info, config=meds_config,
                   psf_data=bm.psf_models, meta_data=meta
                   )
 
-        logprint(f'Writing to {outfile}')
+        logprint(f'Writing to {outfile} \n')
         medsObj.write(outfile)
 
     logprint('Done!')
