@@ -124,7 +124,8 @@ def main(args):
 
         hcs = HotColdSExtractor(
             science,
-            hc_config, 
+            hc_config,
+            band,
             target_name)
 
         # Run HotColdSExtractor on Coadd
