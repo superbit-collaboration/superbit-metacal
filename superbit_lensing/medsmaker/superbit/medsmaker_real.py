@@ -341,20 +341,6 @@ class BITMeasurement():
 
         k = 0
         for i in range(Nim):
-            '''
-            if (i == 0) and (use_coadd is True):
-                # TODO: temporary coadd PSF solution!
-                # see issue #83
-                self.psf_models.append(None)
-                continue
-            else:
-                if use_coadd is True:
-                    image_file = image_files[i-1]
-                    image_cat = image_cats[i-1]
-                else:
-                    image_file = image_files[i]
-                    image_cat = image_cats[i]
-            '''
 
             image_file = image_files[i]
             image_cat = image_cats[i]
@@ -424,7 +410,7 @@ class BITMeasurement():
                         '-OUTCAT_NAME', outcat_name, autoselect_arg]
                         )
         self.logprint("psfex cmd is " + cmd)
-        #os.system(cmd)
+        os.system(cmd)
 
         return psfex.PSFEx(psfex_model_file)
 
