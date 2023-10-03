@@ -580,7 +580,6 @@ class BITMeasurement():
         # is particularly long
 
         image_files = []; weight_files = []
-        pdb.set_trace()
         for img in self.image_files:
                 bkgsub_name = img.replace('.fits','.sub.fits')
                 image_files.append(bkgsub_name)

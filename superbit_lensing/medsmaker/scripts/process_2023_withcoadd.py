@@ -116,7 +116,7 @@ def main(args):
              vb=vb
              )
 
-        # Get detection source file & catalog        
+        # Get detection source file & catalog
         logprint('Making coadd...\n')
         bm.make_coadd_image(astro_config_dir)
         bm.augment_coadd_image()
@@ -158,7 +158,6 @@ def main(args):
         magzp = 30.
         meta = bm.meds_metadata(magzp, use_coadd)
 
-        pdb.set_trace()
         # Finally, make and write the MEDS file.
         medsObj = meds.maker.MEDSMaker(
                   obj_info, image_info, config=meds_config,
