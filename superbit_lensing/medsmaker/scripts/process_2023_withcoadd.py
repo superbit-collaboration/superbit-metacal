@@ -61,13 +61,7 @@ def main(args):
     # NOTE: Need to parse "band1,band2,etc." due to argparse struggling w/ lists
     bands = bands.split(',')
 
-    logfile = 'medsmaker.log'
-    logdir = outdir
-    log = utils.setup_logger(logfile, logdir=logdir)
-    logprint = utils.LogPrint(log, vb=vb)
-
     for band in bands:
-        logprint(f'Processing band {band}...')
         if outdir is None:
             band_outdir = Path(data_dir) / target_name / band / 'meds'
         else:
@@ -75,6 +69,13 @@ def main(args):
 
         # only makes it if it doesn't already exist
         utils.make_dir(str(band_outdir))
+
+        logfile = 'medsmaker.log'
+        logdir = band_outdir
+        log = utils.setup_logger(logfile, logdir=logdir)
+        logprint = utils.LogPrint(log, vb=vb)
+
+        logprint(f'Processing band {band}...')
 
         # Load the specific YAML file for the current band
         yaml_file = f'{target_name}_{band}_starparams.yaml'

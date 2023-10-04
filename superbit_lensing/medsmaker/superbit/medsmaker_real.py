@@ -173,7 +173,8 @@ class BITMeasurement():
 
         image_args = ' '.join(self.image_files)
         config_arg = f'-c {config_dir}/swarp.config'
-        resamp_arg = f'-RESAMPLE_DIR {coadd_dir} '
+        resamp_arg = f'-RESAMPLE_DIR {coadd_dir}'
+        cliplog_arg = f'CLIP_LOGNAME {coadd_dir}'
         outfile_arg = f'-IMAGEOUT_NAME {coadd_file} ' + \
                       f'-WEIGHTOUT_NAME {weight_file} '
         cmd = ' '.join(['swarp ', image_args, resamp_arg, \
@@ -414,6 +415,15 @@ class BITMeasurement():
                         )
         self.logprint("psfex cmd is " + cmd)
         os.system(cmd)
+
+        cleanup_cmd = ' '.join(
+            ['mv chi* resi* samp* snap* proto* *.xml', psfex_outdir]
+            )
+        cleanup_cmd2 = ' '.join(
+            ['mv count*pdf ellipticity*pdf fwhm*pdf', psfex_outdir]
+            )
+        os.system(cleanup_cmd)
+        os.system(cleanup_cmd2)
 
         return psfex.PSFEx(psfex_model_file)
 
