@@ -280,6 +280,9 @@ class BITMeasurement():
         else:
             self.detect_img_path = detection_img_path
 
+        if use_band_coadd == True:
+            self.coadd_img_file = detection_img_path 
+
         if os.path.exists(detection_cat_path) == False:
             raise FileNotFoundError('No detection catalog found ',
                                     f'at {detection_cat_path}\nCheck name?')
@@ -647,8 +650,8 @@ class BITMeasurement():
         '''
 
         meta = np.empty(1, [
-            ('magzp_ref', np.float),
-            ('has_coadd', np.bool)
+            ('magzp_ref', float),
+            ('has_coadd', bool)
             ])
 
         meta['magzp_ref'] = magzp
@@ -690,9 +693,9 @@ class BITMeasurement():
             catalog = self.detection_cat
 
         obj_str = meds.util.get_meds_input_struct(catalog.size, \
-                  extra_fields = [('KRON_RADIUS' ,np.float), \
-                  ('number', np.int), ('XWIN_IMAGE',np.float), \
-                  ('YWIN_IMAGE',np.float)]
+                  extra_fields = [('KRON_RADIUS', float), \
+                  ('number', int), ('XWIN_IMAGE', float), \
+                  ('YWIN_IMAGE', float)]
                   )
         obj_str['id'] = catalog['NUMBER']
         obj_str['number'] = np.arange(catalog.size)+1

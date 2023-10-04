@@ -119,7 +119,7 @@ def main(args):
         # Get detection source file & catalog
         logprint('Making coadd...\n')
         bm.make_coadd_image(astro_config_dir)
-        bm.augment_coadd_image()
+        
 
         logprint('Making coadd catalog...\n')
         bm.make_coadd_catalog(astro_config_dir)

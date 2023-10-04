@@ -13,7 +13,7 @@
 
 
 source /work/mccleary_group/miniconda3/etc/profile.d/conda.sh
-conda activate sbmcal_139
+conda activate sbmcal_139v2
 
 echo $PATH
 echo $PYTHONPATH
@@ -31,7 +31,6 @@ then
 
 export TARGET='MACSJ1931'
 export band='b'
-export OUTDIR='/work/mccleary_group/superbit/real-data-2023/'$TARGET'/'$band'/out'
 export CATDIR='/work/mccleary_group/superbit/real-data-2023/'$TARGET'/'$band'/cat'
 export DATADIR='/work/mccleary_group/superbit/real-data-2023/'
 export CODEDIR='/work/mccleary_group/superbit/superbit-metacal/superbit_lensing'
@@ -47,7 +46,6 @@ export CODEDIR='/work/mccleary_group/superbit/superbit-metacal/superbit_lensing'
 python $CODEDIR/medsmaker/scripts/process_2023_withcoadd.py $TARGET $band \
           $DATADIR --meds_coadd \
           -psf_mode=psfex -star_config_dir $CODEDIR/medsmaker/configs
-
 
 ## metacalibration
 #python $CODEDIR/metacalibration/ngmix_fit_superbit3.py $OUTDIR/1E0657_Bullet_b_meds.fits $OUTDIR/1E0657_Bullet_b_mcal.fits -outdir=$OUTDIR -n 48 -seed=4225165605 --overwrite
