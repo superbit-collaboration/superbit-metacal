@@ -118,8 +118,6 @@ class HotColdSExtractor:
             sexcat = self.run(imagefile, self.catdir)
             exposure_catalogs.append(sexcat)
 
-        return exposure_catalogs
-
     def make_coadd_catalog(self):
         '''
         Wrapper script that runs SExtractor on the coadd image,
