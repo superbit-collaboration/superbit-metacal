@@ -16,7 +16,6 @@ class HotColdSExtractor:
             config = yaml.safe_load(file)
 
         # Load in config arguments
-        self.coadd_file = config['coadd_file']
         self.modes = config['modes']
         self.buffer_radius = config['buffer_radius']
         self.n_neighbors = config['n_neighbors']
