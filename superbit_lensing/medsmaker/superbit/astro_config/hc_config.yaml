@@ -1,16 +1,6 @@
-# Coadd input
-coadd_file: 1E0657_Bullet_coadd_b.fits
-data_dir: /scratch/vassilakis.g/union
-
-# Directory containing SExtractor files (.config files, .nnw files, .conv files, etc.)
-config_dir: /work/mccleary_group/vassilakis.g/superbit-metacal/superbit_lensing/medsmaker/superbit/astro_config
-
 # Script Parameters
 buffer_radius: 0.01 # Radius in which nearest neighbors are queried (degrees)
 n_neighbors: 5 # Number of nearest neighbors to query
-
-# Output Directory
-outdir: '/scratch/vassilakis.g/union/1E0657_Bullet/b/out'
 
 # Modes of SExtractor to run (hot, cold, and/or default)
 modes: 

@@ -10,20 +10,19 @@ from rtree import index
 
 class HotColdSExtractor:
 
-    def __init__(self, image_files, hc_config, band, target_name):
+    def __init__(self, image_files, hc_config, band, target_name, data_dir, config_dir):
         # Load the YAML configuration file
         with open(hc_config, 'r') as file:
             config = yaml.safe_load(file)
 
         # Load in config arguments
         self.coadd_file = config['coadd_file']
-        self.data_dir = config['data_dir']
-        self.config_dir = config['config_dir']
-        self.outdir = config['outdir']
         self.modes = config['modes']
         self.buffer_radius = config['buffer_radius']
         self.n_neighbors = config['n_neighbors']
 
+        self.data_dir = data_dir
+        self.config_dir = config_dir
         self.target_name = target_name
         self.image_files = image_files
         self.band = band
@@ -32,7 +31,7 @@ class HotColdSExtractor:
         self.merged_data = []
         self.exclusion_zones = []
 
-    def run(self, imagefile, outdir):
+    def run(self, imagefile, catdir):
         '''
         Function that calls the SExtractor command building function based on the selected mode.
         '''
@@ -40,29 +39,25 @@ class HotColdSExtractor:
 
         # Run 'cold' (bright-mode) Source Extractor
         if 'cold' in self.modes:
-            cold_cat = self._run_sextractor(self.config_dir, imagefile, self.outdir, "cold", self.data_dir)
+            cold_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "cold", self.data_dir)
             print(f"Cold mode catalog complete: {cold_cat}")
 
         # Run 'hot' (faint-mode) Source Extractor
         if 'hot' in self.modes:
-            hot_cat = self._run_sextractor(self.config_dir, imagefile, self.outdir, "hot", self.data_dir)
+            hot_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "hot", self.data_dir)
             print(f"Hot mode catalog complete: {hot_cat}")
 
         # Run 'default' (one-mode) Source Extractor
         if 'default' in self.modes:
-            default_cat = self._run_sextractor(self.config_dir, imagefile, self.outdir, "default", self.data_dir)
+            default_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "default", self.data_dir)
             print(f"Default mode catalog complete: {default_cat}")
 
         # Check if the catalogs exist before merging
         if os.path.exists(cold_cat) and os.path.exists(hot_cat):
 
-            # Define output catalog names and outdirs
-            if "det/cat" in self.outdir:
-                base_name = os.path.basename(self.coadd_file)
-                outname = base_name.replace('.fits', '_cat.fits')
-            else:
-                base_name = os.path.basename(imagefile)
-                outname = base_name.replace('.fits', '_cat.fits')  
+            # Define output catalog names and catdirs
+            base_name = os.path.basename(imagefile)
+            outname = base_name.replace('.fits', '_cat.fits')  
 
             # Merge the catalogs
             print(f"Merging catalogs {cold_cat} and {hot_cat}")
@@ -77,7 +72,7 @@ class HotColdSExtractor:
             raise FileNotFoundError(f"One or both of the catalogs {cold_cat}, {hot_cat} do not exist, merged catalog NOT created.")
 
 
-    def _run_sextractor(self, sextractor_config_path, image_file, outdir, mode, datadir):
+    def _run_sextractor(self, sextractor_config_path, image_file, catdir, mode, datadir):
         '''
         Runs source extractor using os.system(cmd) on the given image file in the given mode
         '''
@@ -87,7 +82,7 @@ class HotColdSExtractor:
         cpath = sextractor_config_path
 
         # Define output catalog name/path
-        cat_dir = os.path.join(outdir)
+        cat_dir = os.path.join(catdir)
         base_name = os.path.basename(image_file)
 
         # Different output catalog nomenclature for coadd versus single exposure
@@ -118,10 +113,10 @@ class HotColdSExtractor:
 
         exposure_catalogs = []
 
-        self.outdir = os.path.join(self.data_dir, self.target_name, self.band, "cat")
+        self.catdir = os.path.join(self.data_dir, self.target_name, self.band, "cat")
 
         for imagefile in self.image_files:
-            sexcat = self.run(imagefile, self.outdir)
+            sexcat = self.run(imagefile, self.catdir)
             exposure_catalogs.append(sexcat)
 
         return exposure_catalogs
@@ -131,9 +126,9 @@ class HotColdSExtractor:
         Wrapper script that runs SExtractor on the coadd image,
         and returns the catalog.
         '''
-        self.coadd_file = os.path.join(self.data_dir, self.target_name, "det", "coadd", f"{self.target_name}_coadd.fits")
-        self.outdir = os.path.join(self.data_dir, self.target_name, "det", "cat")
-        self.run(self.coadd_file, self.outdir)
+        self.coadd_file = os.path.join(self.data_dir, self.target_name, "det", "coadd", f"{self.target_name}_coadd_det.fits")
+        self.catdir = os.path.join(self.data_dir, self.target_name, "det", "cat")
+        self.run(self.coadd_file, self.catdir)
 
 
     def _construct_sextractor_cmd(self, image, cat_file, cpath, mode):
@@ -158,15 +153,15 @@ class HotColdSExtractor:
         if mode == "hot":
             config_arg =        f'-c {os.path.join(cpath, "sextractor.hot.config")}'
             filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "default.conv")}'
-            aper_name =         os.path.join(self.outdir, f"{aper_name_base}.hot.fits")
+            aper_name =         os.path.join(self.catdir, f"{aper_name_base}.hot.fits")
         elif mode == "cold":
             config_arg =        f'-c {os.path.join(cpath, "sextractor.cold.config")}'
             filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "gauss_5.0_9x9.conv")}'
-            aper_name =         os.path.join(self.outdir, f"{aper_name_base}.cold.fits")
+            aper_name =         os.path.join(self.catdir, f"{aper_name_base}.cold.fits")
         elif mode == "default":
             config_arg =        f'-c {os.path.join(cpath, "sextractor.real.config")}'
             filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "default.conv")}'
-            aper_name =         os.path.join(self.outdir, f"{aper_name_base}.default.fits")
+            aper_name =         os.path.join(self.catdir, f"{aper_name_base}.default.fits")
 
         checkname_arg =         f'-CHECKIMAGE_NAME {bkg_name},{seg_name}'
 
@@ -291,4 +286,4 @@ class HotColdSExtractor:
         cold_fits_base[2].data = merged_table.as_array()
 
         # Write the merged catalog to a FITS file
-        cold_fits_base.writeto(os.path.join(self.outdir, outname), overwrite=True)
+        cold_fits_base.writeto(os.path.join(self.catdir, outname), overwrite=True)
