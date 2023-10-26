@@ -59,10 +59,10 @@ class HotColdSExtractor:
             # Define output catalog names and outdirs
             if "det/cat" in self.outdir:
                 base_name = os.path.basename(self.coadd_file)
-                outname = base_name.replace('.fits', '_det_cat.fits')
+                outname = base_name.replace('.fits', '_cat.fits')
             else:
                 base_name = os.path.basename(imagefile)
-                outname = base_name.replace('.fits', '_cat' +'.fits')  
+                outname = base_name.replace('.fits', '_cat.fits')  
 
             # Merge the catalogs
             print(f"Merging catalogs {cold_cat} and {hot_cat}")

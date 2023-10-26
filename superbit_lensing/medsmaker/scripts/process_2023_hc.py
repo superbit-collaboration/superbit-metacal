@@ -94,7 +94,7 @@ def main(args):
             star_params = None
 
         # Load in the science frames
-        search = str(Path(data_dir) / target_name / band / 'cal' / '{*clean,*cal}.fits')
+        search = str(Path(data_dir) / target_name / band / 'cal' / '*cal.fits')
         science = glob(search)
         logprint(f'Science frames: {science}')
         outfile = f'{target_name}_{band}_meds.fits'
