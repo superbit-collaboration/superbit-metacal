@@ -4,11 +4,11 @@
 #SBATCH -n 18
 #SBATCH --mem-per-cpu=10g
 #SBATCH --partition=short
-#SBATCH -J
+#SBATCH -J macs1931
 #SBATCH -v
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=j.mccleary@northeastern.edu
-#SBATCH -o abell3827_b.out
+#SBATCH -o macsj1931_b.out
 
 
 

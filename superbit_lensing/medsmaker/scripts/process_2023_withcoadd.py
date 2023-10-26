@@ -6,9 +6,10 @@ import meds
 from argparse import ArgumentParser
 import superbit_lensing.utils as utils
 from superbit_lensing.medsmaker.superbit import medsmaker_real as medsmaker
+from superbit_lensing.medsmaker.superbit.hotcold_sextractor import HotColdSExtractor
 import yaml
-
 import pdb
+
 
 def read_yaml_file(file_path):
     with open(file_path, 'r') as file:
@@ -117,10 +118,25 @@ def main(args):
              vb=vb
              )
 
+        # TODO: Make this less hard-coded
+        # Create an instance of HotColdSExtractor
+        logprint('Setting up HotColdSExtractor configuration...')
+
+        hc_config = os.path.join(astro_config_dir, 'hc_config.yaml')
+
+        hcs = HotColdSExtractor(
+            science,
+            hc_config,
+            band,
+            target_name, 
+            data_dir,
+            astro_config_dir)
+
+
         # Get detection source file & catalog
         logprint('Making coadd...\n')
-        bm.make_coadd_image(astro_config_dir)
-        
+        #bm.make_coadd_image(astro_config_dir)
+        hcs.make_coadd_catalog()
 
         logprint('Making coadd catalog...\n')
         bm.make_coadd_catalog(astro_config_dir)
@@ -129,8 +145,9 @@ def main(args):
         bm.set_detection_files(use_band_coadd=True)
 
         logprint('Making single-exposure catalogs... \n')
-        bm.make_exposure_catalogs(astro_config_dir)
-
+        #bm.make_exposure_catalogs(astro_config_dir)
+        single_exposure_catalogs = hcs.make_exposure_catalogs()
+        
         # Set image catalogs attribute
         bm.set_image_cats()
 

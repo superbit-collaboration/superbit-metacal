@@ -316,7 +316,7 @@ class BITMeasurement():
                            'MIN_SNR': 10,
                            'CLASS_STAR': 0.95,
                            'MAG_KEY': 'MAG_AUTO',
-                           'SIZE_KEY': 'FWHM_IAMGE',
+                           'SIZE_KEY': 'FWHM_IMAGE',
                            'SNR_KEY': 'SNR_WIN',
                            'use_truthstars': False
                            }
@@ -425,7 +425,11 @@ class BITMeasurement():
         os.system(cleanup_cmd)
         os.system(cleanup_cmd2)
 
-        return psfex.PSFEx(psfex_model_file)
+        try:
+            model = psfex.PSFEx(psfex_model_file)
+        except:
+            model = None
+        return model
 
 
     def _make_piff_model(self, im_file, im_cat, config_path, psf_seed,
