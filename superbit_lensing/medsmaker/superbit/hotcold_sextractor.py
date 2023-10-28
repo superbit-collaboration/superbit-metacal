@@ -8,9 +8,12 @@ from shapely.geometry.polygon import Polygon
 from shapely.geometry import MultiPolygon, box
 from rtree import index
 
+import superbit_lensing.utils as utils
+
 class HotColdSExtractor:
 
-    def __init__(self, image_files, hc_config, band, target_name, data_dir, config_dir):
+    def __init__(self, image_files, hc_config, band, target_name, 
+                 data_dir, config_dir, log=None, vb=False):
         # Load the YAML configuration file
         with open(hc_config, 'r') as file:
             config = yaml.safe_load(file)
@@ -26,6 +29,13 @@ class HotColdSExtractor:
         self.image_files = image_files
         self.band = band
 
+        # Set up logger
+        if log is None:
+            logfile = 'hotcold.log'
+            log = utils.setup_logger(logfile)
+
+        self.logprint = utils.LogPrint(log, vb)
+
         # Initialize merged catalog and exclusion zone
         self.merged_data = []
         self.exclusion_zones = []
@@ -39,17 +49,21 @@ class HotColdSExtractor:
         # Run 'cold' (bright-mode) Source Extractor
         if 'cold' in self.modes:
             cold_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "cold", self.data_dir)
-            print(f"Cold mode catalog complete: {cold_cat}")
+            self.logprint(f"Cold mode catalog complete: {cold_cat}\n")
 
         # Run 'hot' (faint-mode) Source Extractor
         if 'hot' in self.modes:
             hot_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "hot", self.data_dir)
-            print(f"Hot mode catalog complete: {hot_cat}")
+            self.logprint(f"Hot mode catalog complete: {hot_cat}\n")
 
         # Run 'default' (one-mode) Source Extractor
         if 'default' in self.modes:
             default_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "default", self.data_dir)
-            print(f"Default mode catalog complete: {default_cat}")
+            self.logprint(f"Default mode catalog complete: {default_cat}\n")
+
+        # If only default mode is selected, return immediately
+        if 'default' in self.modes and 'cold' not in self.modes and 'hot' not in self.modes:
+            return
 
         # Check if the catalogs exist before merging
         if os.path.exists(cold_cat) and os.path.exists(hot_cat):
@@ -59,14 +73,14 @@ class HotColdSExtractor:
             outname = base_name.replace('.fits', '_cat.fits')  
 
             # Merge the catalogs
-            print(f"Merging catalogs {cold_cat} and {hot_cat}")
+            self.logprint(f"Merging catalogs {cold_cat} and {hot_cat}")
             self._merge_catalogs(cold_cat, hot_cat, self.buffer_radius, self.n_neighbors, outname)
-            print(f"Merged catalog complete: {outname}")
+            self.logprint(f"Merged catalog complete: {outname}")
 
             # Delete the hot and cold catalogs after merging
             os.remove(hot_cat)
             os.remove(cold_cat)
-            print(f"Deleted catalogs: {hot_cat} and {cold_cat}")
+            self.logprint(f"Deleted catalogs: {hot_cat} and {cold_cat}\n")
         else:
             raise FileNotFoundError(f"One or both of the catalogs {cold_cat}, {hot_cat} do not exist, merged catalog NOT created.")
 
@@ -75,7 +89,7 @@ class HotColdSExtractor:
         '''
         Runs source extractor using os.system(cmd) on the given image file in the given mode
         '''
-        print("Processing " + f'{image_file}' + " in mode " + f'{mode}')
+        self.logprint("Processing " + f'{image_file}' + " in mode " + f'{mode}')
 
         # Define config file path
         cpath = sextractor_config_path
@@ -96,12 +110,12 @@ class HotColdSExtractor:
 
         # Construct the SExtractor command
         cmd = self._construct_sextractor_cmd(image, cat_file, cpath, mode)
-        print("sex cmd is " + cmd)
+        self.logprint("sex cmd is " + cmd)
 
         # Print command to terminal and run
         os.system(cmd)
 
-        print(f'cat_name_is {cat_file}')
+        self.logprint(f'cat_name is {cat_file}')
         return cat_file
 
     def make_exposure_catalogs(self):
@@ -173,10 +187,10 @@ class HotColdSExtractor:
     def create_ellipse(self, ra, dec, a, b, theta_deg):
         # Check for NaN or Infinity values in the inputs
         if np.isnan(ra) or np.isnan(dec) or np.isnan(a) or np.isnan(b) or np.isnan(theta_deg):
-            print("Skipped due to NaN values")
+            self.logprint("Skipped due to NaN values")
             return None
         if np.isinf(ra) or np.isinf(dec) or np.isinf(a) or np.isinf(b) or np.isinf(theta_deg):
-            print("Skipped due to Infinity values")
+            self.logprint("Skipped due to Infinity values")
             return None
 
         theta_rad = np.radians(180 - theta_deg) # Convert theta from degrees to radians (flip angle due to Polygon using different convention)
@@ -207,7 +221,7 @@ class HotColdSExtractor:
         kron_min_radius_cold = 3.0
         kron_min_radius_hot = 3.0
 
-        print(f'Creating ellipses for {len(cold_data)} cold sources')
+        self.logprint(f'Creating ellipses for {len(cold_data)} cold sources')
         # Loop over each source in the cold catalog
         for i, cold_source in enumerate(cold_data):
             # Convert the cold source parameters to a SkyCoord object
@@ -221,8 +235,8 @@ class HotColdSExtractor:
                 if ellipse is None:
                     continue
             except Exception as e:
-                print(f"Exception occurred: {e}")
-                print(f"Cold source parameters: {cold_source}")
+                self.logprint(f"Exception occurred: {e}")
+                self.logprint(f"Cold source parameters: {cold_source}")
                 continue
 
             # Add the ellipse to the exclusion zones and the r-tree index
@@ -231,9 +245,9 @@ class HotColdSExtractor:
 
             # Add the cold source to the merged catalog
             self.merged_data.append(cold_source)
-        print(f'Created {len(self.exclusion_zones)} exclusion zones')
+        self.logprint(f'Created {len(self.exclusion_zones)} exclusion zones')
 
-        print(f'Creating ellipses for {len(hot_data)} hot sources')
+        self.logprint(f'Creating ellipses for {len(hot_data)} hot sources')
         # Loop over each source in the hot catalog
         # Initialize a boolean array with the same length as hot_data and set all values to False
         wg = np.full(len(hot_data), False)
@@ -250,8 +264,8 @@ class HotColdSExtractor:
                 if hot_object is None:
                     continue
             except Exception as e:
-                print(f"Exception occurred: {e}")
-                print(f"Hot source parameters: {hot_source}")
+                self.logprint(f"Exception occurred: {e}")
+                self.logprint(f"Hot source parameters: {hot_source}")
                 continue
 
             # Create a buffer around the hot source
@@ -267,7 +281,7 @@ class HotColdSExtractor:
             if not any(source.contains(hot_object) or source.intersects(hot_object) for source in nearest_sources):
                 wg[idx] = True
 
-        print('Hot sources referenced to exclusion zone, merging catalogs')
+        self.logprint('Hot sources referenced to exclusion zone, merging catalogs')
 
         # Merge catalogs
         cold_fits_base = fits.open(cold_cat)

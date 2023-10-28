@@ -76,25 +76,30 @@ def main(args):
         log = utils.setup_logger(logfile, logdir=logdir)
         logprint = utils.LogPrint(log, vb=vb)
 
-        logprint(f'Processing band {band}...')
+        logprint(f'Processing band {band}...\n')
 
         # Load the specific YAML file for the current band
-        yaml_file = f'{target_name}_{band}_starparams.yaml'
-        yaml_path = os.path.join(star_config_dir, yaml_file)
+        starparams_yaml_file = f'{target_name}_{band}_starparams.yaml'
+        starparams_yaml_path = os.path.join(star_config_dir, starparams_yaml_file)
 
         # Check if the YAML file exists, if not use defaults
-        if os.path.exists(yaml_path):
-            star_config = read_yaml_file(yaml_path)
+        if os.path.exists(starparams_yaml_path):
+            star_config = read_yaml_file(starparams_yaml_path)
         else:
             logprint(
-                f'Warning: Configuration file {yaml_file} not ' +
+                f'Warning: Configuration file {starparams_yaml_file} not ' +
                 f'found in {star_config_dir}. Setting "star_params" to None'
                 )
             star_config = None
 
         # Load in the science frames
-        search = str(Path(data_dir) / target_name / band / 'cal' / '*clean.fits')
-        science = glob(search)
+        endings = ["cal", "clean"]
+        science = []
+
+        for ending in endings:
+            search_path = os.path.join(data_dir, target_name, band, 'cal', f'*{ending}.fits')
+            science.extend(glob(search_path))
+        
         logprint(f'\nUsing science frames: {science}\n')
 
         # Define output MEDS name
@@ -107,7 +112,7 @@ def main(args):
                                )
 
         # Create an instance of BITMeasurement
-        logprint('Setting up configuration...\n')
+        logprint('Setting up BITMeasurement configuration...\n')
         bm = medsmaker.BITMeasurement(
              science,
              data_dir,
@@ -120,7 +125,7 @@ def main(args):
 
         # TODO: Make this less hard-coded
         # Create an instance of HotColdSExtractor
-        logprint('Setting up HotColdSExtractor configuration...')
+        logprint('Setting up HotColdSExtractor configuration...\n')
 
         hc_config = os.path.join(astro_config_dir, 'hc_config.yaml')
 
@@ -130,7 +135,10 @@ def main(args):
             band,
             target_name, 
             data_dir,
-            astro_config_dir)
+            astro_config_dir,
+            log=log,
+            vb=vb
+            )
 
 
         # Get detection source file & catalog
