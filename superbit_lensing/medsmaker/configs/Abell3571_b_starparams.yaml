@@ -8,6 +8,11 @@ MAG_KEY: 'MAG_AUTO'
 SIZE_KEY: 'FWHM_IAMGE'
 SNR_KEY: 'SNR_WIN'
 
-# Path/name to truth file (NOT ACCURATE NAMING OR PATH YET)
+# Path to truth file (reference star catalog)
 use_truthstars: True
-truth_filename: '/work/mccleary_group/superbit/real-data-2023/Abell3571/Abell3571_b_star_cat.fits'
+# Name of star catalog to use
+truth_filename: '/work/mccleary_group/superbit/union/catalogs/stars/Abell3571_gaia_starcat.fits'
+# RA & Dec column names of truthcat
+truth_ra_key: 'ALPHAWIN_J2000'
+truth_dec_key: 'DELTAWIN_J2000'
+cat_hdu: 2
