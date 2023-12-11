@@ -143,11 +143,11 @@ def main(args):
 
         # Get detection source file & catalog
         logprint('Making coadd...\n')
-        #bm.make_coadd_image(astro_config_dir)
-        hcs.make_coadd_catalog()
+        bm.make_coadd_image(astro_config_dir)
+        hcs.make_coadd_catalog(use_band_coadd=True)
 
         logprint('Making coadd catalog...\n')
-        bm.make_coadd_catalog(astro_config_dir)
+        #bm.make_coadd_catalog(astro_config_dir)
 
         # Set detection file attributes
         bm.set_detection_files(use_band_coadd=True)
@@ -170,20 +170,25 @@ def main(args):
 
         logprint('Making MEDS... \n')
 
+        logprint('Making image_info struct... \n')
         # Make the image_info struct.
         image_info = bm.make_image_info_struct(use_coadd=use_coadd)
 
+        logprint('Make the object_info struct... \n')
         # Make the object_info struct.
         obj_info = bm.make_object_info_struct()
 
+        logprint('Make the MEDS config file... \n')
         # Make the MEDS config file.
         meds_config = bm.make_meds_config(use_coadd, psf_mode)
 
+        logprint('Create metadata for MEDS... \n')
         # Create metadata for MEDS
         # TODO: update this when we actually do photometric calibration!
         magzp = 30.
         meta = bm.meds_metadata(magzp, use_coadd)
 
+        logprint('Finally, make and write the MEDS file... \n')
         # Finally, make and write the MEDS file.
         medsObj = meds.maker.MEDSMaker(
                   obj_info, image_info, config=meds_config,

@@ -9,7 +9,7 @@ from superbit_lensing.medsmaker.superbit import medsmaker_real as medsmaker
 import yaml
 
 # Added for Hot/Cold SExtractor
-from hotcold_sextractor import HotColdSExtractor
+from superbit_lensing.medsmaker.superbit.hotcold_sextractor import HotColdSExtractor
 
 def read_yaml_file(file_path):
     with open(file_path, 'r') as file:
@@ -112,6 +112,10 @@ def main(args):
             vb=vb
             )
 
+        # Set up astromatic (sex & psfex & swarp) configs
+        astro_config_dir = str(Path(utils.MODULE_DIR,
+                               'medsmaker/superbit/astro_config/')
+                               )
         """
         CHANGED SECTION STARTS HERE
         """
@@ -126,13 +130,15 @@ def main(args):
             science,
             hc_config,
             band,
-            target_name)
+            target_name,
+            data_dir,
+            astro_config_dir
+            )
 
         # Run HotColdSExtractor on Coadd
         logprint('Making coadd detection catalog...')
         coadd_catalog = hcs.make_coadd_catalog()
 
-        # TODO: Check that this works with nomenclature and outdirs and such
         # Run HotColdSExtractor on Single Exposures
         logprint('Making single-exposure catalogs...')
         single_exposure_catalogs = hcs.make_exposure_catalogs()

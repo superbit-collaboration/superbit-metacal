@@ -99,7 +99,13 @@ class HotColdSExtractor:
         base_name = os.path.basename(image_file)
 
         # Different output catalog nomenclature for coadd versus single exposure
-        cat_name = base_name.replace('.fits', '_cat' + f'_{mode}'+'.fits')
+        if mode in ['cold', 'hot']:
+            # For 'cold' or 'hot' modes, append '_cat_mode' to the base name
+            cat_name = base_name.replace('.fits', '_cat_' + f'{mode}' + '.fits')
+        elif mode == 'default':
+            # For the default mode, append only '_cat' to the base name
+            cat_name = base_name.replace('.fits', '_cat.fits')
+
 
         cat_file = os.path.join(cat_dir, cat_name)
 
@@ -132,14 +138,22 @@ class HotColdSExtractor:
             sexcat = self.run(imagefile, self.catdir)
             exposure_catalogs.append(sexcat)
 
-    def make_coadd_catalog(self):
+    def make_coadd_catalog(self, use_band_coadd=False):
         '''
         Wrapper script that runs SExtractor on the coadd image,
         and returns the catalog.
+
+        Added functionality on whether to use on single band or det.
         '''
-        self.coadd_file = os.path.join(self.data_dir, self.target_name, "det", "coadd", f"{self.target_name}_coadd_det.fits")
-        self.catdir = os.path.join(self.data_dir, self.target_name, "det", "cat")
-        self.run(self.coadd_file, self.catdir)
+        if use_band_coadd == True:
+            self.coadd_file = os.path.join(self.data_dir, self.target_name, self.band, "coadd", f"{self.target_name}_coadd_{self.band}.fits")
+            self.catdir = os.path.join(self.data_dir, self.target_name, self.band, "coadd")
+            self.run(self.coadd_file, self.catdir)
+        else:
+            self.coadd_file = os.path.join(self.data_dir, self.target_name, "det", "coadd", f"{self.target_name}_coadd_det.fits")
+            self.catdir = os.path.join(self.data_dir, self.target_name, "det", "cat")
+            self.run(self.coadd_file, self.catdir)
+
 
 
     def _construct_sextractor_cmd(self, image, cat_file, cpath, mode):
