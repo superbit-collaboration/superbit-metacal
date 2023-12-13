@@ -148,8 +148,12 @@ def main(args):
         # Get detection source file & catalog
         logprint('Making coadd...\n')
 
+        # Make single band coadd and its catalog
         bm.make_coadd_image(astro_config_dir)
         hcs.make_coadd_catalog(use_band_coadd=True)
+
+        # Make dual-image SExtractor catalogs
+        hcs.make_dual_image_catalogs(detection_bandpass)
 
         logprint('Making coadd catalog...\n')
         #bm.make_coadd_catalog(astro_config_dir)

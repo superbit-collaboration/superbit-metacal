@@ -154,9 +154,48 @@ class HotColdSExtractor:
             self.catdir = os.path.join(self.data_dir, self.target_name, "det", "cat")
             self.run(self.coadd_file, self.catdir)
 
+    def make_dual_image_catalogs(self, detection_bandpass):
+        '''
+        Wrapper script that runs SExtractor on two coadd images in both 'hot' and 'cold' modes,
+        and then merges the resulting catalogs.
+        '''
 
+        band1_coadd_file = os.path.join(self.data_dir, self.target_name, detection_bandpass, "coadd", f"{self.target_name}_coadd_{detection_bandpass}.fits")
+        band2_coadd_file = os.path.join(self.data_dir, self.target_name, self.band, "coadd", f"{self.target_name}_coadd_{self.band}.fits")
 
-    def _construct_sextractor_cmd(self, image, cat_file, cpath, mode):
+        self.catdir = os.path.join(self.data_dir, self.target_name, self.band, "det", "cat")
+        hot_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, self.catdir, mode="hot")
+        cold_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, self.catdir, mode="cold")
+
+        # Set the output file name for the merged catalog
+        outname = f"{self.target_name}_{detection_bandpass}_{self.band}_dual_cat.fits"
+        self._merge_catalogs(hot_cat, cold_cat, self.buffer_radius, self.n_neighbors, outname)
+
+    def _run_sextractor_dual_mode(self, image_file1, image_file2, catdir, mode):
+        '''
+        Runs source extractor in dual image mode using os.system(cmd) on the given image files in the given mode
+        '''
+        self.logprint("Processing dual image mode for " + f'{image_file1}' + " and " + f'{image_file2}')
+
+        # Define output catalog name/path
+        cat_dir = os.path.join(catdir)
+        base_name1 = os.path.basename(image_file1)
+        base_name2 = os.path.basename(image_file2)
+
+        cat_name = f"{base_name1}_{base_name2}_dual_cat_{mode}.fits"
+        cat_file = os.path.join(cat_dir, cat_name)
+
+        # Construct the SExtractor command in dual image mode
+        cmd = self._construct_sextractor_cmd(image_file1, cat_file, self.config_dir, mode, dual_image_mode=True, second_image=image_file2)
+        self.logprint("sex cmd is " + cmd)
+
+        # Run the command
+        os.system(cmd)
+
+        self.logprint(f'Dual image catalog is {cat_file}')
+        return cat_file
+
+    def _construct_sextractor_cmd(self, image, cat_file, cpath, mode, dual_image_mode=False, second_image=None):
         '''
         Construct the sextractor command based on the given mode.
         '''
@@ -164,7 +203,12 @@ class HotColdSExtractor:
         image_basename = os.path.basename(image).replace('.fits', '')
 
         # Define Arguments for SExtractor command
-        image_arg =             f'"{image}[0]"'
+        if dual_image_mode and second_image is not None:
+            # Update the image argument to include both images
+            image_arg =         f'"{image}[0],{second_image}[0]"'
+        else:
+            image_arg =         f'"{image}[0]"'
+
         weight_arg =            f'-WEIGHT_IMAGE "{image}[1]" -WEIGHT_TYPE MAP_WEIGHT'
         name_arg =              f'-CATALOG_NAME {cat_file}'
         param_arg =             f'-PARAMETERS_NAME {os.path.join(cpath, "sextractor.param")}'
