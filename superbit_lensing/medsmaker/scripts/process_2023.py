@@ -35,6 +35,8 @@ def parse_args():
     parser.add_argument('-star_config_dir', type=str, default=None,
                         help='Path to the directory containing the YAML ' + \
                              'configuration files for star processing')
+    parser.add_argument('-detection_bandpass', type=str, default='b',
+                        help='Shape measurement (detection) bandpass')
     parser.add_argument('--meds_coadd', action='store_true', default=False,
                         help='Set to keep coadd cutout in MEDS file')
     parser.add_argument('--overwrite', action='store_true', default=False,
@@ -54,6 +56,7 @@ def main(args):
     overwrite = args.overwrite
     bands = args.bands
     star_config_dir = args.star_config_dir
+    detection_bandpass = args.detection_bandpass
     vb = args.vb
 
     if star_config_dir is None:
@@ -114,6 +117,7 @@ def main(args):
              target_name,
              band,
              band_outdir,
+             detection_bandpass,
              log=log,
              vb=vb
              )
@@ -135,7 +139,8 @@ def main(args):
 
         # Get detection source file & catalog
         logprint('Making coadd...\n')
-        #bm.make_coadd_image(astro_config_dir)
+        
+        bm.make_coadd_image(astro_config_dir)
         hcs.make_coadd_catalog()
 
         logprint('Making coadd catalog...\n')
