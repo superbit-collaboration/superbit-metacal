@@ -272,24 +272,25 @@ class BITMeasurement():
         coadd_img_name = f'coadd/{self.target_name}_coadd_{det}.fits'
         coadd_cat_name = f'{pref}{self.target_name}_coadd_{det}_cat.fits'
 
-        detection_img_path = os.path.join(det_dir, coadd_img_name)
-        detection_cat_path = os.path.join(det_dir, coadd_cat_name)
+        detection_img_file = os.path.join(det_dir, coadd_img_name)
+        detection_cat_file = os.path.join(det_dir, coadd_cat_name)
 
-        if os.path.exists(detection_img_path) == False:
+        if os.path.exists(detection_img_file) == False:
             raise FileNotFoundError('No detection coadd image found '+
-                                    f'at {detection_img_path}')
+                                    f'at {detection_img_file}')
         else:
-            self.detect_img_path = detection_img_path
+            self.detect_img_file = detection_img_file
 
         if use_band_coadd == True:
-            self.coadd_img_file = detection_img_path 
-
-        if os.path.exists(detection_cat_path) == False:
+            self.coadd_img_file = detection_img_file 
+            self.detect_img_file = detection_img_file
+            
+        if os.path.exists(detection_cat_file) == False:
             raise FileNotFoundError('No detection catalog found ',
-                                    f'at {detection_cat_path}\nCheck name?')
+                                    f'at {detection_cat_file}\nCheck name?')
         else:
-            self.detect_cat_path = detection_cat_path
-            dcat = fits.open(detection_cat_path)
+            self.detect_cat_path = detection_cat_file
+            dcat = fits.open(detection_cat_file)
             # hdu=2 if FITS_LDAC, hdu=1 if FITS_1.0
             try:
                 self.detection_cat = dcat[2].data
@@ -596,18 +597,22 @@ class BITMeasurement():
         # max_len_of_filepath may cause issues down the line if the file path
         # is particularly long
 
-        image_files = []; weight_files = []
+        image_files = []; weight_files = []; seg_files = []
+        
+        # For weight image and coadd=True if needed
+        coadd_im = self.detect_img_file
+        #coadd_weight = self.detect_img_file.replace('.fits', '.weight.fits')
+        
         for img in self.image_files:
                 bkgsub_name = img.replace('.fits','.sub.fits')
+                seg_name = img.replace('.fits','.sgm.fits')
                 image_files.append(bkgsub_name)
+                seg_files.append(seg_name)
 
         if use_coadd == True:
-            coadd_im = self.coadd_img_file
             image_files.insert(0, coadd_im)
-            # The coadd_img file is also the weight image (contained as ext=1)
-            coadd_weight = self.coadd_img_file
             weight_files.insert(0, coadd_weight)
-
+            
         # If used, will be put first
         Nim = len(image_files)
         image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
@@ -616,14 +621,15 @@ class BITMeasurement():
         for image_file in range(Nim):
 
             image_file = image_files[i]
+            seg_file = seg_files[i]
 
             image_info[i]['image_path']  =  image_file
             image_info[i]['image_ext']   =  0
-            image_info[i]['weight_path'] =  coadd_weight
+            image_info[i]['weight_path'] =  coadd_im
             image_info[i]['weight_ext']  =  1
             #image_info[i]['bmask_path']  =  self.detect_img_path
             #image_info[i]['bmask_ext']   =  1
-            image_info[i]['seg_path']    =  coadd_im.replace('.fits', '.sgm.fits')
+            image_info[i]['seg_path']    =  seg_file
             image_info[i]['seg_ext']     =  0
 
             # The default is for 0 offset between the internal numpy arrays
@@ -685,7 +691,7 @@ class BITMeasurement():
         :max_size:
         '''
 
-        pixel_scale = utils.get_pixel_scale(self.coadd_img_file)
+        pixel_scale = utils.get_pixel_scale(self.detect_img_file)
         box_size_float = np.ceil(angular_size/pixel_scale)
 
         # Available box sizes to choose from -> 16 to 256 in increments of 2

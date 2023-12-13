@@ -79,25 +79,30 @@ def main(args):
         log = utils.setup_logger(logfile, logdir=logdir)
         logprint = utils.LogPrint(log, vb=vb)
 
-        logprint(f'Processing band {band}...')
+        logprint(f'Processing band {band}...\n')
 
         # Load the specific YAML file for the current band
-        yaml_file = f'{target_name}_{band}_starparams.yaml'
-        yaml_path = os.path.join(star_config_dir, yaml_file)
+        starparams_yaml_file = f'{target_name}_{band}_starparams.yaml'
+        starparams_yaml_path = os.path.join(star_config_dir, starparams_yaml_file)
 
         # Check if the YAML file exists, if not use defaults
-        if os.path.exists(yaml_path):
-            star_config = read_yaml_file(yaml_path)
+        if os.path.exists(starparams_yaml_path):
+            star_config = read_yaml_file(starparams_yaml_path)
         else:
             logprint(
-                f'Warning: Configuration file {yaml_file} not ' +
+                f'Warning: Configuration file {starparams_yaml_file} not ' +
                 f'found in {star_config_dir}. Setting "star_params" to None'
                 )
             star_config = None
 
         # Load in the science frames
-        search = str(Path(data_dir) / target_name / band / 'cal' / '*clean.fits')
-        science = glob(search)
+        endings = ["cal", "clean"]
+        science = []
+
+        for ending in endings:
+            search_path = os.path.join(data_dir, target_name, band, 'cal', f'*{ending}.fits')
+            science.extend(glob(search_path))
+        
         logprint(f'\nUsing science frames: {science}\n')
 
         # Define output MEDS name
@@ -110,7 +115,7 @@ def main(args):
                                )
 
         # Create an instance of BITMeasurement
-        logprint('Setting up configuration...\n')
+        logprint('Setting up BITMeasurement configuration...\n')
         bm = medsmaker.BITMeasurement(
              science,
              data_dir,
@@ -124,7 +129,7 @@ def main(args):
 
         # TODO: Make this less hard-coded
         # Create an instance of HotColdSExtractor
-        logprint('Setting up HotColdSExtractor configuration...')
+        logprint('Setting up HotColdSExtractor configuration...\n')
 
         hc_config = os.path.join(astro_config_dir, 'hc_config.yaml')
 
@@ -134,17 +139,20 @@ def main(args):
             band,
             target_name, 
             data_dir,
-            astro_config_dir)
+            astro_config_dir,
+            log=log,
+            vb=vb
+            )
 
 
         # Get detection source file & catalog
         logprint('Making coadd...\n')
-        
+
         bm.make_coadd_image(astro_config_dir)
-        hcs.make_coadd_catalog()
+        hcs.make_coadd_catalog(use_band_coadd=True)
 
         logprint('Making coadd catalog...\n')
-        bm.make_coadd_catalog(astro_config_dir)
+        #bm.make_coadd_catalog(astro_config_dir)
 
         # Set detection file attributes
         bm.set_detection_files(use_band_coadd=True)
@@ -167,20 +175,25 @@ def main(args):
 
         logprint('Making MEDS... \n')
 
+        logprint('Making image_info struct... \n')
         # Make the image_info struct.
         image_info = bm.make_image_info_struct(use_coadd=use_coadd)
 
+        logprint('Make the object_info struct... \n')
         # Make the object_info struct.
         obj_info = bm.make_object_info_struct()
 
+        logprint('Make the MEDS config file... \n')
         # Make the MEDS config file.
         meds_config = bm.make_meds_config(use_coadd, psf_mode)
 
+        logprint('Create metadata for MEDS... \n')
         # Create metadata for MEDS
         # TODO: update this when we actually do photometric calibration!
         magzp = 30.
         meta = bm.meds_metadata(magzp, use_coadd)
 
+        logprint('Finally, make and write the MEDS file... \n')
         # Finally, make and write the MEDS file.
         medsObj = meds.maker.MEDSMaker(
                   obj_info, image_info, config=meds_config,
