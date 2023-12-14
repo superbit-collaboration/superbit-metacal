@@ -25,8 +25,9 @@ Goals:
 '''
 
 class BITMeasurement():
-    def __init__(self, image_files, data_dir, target_name, band,
-                    outdir, work_dir=None, log=None, vb=False):
+    def __init__(self, image_files, data_dir, target_name, 
+                band, detection_bandpass, outdir, work_dir=None, 
+                log=None, vb=False):
         '''
         data_path: path to the image data not including target name
         coadd: Set to true if the first image file is a coadd image (must be first)
@@ -38,6 +39,7 @@ class BITMeasurement():
         self.outdir = outdir
         self.vb = vb
         self.band = band
+        self.detection_bandpass = detection_bandpass 
 
         self.image_cats = []
         self.detect_img_path = None
@@ -177,13 +179,75 @@ class BITMeasurement():
         cliplog_arg = f'CLIP_LOGNAME {coadd_dir}'
         outfile_arg = f'-IMAGEOUT_NAME {coadd_file} ' + \
                       f'-WEIGHTOUT_NAME {weight_file} '
-        cmd = ' '.join(['swarp ', image_args, resamp_arg, \
-                        outfile_arg, config_arg])
+
+        cmd_arr = {'swarp': 'swarp', 
+                    'image_arg': image_args, 
+                    'resamp_arg': resamp_arg,
+                    'outfile_arg': outfile_arg, 
+                    'config_arg': config_arg
+                    }
+       
+        # Make external headers if band == detection
+        self._make_external_headers(cmd_arr)
+
+        # Actually run the command
+        cmd = ' '.join(cmd_arr.values())
         self.logprint('swarp cmd is ' + cmd)
         os.system(cmd)
-
+    
         # Join weight file with image file in an MEF
         self.augment_coadd_image()
+
+    def _make_external_headers(self, cmd_arr):
+        """ Make external swarp header files to register coadds to one another
+        in different bandpassess. Allows SExtractor to be run in dual-image 
+        mode and thus color cuts to be made """
+        
+        # Need to create a copy of cmd_arr, or these values get
+        # passed to make_coadd_image!
+        head_arr = copy.copy(cmd_arr)
+        
+        # This line pulls out the filename in -IMAGEOUT_NAME [whatever.fits]
+        # argument then creates header name by replacing ".fits" with ".head"
+        header_name = \
+            head_arr['outfile_arg'].split(' ')[1].replace(".fits",".head")
+
+        if self.band == self.detection_bandpass:
+            self.logprint(f'\nSwarp: band {self.band} matches ' +
+                         'detection bandpass setting')
+            self.logprint('Making external headers for u, g, b '+ 
+                          f'based on {self.band}\n')
+            
+            # First, make the detection bandpass header
+            header_only_arg = '-HEADER_ONLY Y'
+            head_arr['header_only_arg'] = header_only_arg
+            
+            header_outfile = ' '.join(['-IMAGEOUT_NAME', header_name])
+            
+            # Update swarp command list (dict)
+            head_arr['outfile_arg'] = header_outfile
+            
+            swarp_header_cmd = ' '.join(head_arr.values())
+            self.logprint('swarp header-only cmd is ' + swarp_header_cmd)
+            os.system(swarp_header_cmd)
+            
+            ## Cool, now that's done, create headers for the other bands too.
+            all_bands = ['u', 'b', 'g']
+            bands_to_do = np.setdiff1d(all_bands, self.detection_bandpass)
+            for band in bands_to_do:
+                # Get name
+                band_header = header_name.replace(
+                f'/{self.detection_bandpass}/',f'/{band}/').replace(
+                f'{self.detection_bandpass}.head',f'{band}.head'
+                )
+                
+                # Copy detection bandpass header to other band coadd dirs
+                cp_cmd = f'cp {header_name} {band_header}'
+                print(f'copying {header_name} to {band_header}')
+                os.system(cp_cmd)
+                
+        else:
+            print(f'\nSwarp: looking for external header...')
 
     def augment_coadd_image(self, add_sgm=False):
         '''

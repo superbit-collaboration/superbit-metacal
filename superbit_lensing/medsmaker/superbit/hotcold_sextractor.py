@@ -163,15 +163,15 @@ class HotColdSExtractor:
         band1_coadd_file = os.path.join(self.data_dir, self.target_name, detection_bandpass, "coadd", f"{self.target_name}_coadd_{detection_bandpass}.fits")
         band2_coadd_file = os.path.join(self.data_dir, self.target_name, self.band, "coadd", f"{self.target_name}_coadd_{self.band}.fits")
 
-        self.catdir = os.path.join(self.data_dir, self.target_name, self.band, "det", "cat")
-        hot_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, self.catdir, mode="hot")
-        cold_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, self.catdir, mode="cold")
+        self.catdir = os.path.join(self.data_dir, self.target_name, "det", "cat")
+        hot_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, detection_bandpass, self.catdir, mode="hot")
+        cold_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, detection_bandpass, self.catdir, mode="cold")
 
         # Set the output file name for the merged catalog
         outname = f"{self.target_name}_{detection_bandpass}_{self.band}_dual_cat.fits"
         self._merge_catalogs(hot_cat, cold_cat, self.buffer_radius, self.n_neighbors, outname)
 
-    def _run_sextractor_dual_mode(self, image_file1, image_file2, catdir, mode):
+    def _run_sextractor_dual_mode(self, image_file1, image_file2, detection_bandpass, catdir, mode):
         '''
         Runs source extractor in dual image mode using os.system(cmd) on the given image files in the given mode
         '''
@@ -179,10 +179,8 @@ class HotColdSExtractor:
 
         # Define output catalog name/path
         cat_dir = os.path.join(catdir)
-        base_name1 = os.path.basename(image_file1)
-        base_name2 = os.path.basename(image_file2)
 
-        cat_name = f"{base_name1}_{base_name2}_dual_cat_{mode}.fits"
+        cat_name = f"{self.target_name}_{detection_bandpass}_{self.band}_dual_cat_{mode}.fits"
         cat_file = os.path.join(cat_dir, cat_name)
 
         # Construct the SExtractor command in dual image mode
