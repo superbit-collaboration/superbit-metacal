@@ -26,8 +26,7 @@ Goals:
 
 class BITMeasurement():
     def __init__(self, image_files, data_dir, target_name, band,
-                 outdir, detection_bandpass='b',
-                 work_dir=None, log=None, vb=False):
+                    outdir, work_dir=None, log=None, vb=False):
         '''
         data_path: path to the image data not including target name
         coadd: Set to true if the first image file is a coadd image (must be first)
@@ -39,7 +38,6 @@ class BITMeasurement():
         self.outdir = outdir
         self.vb = vb
         self.band = band
-        self.detection_bandpass = detection_bandpass
 
         self.image_cats = []
         self.detect_img_path = None
@@ -176,79 +174,16 @@ class BITMeasurement():
         image_args = ' '.join(self.image_files)
         config_arg = f'-c {config_dir}/swarp.config'
         resamp_arg = f'-RESAMPLE_DIR {coadd_dir}'
-        cliplog_arg = f'-CLIP_LOGNAME {coadd_dir}'
+        cliplog_arg = f'CLIP_LOGNAME {coadd_dir}'
         outfile_arg = f'-IMAGEOUT_NAME {coadd_file} ' + \
                       f'-WEIGHTOUT_NAME {weight_file} '
-                      
-        cmd_arr = {'swarp': 'swarp', 
-                    'image_arg': image_args, 
-                    'resamp_arg': resamp_arg,
-                    'outfile_arg': outfile_arg, 
-                    'config_arg': config_arg
-                    }
-       
-        # Make external headers if band == detection
-        self._make_external_headers(cmd_arr)
-
-        # Actually run the command
-        cmd = ' '.join(cmd_arr.values())
+        cmd = ' '.join(['swarp ', image_args, resamp_arg, \
+                        outfile_arg, config_arg])
         self.logprint('swarp cmd is ' + cmd)
         os.system(cmd)
 
         # Join weight file with image file in an MEF
-        self.augment_coadd_image(cmd)
-
-    def _make_external_headers(self, cmd_arr):
-        """ Make external swarp header files to register coadds to one another
-        in different bandpassess. Allows SExtractor to be run in dual-image 
-        mode and thus color cuts to be made """
-        
-        # Need to create a copy of cmd_arr, or these values get
-        # passed to make_coadd_image!
-        head_arr = copy.copy(cmd_arr)
-        
-        # This line pulls out the filename in -IMAGEOUT_NAME [whatever.fits]
-        # argument then creates header name by replacing ".fits" with ".head"
-        header_name = \
-            head_arr['outfile_arg'].split(' ')[1].replace(".fits",".head")
-
-        if self.band == self.detection_bandpass:
-            self.logprint(f'\nSwarp: band {self.band} matches ' +
-                         'detection bandpass setting')
-            self.logprint('Making external headers for u, g, b '+ 
-                          f'based on {self.band}\n')
-            
-            # First, make the detection bandpass header
-            header_only_arg = '-HEADER_ONLY Y'
-            head_arr['header_only_arg'] = header_only_arg
-            
-            header_outfile = ' '.join(['-IMAGEOUT_NAME', header_name])
-            
-            # Update swarp command list (dict)
-            head_arr['outfile_arg'] = header_outfile
-            
-            swarp_header_cmd = ' '.join(head_arr.values())
-            self.logprint('swarp header-only cmd is ' + swarp_header_cmd)
-            os.system(swarp_header_cmd)
-            
-            ## Cool, now that's done, create headers for the other bands too.
-            all_bands = ['u', 'b', 'g']
-            bands_to_do = np.setdiff1d(all_bands, self.detection_bandpass)
-            for band in bands_to_do:
-                # Get name
-                band_header = header_name.replace(
-                f'/{self.detection_bandpass}/',f'/{band}/').replace(
-                f'{self.detection_bandpass}.head',f'{band}.head'
-                )
-                
-                # Copy detection bandpass header to other band coadd dirs
-                cp_cmd = f'cp {header_name} {band_header}'
-                print(f'copying {header_name} to {band_header}')
-                os.system(cp_cmd)
-                
-        else:
-            print(f'\nSwarp: looking for external header...')
-            
+        self.augment_coadd_image()
 
     def augment_coadd_image(self, add_sgm=False):
         '''
@@ -337,24 +272,25 @@ class BITMeasurement():
         coadd_img_name = f'coadd/{self.target_name}_coadd_{det}.fits'
         coadd_cat_name = f'{pref}{self.target_name}_coadd_{det}_cat.fits'
 
-        detection_img_path = os.path.join(det_dir, coadd_img_name)
-        detection_cat_path = os.path.join(det_dir, coadd_cat_name)
+        detection_img_file = os.path.join(det_dir, coadd_img_name)
+        detection_cat_file = os.path.join(det_dir, coadd_cat_name)
 
-        if os.path.exists(detection_img_path) == False:
+        if os.path.exists(detection_img_file) == False:
             raise FileNotFoundError('No detection coadd image found '+
-                                    f'at {detection_img_path}')
+                                    f'at {detection_img_file}')
         else:
-            self.detect_img_path = detection_img_path
+            self.detect_img_file = detection_img_file
 
         if use_band_coadd == True:
-            self.coadd_img_file = detection_img_path 
-
-        if os.path.exists(detection_cat_path) == False:
+            self.coadd_img_file = detection_img_file 
+            self.detect_img_file = detection_img_file
+            
+        if os.path.exists(detection_cat_file) == False:
             raise FileNotFoundError('No detection catalog found ',
-                                    f'at {detection_cat_path}\nCheck name?')
+                                    f'at {detection_cat_file}\nCheck name?')
         else:
-            self.detect_cat_path = detection_cat_path
-            dcat = fits.open(detection_cat_path)
+            self.detect_cat_path = detection_cat_file
+            dcat = fits.open(detection_cat_file)
             # hdu=2 if FITS_LDAC, hdu=1 if FITS_1.0
             try:
                 self.detection_cat = dcat[2].data
@@ -661,18 +597,22 @@ class BITMeasurement():
         # max_len_of_filepath may cause issues down the line if the file path
         # is particularly long
 
-        image_files = []; weight_files = []
+        image_files = []; weight_files = []; seg_files = []
+        
+        # For weight image and coadd=True if needed
+        coadd_im = self.detect_img_file
+        #coadd_weight = self.detect_img_file.replace('.fits', '.weight.fits')
+        
         for img in self.image_files:
                 bkgsub_name = img.replace('.fits','.sub.fits')
+                seg_name = img.replace('.fits','.sgm.fits')
                 image_files.append(bkgsub_name)
+                seg_files.append(seg_name)
 
         if use_coadd == True:
-            coadd_im = self.coadd_img_file
             image_files.insert(0, coadd_im)
-            # The coadd_img file is also the weight image (contained as ext=1)
-            coadd_weight = self.coadd_img_file
             weight_files.insert(0, coadd_weight)
-
+            
         # If used, will be put first
         Nim = len(image_files)
         image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
@@ -681,14 +621,15 @@ class BITMeasurement():
         for image_file in range(Nim):
 
             image_file = image_files[i]
+            seg_file = seg_files[i]
 
             image_info[i]['image_path']  =  image_file
             image_info[i]['image_ext']   =  0
-            image_info[i]['weight_path'] =  coadd_weight
+            image_info[i]['weight_path'] =  coadd_im
             image_info[i]['weight_ext']  =  1
             #image_info[i]['bmask_path']  =  self.detect_img_path
             #image_info[i]['bmask_ext']   =  1
-            image_info[i]['seg_path']    =  coadd_im.replace('.fits', '.sgm.fits')
+            image_info[i]['seg_path']    =  seg_file
             image_info[i]['seg_ext']     =  0
 
             # The default is for 0 offset between the internal numpy arrays
@@ -750,7 +691,7 @@ class BITMeasurement():
         :max_size:
         '''
 
-        pixel_scale = utils.get_pixel_scale(self.coadd_img_file)
+        pixel_scale = utils.get_pixel_scale(self.detect_img_file)
         box_size_float = np.ceil(angular_size/pixel_scale)
 
         # Available box sizes to choose from -> 16 to 256 in increments of 2
