@@ -59,14 +59,14 @@ def main(args):
     detection_bandpass = args.detection_bandpass
     vb = args.vb
 
-    if star_config_dir is None:
+    if star_config_dir == None:
         star_config_dir = str(Path(utils.MODULE_DIR, 'medsmaker/configs'))
 
     # NOTE: Need to parse "band1,band2,etc." due to argparse struggling w/ lists
     bands = bands.split(',')
 
     for band in bands:
-        if outdir is None:
+        if outdir == None:
             band_outdir = Path(data_dir) / target_name / band / 'meds'
         else:
             band_outdir = outdir
@@ -155,12 +155,12 @@ def main(args):
         hcs.make_coadd_catalog(use_band_coadd=True)
         #bm.make_coadd_catalog(astro_config_dir)
 
+        # Set detection file attributes
+        bm.set_detection_files(use_band_coadd=True)
+
         # Make dual-image SExtractor catalogs
         logprint('Making coadd catalog...\n')
         hcs.make_dual_image_catalogs(detection_bandpass)
-
-        # Set detection file attributes
-        bm.set_detection_files(use_band_coadd=True)
 
         logprint('Making single-exposure catalogs... \n')
         #bm.make_exposure_catalogs(astro_config_dir)

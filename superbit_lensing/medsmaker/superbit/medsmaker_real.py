@@ -352,6 +352,7 @@ class BITMeasurement():
         if os.path.exists(detection_cat_file) == False:
             raise FileNotFoundError('No detection catalog found ',
                                     f'at {detection_cat_file}\nCheck name?')
+            
         else:
             self.detect_cat_path = detection_cat_file
             dcat = fits.open(detection_cat_file)
@@ -479,7 +480,7 @@ class BITMeasurement():
                         '-OUTCAT_NAME', outcat_name, autoselect_arg]
                         )
         self.logprint("psfex cmd is " + cmd)
-        os.system(cmd)
+        #os.system(cmd)
 
         cleanup_cmd = ' '.join(
             ['mv chi* resi* samp* snap* proto* *.xml', psfex_outdir]
@@ -601,7 +602,7 @@ class BITMeasurement():
             sscat: input catalog from which to select stars
             truthcat: a pre-vetted catalog of stars
         '''
-
+        
         ss_fits = fits.open(sscat)
         if len(ss_fits) == 3:
             # It is an ldac
@@ -652,6 +653,7 @@ class BITMeasurement():
 
         # Save output star catalog to file
         ss_fits[ext].data = ss[wg_stars]
+        
         outname = sscat.replace('_cat.fits','_starcat.fits')
         ss_fits.writeto(outname, overwrite=True)
 
