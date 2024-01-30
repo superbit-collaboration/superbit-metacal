@@ -96,7 +96,6 @@ class BITMeasurement():
         else:
             self.image_cats = imcats
 
-
     def make_exposure_catalogs(self, config_dir):
         '''
         Make single-exposure catalogs
@@ -114,6 +113,35 @@ class BITMeasurement():
                                           cat_dir=cat_dir)
             self.image_cats.append(sexcat)
 
+    def make_exposure_weights(self):
+        '''
+        Make inverse-variance weight maps because ngmix needs them and we 
+        don't have them for SuperBIT.
+        Use the SExtractor BACKGROUND_RMS check-image as a basis
+        '''
+        
+        img_names = self.image_files
+
+        for img_name in img_names:
+            # Read in the BACKGROUND_RMS image
+            rms_name = img_name.replace('.fits', '.bkg_rms.fits')
+            
+            with fits.open(rms_name) as rms:
+                # Assuming the image data is in the primary HDU
+                background_rms_map = rms[0].data  
+                # Keep the original header to use for the weight map
+                header = rms[0].header  
+
+                # Make a weight map
+                weight_map = 1 / (background_rms_map**2)
+
+                # Save the weight_map to a new file
+                wgt_file_name = img_name.replace('.fits', '.weight.fits')
+                hdu = fits.PrimaryHDU(weight_map, header=header)
+                hdu.writeto(wgt_file_name, overwrite=True)
+
+            print(f'Weight map saved to {wgt_file_name}')        
+        
     def _run_sextractor(self, image_file, cat_dir, config_dir,
                         weight_file=None):
         '''
@@ -131,7 +159,8 @@ class BITMeasurement():
         filter_arg = f'-FILTER_NAME {os.path.join(config_dir, "gauss_2.0_3x3.conv")}'
         bkg_name   = image_file.replace('.fits','.sub.fits')
         seg_name   = image_file.replace('.fits','.sgm.fits')
-        checkname_arg = f'-CHECKIMAGE_NAME  {bkg_name},{seg_name}'
+        rms_name   = image_file.replace('.fits','.bkg_rms.fits')
+        checkname_arg = f'-CHECKIMAGE_NAME  {bkg_name},{seg_name},{rms_name}'
 
         if weight_file is not None:
             weight_arg = f'-WEIGHT_IMAGE "{weight_file}[1]" ' + \
@@ -188,7 +217,7 @@ class BITMeasurement():
                     }
        
         # Make external headers if band == detection
-        self._make_external_headers(cmd_arr)
+        #self._make_external_headers(cmd_arr)
 
         # Actually run the command
         cmd = ' '.join(cmd_arr.values())
@@ -249,7 +278,7 @@ class BITMeasurement():
         else:
             print(f'\nSwarp: looking for external header...')
 
-    def augment_coadd_image(self, add_sgm=False):
+    def augment_coadd_image(self, add_sgm=True):
         '''
         Something of a utility function to add weight and sgm extensions to
         a single-band coadd, should the need arise
@@ -663,40 +692,36 @@ class BITMeasurement():
         # max_len_of_filepath may cause issues down the line if the file path
         # is particularly long
 
-        image_files = []; weight_files = []; seg_files = []
+        image_files = []; weight_files = []
         
-        # For weight image and coadd=True if needed
-        coadd_im = self.detect_img_file
-        #coadd_weight = self.detect_img_file.replace('.fits', '.weight.fits')
+        coadd_image  = self.detect_img_file
+        coadd_weight = self.detect_img_file.replace('.fits', '.weight.fits') 
+        coadd_segmap = self.detect_img_file   # Segmap is extension #2
         
         for img in self.image_files:
-                bkgsub_name = img.replace('.fits','.sub.fits')
-                seg_name = img.replace('.fits','.sgm.fits')
-                image_files.append(bkgsub_name)
-                seg_files.append(seg_name)
+            bkgsub_name = img.replace('.fits','.sub.fits')
+            weight_name = img.replace('.fits', '.weight.fits')
+            image_files.append(bkgsub_name)
+            weight_files.append(weight_name)
 
         if use_coadd == True:
-            image_files.insert(0, coadd_im)
-            weight_files.insert(0, coadd_weight)
-            
+            img_files.insert(0, coadd_image)
+            wgt_files.insert(0, coadd_weight)
+
         # If used, will be put first
         Nim = len(image_files)
         image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
 
         i=0
         for image_file in range(Nim):
-
-            image_file = image_files[i]
-            seg_file = seg_files[i]
-
-            image_info[i]['image_path']  =  image_file
+            image_info[i]['image_path']  =  image_files[i]
             image_info[i]['image_ext']   =  0
-            image_info[i]['weight_path'] =  coadd_im
-            image_info[i]['weight_ext']  =  1
-            #image_info[i]['bmask_path']  =  self.detect_img_path
-            #image_info[i]['bmask_ext']   =  1
-            image_info[i]['seg_path']    =  seg_file
-            image_info[i]['seg_ext']     =  0
+            image_info[i]['weight_path'] =  weight_files[i]
+            image_info[i]['weight_ext']  =  0
+            #image_info[i]['bmask_path']  =  None
+            #image_info[i]['bmask_ext']   =  0
+            image_info[i]['seg_path']    =  coadd_segmap # Use coadd segmap for uberseg!
+            image_info[i]['seg_ext']     =  2
 
             # The default is for 0 offset between the internal numpy arrays
             # and the images, but we use the FITS standard of a (1,1) origin.
