@@ -229,7 +229,7 @@ class Annular(object):
             Number of times to resample NFW profile redshifts
         '''
 
-        if self.nfw_info is not None:
+        if self.nfw_info != None:
 
             # Resample so redshift distribution matches input galaxies
             nfw_tab = self._nfw_resample_redshift(
