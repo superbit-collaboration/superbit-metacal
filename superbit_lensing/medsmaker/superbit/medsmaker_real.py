@@ -509,7 +509,7 @@ class BITMeasurement():
                         '-OUTCAT_NAME', outcat_name, autoselect_arg]
                         )
         self.logprint("psfex cmd is " + cmd)
-        #os.system(cmd)
+        os.system(cmd)
 
         cleanup_cmd = ' '.join(
             ['mv chi* resi* samp* snap* proto* *.xml', psfex_outdir]
