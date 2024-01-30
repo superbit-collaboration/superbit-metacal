@@ -102,7 +102,6 @@ def main(args):
         for ending in endings:
             search_path = os.path.join(data_dir, target_name, band, 'cal', f'*{ending}.fits')
             science.extend(glob(search_path))
-            science=science[0:5]
         
         logprint(f'\nUsing science frames: {science}\n')
 

@@ -143,7 +143,7 @@ class BITMeasurement():
             print(f'Weight map saved to {wgt_file_name}')        
         
     def _run_sextractor(self, image_file, cat_dir, config_dir,
-                        weight_file=None):
+                        weight_file=None, back_type='AUTO'):
         '''
         Utility method to invoke Source Extractor on supplied detection file
         Returns: file path of catalog
@@ -157,6 +157,7 @@ class BITMeasurement():
         param_arg  = f'-PARAMETERS_NAME {os.path.join(config_dir, "sextractor.param")}'
         nnw_arg    = f'-STARNNW_NAME {os.path.join(config_dir, "default.nnw")}'
         filter_arg = f'-FILTER_NAME {os.path.join(config_dir, "gauss_2.0_3x3.conv")}'
+        bg_sub_arg = f'-BACK_TYPE {back_type}'
         bkg_name   = image_file.replace('.fits','.sub.fits')
         seg_name   = image_file.replace('.fits','.sgm.fits')
         rms_name   = image_file.replace('.fits','.bkg_rms.fits')
@@ -170,7 +171,7 @@ class BITMeasurement():
 
         cmd = ' '.join([
                     'sex', image_arg, weight_arg, name_arg,  checkname_arg,
-                    param_arg, nnw_arg, filter_arg, config_arg
+                    param_arg, nnw_arg, filter_arg, bg_sub_arg, config_arg
                     ])
 
         self.logprint("sex cmd is " + cmd)
@@ -333,10 +334,14 @@ class BITMeasurement():
         self.pix_scale = utils.get_pixel_scale(self.coadd_img_file)
 
         # Run SExtractor on coadd
-        cat_name = self._run_sextractor(self.coadd_img_file,
-                                        weight_file=self.coadd_img_file,
-                                        cat_dir=coadd_dir,
-                                        config_dir=config_dir)
+        cat_name = self._run_sextractor(
+            self.coadd_img_file,
+            weight_file=self.coadd_img_file,
+            cat_dir=coadd_dir,
+            config_dir=config_dir, 
+            back_type='MANUAL'
+        )
+
         try:
             le_cat = fits.open(cat_name)
             try:
@@ -475,7 +480,7 @@ class BITMeasurement():
         '''
 
         # Where to store PSFEx output
-        psfex_outdir = os.path.dirname(im_cat)
+        psfex_outdir = os.path.join(os.path.dirname(im_cat), 'psfex-output')
         utils.make_dir(psfex_outdir)
 
         # Are we using a reference star catalog?
@@ -495,11 +500,16 @@ class BITMeasurement():
                       )
 
         # Define output names
-        outcat_name = os.path.join(psfex_outdir,
-                      psfcat_name.replace('_starcat.fits','.psfex_starcat.fits')
-                      )
-        psfex_model_file = os.path.join(psfex_outdir,
-                           psfcat_name.replace('.fits','.psf'))
+        outcat_name = os.path.join(
+            psfex_outdir,
+            psfcat_name.replace('_starcat.fits','.psfex_starcat.fits')
+            )
+        psfex_model_file = os.path.join(
+            psfex_outdir,
+            os.path.basename(
+                psfcat_name.replace('.fits','.psf')
+                )
+            )
 
         # Now run PSFEx on that image and accompanying catalog
         psfex_config_arg = '-c '+ config_path + 'psfex.config'
@@ -524,6 +534,7 @@ class BITMeasurement():
             model = psfex.PSFEx(psfex_model_file)
         except:
             model = None
+            print(f'WARNING:\n Could not find PSFEx model file {psfex_model_file}\n')
         return model
 
 
