@@ -184,7 +184,7 @@ class HotColdSExtractor:
         cat_file = os.path.join(cat_dir, cat_name)
 
         # Construct the SExtractor command in dual image mode
-        cmd = self._construct_sextractor_cmd(image_file1, cat_file, self.config_dir, mode, dual_image_mode=True, second_image=image_file2)
+        cmd = self._construct_sextractor_cmd(image_file1, cat_file, self.config_dir, mode, back_type='MANUAL', dual_image_mode=True, second_image=image_file2)
         self.logprint("sex cmd is " + cmd)
 
         # Run the command
