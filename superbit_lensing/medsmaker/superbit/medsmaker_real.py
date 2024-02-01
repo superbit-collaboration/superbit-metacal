@@ -279,7 +279,7 @@ class BITMeasurement():
         else:
             print(f'\nSwarp: looking for external header...')
 
-    def augment_coadd_image(self, add_sgm=True):
+    def augment_coadd_image(self, add_sgm=False):
         '''
         Something of a utility function to add weight and sgm extensions to
         a single-band coadd, should the need arise
@@ -707,7 +707,7 @@ class BITMeasurement():
         
         coadd_image  = self.detect_img_file
         coadd_weight = self.detect_img_file.replace('.fits', '.weight.fits') 
-        coadd_segmap = self.detect_img_file   # Segmap is extension #2
+        coadd_segmap = self.detect_img_file.replace('.fits', '.sgm.fits') 
         
         for img in self.image_files:
             bkgsub_name = img.replace('.fits','.sub.fits')
@@ -732,7 +732,7 @@ class BITMeasurement():
             #image_info[i]['bmask_path']  =  None
             #image_info[i]['bmask_ext']   =  0
             image_info[i]['seg_path']    =  coadd_segmap # Use coadd segmap for uberseg!
-            image_info[i]['seg_ext']     =  2
+            image_info[i]['seg_ext']     =  0
 
             # The default is for 0 offset between the internal numpy arrays
             # and the images, but we use the FITS standard of a (1,1) origin.
