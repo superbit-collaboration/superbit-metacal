@@ -67,7 +67,7 @@ def main(args):
 
     for band in bands:
         if outdir == None:
-            band_outdir = Path(data_dir) / target_name / band / 'meds'
+            band_outdir = Path(data_dir) / target_name / band / 'out'
         else:
             band_outdir = outdir
 
