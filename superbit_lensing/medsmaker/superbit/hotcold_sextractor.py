@@ -231,7 +231,7 @@ class HotColdSExtractor:
             filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "default.conv")}'
             aper_name =         os.path.join(self.catdir, f"{aper_name_base}.default.fits")
 
-        checkname_arg =         f'-CHECKIMAGE_NAME {bkg_name},{_name}'
+        checkname_arg =         f'-CHECKIMAGE_NAME {bkg_name},{seg_name}'
 
         # Make the SExtractor command
         cmd = ' '.join([
