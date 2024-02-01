@@ -40,7 +40,7 @@ class HotColdSExtractor:
         self.merged_data = []
         self.exclusion_zones = []
 
-    def run(self, imagefile, catdir):
+    def run(self, imagefile, catdir, back_type='AUTO'):
         '''
         Function that calls the SExtractor command building function based on the selected mode.
         '''
@@ -48,17 +48,17 @@ class HotColdSExtractor:
 
         # Run 'cold' (bright-mode) Source Extractor
         if 'cold' in self.modes:
-            cold_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "cold", self.data_dir)
+            cold_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "cold", self.data_dir, back_type)
             self.logprint(f"Cold mode catalog complete: {cold_cat}\n")
 
         # Run 'hot' (faint-mode) Source Extractor
         if 'hot' in self.modes:
-            hot_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "hot", self.data_dir)
+            hot_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "hot", self.data_dir, back_type)
             self.logprint(f"Hot mode catalog complete: {hot_cat}\n")
 
         # Run 'default' (one-mode) Source Extractor
         if 'default' in self.modes:
-            default_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "default", self.data_dir)
+            default_cat = self._run_sextractor(self.config_dir, imagefile, self.catdir, "default", self.data_dir, back_type)
             self.logprint(f"Default mode catalog complete: {default_cat}\n")
 
         # If only default mode is selected, return immediately
@@ -85,7 +85,7 @@ class HotColdSExtractor:
             raise FileNotFoundError(f"One or both of the catalogs {cold_cat}, {hot_cat} do not exist, merged catalog NOT created.")
 
 
-    def _run_sextractor(self, sextractor_config_path, image_file, catdir, mode, datadir):
+    def _run_sextractor(self, sextractor_config_path, image_file, catdir, mode, datadir, back_type='AUTO'):
         '''
         Runs source extractor using os.system(cmd) on the given image file in the given mode
         '''
@@ -115,7 +115,7 @@ class HotColdSExtractor:
             raise FileNotFoundError(f"The file '{image}' does not exist.")
 
         # Construct the SExtractor command
-        cmd = self._construct_sextractor_cmd(image, cat_file, cpath, mode)
+        cmd = self._construct_sextractor_cmd(image, cat_file, cpath, mode, back_type)
         self.logprint("sex cmd is " + cmd)
 
         # Print command to terminal and run
@@ -148,11 +148,11 @@ class HotColdSExtractor:
         if use_band_coadd == True:
             self.coadd_file = os.path.join(self.data_dir, self.target_name, self.band, "coadd", f"{self.target_name}_coadd_{self.band}.fits")
             self.catdir = os.path.join(self.data_dir, self.target_name, self.band, "coadd")
-            self.run(self.coadd_file, self.catdir)
+            self.run(self.coadd_file, self.catdir, back_type='MANUAL')
         else:
             self.coadd_file = os.path.join(self.data_dir, self.target_name, "det", "coadd", f"{self.target_name}_coadd_det.fits")
             self.catdir = os.path.join(self.data_dir, self.target_name, "det", "cat")
-            self.run(self.coadd_file, self.catdir)
+            self.run(self.coadd_file, self.catdir, back_type='MANUAL')
 
     def make_dual_image_catalogs(self, detection_bandpass):
         '''
@@ -193,7 +193,7 @@ class HotColdSExtractor:
         self.logprint(f'Dual image catalog is {cat_file}')
         return cat_file
 
-    def _construct_sextractor_cmd(self, image, cat_file, cpath, mode, dual_image_mode=False, second_image=None):
+    def _construct_sextractor_cmd(self, image, cat_file, cpath, mode, back_type='AUTO', dual_image_mode=False, second_image=None):
         '''
         Construct the sextractor command based on the given mode.
         '''
@@ -215,6 +215,7 @@ class HotColdSExtractor:
 
         bkg_name =              image.replace('.fits','.sub.fits')
         seg_name =              image.replace('.fits','.sgm.fits')
+        bg_sub_arg =            f'-BACK_TYPE {back_type}'
         aper_name_base =        f"{image_basename}_apertures"
 
         if mode == "hot":
@@ -230,12 +231,12 @@ class HotColdSExtractor:
             filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "default.conv")}'
             aper_name =         os.path.join(self.catdir, f"{aper_name_base}.default.fits")
 
-        checkname_arg =         f'-CHECKIMAGE_NAME {bkg_name},{seg_name}'
+        checkname_arg =         f'-CHECKIMAGE_NAME {bkg_name},{_name}'
 
         # Make the SExtractor command
         cmd = ' '.join([
             'sex', image_arg, weight_arg, name_arg,  checktype_arg, checkname_arg,
-            param_arg, nnw_arg, filter_arg, config_arg
+            param_arg, nnw_arg, filter_arg, bg_sub_arg, config_arg
                         ])
 
         return cmd
