@@ -219,7 +219,7 @@ class HotColdSExtractor:
 
         if mode == "hot":
             config_arg =        f'-c {os.path.join(cpath, "sextractor.hot.config")}'
-            filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "default.conv")}'
+            filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "gauss_2.0_3x3.conv")}'
             aper_name =         os.path.join(self.catdir, f"{aper_name_base}.hot.fits")
         elif mode == "cold":
             config_arg =        f'-c {os.path.join(cpath, "sextractor.cold.config")}'
@@ -227,7 +227,7 @@ class HotColdSExtractor:
             aper_name =         os.path.join(self.catdir, f"{aper_name_base}.cold.fits")
         elif mode == "default":
             config_arg =        f'-c {os.path.join(cpath, "sextractor.real.config")}'
-            filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "default.conv")}'
+            filter_arg =        f'-FILTER_NAME {os.path.join(cpath, "gauss_2.0_3x3.conv")}'
             aper_name =         os.path.join(self.catdir, f"{aper_name_base}.default.fits")
 
         checkname_arg =         f'-CHECKIMAGE_NAME {bkg_name},{seg_name}'
