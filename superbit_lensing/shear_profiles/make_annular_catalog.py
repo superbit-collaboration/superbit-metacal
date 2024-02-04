@@ -184,10 +184,10 @@ class AnnularCatalog():
             # Assume real data -- need to have cluster redshift defined!
             # And some basic RA/Dec columns
             ra_col = 'ALPHAWIN_J2000'; dec_col = 'DELTAWIN_J2000'; z_col = 'Redshift'
-            if self.cluster_redshift is None:
+            if self.cluster_redshift == None:
                 print('No cluster_redshift argument supplied; ' +\
                         'no redshift cuts will be made')
-            
+
 
         if (~np.isin(ra_col, redshifts.colnames)) & (~np.isin(dec_col, redshifts.colnames)):
             print(f'Redshift catalog missing columns {ra_col}, {dec_col}')
@@ -237,7 +237,7 @@ class AnnularCatalog():
         - Remove foreground galaxies from sample using redshift info in truth file
         - Select from catalog on g_cov, T/T_psf, etc.
         - Correct g1/g2_noshear for the Rinv quantity (see Huff & Mandelbaum 2017)
-        - Save shear-respoNdet corrected ellipticities to an output table
+        - Save shear-response-corrected ellipticities to an output table
         """
 
         # Access truth file name
@@ -288,7 +288,7 @@ class AnnularCatalog():
         min_T = 0.0
         max_T = 10
 
-        if self.cluster_redshift is not None:
+        if self.cluster_redshift != None:
             # Add in a little bit of a safety margin -- maybe a bad call for simulated data?
             min_redshift = float(self.cluster_redshift) + 0.025
         else:
@@ -489,9 +489,6 @@ class AnnularCatalog():
                 outfile, plotfile, Nresample, overwrite=overwrite, vb=vb
                 )
 
-        return
-
-
 def main(args):
 
     data_dir = args.data_dir
@@ -531,11 +528,7 @@ def main(args):
         assert os.path.exists(detect_im) is True
         hdr = fits.getheader(detect_im)
         #This is the image center:
-        # xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
-        #This is the BCG:
-        # xcen = 6372.7764; ycen = 5902.0156
-        #This is the X-ray center:
-        xcen = 6444.7982; ycen = 6309.1012        
+        xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
         coadd_center = [xcen, ycen]
         print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
 

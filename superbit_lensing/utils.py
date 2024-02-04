@@ -10,7 +10,7 @@ import numpy as np
 import subprocess
 from astropy.io import fits
 import astropy.wcs as wcs
-
+from esutil import htm
 import pdb
 import ipdb
 
@@ -31,7 +31,6 @@ def match_coords(cat1, cat2, ratag1=None, dectag1=None,
     Utility function to match cat1 to cat 2 using celestial coordinates.
     This assumes cat1/cat2 are astropy.Table objects.
     '''
-
     # Either 'ra/dec' or 'ALPHAWIN_J2000/DELTAWIN_J2000'!
     try:
         if (ratag1 is not None) and (dectag1 is not None):

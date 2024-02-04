@@ -96,7 +96,6 @@ class BITMeasurement():
         else:
             self.image_cats = imcats
 
-
     def make_exposure_catalogs(self, config_dir):
         '''
         Make single-exposure catalogs
@@ -114,8 +113,37 @@ class BITMeasurement():
                                           cat_dir=cat_dir)
             self.image_cats.append(sexcat)
 
+    def make_exposure_weights(self):
+        '''
+        Make inverse-variance weight maps because ngmix needs them and we 
+        don't have them for SuperBIT.
+        Use the SExtractor BACKGROUND_RMS check-image as a basis
+        '''
+        
+        img_names = self.image_files
+
+        for img_name in img_names:
+            # Read in the BACKGROUND_RMS image
+            rms_name = img_name.replace('.fits', '.bkg_rms.fits')
+            
+            with fits.open(rms_name) as rms:
+                # Assuming the image data is in the primary HDU
+                background_rms_map = rms[0].data  
+                # Keep the original header to use for the weight map
+                header = rms[0].header  
+
+                # Make a weight map
+                weight_map = 1 / (background_rms_map**2)
+
+                # Save the weight_map to a new file
+                wgt_file_name = img_name.replace('.fits', '.weight.fits')
+                hdu = fits.PrimaryHDU(weight_map, header=header)
+                hdu.writeto(wgt_file_name, overwrite=True)
+
+            print(f'Weight map saved to {wgt_file_name}')        
+        
     def _run_sextractor(self, image_file, cat_dir, config_dir,
-                        weight_file=None):
+                        weight_file=None, back_type='AUTO'):
         '''
         Utility method to invoke Source Extractor on supplied detection file
         Returns: file path of catalog
@@ -129,9 +157,11 @@ class BITMeasurement():
         param_arg  = f'-PARAMETERS_NAME {os.path.join(config_dir, "sextractor.param")}'
         nnw_arg    = f'-STARNNW_NAME {os.path.join(config_dir, "default.nnw")}'
         filter_arg = f'-FILTER_NAME {os.path.join(config_dir, "gauss_2.0_3x3.conv")}'
+        bg_sub_arg = f'-BACK_TYPE {back_type}'
         bkg_name   = image_file.replace('.fits','.sub.fits')
         seg_name   = image_file.replace('.fits','.sgm.fits')
-        checkname_arg = f'-CHECKIMAGE_NAME  {bkg_name},{seg_name}'
+        rms_name   = image_file.replace('.fits','.bkg_rms.fits')
+        checkname_arg = f'-CHECKIMAGE_NAME  {bkg_name},{seg_name},{rms_name}'
 
         if weight_file is not None:
             weight_arg = f'-WEIGHT_IMAGE "{weight_file}[1]" ' + \
@@ -141,7 +171,7 @@ class BITMeasurement():
 
         cmd = ' '.join([
                     'sex', image_arg, weight_arg, name_arg,  checkname_arg,
-                    param_arg, nnw_arg, filter_arg, config_arg
+                    param_arg, nnw_arg, filter_arg, bg_sub_arg, config_arg
                     ])
 
         self.logprint("sex cmd is " + cmd)
@@ -304,10 +334,14 @@ class BITMeasurement():
         self.pix_scale = utils.get_pixel_scale(self.coadd_img_file)
 
         # Run SExtractor on coadd
-        cat_name = self._run_sextractor(self.coadd_img_file,
-                                        weight_file=self.coadd_img_file,
-                                        cat_dir=coadd_dir,
-                                        config_dir=config_dir)
+        cat_name = self._run_sextractor(
+            self.coadd_img_file,
+            weight_file=self.coadd_img_file,
+            cat_dir=coadd_dir,
+            config_dir=config_dir, 
+            back_type='MANUAL'
+        )
+
         try:
             le_cat = fits.open(cat_name)
             try:
@@ -446,7 +480,7 @@ class BITMeasurement():
         '''
 
         # Where to store PSFEx output
-        psfex_outdir = os.path.dirname(im_cat)
+        psfex_outdir = os.path.join(os.path.dirname(im_cat), 'psfex-output')
         utils.make_dir(psfex_outdir)
 
         # Are we using a reference star catalog?
@@ -466,11 +500,16 @@ class BITMeasurement():
                       )
 
         # Define output names
-        outcat_name = os.path.join(psfex_outdir,
-                      psfcat_name.replace('_starcat.fits','.psfex_starcat.fits')
-                      )
-        psfex_model_file = os.path.join(psfex_outdir,
-                           psfcat_name.replace('.fits','.psf'))
+        outcat_name = os.path.join(
+            psfex_outdir,
+            psfcat_name.replace('_starcat.fits','.psfex_starcat.fits')
+            )
+        psfex_model_file = os.path.join(
+            psfex_outdir,
+            os.path.basename(
+                psfcat_name.replace('.fits','.psf')
+                )
+            )
 
         # Now run PSFEx on that image and accompanying catalog
         psfex_config_arg = '-c '+ config_path + 'psfex.config'
@@ -480,7 +519,7 @@ class BITMeasurement():
                         '-OUTCAT_NAME', outcat_name, autoselect_arg]
                         )
         self.logprint("psfex cmd is " + cmd)
-        #os.system(cmd)
+        os.system(cmd)
 
         cleanup_cmd = ' '.join(
             ['mv chi* resi* samp* snap* proto* *.xml', psfex_outdir]
@@ -495,6 +534,7 @@ class BITMeasurement():
             model = psfex.PSFEx(psfex_model_file)
         except:
             model = None
+            print(f'WARNING:\n Could not find PSFEx model file {psfex_model_file}\n')
         return model
 
 
@@ -663,39 +703,35 @@ class BITMeasurement():
         # max_len_of_filepath may cause issues down the line if the file path
         # is particularly long
 
-        image_files = []; weight_files = []; seg_files = []
+        image_files = []; weight_files = []
         
-        # For weight image and coadd=True if needed
-        coadd_im = self.detect_img_file
-        #coadd_weight = self.detect_img_file.replace('.fits', '.weight.fits')
+        coadd_image  = self.detect_img_file
+        coadd_weight = self.detect_img_file.replace('.fits', '.weight.fits') 
+        coadd_segmap = self.detect_img_file.replace('.fits', '.sgm.fits') 
         
         for img in self.image_files:
-                bkgsub_name = img.replace('.fits','.sub.fits')
-                seg_name = img.replace('.fits','.sgm.fits')
-                image_files.append(bkgsub_name)
-                seg_files.append(seg_name)
+            bkgsub_name = img.replace('.fits','.sub.fits')
+            weight_name = img.replace('.fits', '.weight.fits')
+            image_files.append(bkgsub_name)
+            weight_files.append(weight_name)
 
         if use_coadd == True:
-            image_files.insert(0, coadd_im)
-            weight_files.insert(0, coadd_weight)
-            
+            img_files.insert(0, coadd_image)
+            wgt_files.insert(0, coadd_weight)
+
         # If used, will be put first
         Nim = len(image_files)
         image_info = meds.util.get_image_info_struct(Nim, max_len_of_filepath)
 
         i=0
         for image_file in range(Nim):
-
-            image_file = image_files[i]
-            seg_file = seg_files[i]
-
-            image_info[i]['image_path']  =  image_file
+            image_info[i]['image_path']  =  image_files[i]
             image_info[i]['image_ext']   =  0
-            image_info[i]['weight_path'] =  coadd_im
-            image_info[i]['weight_ext']  =  1
-            #image_info[i]['bmask_path']  =  self.detect_img_path
-            #image_info[i]['bmask_ext']   =  1
-            image_info[i]['seg_path']    =  seg_file
+            image_info[i]['weight_path'] =  weight_files[i]
+            image_info[i]['weight_ext']  =  0
+            #image_info[i]['bmask_path']  =  None
+            #image_info[i]['bmask_ext']   =  0
+            image_info[i]['seg_path']    =  coadd_segmap # Use coadd segmap for uberseg!
             image_info[i]['seg_ext']     =  0
 
             # The default is for 0 offset between the internal numpy arrays

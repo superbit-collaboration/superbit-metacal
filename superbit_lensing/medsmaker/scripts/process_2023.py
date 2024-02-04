@@ -67,7 +67,7 @@ def main(args):
 
     for band in bands:
         if outdir == None:
-            band_outdir = Path(data_dir) / target_name / band / 'meds'
+            band_outdir = Path(data_dir) / target_name / band / 'out'
         else:
             band_outdir = outdir
 
@@ -102,6 +102,8 @@ def main(args):
         for ending in endings:
             search_path = os.path.join(data_dir, target_name, band, 'cal', f'*{ending}.fits')
             science.extend(glob(search_path))
+            
+        science = science[0:2]
         
         logprint(f'\nUsing science frames: {science}\n')
 
@@ -158,13 +160,12 @@ def main(args):
         # Set detection file attributes
         bm.set_detection_files(use_band_coadd=True)
 
-        # Make dual-image SExtractor catalogs
-        logprint('Making coadd catalog...\n')
+        # Then make dual-image mode SExtractor catalogs
         hcs.make_dual_image_catalogs(detection_bandpass)
 
         logprint('Making single-exposure catalogs... \n')
-        #bm.make_exposure_catalogs(astro_config_dir)
-        single_exposure_catalogs = hcs.make_exposure_catalogs()
+        bm.make_exposure_catalogs(astro_config_dir)
+        bm.make_exposure_weights()
         
         # Set image catalogs attribute
         bm.set_image_cats()
