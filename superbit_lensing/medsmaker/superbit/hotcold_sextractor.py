@@ -164,12 +164,13 @@ class HotColdSExtractor:
         band2_coadd_file = os.path.join(self.data_dir, self.target_name, self.band, "coadd", f"{self.target_name}_coadd_{self.band}.fits")
 
         self.catdir = os.path.join(self.data_dir, self.target_name, "det", "cat")
-        hot_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, detection_bandpass, self.catdir, mode="hot")
-        cold_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, detection_bandpass, self.catdir, mode="cold")
+        #hot_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, detection_bandpass, self.catdir, mode="hot")
+        #cold_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, detection_bandpass, self.catdir, mode="cold")
+        default_cat = self._run_sextractor_dual_mode(band1_coadd_file, band2_coadd_file, detection_bandpass, self.catdir, mode="default")
 
         # Set the output file name for the merged catalog
         outname = f"{self.target_name}_{detection_bandpass}_{self.band}_dual_cat.fits"
-        self._merge_catalogs(hot_cat, cold_cat, self.buffer_radius, self.n_neighbors, outname)
+        #self._merge_catalogs(hot_cat, cold_cat, self.buffer_radius, self.n_neighbors, outname)
 
     def _run_sextractor_dual_mode(self, image_file1, image_file2, detection_bandpass, catdir, mode):
         '''
