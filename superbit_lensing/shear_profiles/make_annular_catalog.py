@@ -9,6 +9,7 @@ from argparse import ArgumentParser
 
 from annular_jmac import Annular, ShearCalc
 from superbit_lensing import utils
+from make_redshift_cat import make_redshift_catalog
 
 def parse_args():
 
@@ -24,6 +25,8 @@ def parse_args():
                         help='Output selected source catalog filename')
     parser.add_argument('-outdir', type=str, default=None,
                         help='Output directory')
+    parser.add_argument('-detection_band', type=str, default='b',
+                        help='Detection bandpass [default: b]')
     parser.add_argument('-cluster_redshift', type=str, default=None,
                         help='Redshift of cluster')
     parser.add_argument('-redshift_cat', type=str, default=None,
@@ -242,10 +245,10 @@ class AnnularCatalog():
 
         # Access truth file name
         cat_info = self.cat_info
-
+        data_dir = self.cat_info['data_dir']
         if cat_info['redshift_cat'] is None:
-            redshift_name = ''.join([self.run_name,'_redshifts.fits'])
-            redshift_dir = self.data_dir
+            redshift_name = ''.join([self.run_name,'_NED_redshifts.csv'])
+            redshift_dir = ''.join([data_dir, '/catalogs/redshifts'])
             redshift_cat = os.path.join(redshift_dir, redshift_name)
             self.cat_info['redshift_cat'] = redshift_cat
 
@@ -284,9 +287,12 @@ class AnnularCatalog():
         # to a different file
         min_Tpsf = 0.5
         max_sn = 1000
-        min_sn = 10
+        min_sn = 5
         min_T = 0.0
-        max_T = 10
+        max_T = 100
+        max_mag_aper = 25.6
+        max_mag_auto = 26
+        max_sex_flags = 1
 
         if self.cluster_redshift != None:
             # Add in a little bit of a safety margin -- maybe a bad call for simulated data?
@@ -497,6 +503,7 @@ def main(args):
     outfile = args.outfile
     outdir = args.outdir
     cluster_redshift = args.cluster_redshift
+    detection_band = args.detection_band
     redshift_cat = args.redshift_cat
     nfw_file = args.nfw_file
     Nresample = args.Nresample
@@ -515,12 +522,12 @@ def main(args):
     ## Get center of galaxy cluster for fitting
     ## Throw error if image can't be read in
 
-    detect_cat = os.path.join(data_dir, target_name,
-                                f'det/cat/{target_name}_coadd_det_cat.fits'
-                                )
-    detect_im = os.path.join(data_dir, target_name,
-                                f'det/coadd/{target_name}_coadd_det.fits'
-                                )
+    detect_cat = os.path.join(data_dir, target_name, detection_band,
+        f'coadd/{target_name}_coadd_{detection_band}_cat.fits'
+    )
+    detect_im = os.path.join(data_dir, target_name, detection_band,
+        f'coadd/{target_name}_coadd_{detection_band}.fits'
+    )
     print(f'using detection catalog {detect_cat}')
     print(f'using detection image {detect_im}')
 
@@ -533,8 +540,18 @@ def main(args):
         print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
 
     except Exception as e:
-        print('\n\n\nNo coadd image center found, cannot calculate tangential shear\n\n.')
+        print('\n\n\nNo coadd image center found, ',
+            'cannot calculate tangential shear\n\n.'
+        )
         raise e
+
+
+    ## Make dummy redshift catalog
+    print("Making redshift catalog")
+    make_redshift_catalog(
+        datadir=data_dir, target=target_name,
+        band=detection_band, detect_cat_path=detect_cat
+    )
 
     if nfw_seed is None:
         nfw_seed = utils.generate_seeds(1)
@@ -543,6 +560,7 @@ def main(args):
     ## quality-selected galaxy catalog
 
     cat_info={
+        'data_dir': data_dir,
         'detect_cat': detect_cat,
         'mcal_file': mcal_file,
         'run_name': target_name,
