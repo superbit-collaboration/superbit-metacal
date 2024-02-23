@@ -244,10 +244,10 @@ class AnnularCatalog():
 
         # Access truth file name
         cat_info = self.cat_info
-
+        data_dir = self.cat_info['data_dir']
         if cat_info['redshift_cat'] is None:
-            redshift_name = ''.join([self.run_name,'NED_redshifts.csv'])
-            redshift_dir = ''.join([self.data_dir, 'catalogs/redshifts'])
+            redshift_name = ''.join([self.run_name,'_NED_redshifts.csv'])
+            redshift_dir = ''.join([data_dir, '/catalogs/redshifts'])
             redshift_cat = os.path.join(redshift_dir, redshift_name)
             self.cat_info['redshift_cat'] = redshift_cat
 
@@ -551,6 +551,7 @@ def main(args):
     ## quality-selected galaxy catalog
 
     cat_info={
+        'data_dir': data_dir,
         'detect_cat': detect_cat,
         'mcal_file': mcal_file,
         'run_name': target_name,
