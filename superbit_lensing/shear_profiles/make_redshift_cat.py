@@ -25,14 +25,15 @@ def make_redshift_catalog(datadir, target, band, detect_cat_path):
     # Path for detect_cat FITS file remains the same
     # detect_cat_path = f"{datadir}/{target}_{band}_coadd_cat.fits"
     with fits.open(detect_cat_path) as hdul:
-        detect_cat = Table(hdul[1].data)
+        detect_cat = Table(hdul[2].data)
 
     # Create a dummy redshift column filled with ones
     redshift_col = np.ones(len(detect_cat))
 
     # Match detect_cat to NED_redshifts in RA and Dec
     ned_coords = SkyCoord(
-        ra=ned_redshifts['ra']*u.degree, dec=ned_redshifts['dec']*u.degree
+        ra=ned_redshifts['RA']*u.degree, dec=ned_redshifts['DEC']*u.degree,
+        unit='deg'
     )
 
     detect_cat_coords = SkyCoord(
@@ -47,12 +48,12 @@ def make_redshift_catalog(datadir, target, band, detect_cat_path):
 
     # Update the redshift column in detect_cat for matched galaxies
     redshift_col[sep_constraint] = \
-        ned_redshifts.iloc[matched_idx]['redshift'].values
+        ned_redshifts.iloc[matched_idx]['Redshift'].values
 
     # Create a new table with RA/Dec and new redshifts
     new_table = Table([
         detect_cat['ALPHAWIN_J2000'], detect_cat['DELTAWIN_J2000'],
-        redshift_col], names=('RA', 'Dec', 'Redshift')
+        redshift_col], names=('RA', 'DEC', 'Redshift')
     )
 
     # Save the new table to the specified directory
