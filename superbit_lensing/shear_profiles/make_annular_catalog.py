@@ -9,6 +9,7 @@ from argparse import ArgumentParser
 
 from annular_jmac import Annular, ShearCalc
 from superbit_lensing import utils
+from make_redshift_cat import make_redshift_catalog
 
 def parse_args():
 
@@ -543,6 +544,14 @@ def main(args):
             'cannot calculate tangential shear\n\n.'
         )
         raise e
+
+
+    ## Make dummy redshift catalog
+    print("Making redshift catalog")
+    make_redshift_catalog(
+        datadir=data_dir, target=target_name,
+        band=detection_band, detect_cat_path=detect_cat
+    )
 
     if nfw_seed is None:
         nfw_seed = utils.generate_seeds(1)

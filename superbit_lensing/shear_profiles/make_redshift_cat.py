@@ -5,14 +5,25 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 import numpy as np
 
-def add_redshifts(datadir, target, band):
+def make_redshift_catalog(datadir, target, band, detect_cat_path):
+    """
+    Utility script to create a "redshift catalog" with spec-z's where they
+    exist, a dummy value of 1 otherwise.
+
+    Inputs
+        datadir: basedir for unions
+        target: cluster target name
+        band: which bandpass are we measuring shear in?
+        detect_cat_path: path to detection catalog
+    """
+
     # Adjusted path for NED_redshifts
     ned_redshifts_path = \
         f"{datadir}/catalogs/redshifts/{target}_NED_redshifts.csv"
     ned_redshifts = pd.read_csv(ned_redshifts_path)
 
     # Path for detect_cat FITS file remains the same
-    detect_cat_path = f"{datadir}/{target}_{band}_coadd_cat.fits"
+    # detect_cat_path = f"{datadir}/{target}_{band}_coadd_cat.fits"
     with fits.open(detect_cat_path) as hdul:
         detect_cat = Table(hdul[1].data)
 
@@ -48,3 +59,5 @@ def add_redshifts(datadir, target, band):
     new_table_path = \
         f"{datadir}/catalogs/redshifts/{target}_{band}_with_redshifts.fits"
     new_table.write(new_table_path, format='fits', overwrite=True)
+
+    print(f"Saved a redshift catalog to {new_table_path}")
