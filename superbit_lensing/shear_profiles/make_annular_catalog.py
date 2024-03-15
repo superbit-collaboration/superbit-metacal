@@ -246,14 +246,7 @@ class AnnularCatalog():
         # Access truth file name
         cat_info = self.cat_info
         data_dir = self.cat_info['data_dir']
-        if cat_info['redshift_cat'] is None:
-            redshift_name = ''.join([self.run_name,'_NED_redshifts.csv'])
-            redshift_dir = ''.join([data_dir, '/catalogs/redshifts'])
-            redshift_cat = os.path.join(redshift_dir, redshift_name)
-            self.cat_info['redshift_cat'] = redshift_cat
-
-        else:
-            redshift_cat = self.redshift_cat
+        redshift_cat = self.redshift_cat
 
         # Filter out foreground galaxies using redshifts in truth file
         self._redshift_select(redshift_cat, overwrite=overwrite)
@@ -295,7 +288,7 @@ class AnnularCatalog():
         max_sex_flags = 1
 
         if self.cluster_redshift != None:
-            # Add in a little bit of a safety margin -- maybe a bad call for simulated data?
+            # Add in a little bit of a safety margin
             min_redshift = float(self.cluster_redshift) + 0.025
         else:
             min_redshift = 0
@@ -546,9 +539,9 @@ def main(args):
         raise e
 
 
-    ## Make dummy redshift catalog
+    ## Make dummy redshift catalog -- should be a flag!
     print("Making redshift catalog")
-    make_redshift_catalog(
+    redshift_cat = make_redshift_catalog(
         datadir=data_dir, target=target_name,
         band=detection_band, detect_cat_path=detect_cat
     )
