@@ -1,5 +1,5 @@
 import numpy as np
-import ipdb
+import ipdb, pdb
 from astropy.table import Table, vstack, hstack, join
 import glob
 import sys, os
@@ -23,6 +23,9 @@ def parse_args():
                         help='Metacal catalog filename')
     parser.add_argument('outfile', type=str,
                         help='Output selected source catalog filename')
+    parser.add_argument('-config', '-c', type=str,
+                        default='configs/default_annular_config.yaml',
+                        help='Configuration file with annular cuts etc.')
     parser.add_argument('-outdir', type=str, default=None,
                         help='Output directory')
     parser.add_argument('-detection_band', type=str, default='b',
@@ -58,7 +61,7 @@ class AnnularCatalog():
     SExtractor catalog (set in option in main)
     """
 
-    def __init__(self, cat_info, annular_info):
+    def __init__(self, cat_info, annular_info, config):
         """
         cat_info: dict
             A dictionary that must contain the paths for the SExtractor
@@ -66,9 +69,9 @@ class AnnularCatalog():
         annular_bins: dict
             A dictionary holding the definitions of the annular bins
         """
-
         self.cat_info = cat_info
         self.annular_info = annular_info
+        self.config = config
         self.detect_cat = cat_info['detect_cat']
         self.mcal_file = cat_info['mcal_file']
         self.outfile = cat_info['mcal_selected']
@@ -99,16 +102,13 @@ class AnnularCatalog():
         self.Ndet = len(self.det_cat)
         self.Nmcal = len(self.mcal)
 
-        return
-
     def join(self, overwrite=False):
-
         # rename a few cols for joining purposes
         colmap = {
             'ALPHAWIN_J2000': 'ra',
             'DELTAWIN_J2000': 'dec',
             'NUMBER': 'id'
-            }
+        }
         for old, new in colmap.items():
             self.det_cat.rename_column(old, new)
 
@@ -117,18 +117,17 @@ class AnnularCatalog():
         self.joined = join(
             self.det_cat, self.mcal, join_type='inner',
             keys=['id', 'ra', 'dec'], table_names=['se', 'mcal']
-            )
+        )
 
         Nmin = min([self.Ndet, self.Nmcal])
         Nobjs = len(self.joined)
 
         if (Nobjs != Nmin):
-            raise ValueError('There was an error while joining the SE and mcal ' +
-                             f'catalogs;' +
-                             f'\nlen(SE)={self.Ndet}' +
-                             f'\nlen(mcal)={self.Nmcal}' +
-                             f'\nlen(joined)={Nobjs}'
-                             )
+            raise ValueError(
+                'There was an error while joining the SE and mcal catalogs;' +
+                f'\nlen(SE)={self.Ndet} \nlen(mcal)={self.Nmcal}' +
+                f'\nlen(joined)={Nobjs}'
+            )
 
         print(f'{Nobjs} mcal objects joined to reference SExtractor cat')
 
@@ -147,11 +146,8 @@ class AnnularCatalog():
             print('Cannot overwrite {outfile} unless `overwrite` is set to True!')
             raise err
 
-        return
-
-
     def _redshift_select(self, redshift_cat, overwrite=False):
-        '''
+        """
         Select background galaxies from larger transformed shear catalog:
             - Load in file containing redshifts
             - Select background galaxies behind galaxy cluster
@@ -159,8 +155,7 @@ class AnnularCatalog():
             - Filter self.r, self.gtan, self.gcross to be background-only
             - If it's a forecast run, store the number of galaxies injected
               into the simulation
-        '''
-
+        """
         joined_cat = self.joined
 
         try:
@@ -187,30 +182,31 @@ class AnnularCatalog():
             # Assume real data -- need to have cluster redshift defined!
             # And some basic RA/Dec columns
             ra_col = 'RA'; dec_col = 'DEC'; z_col = 'Redshift'
-            if self.cluster_redshift == None:
-                print('No cluster_redshift argument supplied; ' +\
-                        'no redshift cuts will be made')
 
+            if self.cluster_redshift == None:
+                print(
+                    'No cluster_redshift argument supplied; ' +
+                    'no redshift cuts will be made'
+                )
 
         if (~np.isin(ra_col, redshifts.colnames)) & (~np.isin(dec_col, redshifts.colnames)):
             print(f'Redshift catalog missing columns {ra_col}, {dec_col}')
 
         zcat_gals = redshifts[redshifts[z_col] > 0]
 
-        z_matcher = htm.Matcher(16,
-                                ra = zcat_gals[ra_col],
-                                dec = zcat_gals[dec_col]
-                                )
+        z_matcher = htm.Matcher(
+            16, ra = zcat_gals[ra_col], dec = zcat_gals[dec_col]
+        )
 
         joined_file_ind, z_ind, dist = z_matcher.match(
-                                            ra = joined_cat['ra'],
-                                            dec = joined_cat['dec'],
-                                            maxmatch = 1,
-                                            radius = 1./3600.
-                                            )
+            ra = joined_cat['ra'], dec = joined_cat['dec'],
+            maxmatch = 1, radius = 1./3600.
+        )
 
-        print(f"# {len(dist)} of {len(joined_cat['ra'])}"+\
-                    " objects matched to redshift catalog objects")
+        print(
+            f"# {len(dist)} of {len(joined_cat['ra'])}" + \
+            " objects matched to redshift catalog objects"
+        )
 
         gals_joined_cat = joined_cat[joined_file_ind]
         gals_joined_cat.add_column(redshifts[z_col][z_ind], name='redshift')
@@ -221,9 +217,9 @@ class AnnularCatalog():
             else:
                 p = f'{self.run_name}_'
 
-                outfile = os.path.join(self.outdir,
-                                    f'{p}gals_joined_catalog.fits'
-                                    )
+                outfile = os.path.join(
+                    self.outdir, f'{p}gals_joined_catalog.fits'
+                )
                 gals_joined_cat.write(outfile, overwrite=overwrite)
 
         except OSError as err:
@@ -231,9 +227,6 @@ class AnnularCatalog():
             raise err
 
         self.joined_gals = gals_joined_cat
-
-        return
-
 
     def make_table(self, overwrite=False):
         """
@@ -260,114 +253,107 @@ class AnnularCatalog():
 
         # Apply selection cuts and produce responsivity-corrected shear moments
         # Return selection (quality) cuts
-        qualcuts = self._compute_metacal_quantities()
+        self.compute_metacal_quantities()
 
         # Save selected galaxies to file
-        for key in qualcuts.keys():
-            self.selected.meta[key] = qualcuts[key]
+        for key, val in self.config['mcal_cuts'].items():
+            self.selected.meta[key] = val
 
         self.selected.write(self.outfile, format='fits', overwrite=overwrite)
 
-        return qualcuts
-
-    def _compute_metacal_quantities(self):
+    def compute_metacal_quantities(self):
         """
         - Cut sources on S/N and minimum size (adapted from DES cuts).
         - compute mean r11 and r22 for galaxies: responsivity & selection
         - divide "no shear" g1/g2 by r11 and r22, and return
-
-        TO DO: make the list of cuts an external config file
-
         """
 
-        # TODO: we should allow for this to be a config option
-        mcal_shear = 0.01
-
-        # TODO: It would be nice to move selection cuts
-        # to a different file
-        min_Tpsf = 0.5
-        max_sn = 1000
-        min_sn = 5
-        min_T = 0.0
-        max_T = 100
-        max_mag_aper = 25.6
-        max_mag_auto = 26
-        max_sex_flags = 1
-
         if self.cluster_redshift != None:
-            # Add in a little bit of a safety margin -- maybe a bad call for simulated data?
+            # Add in a little bit of a safety margin
             min_redshift = float(self.cluster_redshift) + 0.025
         else:
-            min_redshift = 0
+            min_redshift = 0.01
 
-        print(f'#\n# cuts applied: Tpsf_ratio>{min_Tpsf:.2f}' +\
-              f' SN>{min_sn:.1f} T>{min_T:.2f} redshift={min_redshift:.3f}\n#\n')
+        # Load up config values -- should add error checking at some point
+        qual_cuts = self.config['mcal_cuts']
+        mcal_shear = self.config['mcal_shear']
 
-        qualcuts = {'min_Tpsf' :min_Tpsf,
-                    'max_sn' : max_sn,
-                    'min_sn' : min_sn,
-                    'min_T' : min_T,
-                    'max_T' : max_T,
-                    'min_redshift' : min_redshift,
-                    }
+        print(
+            f"#\n# cuts applied: Tpsf_ratio > {qual_cuts['min_Tpsf']:.2f}"
+            + f"\n# SN > {qual_cuts['min_sn']:.1f} T > {qual_cuts['min_T']:.2f}"
+            + f"\n # redshift = {min_redshift:.3f} \n#\n"
+        )
 
         mcal = self.joined_gals
 
-        noshear_selection = mcal[(mcal['T_noshear'] >= min_Tpsf*mcal['Tpsf_noshear'])\
-                                 & (mcal['T_noshear'] < max_T)\
-                                 & (mcal['T_noshear'] >= min_T)\
-                                 & (mcal['s2n_noshear'] > min_sn)\
-                                 & (mcal['s2n_noshear'] < max_sn)\
-                                 & (mcal['redshift'] > min_redshift)
-                                 ]
+        noshear_selection = mcal[
+            (mcal['T_noshear'] >= qual_cuts['min_Tpsf'] * mcal['Tpsf_noshear'])\
+            & (mcal['T_noshear'] < qual_cuts['max_T']) \
+            & (mcal['T_noshear'] >= qual_cuts['min_T']) \
+            & (mcal['s2n_noshear'] > qual_cuts['min_sn']) \
+            & (mcal['s2n_noshear'] < qual_cuts['max_sn']) \
+            & (mcal['MAG_APER'] <  qual_cuts['max_mag_aper']) \
+            & (mcal['MAG_AUTO'] <  qual_cuts['max_mag_auto']) \
+            & (mcal['redshift'] > min_redshift)
+        ]
 
-        selection_1p = mcal[(mcal['T_1p'] >= min_Tpsf*mcal['Tpsf_1p'])\
-                            & (mcal['T_1p'] <= max_T)\
-                            & (mcal['T_1p'] >= min_T)\
-                            & (mcal['s2n_1p'] > min_sn)\
-                            & (mcal['s2n_1p'] < max_sn)\
-                            & (mcal['redshift'] > min_redshift)
-                            ]
+        selection_1p = mcal[
+            (mcal['T_1p'] >= qual_cuts['min_Tpsf'] * mcal['Tpsf_1p']) \
+            & (mcal['T_1p'] <= qual_cuts['max_T']) \
+            & (mcal['T_1p'] >= qual_cuts['min_T']) \
+            & (mcal['s2n_1p'] > qual_cuts['min_sn']) \
+            & (mcal['s2n_1p'] < qual_cuts['max_sn']) \
+            & (mcal['MAG_APER'] <  qual_cuts['max_mag_aper']) \
+            & (mcal['MAG_AUTO'] <  qual_cuts['max_mag_auto']) \
+            & (mcal['redshift'] > min_redshift)
+        ]
 
-        selection_1m = mcal[(mcal['T_1m'] >= min_Tpsf*mcal['Tpsf_1m'])\
-                            & (mcal['T_1m'] <= max_T)\
-                            & (mcal['T_1m'] >= min_T)\
-                            & (mcal['s2n_1m'] > min_sn)\
-                            & (mcal['s2n_1m'] < max_sn)\
-                            & (mcal['redshift'] > min_redshift)
-                            ]
+        selection_1m = mcal[
+            (mcal['T_1m'] >= qual_cuts['min_Tpsf'] * mcal['Tpsf_1m']) \
+            & (mcal['T_1m'] <= qual_cuts['max_T']) \
+            & (mcal['T_1m'] >= qual_cuts['min_T']) \
+            & (mcal['s2n_1m'] > qual_cuts['min_sn']) \
+            & (mcal['s2n_1m'] < qual_cuts['max_sn']) \
+            & (mcal['MAG_APER'] <  qual_cuts['max_mag_aper']) \
+            & (mcal['MAG_AUTO'] <  qual_cuts['max_mag_auto']) \
+            & (mcal['redshift'] > min_redshift)
+        ]
 
-        selection_2p = mcal[(mcal['T_2p'] >= min_Tpsf*mcal['Tpsf_2p'])\
-                            & (mcal['T_2p'] <= max_T)\
-                            & (mcal['T_2p'] >= min_T)\
-                            & (mcal['s2n_2p'] > min_sn)\
-                            & (mcal['s2n_2p'] < max_sn)\
-                            & (mcal['redshift'] > min_redshift)
-                            ]
+        selection_2p = mcal[
+            (mcal['T_2p'] >= qual_cuts['min_Tpsf'] * mcal['Tpsf_2p']) \
+            & (mcal['T_2p'] <= qual_cuts['max_T']) \
+            & (mcal['T_2p'] >= qual_cuts['min_T']) \
+            & (mcal['s2n_2p'] > qual_cuts['min_sn']) \
+            & (mcal['s2n_2p'] < qual_cuts['max_sn']) \
+            & (mcal['MAG_APER'] <  qual_cuts['max_mag_aper']) \
+            & (mcal['MAG_AUTO'] <  qual_cuts['max_mag_auto']) \
+            & (mcal['redshift'] > min_redshift)
+        ]
 
-        selection_2m = mcal[(mcal['T_2m'] >= min_Tpsf*mcal['Tpsf_2m'])\
-                            & (mcal['T_2m'] <= max_T)\
-                            & (mcal['T_2m'] >= min_T)\
-                            & (mcal['s2n_2m'] > min_sn)\
-                            & (mcal['s2n_2m'] <max_sn)\
-                            & (mcal['redshift'] > min_redshift)
-                            ]
+        selection_2m = mcal[
+            (mcal['T_2m'] >= qual_cuts['min_Tpsf']*mcal['Tpsf_2m']) \
+            & (mcal['T_2m'] <= qual_cuts['max_T']) \
+            & (mcal['T_2m'] >= qual_cuts['min_T']) \
+            & (mcal['s2n_2m'] > qual_cuts['min_sn']) \
+            & (mcal['s2n_2m'] < qual_cuts['max_sn']) \
+            & (mcal['MAG_APER'] <  qual_cuts['max_mag_aper']) \
+            & (mcal['MAG_AUTO'] <  qual_cuts['max_mag_auto']) \
+            & (mcal['redshift'] > min_redshift)
+        ]
 
-        # assuming delta_shear in ngmix_fit_superbit is 0.01
         r11_gamma = (np.mean(noshear_selection['g_1p'][:,0]) -
-                     np.mean(noshear_selection['g_1m'][:,0])) / (2.*mcal_shear)
+                     np.mean(noshear_selection['g_1m'][:,0])) / (2 * mcal_shear)
         r22_gamma = (np.mean(noshear_selection['g_2p'][:,1]) -
-                     np.mean(noshear_selection['g_2m'][:,1])) / (2.*mcal_shear)
+                     np.mean(noshear_selection['g_2m'][:,1])) / (2 * mcal_shear)
 
-        # assuming delta_shear in ngmix_fit_superbit is 0.01
         r11_S = (np.mean(selection_1p['g_noshear'][:,0]) -
-                 np.mean(selection_1m['g_noshear'][:,0])) / (2.*mcal_shear)
+                 np.mean(selection_1m['g_noshear'][:,0])) / (2 * mcal_shear)
         r22_S = (np.mean(selection_2p['g_noshear'][:,1]) -
-                 np.mean(selection_2m['g_noshear'][:,1])) / (2.*mcal_shear)
+                 np.mean(selection_2m['g_noshear'][:,1])) / (2 * mcal_shear)
 
-        print(f'# mean values <r11_gamma> = {r11_gamma} ' +\
+        print(f'# mean values <r11_gamma> = {r11_gamma} ' + \
               f'<r22_gamma> = {r22_gamma}')
-        print(f'# mean values <r11_S> = {r11_S} ' +\
+        print(f'# mean values <r11_S> = {r11_S} ' + \
               f'<r22_S> = {r22_S}')
 
         print(f'{len(noshear_selection)} objects passed selection criteria')
@@ -375,36 +361,40 @@ class AnnularCatalog():
         # Populate the selCat attribute with "noshear"-selected catalog
         self.selected = noshear_selection
 
-        # compute noise; not entirely sure whether there needs to be a factor of 0.5 on tot_covar...
-        # seems like not if I'm applying it just to tangential ellip, yes if it's being applied to each
-        #shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
+        # compute noise; not entirely sure whether there needs to be a factor of
+        # 0.5 on tot_covar... seems like not if I'm applying it just to
+        # tangential ellip, yes if it's being applied to each of gtan/gx
 
-        shape_noise = 0.26
+        #shape_noise = np.std(
+        #    np.sqrt(self.mcal['g_noshear'][:,0]**2
+        #            + self.mcal['g_noshear'][:,1]**2)
+        #)
+
+        shape_noise = self.config['shape_noise']
 
         print(f'shape noise is {shape_noise}')
 
-        tot_covar = shape_noise +\
-                self.selected['g_cov_noshear'][:,0,0] +\
+        tot_covar = shape_noise + \
+                self.selected['g_cov_noshear'][:,0,0] + \
                 self.selected['g_cov_noshear'][:,1,1]
 
         weight = 1. / tot_covar
 
         try:
-            r11 = ( noshear_selection['g_1p'][:,0] - noshear_selection['g_1m'][:,0] ) / (2.*mcal_shear)
-            r12 = ( noshear_selection['g_2p'][:,0] - noshear_selection['g_2m'][:,0] ) / (2.*mcal_shear)
-            r21 = ( noshear_selection['g_1p'][:,1] - noshear_selection['g_1m'][:,1] ) / (2.*mcal_shear)
-            r22 = ( noshear_selection['g_2p'][:,1] - noshear_selection['g_2m'][:,1] ) / (2.*mcal_shear)
+            r11 = (noshear_selection['g_1p'][:,0] - noshear_selection['g_1m'][:,0]) / (2.*mcal_shear)
+            r12 = (noshear_selection['g_2p'][:,0] - noshear_selection['g_2m'][:,0]) / (2.*mcal_shear)
+            r21 = (noshear_selection['g_1p'][:,1] - noshear_selection['g_1m'][:,1]) / (2.*mcal_shear)
+            r22 = (noshear_selection['g_2p'][:,1] - noshear_selection['g_2m'][:,1]) / (2.*mcal_shear)
 
             #---------------------------------
             # Now add value-adds to table
             self.selected.add_columns(
-                [r11, r12, r21, r22],
-                names=['r11', 'r12', 'r21', 'r22']
-                )
+                [r11, r12, r21, r22], names=['r11', 'r12', 'r21', 'r22']
+            )
 
         except ValueError as e:
             # In some cases, these cols are already computed
-            print('WARNING: mcal r{ij} value-added cols not added; ' +\
+            print('WARNING: mcal r{ij} value-added cols not added; ' + \
                   'already present in catalog')
 
         try:
@@ -420,8 +410,7 @@ class AnnularCatalog():
                 g2_MC[k] = gMC[1]
 
             self.selected.add_columns(
-                [g1_MC, g2_MC],
-                names = ['g1_MC', 'g2_MC']
+                [g1_MC, g2_MC], names = ['g1_MC', 'g2_MC']
             )
 
         except ValueError as e:
@@ -429,21 +418,21 @@ class AnnularCatalog():
             print('WARNING: mcal g{1/2}_MC value-added cols not added; ' +\
                   'already present in catalog')
 
+        self.selected['g1_noshear'] = self.selected['g_noshear'][:,0]
+        self.selected['g2_noshear'] = self.selected['g_noshear'][:,1]
         self.selected['g1_Rinv'] = self.selected['g_noshear'][:,0]/(r11_gamma + r11_S)
         self.selected['g2_Rinv'] = self.selected['g_noshear'][:,1]/(r22_gamma + r22_S)
         self.selected['R11_S'] = r11_S
         self.selected['R22_S'] = r22_S
         self.selected['weight'] = weight
 
-        return qualcuts
-
     def compute_tan_shear_profile(self, outfile, plotfile, Nresample,
                                   overwrite=False, vb=False):
-        '''
+        """
         Run the Annular class in annular_jmac.py, and if an NFW truth file
         is supplied, add nfw_info to the Annular.run() call. Then compute
         cross/tan shear, & obtain single-realization shear profile
-        '''
+        """
 
         cat_info = self.cat_info
         annular_info = self.annular_info
@@ -459,15 +448,15 @@ class AnnularCatalog():
                 'xy_args': ['xwin_image','ywin_image'],
                 'shear_args': ['nfw_g1','nfw_g2'],
                 'nfw_center': [nfw_truth_xcenter, nfw_truth_ycenter]
-                }
+            }
 
         else:
             nfw_info = None
 
 
-        annular = Annular(cat_info, annular_info,
-                            nfw_info, run_name=self.run_name, vb=vb
-                            )
+        annular = Annular(
+            cat_info, annular_info, nfw_info, run_name=self.run_name, vb=vb
+        )
         annular.run(outfile, plotfile, Nresample, overwrite=overwrite)
 
         return
@@ -492,11 +481,11 @@ class AnnularCatalog():
         Nresample = self.Nresample
 
         self.compute_tan_shear_profile(
-                outfile, plotfile, Nresample, overwrite=overwrite, vb=vb
-                )
+            outfile, plotfile, Nresample, overwrite=overwrite, vb=vb
+        )
 
 def main(args):
-
+    config_yml = args.config
     data_dir = args.data_dir
     target_name = args.run_name
     mcal_file = args.mcal_file
@@ -514,6 +503,7 @@ def main(args):
     overwrite = args.overwrite
     vb = args.vb
 
+    config = utils.read_yaml(config_yml)
 
     # Define position args
     xy_cols = ['XWIN_IMAGE_se', 'YWIN_IMAGE_se']
@@ -545,10 +535,9 @@ def main(args):
         )
         raise e
 
-
     ## Make dummy redshift catalog
     print("Making redshift catalog")
-    make_redshift_catalog(
+    redshift_cat = make_redshift_catalog(
         datadir=data_dir, target=target_name,
         band=detection_band, detect_cat_path=detect_cat
     )
@@ -571,7 +560,7 @@ def main(args):
         'nfw_file': nfw_file,
         'Nresample': Nresample,
         'nfw_seed': nfw_seed
-        }
+    }
 
     annular_info = {
         'rmin': rmin,
@@ -580,9 +569,9 @@ def main(args):
         'coadd_center': coadd_center,
         'xy_args': xy_cols,
         'shear_args': shear_args
-        }
+    }
 
-    annular_cat = AnnularCatalog(cat_info, annular_info)
+    annular_cat = AnnularCatalog(cat_info, annular_info, config)
 
     # run everything
     annular_cat.run(overwrite=overwrite, vb=vb)

@@ -189,7 +189,7 @@ class Annular(object):
             'y': self.y,
             'g1': self.g1,
             'g2': self.g2
-            }
+        }
 
         xc = self.annular_info['coadd_center'][0]
         yc = self.annular_info['coadd_center'][1]
@@ -207,12 +207,12 @@ class Annular(object):
         newtab.add_columns(
             [x, y, self.r, self.gtan, self.gcross, self.weight],
             names=['x', 'y', 'r', 'gtan', 'gcross', 'weight']
-            )
+        )
 
         run_name = self.run_name
         outfile = os.path.join(
             outdir, f'{run_name}_transformed_shear_tab.fits'
-            )
+        )
         newtab.write(outfile, format='fits', overwrite=overwrite)
 
         return
@@ -234,15 +234,15 @@ class Annular(object):
             # Resample so redshift distribution matches input galaxies
             nfw_tab = self._nfw_resample_redshift(
                 Nresample, outdir=outdir, overwrite=overwrite,
-                )
+            )
 
             # Calculate tangential and cross shears for nfw
             self._nfw_transform_shear(nfw_tab)
 
             nfw_tab.write(
-                os.path.join(
-                    outdir,'subsampled_nfw_cat.fits'), format='fits', overwrite=overwrite
-                )
+                os.path.join(outdir,'subsampled_nfw_cat.fits'),
+                format='fits', overwrite=overwrite
+            )
 
         else:
             # No NFW file passed, return None
@@ -280,10 +280,10 @@ class Annular(object):
 
         n_selec, bin_edges = np.histogram(
             self.z, bins=100, range=[self.z.min(),self.z.max()]
-            )
+        )
         n_nfw, bin_edges_nfw = np.histogram(
             pseudo_nfw['redshift'], bins=100, range=[self.z.min(),self.z.max()]
-            )
+        )
 
         pseudo_prob = n_selec / n_nfw
         domain = np.arange(self.z.min(), self.z.max(), 0.0001)
@@ -297,7 +297,7 @@ class Annular(object):
             this_bin = np.digitize(this_z, bin_edges_nfw)
 
             odds = rng.random()
-            if (this_bin<len(n_selec)) and (odds <= pseudo_prob[this_bin-1]):
+            if (this_bin < len(n_selec)) and (odds <= pseudo_prob[this_bin-1]):
                 subsampled_redshifts.append(this_z)
                 t.append(nfw[i].as_void())
             else:
@@ -309,10 +309,17 @@ class Annular(object):
         # This should be in diagnostics, but do it here for now
         fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 
-        ax.hist(nfw_tab['redshift'],bins=100,range=[self.z.min(),\
-                                                    self.z.max()],histtype='step',label='nfw resamp', density=True)
-        ax.hist(self.z,bins=100,range=[self.z.min(),\
-                                       self.z.max()],histtype='step',label='selected galaxies', density=True)
+        ax.hist(
+            nfw_tab['redshift'], bins=100,
+            range=[self.z.min(), self.z.max()], histtype='step',
+            label='nfw resamp', density=True
+        )
+        ax.hist(
+            self.z, bins=100,
+            range=[self.z.min(), self.z.max()],
+            histtype='step',label='selected galaxies', density=True
+        )
+
         ax.set_xlabel('Galaxy redshift')
         ax.set_ylabel('Number')
         ax.legend()
@@ -333,7 +340,7 @@ class Annular(object):
             'y': nfw_tab[self.nfw_info['xy_args'][1]],
             'g1': nfw_tab[self.nfw_info['shear_args'][0]],
             'g2': nfw_tab[self.nfw_info['shear_args'][1]]
-            }
+        }
 
         shears = ShearCalc(inputs = shear_inputs)
         shears.get_r_gtan(xc=xc, yc=yc)
@@ -355,8 +362,8 @@ class Annular(object):
 
     def compute_profile(self, outfile, nfw_tab=None, overwrite=False):
         '''
-        Computes mean tangential and cross shear of background (redshift-filtered)
-        galaxies in azimuthal bins
+        Computes mean tangential and cross shear of background
+        (redshift-filtered) galaxies in azimuthal bins
         '''
 
         minrad = self.annular_info['rmin']
@@ -415,12 +422,12 @@ class Annular(object):
         # otherwise return None
         nfw_tab = self.process_nfw(
             Nresample, outdir=outdir, overwrite=overwrite
-            )
+        )
 
         # Compute azimuthally averaged shear profiles
         profile_tab = self.compute_profile(
             outfile, nfw_tab=nfw_tab, overwrite=overwrite
-            )
+        )
 
         # Plot results
         self.plot_profile(profile_tab, plotfile, nfw_tab=nfw_tab)
@@ -478,7 +485,8 @@ def _compute_profile(shear_tab, rbins, nfw_tab=None):
     table.add_columns(
         [counts, midpoint_r, gtan_mean, gcross_mean, gtan_err, gcross_err],
         names=[
-            'counts', 'midpoint_r', 'mean_gtan', 'mean_gcross', 'err_gtan', 'err_gcross'
+            'counts', 'midpoint_r', 'mean_gtan',
+            'mean_gcross', 'err_gtan', 'err_gcross'
         ],
     )
 

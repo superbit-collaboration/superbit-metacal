@@ -62,3 +62,4 @@ def make_redshift_catalog(datadir, target, band, detect_cat_path):
     new_table.write(new_table_path, format='fits', overwrite=True)
 
     print(f"Saved a redshift catalog to {new_table_path}")
+    return new_table_path
