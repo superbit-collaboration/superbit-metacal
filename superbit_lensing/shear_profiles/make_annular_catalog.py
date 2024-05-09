@@ -15,25 +15,25 @@ def parse_args():
 
     parser = ArgumentParser()
 
+    parser.add_argument('target_name', type=str,
+                        help='Run name (target name for real data)')
+    parser.add_argument('bands', type=str,
+                        help='List of bands to run shear_profiles on (separated by commas)')
     parser.add_argument('data_dir', type=str,
                         help='Path to cluster data')
-    parser.add_argument('run_name', type=str,
-                        help='Run name (target name for real data)')
-    parser.add_argument('mcal_file', type=str,
-                        help='Metacal catalog filename')
-    parser.add_argument('outfile', type=str,
-                        help='Output selected source catalog filename')
     parser.add_argument('-config', '-c', type=str,
                         default='configs/default_annular_config.yaml',
                         help='Configuration file with annular cuts etc.')
     parser.add_argument('-outdir', type=str, default=None,
                         help='Output directory')
-    parser.add_argument('-detection_band', type=str, default='b',
-                        help='Detection bandpass [default: b]')
+    parser.add_argument('-codedir', type=str, default=None,
+                        help='superbit_metacal directory')                    
     parser.add_argument('-cluster_redshift', type=str, default=None,
                         help='Redshift of cluster')
     parser.add_argument('-redshift_cat', type=str, default=None,
                         help='File containing redshifts')
+    parser.add_argument('-detection_bandpass', type=str, default='b',
+                        help='Shape measurement (detection) bandpass')
     parser.add_argument('-nfw_file', type=str, default=None,
                         help='Theory NFW shear catalog')
     parser.add_argument('-Nresample', type=int, default=10,
@@ -48,6 +48,8 @@ def parse_args():
                         help='Number of radial bins')
     parser.add_argument('--overwrite', action='store_true', default=False,
                         help='Set to overwrite output files')
+    parser.add_argument('--dual_image_mode', action='store_true', default=False,
+                        help='Is dual_image_mode the reference catalog?')
     parser.add_argument('--vb', action='store_true', default=False,
                         help='Turn on for verbose prints')
 
@@ -76,7 +78,7 @@ class AnnularCatalog():
         self.mcal_file = cat_info['mcal_file']
         self.outfile = cat_info['mcal_selected']
         self.outdir = cat_info['outdir']
-        self.run_name = cat_info['run_name']
+        self.target_name = cat_info['run_name']
         self.redshift_cat = cat_info['redshift_cat']
         self.cluster_redshift = cat_info['cluster_redshift']
         self.nfw_file = cat_info['nfw_file']
@@ -109,6 +111,7 @@ class AnnularCatalog():
             'DELTAWIN_J2000': 'dec',
             'NUMBER': 'id'
         }
+        pdb.set_trace()
         for old, new in colmap.items():
             self.det_cat.rename_column(old, new)
 
@@ -133,10 +136,10 @@ class AnnularCatalog():
 
         try:
             # save full catalog to file
-            if self.run_name is None:
+            if self.target_name is None:
                 p = ''
             else:
-                p = f'{self.run_name}_'
+                p = f'{self.target_name}_'
 
             outfile = os.path.join(self.outdir, f'{p}full_joined_catalog.fits')
             self.joined.write(outfile, overwrite=overwrite)
@@ -212,10 +215,10 @@ class AnnularCatalog():
         gals_joined_cat.add_column(redshifts[z_col][z_ind], name='redshift')
 
         try:
-            if self.run_name is None:
+            if self.target_name is None:
                 p = ''
             else:
-                p = f'{self.run_name}_'
+                p = f'{self.target_name}_'
 
                 outfile = os.path.join(
                     self.outdir, f'{p}gals_joined_catalog.fits'
@@ -240,7 +243,7 @@ class AnnularCatalog():
         cat_info = self.cat_info
         data_dir = self.cat_info['data_dir']
         if cat_info['redshift_cat'] is None:
-            redshift_name = ''.join([self.run_name,'_NED_redshifts.csv'])
+            redshift_name = ''.join([self.target_name,'_NED_redshifts.csv'])
             redshift_dir = ''.join([data_dir, '/catalogs/redshifts'])
             redshift_cat = os.path.join(redshift_dir, redshift_name)
             self.cat_info['redshift_cat'] = redshift_cat
@@ -455,7 +458,7 @@ class AnnularCatalog():
 
 
         annular = Annular(
-            cat_info, annular_info, nfw_info, run_name=self.run_name, vb=vb
+            cat_info, annular_info, nfw_info, run_name=self.target_name, vb=vb
         )
         annular.run(outfile, plotfile, Nresample, overwrite=overwrite)
 
@@ -471,8 +474,8 @@ class AnnularCatalog():
         self.make_table(overwrite=overwrite)
 
         # compute tangential shear profile and save outputs
-        if self.run_name is not None:
-            p = f'{self.run_name}_'
+        if self.target_name is not None:
+            p = f'{self.target_name}_'
         else:
             p = ''
 
@@ -486,13 +489,16 @@ class AnnularCatalog():
 
 def main(args):
     config_yml = args.config
+
+    target_name = args.target_name
+    bands = args.bands
     data_dir = args.data_dir
-    target_name = args.run_name
-    mcal_file = args.mcal_file
-    outfile = args.outfile
-    outdir = args.outdir
+    codedir = args.codedir
+
+    bands = bands.split(',')
+
+    detection_bandpass = args.detection_bandpass
     cluster_redshift = args.cluster_redshift
-    detection_band = args.detection_band
     redshift_cat = args.redshift_cat
     nfw_file = args.nfw_file
     Nresample = args.Nresample
@@ -500,6 +506,7 @@ def main(args):
     rmax = args.rmax
     nfw_seed = args.nfw_seed
     nbins = args.nbins
+    dual_image_mode = args.dual_image_mode
     overwrite = args.overwrite
     vb = args.vb
 
@@ -509,72 +516,89 @@ def main(args):
     xy_cols = ['XWIN_IMAGE_se', 'YWIN_IMAGE_se']
     shear_args = ['g1_Rinv', 'g2_Rinv']
 
-    ## Get center of galaxy cluster for fitting
-    ## Throw error if image can't be read in
+    for band in bands:
+        print(f'\n Processing shear_profiles in band {band}... \n')
 
-    detect_cat = os.path.join(data_dir, target_name, detection_band,
-        f'coadd/{target_name}_coadd_{detection_band}_cat.fits'
-    )
-    detect_im = os.path.join(data_dir, target_name, detection_band,
-        f'coadd/{target_name}_coadd_{detection_band}.fits'
-    )
-    print(f'using detection catalog {detect_cat}')
-    print(f'using detection image {detect_im}')
+        # Define outdir per band
+        outdir = os.path.join(data_dir, target_name, band, 'out')
+        print(f'outdir = {outdir}')
 
-    try:
-        assert os.path.exists(detect_im) is True
-        hdr = fits.getheader(detect_im)
-        #This is the image center:
-        xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
-        coadd_center = [xcen, ycen]
-        print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
+        # Define mcal_file per band
+        mcal_file = os.path.join(outdir, f'{target_name}_{band}_mcal.fits')
+        print(f'using mcal_file: {mcal_file}')
 
-    except Exception as e:
-        print('\n\n\nNo coadd image center found, ',
-            'cannot calculate tangential shear\n\n.'
+        # Define outfile per band
+        outfile = os.path.join(outdir, f'{target_name}_{band}_annular.fits')
+        ## Get center of galaxy cluster for fitting
+        ## Throw error if image can't be read in
+
+        if dual_image_mode == True:
+            detect_cat = os.path.join(data_dir, target_name, 'det', 'cat', 
+                f'{target_name}_{detection_bandpass}_{band}_dual_cat_default.fits')
+        else:
+            detect_cat = os.path.join(data_dir, target_name, band,
+                f'coadd/{target_name}_coadd_{band}_cat.fits'
         )
-        raise e
+        detect_im = os.path.join(data_dir, target_name, band,
+            f'coadd/{target_name}_coadd_{band}.fits'
+        )
+        print(f'using detection catalog {detect_cat}')
+        print(f'using detection image {detect_im}')
 
-    ## Make dummy redshift catalog
-    print("Making redshift catalog")
-    redshift_cat = make_redshift_catalog(
-        datadir=data_dir, target=target_name,
-        band=detection_band, detect_cat_path=detect_cat
-    )
+        try:
+            assert os.path.exists(detect_im) is True
+            hdr = fits.getheader(detect_im)
+            #This is the image center:
+            xcen = hdr['CRPIX1']; ycen = hdr['CRPIX2']
+            coadd_center = [xcen, ycen]
+            print(f'Read image data and setting image NFW center to ({xcen},{ycen})')
 
-    if nfw_seed is None:
-        nfw_seed = utils.generate_seeds(1)
+        except Exception as e:
+            print('\n\n\nNo coadd image center found, ',
+                'cannot calculate tangential shear\n\n.'
+            )
+            raise e
 
-    ## n.b outfile is the name of the metacalibrated &
-    ## quality-selected galaxy catalog
+        ## Make dummy redshift catalog
+        print("Making redshift catalog")
+        redshift_cat = make_redshift_catalog(
+            codedir=codedir, outdir=outdir, target=target_name,
+            band=band, detect_cat_path=detect_cat
+        )
 
-    cat_info={
-        'data_dir': data_dir,
-        'detect_cat': detect_cat,
-        'mcal_file': mcal_file,
-        'run_name': target_name,
-        'mcal_selected': outfile,
-        'outdir': outdir,
-        'redshift_cat': redshift_cat,
-        'cluster_redshift': cluster_redshift,
-        'nfw_file': nfw_file,
-        'Nresample': Nresample,
-        'nfw_seed': nfw_seed
-    }
+        if nfw_seed is None:
+            nfw_seed = utils.generate_seeds(1)
 
-    annular_info = {
-        'rmin': rmin,
-        'rmax': rmax,
-        'nbins': nbins,
-        'coadd_center': coadd_center,
-        'xy_args': xy_cols,
-        'shear_args': shear_args
-    }
+        ## n.b outfile is the name of the metacalibrated &
+        ## quality-selected galaxy catalog
 
-    annular_cat = AnnularCatalog(cat_info, annular_info, config)
+        cat_info={
+            'data_dir': data_dir,
+            'detect_cat': detect_cat,
+            'mcal_file': mcal_file,
+            'run_name': target_name,
+            'mcal_selected': outfile,
+            'outdir': outdir,
+            'redshift_cat': redshift_cat,
+            'cluster_redshift': cluster_redshift,
+            'nfw_file': nfw_file,
+            'Nresample': Nresample,
+            'nfw_seed': nfw_seed
+        }
 
-    # run everything
-    annular_cat.run(overwrite=overwrite, vb=vb)
+        annular_info = {
+            'rmin': rmin,
+            'rmax': rmax,
+            'nbins': nbins,
+            'coadd_center': coadd_center,
+            'xy_args': xy_cols,
+            'shear_args': shear_args
+        }
+
+        annular_cat = AnnularCatalog(cat_info, annular_info, config)
+
+        # run everything
+        annular_cat.run(overwrite=overwrite, vb=vb)
 
     return 0
 

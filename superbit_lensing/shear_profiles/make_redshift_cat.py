@@ -5,13 +5,14 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 import numpy as np
 
-def make_redshift_catalog(datadir, target, band, detect_cat_path):
+def make_redshift_catalog(codedir, outdir, target, band, detect_cat_path):
     """
     Utility script to create a "redshift catalog" with spec-z's where they
     exist, a dummy value of 1 otherwise.
 
     Inputs
-        datadir: basedir for unions
+        codedir: /superbit_metacal directory
+        outdir: output directory for *with_redshifts.fits files
         target: cluster target name
         band: which bandpass are we measuring shear in?
         detect_cat_path: path to detection catalog
@@ -19,7 +20,7 @@ def make_redshift_catalog(datadir, target, band, detect_cat_path):
 
     # Adjusted path for NED_redshifts
     ned_redshifts_path = \
-        f"{datadir}/catalogs/redshifts/{target}_NED_redshifts.csv"
+        f"{codedir}/catalogs/redshifts/{target}_NED_redshifts.csv"
     ned_redshifts = pd.read_csv(ned_redshifts_path)
 
     # Path for detect_cat FITS file remains the same
@@ -58,7 +59,7 @@ def make_redshift_catalog(datadir, target, band, detect_cat_path):
 
     # Save the new table to the specified directory
     new_table_path = \
-        f"{datadir}/catalogs/redshifts/{target}_{band}_with_redshifts.fits"
+        f"{outdir}/{target}_{band}_with_redshifts.fits"
     new_table.write(new_table_path, format='fits', overwrite=True)
 
     print(f"Saved a redshift catalog to {new_table_path}")
