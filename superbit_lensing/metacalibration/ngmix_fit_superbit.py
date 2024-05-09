@@ -25,10 +25,12 @@ import ipdb
 
 parser = ArgumentParser()
 
-parser.add_argument('medsfile', type=str,
-                    help='MEDS file to process')
-parser.add_argument('outfile', type=str,
-                    help='Output filename')
+parser.add_argument('target_name', action='store', type=str, default=None,
+                        help='Name of target to perform metacal on')
+parser.add_argument('bands', type=str,
+                        help='List of bands for metacal (separated by commas)')
+parser.add_argument('data_dir', type=str,
+                        help='Path to dir containing target_name directories')
 parser.add_argument('-outdir', type=str, default=None,
                     help='Output directory')
 parser.add_argument('-start', type=int, default=None,
@@ -565,7 +567,7 @@ def mp_run_fit(i, start_ind, obj, obslist, prior, imc,
 
     start = time.time()
 
-    logprint(f'Starting fit for obj {i}')
+    #logprint(f'Starting fit for obj {i}')
 
     if obslist is None:
         logprint('obslist is None')
@@ -590,7 +592,7 @@ def mp_run_fit(i, start_ind, obj, obslist, prior, imc,
         mcal_tab = mcal_dict2tab(mcal_res, obj)
 
         end = time.time()
-        logprint(f'Fitting and conversion took {end-start} seconds')
+        #logprint(f'Fitting and conversion took {end-start} seconds')
 
         if config['make_plots'] is True:
             image_cutout = imc
@@ -625,7 +627,7 @@ def mp_run_fit(i, start_ind, obj, obslist, prior, imc,
 
     end = time.time()
 
-    logprint(f'Total runtime for object was {end-start} seconds')
+    #logprint(f'Total runtime for object was {end-start} seconds')
 
     return mcal_tab
 
@@ -634,9 +636,14 @@ def main():
     args = parser.parse_args()
 
     vb = args.vb # if True, prints out values of R11/R22 for every galaxy
-    medsfile = args.medsfile
-    outfilename = args.outfile
+
+    target_name = args.target_name
+    bands = args.bands
+    data_dir = args.data_dir
     outdir = args.outdir
+    
+    bands = bands.split(',')
+
     index_start  = args.start
     index_end = args.end
     make_plots = args.plot
@@ -646,147 +653,159 @@ def main():
     identifying = {'meds_index':[], 'id':[], 'ra':[], 'dec':[]}
     mcal = {'noshear':[], '1p':[], '1m':[], '2p':[], '2m':[]}
 
-    # Test for existence of the "outdir" argument. If the "outdir" argument is
-    # not given, set it to a default value (current working directory).
-    # If the "outdir" argument is given in config but the "outdir" directory
-    # itself doesn't exist, create it.
+    #EDIT for new band processing here:
 
-    if outdir is None:
-        outdir = os.getcwd()
+    for band in bands:
 
-    if not os.path.isdir(outdir):
-       	  cmd = 'mkdir -p %s' % outdir
-          os.system(cmd)
+        outdir = os.path.join(data_dir, target_name, band, 'out')
 
-    if make_plots is True:
-        print('per-object diagnostic plotting enabled')
-    else:
-        print('--plots=False; no per-object diagnostic plots will be generated')
+        logdir = outdir
+        logfile = 'mcal_fitting.log'
+        log = utils.setup_logger(logfile, logdir=logdir)
+        logprint = utils.LogPrint(log, vb)
 
-    # Set up for saving plots
-    im_savedir = os.path.join(outdir, 'metacal-plots/')
-    if (make_plots == True):
-       if not os.path.isdir(im_savedir):
-       	  cmd = 'mkdir -p %s' % im_savedir
-          os.system(cmd)
+        logprint(f'outdir is {outdir}')
+        logprint(f'index start, end: {index_start}, {index_end}')
+        logprint(f'make_plots: {make_plots}')
+        #logprint(f'im_savedir: {im_savedir}')
+        logprint(f'nproc: {nproc}')
+        logprint(f'vb: {vb}')
+        logprint(f'Processing metacal in band {band}')
 
-    # Added to handle rng initialization
-    # Could put everything through here instead
-    config = {}
-    config['medsfile'] = medsfile
-    config['outfile'] = outfilename
-    config['outdir'] = outdir
-    config['verbose'] = vb
-    config['make_plots'] = make_plots
-    config['im_savedir'] = im_savedir
-    config['nproc'] = nproc
+        if not os.path.isdir(outdir):
+            cmd = 'mkdir -p %s' % outdir
+            os.system(cmd)
+        
+        medsfile = os.path.join(outdir, f'{target_name}_{band}_meds.fits')
+        logprint(f'MEDS file: {medsfile}')
+        outfilename = os.path.join(outdir, f'{target_name}_{band}_mcal.fits')
+        logprint(f'outfile: {os.path.join(outdir, outfilename)}')
 
-    if seed is not None:
-        config['seed'] = seed
-    else:
-        set_seed(config)
+        # Test for existence of the "outdir" argument. If the "outdir" argument is
+        # not given, set it to a default value (current working directory).
+        # If the "outdir" argument is given in config but the "outdir" directory
+        # itself doesn't exist, create it.
 
-    logdir = outdir
-    logfile = 'mcal_fitting.log'
-    log = utils.setup_logger(logfile, logdir=logdir)
-    logprint = utils.LogPrint(log, vb)
+        if make_plots is True:
+            print('per-object diagnostic plotting enabled')
+        else:
+            print('--plots=False; no per-object diagnostic plots will be generated')
 
-    logprint(f'MEDS file: {medsfile}')
-    logprint(f'index start, end: {index_start}, {index_end}')
-    logprint(f'outfile: {os.path.join(outdir, outfilename)}')
-    logprint(f'make_plots: {make_plots}')
-    logprint(f'im_savedir: {im_savedir}')
-    logprint(f'nproc: {nproc}')
-    logprint(f'vb: {vb}')
-    logprint(f'seed: {config["seed"]}')
+        '''
+        # Set up for saving plots
+        im_savedir = os.path.join(outdir, 'metacal-plots/')
+        if (make_plots == True):
+           if not os.path.isdir(im_savedir):
+                cmd = 'mkdir -p %s' % im_savedir
+                os.system(cmd)
+        '''
+        
 
-    BITfitter = SuperBITNgmixFitter(config)
+        # Added to handle rng initialization
+        # Could put everything through here instead
+        config = {}
+        config['medsfile'] = medsfile
+        config['outfile'] = outfilename
+        config['outdir'] = outdir
+        config['verbose'] = vb
+        config['make_plots'] = make_plots
+        #config['im_savedir'] = im_savedir
+        config['nproc'] = nproc
 
-    priors = BITfitter._get_priors()
+        if seed is not None:
+            config['seed'] = seed
+        else:
+            set_seed(config)
 
-    Ncat = len(BITfitter.catalog)
-    if index_start == None:
-        index_start = 0
-    if index_end == None:
-        index_end = Ncat
+        logprint(f'seed: {config["seed"]}')
 
-    if index_end > Ncat:
-        logprint(f'Warning: index_end={index_end} larger than ' +\
-                 f'catalog size of {Ncat}; running over full catalog')
-        index_end = Ncat
+        BITfitter = SuperBITNgmixFitter(config)
 
-    # Needed for making plots on each worker
-    plotter = SuperBITPlotter()
+        priors = BITfitter._get_priors()
 
-    if make_plots is True:
-        imc_list = plotter.make_imc_list(index_start, index_end, BITfitter.medsObj)
-    else:
-        imc_list = [None for i in range(index_start, index_end)]
+        Ncat = len(BITfitter.catalog)
+        if index_start == None:
+            index_start = 0
+        if index_end == None:
+            index_end = Ncat
 
-    logprint(f'Starting metacal fitting with {nproc} cores')
+        if index_end > Ncat:
+            logprint(f'Warning: index_end={index_end} larger than ' +\
+                    f'catalog size of {Ncat}; running over full catalog')
+            index_end = Ncat
 
-    start = time.time()
+        # Needed for making plots on each worker
+        plotter = SuperBITPlotter()
 
-    # for no multiprocessing:
-    if nproc == 1:
-        mcal_res = []
-        for i in range(index_start, index_end):
-            mcal_res.append(mp_run_fit(
-                            i,
-                            index_start,
-                            setup_obj(i, BITfitter.medsObj[i]),
-                            BITfitter._get_source_observations(
-                                i, logprint=logprint
-                                ),
-                            priors,
-                            imc_list[i-index_start],
-                            plotter,
-                            config,
-                            logprint)
-                            )
+        if make_plots is True:
+            imc_list = plotter.make_imc_list(index_start, index_end, BITfitter.medsObj)
+        else:
+            imc_list = [None for i in range(index_start, index_end)]
 
-        mcal_res = vstack(mcal_res)
+        logprint(f'Starting metacal fitting with {nproc} cores')
 
-    # for multiprocessing:
-    else:
-        with Pool(nproc) as pool:
-            mcal_res = vstack(pool.starmap(mp_run_fit,
-                                        [(i,
-                                          index_start,
-                                          setup_obj(i, BITfitter.medsObj[i]),
-                                          BITfitter._get_source_observations(
-                                              i, logprint=logprint
-                                              ),
-                                          priors,
-                                          imc_list[i-index_start],
-                                          plotter,
-                                          config,
-                                          logprint
-                                          ) for i in range(index_start, index_end)
-                                          ]
-                                        )
-                            )
+        start = time.time()
 
-    end = time.time()
+        # for no multiprocessing:
+        if nproc == 1:
+            mcal_res = []
+            for i in range(index_start, index_end):
+                mcal_res.append(mp_run_fit(
+                                i,
+                                index_start,
+                                setup_obj(i, BITfitter.medsObj[i]),
+                                BITfitter._get_source_observations(
+                                    i, logprint=logprint
+                                    ),
+                                priors,
+                                imc_list[i-index_start],
+                                plotter,
+                                config,
+                                logprint)
+                                )
 
-    T = end - start
-    logprint(f'Total fitting and stacking time: {T} seconds')
+            mcal_res = vstack(mcal_res)
 
-    N = index_end - index_start
-    logprint(f'{T/N} seconds per object (wall time)')
-    logprint(f'{T/N*nproc} seconds per object (CPU time)')
+        # for multiprocessing:
+        else:
+            with Pool(nproc) as pool:
+                mcal_res = vstack(pool.starmap(mp_run_fit,
+                                            [(i,
+                                            index_start,
+                                            setup_obj(i, BITfitter.medsObj[i]),
+                                            BITfitter._get_source_observations(
+                                                i, logprint=logprint
+                                                ),
+                                            priors,
+                                            imc_list[i-index_start],
+                                            plotter,
+                                            config,
+                                            logprint
+                                            ) for i in range(index_start, index_end)
+                                            ]
+                                            )
+                                )
+
+        end = time.time()
+
+        T = end - start
+        logprint(f'Total fitting and stacking time: {T} seconds')
+
+        N = index_end - index_start
+        logprint(f'{T/N} seconds per object (wall time)')
+        logprint(f'{T/N*nproc} seconds per object (CPU time)')
 
 
-    if not os.path.isdir(outdir):
-       cmd='mkdir -p %s' % outdir
-       os.system(cmd)
+        if not os.path.isdir(outdir):
+            cmd='mkdir -p %s' % outdir
+            os.system(cmd)
 
-    out = os.path.join(outdir, outfilename)
-    logprint(f'Writing results to {out}')
+        out = os.path.join(outdir, outfilename)
+        logprint(f'Writing results to {out}')
 
-    write_output_table(out, mcal_res, overwrite=overwrite)
+        write_output_table(out, mcal_res, overwrite=overwrite)
 
-    logprint('Done!')
+        logprint('Done!')
 
     return
 
