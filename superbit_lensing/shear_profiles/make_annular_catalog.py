@@ -111,7 +111,6 @@ class AnnularCatalog():
             'DELTAWIN_J2000': 'dec',
             'NUMBER': 'id'
         }
-        pdb.set_trace()
         for old, new in colmap.items():
             self.det_cat.rename_column(old, new)
 
@@ -466,7 +465,6 @@ class AnnularCatalog():
 
 
     def run(self, overwrite, vb=False):
-
         # match master metacal catalog to source extractor cat
         self.join(overwrite=overwrite)
 
