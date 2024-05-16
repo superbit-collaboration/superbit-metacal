@@ -353,34 +353,33 @@ class BITMeasurement():
             self.logprint("coadd catalog could not be loaded; check name?")
             raise(e)
 
-    def set_detection_files(self, use_band_coadd=False):
+    def set_detection_files(self, dual_image_mode=False):
         '''
         Get detection source file & catalog, assuming OBA convention for data
         organization: [target_name]/[band]/[cal, cat, coadd, etc.]
         '''
         # "pref" is catalog directory ("cat/" for oba, "coadd/" otherwise)
-        if use_band_coadd == True:
+        if dual_image_mode == True:
+            pref = 'cat/'
+            coadd_cat_name = f'{pref}{self.target_name}_{self.detection_bandpass}_{self.band}_dual_cat_default.fits'
+            det_img_dir = os.path.join(self.data_dir, self.target_name, self.detection_bandpass)
+            det_cat_dir = os.path.join(self.data_dir, self.target_name, 'det')
+        else:
             det = self.band
             pref = 'coadd/'
-        else:
-            det = 'det'
-            pref = 'cat/'
+            coadd_cat_name = f'{pref}{self.target_name}_coadd_{det}_cat.fits'
+            det_img_dir = os.path.join(self.data_dir, self.target_name, self.band)
+            det_cat_dir = os.path.join(self.data_dir, self.target_name, self.band)
 
-        det_dir = os.path.join(self.data_dir, self.target_name, det)
-        coadd_img_name = f'coadd/{self.target_name}_coadd_{det}.fits'
-        coadd_cat_name = f'{pref}{self.target_name}_coadd_{det}_cat.fits'
+        coadd_img_name = f'coadd/{self.target_name}_coadd_{self.detection_bandpass}.fits'
 
-        detection_img_file = os.path.join(det_dir, coadd_img_name)
-        detection_cat_file = os.path.join(det_dir, coadd_cat_name)
+        detection_img_file = os.path.join(det_img_dir, coadd_img_name)
+        detection_cat_file = os.path.join(det_cat_dir, coadd_cat_name)
 
         if os.path.exists(detection_img_file) == False:
             raise FileNotFoundError('No detection coadd image found '+
                                     f'at {detection_img_file}')
         else:
-            self.detect_img_file = detection_img_file
-
-        if use_band_coadd == True:
-            self.coadd_img_file = detection_img_file 
             self.detect_img_file = detection_img_file
             
         if os.path.exists(detection_cat_file) == False:

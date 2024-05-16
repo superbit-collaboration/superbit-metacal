@@ -145,23 +145,22 @@ def main(args):
             )
 
 
-        # Get detection source file & catalog
+        # Make single band coadd
         logprint('Making coadd...\n')
-
-        # Make single band coadd and its catalog
         bm.make_coadd_image(astro_config_dir)
         
-        #logprint('Making coadd catalog...\n')        
-        #hcs.make_coadd_catalog(use_band_coadd=True)
-        #bm.make_coadd_catalog(astro_config_dir)
+        # Make single band coadd catalog
+        logprint('Making coadd catalog...\n')        
+        hcs.make_coadd_catalog(use_band_coadd=True)
 
-        # Set detection file attributes
-        bm.set_detection_files(use_band_coadd=True)
-        
         # Then make dual-image mode SExtractor catalogs
         logprint('Making dual image catalogs... \n')
         hcs.make_dual_image_catalogs(detection_bandpass)
 
+        # Set detection file attributes
+        bm.set_detection_files(dual_image_mode=True)
+
+        # Make single-exposure catalogs
         logprint('Making single-exposure catalogs... \n')
         bm.make_exposure_catalogs(astro_config_dir)
         bm.make_exposure_weights()
