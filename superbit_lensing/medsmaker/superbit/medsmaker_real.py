@@ -360,18 +360,18 @@ class BITMeasurement():
         '''
         # "pref" is catalog directory ("cat/" for oba, "coadd/" otherwise)
         if dual_image_mode == True:
-            pref = 'cat/'
-            coadd_cat_name = f'{pref}{self.target_name}_{self.detection_bandpass}_{self.band}_dual_cat_default.fits'
-            det_img_dir = os.path.join(self.data_dir, self.target_name, self.detection_bandpass)
-            det_cat_dir = os.path.join(self.data_dir, self.target_name, 'det')
+            det = self.detection_bandpass
+            pref = 'det/cat/'
+            coadd_cat_name = f'{self.target_name}_{det}_{self.band}_dual_cat_default.fits'
         else:
             det = self.band
-            pref = 'coadd/'
-            coadd_cat_name = f'{pref}{self.target_name}_coadd_{det}_cat.fits'
-            det_img_dir = os.path.join(self.data_dir, self.target_name, self.band)
-            det_cat_dir = os.path.join(self.data_dir, self.target_name, self.band)
+            pref = f'{det}/coadd/'
+            coadd_cat_name = f'{self.target_name}_coadd_{det}_cat.fits'
 
-        coadd_img_name = f'coadd/{self.target_name}_coadd_{self.detection_bandpass}.fits'
+        det_img_dir = os.path.join(self.data_dir, self.target_name, det, 'coadd')
+        det_cat_dir = os.path.join(self.data_dir, self.target_name, pref)
+
+        coadd_img_name = f'{self.target_name}_coadd_{det}.fits'
 
         detection_img_file = os.path.join(det_img_dir, coadd_img_name)
         detection_cat_file = os.path.join(det_cat_dir, coadd_cat_name)

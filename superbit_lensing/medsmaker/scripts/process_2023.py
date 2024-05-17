@@ -39,6 +39,8 @@ def parse_args():
                         help='Shape measurement (detection) bandpass')
     parser.add_argument('--meds_coadd', action='store_true', default=False,
                         help='Set to keep coadd cutout in MEDS file')
+    parser.add_argument('--dual_image_mode', action='store_true', default=False,
+                        help='Set to keep coadd cutout in MEDS file')
     parser.add_argument('--overwrite', action='store_true', default=False,
                         help='Set to overwrite files')
     parser.add_argument('--vb', action='store_true', default=False,
@@ -52,11 +54,12 @@ def main(args):
     outdir = args.outdir
     psf_mode = args.psf_mode
     psf_seed = args.psf_seed
-    use_coadd = args.meds_coadd
     overwrite = args.overwrite
     bands = args.bands
     star_config_dir = args.star_config_dir
     detection_bandpass = args.detection_bandpass
+    dual_image_mode = args.dual_image_mode
+    use_coadd = args.meds_coadd
     vb = args.vb
 
     if star_config_dir == None:
@@ -102,7 +105,7 @@ def main(args):
         for ending in endings:
             search_path = os.path.join(data_dir, target_name, band, 'cal', f'*{ending}.fits')
             science.extend(glob(search_path))   
-        
+        science=science[0:3]
         logprint(f'\nUsing science frames: {science}\n')
 
         # Define output MEDS name
@@ -158,7 +161,7 @@ def main(args):
         hcs.make_dual_image_catalogs(detection_bandpass)
 
         # Set detection file attributes
-        bm.set_detection_files(dual_image_mode=True)
+        bm.set_detection_files(dual_image_mode=dual_image_mode)
 
         # Make single-exposure catalogs
         logprint('Making single-exposure catalogs... \n')
