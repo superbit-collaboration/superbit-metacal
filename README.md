@@ -38,30 +38,61 @@ The example configuration file is shown in `configs/pipe_test.yaml`. An example 
 
 The available config options for each submodule are defined in the various module classes in `superbit_lensing.pipe.py`, such as `GalSimModule`. The required & optional fields are given in `_req_fields` and `_opt_fields` respectively. The pipeline runner tells you if you fail to pass a required field or if you pass something that it doesn't understand.
 
-## To build a specific run environment
-Create env from yaml (e.g. `env_v1.3.9.yaml`):
+## Preliminary Steps
 
-`conda env create --name sbmcal_139 --file env_v1.3.9.yaml`
+Step 1: Clone this github repo:
+
+`git clone https://github.com/superbit-collaboration/superbit-metacal.git`
+
+Step 2: Install conda or miniconda if you don't have it already:
+
+`https://conda.io/projects/conda/en/latest/user-guide/install/index.html`
+
+...confirm that you are in your `base` environment 
+
+Step 3:  Build a specific run environment with a given configuration file (`.yaml` or `.yml`)
+
+The current recommended config file is `sbmcal_py12.yaml`. If there are any problems with package conflicts in this environment, another config option is `env.yaml`. This is a simple environment with few dependencies, so working through the pipeline in this environment will yield errors regarding missing packages. Simply `conda install -c conda-forge *package*` the package in question. This will install the latest version of packages that may be out of date in `sbmcal_py12.yaml`. 
+
+Create env from yaml:
+
+`conda env create --name *give your env a name* --file *config file name*`
+
+recommended: `conda env create --name sbmcal_139 --file sbmcal_py12.yaml`
 
 Activate new env:
 
 `conda activate sbmcal_139`
 
-cd to meds repo:
-
-`cd /path/to/repos/meds`
-
-Build it:
-
-`python setup.py install`
-
-cd to this repo:
+Step 4: Build Superbit Lensing:
 
 `cd /path/to/repos/superbit-metacal`
 
-pip install repo:
+`python setup.py install`
+
+Step 5: Build Meds:
+
+`Git clone https://github.com/esheldon/meds.git`
+
+`cd /path/to/repos/meds`
+
+`python setup.py install`
+
+Step 6: Pip install repository
+
+Cd to this repo again:`cd /path/to/repos/superbit-metacal`
 
 `pip install -e /path/to/repos/superbit-metacal`
+
+## NGMIX
+
+As explained above, NGMIX is a package used in the `metacalibration` module. To run this pipeline, it is required that ngmix version 1.3.9 is used (hense the environment name ending in 139). Unfortunately, ngmix insists on python 3.6 or 3.7 in order to be installed, but our environment uses python 3.12. It is therefore not possible to simply conda forge this package into your environment. Instead, you can do the following to manually install it:
+
+Step 1: `curl -OL https://github.com/esheldon/ngmix/archive/refs/tags/v1.3.9.tar.gz`
+
+Step 2: `tar -xzf v1.3.9.tar.gz`
+
+
 
 ## For the experts
 
