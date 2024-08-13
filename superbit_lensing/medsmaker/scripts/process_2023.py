@@ -158,7 +158,7 @@ def main(args):
 
         # Then make dual-image mode SExtractor catalogs
         logprint('Making dual image catalogs... \n')
-        hcs.make_dual_image_catalogs(detection_bandpass)
+        hcs.make_dual_image_catalogs(detection_bandpass, dual_image_mode=dual_image_mode)
 
         # Set detection file attributes
         bm.set_detection_files(dual_image_mode=dual_image_mode)
