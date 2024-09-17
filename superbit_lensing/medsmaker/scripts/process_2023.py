@@ -37,9 +37,10 @@ def parse_args():
                              'configuration files for star processing')
     parser.add_argument('-detection_bandpass', type=str, default='b',
                         help='Shape measurement (detection) bandpass')
+    parser.add_argument('-detection_coadd_method', type=str, default='single_band_coadd',
+                        choices=['single_band_coadd', 'detection_coadd', 'dual_image_mode'],
+                        help='Specify which detection coadd file to use: single_band_coadd, detection_coadd, or dual_image_mode')
     parser.add_argument('--meds_coadd', action='store_true', default=False,
-                        help='Set to keep coadd cutout in MEDS file')
-    parser.add_argument('--dual_image_mode', action='store_true', default=False,
                         help='Set to keep coadd cutout in MEDS file')
     parser.add_argument('--overwrite', action='store_true', default=False,
                         help='Set to overwrite files')
@@ -58,7 +59,7 @@ def main(args):
     bands = args.bands
     star_config_dir = args.star_config_dir
     detection_bandpass = args.detection_bandpass
-    dual_image_mode = args.dual_image_mode
+    detection_coadd_method = args.detection_coadd_method
     use_coadd = args.meds_coadd
     vb = args.vb
 
@@ -106,7 +107,7 @@ def main(args):
             search_path = os.path.join(data_dir, target_name, band, 'cal', f'*{ending}.fits')
             science.extend(glob(search_path))  
         
-        #science = science[0:15]    
+        #science = science[0:3]    
         logprint(f'\nUsing science frames: {science}\n')
 
         # Define output MEDS name
@@ -149,20 +150,17 @@ def main(args):
             )
 
 
-        # Make single band coadd
+        # Make single band coadd via SWarp
         logprint('Making coadd...\n')
         bm.make_coadd_image(astro_config_dir)
         
-        # Make single band coadd catalog
-        logprint('Making coadd catalog...\n')        
-        hcs.make_coadd_catalog(use_band_coadd=True)
+        # Make coadd SExtractor catalog
+        logprint(f'Making coadd catalog from {detection_coadd_method} based coadd...\n')        
+        hcs.make_coadd_catalog(detection_coadd_method=detection_coadd_method, detection_bandpass=detection_bandpass)
 
-        # Then make dual-image mode SExtractor catalogs
-        # logprint('Making dual image catalogs... \n')
-        # hcs.make_dual_image_catalogs(detection_bandpass)
-
-        # Set detection file attributes
-        bm.set_detection_files(dual_image_mode=dual_image_mode)
+        # Set detection file
+        logprint(f'Setting the detection coadd based on the {detection_coadd_method} method...\n')
+        bm.set_detection_files(detection_coadd_method=detection_coadd_method)
 
         # Make single-exposure catalogs
         logprint('Making single-exposure catalogs... \n')

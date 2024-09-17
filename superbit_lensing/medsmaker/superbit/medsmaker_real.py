@@ -218,7 +218,7 @@ class BITMeasurement():
                     }
        
         # Make external headers if band == detection
-        self._make_external_headers(cmd_arr)
+        #self._make_external_headers(cmd_arr)
 
         # Actually run the command
         cmd = ' '.join(cmd_arr.values())
@@ -353,47 +353,59 @@ class BITMeasurement():
             self.logprint("coadd catalog could not be loaded; check name?")
             raise(e)
 
-    def set_detection_files(self, dual_image_mode=False):
+    def set_detection_files(self, detection_coadd_method='single_band_coadd'):
         '''
         Get detection source file & catalog, assuming OBA convention for data
         organization: [target_name]/[band]/[cal, cat, coadd, etc.]
         '''
-        # "pref" is catalog directory ("cat/" for oba, "coadd/" otherwise)
-        if dual_image_mode == True:
-            det = self.detection_bandpass
-            pref = 'det/cat/'
-            coadd_cat_name = f'{self.target_name}_{det}_{self.band}_dual_cat_default.fits'
-        else:
-            det = self.band
-            pref = f'{det}/coadd/'
-            coadd_cat_name = f'{self.target_name}_coadd_{det}_cat.fits'
 
-        det_img_dir = os.path.join(self.data_dir, self.target_name, det, 'coadd')
-        det_cat_dir = os.path.join(self.data_dir, self.target_name, pref)
+        # Determine detection settings based on mode
+        if detection_coadd_method == 'single_band_coadd':
+            det_band = self.band
+            catalog_prefix = f'{det_band}/coadd/'
+            coadd_cat_name = f'{self.target_name}_coadd_{det_band}_cat.fits'
+        elif detection_coadd_method == 'detection_coadd':
+            det_band = 'det'
+            catalog_prefix = f'{det_band}/cat/'
+            coadd_cat_name = f'{self.target_name}_coadd_{det_band}_cat.fits'
+        elif detection_coadd_method == 'dual_image_mode':
+            det_band = self.detection_bandpass
+            catalog_prefix = 'det/cat/'
+            coadd_cat_name = f'{self.target_name}_{det_band}_{self.band}_dual_cat_default.fits'
 
-        coadd_img_name = f'{self.target_name}_coadd_{det}.fits'
+        # Construct directory paths
+        det_img_dir = os.path.join(self.data_dir, self.target_name, det_band, 'coadd')
+        det_cat_dir = os.path.join(self.data_dir, self.target_name, catalog_prefix)
 
+        # Construct file names
+        coadd_img_name = f'{self.target_name}_coadd_{det_band}.fits'
+
+        # Full paths to image and catalog files
         detection_img_file = os.path.join(det_img_dir, coadd_img_name)
         detection_cat_file = os.path.join(det_cat_dir, coadd_cat_name)
 
-        if os.path.exists(detection_img_file) == False:
-            raise FileNotFoundError('No detection coadd image found '+
-                                    f'at {detection_img_file}')
+        self.logprint(f'Detection coadd file: {detection_img_file}\n')
+        self.logprint(f'Detection coadd SExtractor catalog: {detection_cat_file}\n')
+
+        # Check if the detection image file exists
+        if not os.path.exists(detection_img_file):
+            raise FileNotFoundError(f'No detection coadd image found at {detection_img_file}')
         else:
             self.detect_img_file = detection_img_file
-            
-        if os.path.exists(detection_cat_file) == False:
-            raise FileNotFoundError('No detection catalog found ',
-                                    f'at {detection_cat_file}\nCheck name?')
-            
+
+        # Check if the detection catalog file exists
+        if not os.path.exists(detection_cat_file):
+            raise FileNotFoundError(f'No detection catalog found at {detection_cat_file}\nCheck name?')
         else:
             self.detect_cat_path = detection_cat_file
-            dcat = fits.open(detection_cat_file)
-            # hdu=2 if FITS_LDAC, hdu=1 if FITS_1.0
-            try:
-                self.detection_cat = dcat[2].data
-            except:
-                self.detection_cat  = dcat[1].data
+            # Open the FITS file using a context manager to ensure it is closed properly
+            with fits.open(detection_cat_file) as dcat:
+                # hdu=2 if FITS_LDAC, hdu=1 if FITS_1.0
+                try:
+                    self.detection_cat = dcat[2].data
+                except IndexError:
+                    self.detection_cat = dcat[1].data
+
 
 
     def make_psf_models(self, config_path=None, select_truth_stars=False,
