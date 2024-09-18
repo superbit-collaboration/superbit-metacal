@@ -27,16 +27,16 @@ mcal_cuts:
   # Maximum galaxy size
   max_T: 100
   # How faint of aperture mag to keep; helps cut out junk
-  max_mag_aper: 99
+  max_mag_aper: 26
   # How faint of MAG_AUTO to keep; helps cut out junk
-  max_mag_auto: 99
+  max_mag_auto: 26
   # Maximum SEXtractor flag value allowed
   max_sex_flags: 1
 
 # Miscellaneous parameters:
 # -------------------------
 # Galaxy shape noise for calculating weights
-shape_noise: 0.3
+shape_noise: 0.2
 # Denominator for responsivity calculation
 mcal_shear: 0.01
 

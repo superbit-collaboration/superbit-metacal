@@ -218,7 +218,7 @@ class BITMeasurement():
                     }
        
         # Make external headers if band == detection
-        self._make_external_headers(cmd_arr)
+        #self._make_external_headers(cmd_arr)
 
         # Actually run the command
         cmd = ' '.join(cmd_arr.values())
