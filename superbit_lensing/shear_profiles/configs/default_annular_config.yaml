@@ -21,15 +21,15 @@ mcal_cuts:
   # Maximum galaxy SNR
   max_sn: 1000
   # Minimum galaxy SNR
-  min_sn: 7
+  min_sn: 5
   # Minimum galaxy size
   min_T: 0.0
   # Maximum galaxy size
   max_T: 100
   # How faint of aperture mag to keep; helps cut out junk
-  max_mag_aper: 99
+  max_mag_aper: 26
   # How faint of MAG_AUTO to keep; helps cut out junk
-  max_mag_auto: 99
+  max_mag_auto: 26
   # Maximum SEXtractor flag value allowed
   max_sex_flags: 1
 

@@ -17,7 +17,7 @@ import superbit_lensing.utils as utils
 from superbit_lensing.medsmaker.superbit.psf_extender import psf_extender
 import glob
 
-import ipdb
+#import ipdb
 
 '''
 Goals:

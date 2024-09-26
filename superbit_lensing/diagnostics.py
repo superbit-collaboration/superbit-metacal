@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from match import MatchedTruthCatalog
 import utils
 
-import ipdb
+#import ipdb
 
 class Diagnostics(object):
     def __init__(self, name, config):
