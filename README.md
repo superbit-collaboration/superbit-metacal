@@ -92,6 +92,8 @@ Step 1: `curl -OL https://github.com/esheldon/ngmix/archive/refs/tags/v1.3.9.tar
 
 Step 2: `tar -xzf v1.3.9.tar.gz`
 
+Step 3: Navigate to wherever this package is downloaded and do `pip install -e . `
+
 
 
 ## For the experts
