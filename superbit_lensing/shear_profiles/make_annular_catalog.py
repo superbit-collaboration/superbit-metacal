@@ -297,7 +297,8 @@ class AnnularCatalog():
             & (mcal['s2n_noshear'] < qual_cuts['max_sn']) \
             & (mcal['MAG_APER'] <  qual_cuts['max_mag_aper']) \
             & (mcal['MAG_AUTO'] <  qual_cuts['max_mag_auto']) \
-            & (mcal['redshift'] > min_redshift)
+            & (mcal['redshift'] > min_redshift) \
+            & (mcal['FLAGS'] <= qual_cuts['max_sex_flags'])
         ]
 
         selection_1p = mcal[

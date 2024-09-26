@@ -36,7 +36,7 @@ mcal_cuts:
 # Miscellaneous parameters:
 # -------------------------
 # Galaxy shape noise for calculating weights
-shape_noise: 0.3
+shape_noise: 0.2
 # Denominator for responsivity calculation
 mcal_shear: 0.01
 
