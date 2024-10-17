@@ -6,7 +6,7 @@ from multiprocessing import Pool
 
 from mcal_runner import MetacalRunner
 
-import ipdb
+#import ipdb
 
 def parse_args():
     parser = ArgumentParser()

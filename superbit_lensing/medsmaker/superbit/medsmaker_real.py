@@ -716,8 +716,8 @@ class BITMeasurement():
             weight_files.append(weight_name)
 
         if use_coadd == True:
-            img_files.insert(0, coadd_image)
-            wgt_files.insert(0, coadd_weight)
+            image_files.insert(0, coadd_image)
+            weight_files.insert(0, coadd_weight)
 
         # If used, will be put first
         Nim = len(image_files)

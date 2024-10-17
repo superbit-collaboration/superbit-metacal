@@ -17,7 +17,7 @@ from statsmodels.stats.weightstats import DescrStatsW
 from superbit_lensing.shear_profiles.shear_plots import ShearProfilePlotter
 from superbit_lensing.shear_profiles.bias import compute_shear_bias
 
-import ipdb
+#import ipdb
 
 parser = ArgumentParser()
 

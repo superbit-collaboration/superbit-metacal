@@ -103,7 +103,7 @@ def main(args):
             search_path = os.path.join(data_dir, target_name, band, 'cal', f'*{ending}.fits')
             science.extend(glob(search_path))
             
-        science = science[0:2]
+        #science = science[0:2]
         
         logprint(f'\nUsing science frames: {science}\n')
 
@@ -154,14 +154,14 @@ def main(args):
         bm.make_coadd_image(astro_config_dir)
         
         logprint('Making coadd catalog...\n')        
-        hcs.make_coadd_catalog(use_band_coadd=True)
-        #bm.make_coadd_catalog(astro_config_dir)
+        #hcs.make_coadd_catalog(use_band_coadd=False)
+        bm.make_coadd_catalog(astro_config_dir)
 
         # Set detection file attributes
         bm.set_detection_files(use_band_coadd=True)
 
         # Then make dual-image mode SExtractor catalogs
-        hcs.make_dual_image_catalogs(detection_bandpass)
+        #hcs.make_dual_image_catalogs(detection_bandpass)
 
         logprint('Making single-exposure catalogs... \n')
         bm.make_exposure_catalogs(astro_config_dir)
