@@ -106,7 +106,6 @@ def main(args):
             search_path = os.path.join(data_dir, target_name, band, 'cal', f'*{ending}.fits')
             science.extend(glob(search_path))  
         
-        #science = science[0:15]    
         logprint(f'\nUsing science frames: {science}\n')
 
         # Define output MEDS name
@@ -116,7 +115,7 @@ def main(args):
         # Set up astromatic (sex & psfex & swarp) configs
         astro_config_dir = str(Path(utils.MODULE_DIR,
                                'medsmaker/superbit/astro_config/')
-                               )
+        )
 
         # Create an instance of BITMeasurement
         logprint('Setting up BITMeasurement configuration...\n')
@@ -129,7 +128,7 @@ def main(args):
              band_outdir,
              log=log,
              vb=vb
-             )
+        )
 
         # TODO: Make this less hard-coded
         # Create an instance of HotColdSExtractor
@@ -146,7 +145,7 @@ def main(args):
             astro_config_dir,
             log=log,
             vb=vb
-            )
+        )
 
 
         # Make single band coadd
@@ -162,7 +161,7 @@ def main(args):
         # hcs.make_dual_image_catalogs(detection_bandpass)
 
         # Set detection file attributes
-        bm.set_detection_files(dual_image_mode=dual_image_mode)
+        bm.set_detection_files(dual_image_mode=False)
 
         # Make single-exposure catalogs
         logprint('Making single-exposure catalogs... \n')
@@ -179,7 +178,7 @@ def main(args):
             psf_mode=psf_mode,
             psf_seed=psf_seed,
             star_config=star_config,
-            )
+        )
 
         logprint('Making MEDS... \n')
 
@@ -206,7 +205,7 @@ def main(args):
         medsObj = meds.maker.MEDSMaker(
                   obj_info, image_info, config=meds_config,
                   psf_data=bm.psf_models, meta_data=meta
-                  )
+        )
 
         logprint(f'Writing to {outfile} \n')
         medsObj.write(outfile)
