@@ -12,7 +12,7 @@ from prior import GaussianPrior, UniformPrior
 from superbit_lensing import utils
 import superbit_lensing.metacalibration.mcal_runner as _mcal
 
-import ipdb
+#import ipdb
 
 '''
 This test script builds a minimal MEDS file from simulated sources

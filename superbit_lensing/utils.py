@@ -12,7 +12,7 @@ from astropy.io import fits
 import astropy.wcs as wcs
 from esutil import htm
 import pdb
-import ipdb
+##import ipdb
 
 class AttrDict(dict):
     '''

@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 import superbit_lensing.utils as utils
 from superbit_lensing.medsmaker.superbit import medsmaker_mocks as medsmaker
 
-import ipdb
+#import ipdb
 
 def parse_args():
 

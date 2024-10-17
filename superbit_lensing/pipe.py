@@ -7,7 +7,7 @@ import subprocess
 import utils
 from diagnostics import build_diagnostics
 
-import ipdb
+#import ipdb
 
 class SuperBITModule(dict):
     '''

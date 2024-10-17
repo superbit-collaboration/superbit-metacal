@@ -16,7 +16,7 @@ import superbit_lensing.utils as utils
 from superbit_lensing.shear_profiles.bias import _compute_shear_bias
 from superbit_lensing.shear_profiles.annular_jmac import _compute_profile
 
-import ipdb
+#import ipdb
 
 def parse_args():
 

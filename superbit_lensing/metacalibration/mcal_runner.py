@@ -13,7 +13,7 @@ from argparse import ArgumentParser
 
 import superbit_lensing.utils as utils
 
-import ipdb
+#import ipdb
 
 def parse_args():
     parser = ArgumentParser()

@@ -2,7 +2,7 @@ import numpy as np
 import piff
 import galsim
 
-import ipdb
+#import ipdb
 
 def psf_extender(mode, stamp_size, **kwargs):
     '''

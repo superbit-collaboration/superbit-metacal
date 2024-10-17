@@ -21,7 +21,7 @@ import multiprocessing
 
 import superbit_lensing.utils as utils
 
-import ipdb
+#import ipdb
 
 parser = ArgumentParser()
 

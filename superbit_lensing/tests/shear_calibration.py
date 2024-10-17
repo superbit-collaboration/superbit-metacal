@@ -13,7 +13,7 @@ from scipy.interpolate import interpn
 from superbit_lensing import utils
 from superbit_lensing.match import MatchedTruthCatalog
 
-import ipdb
+#import ipdb
 
 parser = ArgumentParser()
 

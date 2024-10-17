@@ -16,7 +16,7 @@ sys.path.insert(0, BASE)
 from mcal_runner import MetacalRunner, build_fitter
 import superbit_lensing.utils as utils
 
-import ipdb
+#import ipdb
 
 def parse_args():
     parser = ArgumentParser()

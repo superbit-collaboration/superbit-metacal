@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import superbit_lensing.utils as utils
 from superbit_lensing.shear_profiles.shear_plots import ShearProfilePlotter
 
-import ipdb
+#import ipdb
 
 def parse_args():
 
