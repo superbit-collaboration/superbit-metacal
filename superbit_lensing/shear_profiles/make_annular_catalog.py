@@ -27,6 +27,8 @@ def parse_args():
                         help='Output directory')
     parser.add_argument('-detection_band', type=str, default='b',
                         help='Detection bandpass [default: b]') ## MANUAL EDIT 
+    #parser.add_argument('-detect_cat', type=str, default='b',
+                        #help='Detection catalog? [default: b]') ## MANUAL EDIT 
     parser.add_argument('-cluster_redshift', type=str, default=None,
                         help='Redshift of cluster')
     parser.add_argument('-redshift_cat', type=str, default=None,
@@ -292,7 +294,7 @@ class AnnularCatalog():
         # to a different file
         min_Tpsf = 0.5
         max_sn = 1000
-        min_sn = 10
+        min_sn = 5
         min_T = 0.0
         max_T = 10
         
@@ -304,7 +306,7 @@ class AnnularCatalog():
         else:
             min_redshift = 0
             
-            
+        #!!!!!   
         #print("Making redshift catalog")
         #redshift_cat = make_redshift_catalog(
         #datadir=data_dir, target=target_name,
@@ -323,7 +325,7 @@ class AnnularCatalog():
 
         mcal = self.joined_gals
 
-        #pdb.set_trace()
+        pdb.set_trace()
 
         noshear_selection = mcal[(mcal['T_noshear'] >= min_Tpsf*mcal['Tpsf_noshear'])\
                                  & (mcal['T_noshear'] < max_T)\
@@ -542,6 +544,11 @@ def main(args):
     )
     print(f'using detection catalog {detect_cat}')
     print(f'using detection image {detect_im}')
+
+    #print("Making redshift catalog")
+    redshift_cat = make_redshift_catalog(
+    datadir=data_dir, target=target_name,
+    band=detection_band, detect_cat_path=detect_cat)
 
     try:
         assert os.path.exists(detect_im) is True
