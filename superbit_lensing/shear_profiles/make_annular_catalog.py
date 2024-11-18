@@ -294,9 +294,9 @@ class AnnularCatalog():
         # to a different file
         min_Tpsf = 0.5
         max_sn = 1000
-        min_sn = 5
+        min_sn = 7
         min_T = 0.0
-        max_T = 10
+        max_T = 100
         
         
         #ADDED FOR FEB VERSION 
@@ -325,7 +325,7 @@ class AnnularCatalog():
 
         mcal = self.joined_gals
 
-        pdb.set_trace()
+        #pdb.set_trace()
 
         noshear_selection = mcal[(mcal['T_noshear'] >= min_Tpsf*mcal['Tpsf_noshear'])\
                                  & (mcal['T_noshear'] < max_T)\
