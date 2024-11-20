@@ -1,44 +1,25 @@
 # superbit-metacal
-Contains a collection of routines used to perform ngmix fits, including metacalibration, on simulated SuperBIT images.
+This `process-real` branch contains a collection of routines used to perform ngmix fits, including metacalibration, on _real_ SuperBIT images.
 
-This repo has recently been significantly refactored into the new `superbit_lensing` module, which you can include in your desired environment by running `python setup.py install` without the need to add the various submodules to your `PYTHONPATH`. The module includes the following four submodules which can be used independently if desired:
+This repo has recently been significantly refactored into the new `superbit_lensing` module, which you can include in your desired environment by running `python setup.py install` or `pip install -e .` without the need to add the various submodules to your `PYTHONPATH`. The module includes the following four submodules which can be used independently if desired:
 
-  - `galsim`: Contains scripts that generate the simulated SuperBIT observations used for validation and forecasting analyses.
+  - `galsim`: Contains scripts that generate simulated SuperBIT observations used for validation and forecasting analyses. This is _not_ called if real data is processed, although it is still accessible in this branch. 
   - `medsmaker`: Contains small modifications to the original superbit-ngmix scripts that make coadd images, runs SExtractor & PSFEx, and creates MEDS files.
   - `metacalibration`: Contains scripts used to run the ngmix/metacalibration algorithms on the MEDS files produced by Medsmaker.
   - `shear-profiles`: Contains scripts to compute the tangential/cross shear profiles and output to a file, as well as plots of the shear profiles.
 
 More detailed descriptions for each stage are contained in their respective directories.
 
-To run the full pipeine in sequence (or a particular subset), we have created the `SuperBITPipeline` class in `superbit_lensing/pipe.py` along with a subclass for each of the submodules. This is run by passing a single yaml configuration file that defines the run options for the pipeline run. The most important arguments are as follows:
+## Running the Pipeline 
+To run the full pipeine in sequence (or a particular subset), we have created the `SuperBITPipeline` class in `superbit_lensing/pipe.py` along with a subclass for each of the submodules. This is run by passing a single yaml configuration file that defines the run options for the pipeline run. As of right now, the `SuperBITPipeline` is broken in this branch, so a seperate yaml file is required to run each cluster. If you would like to understand how to run the `SuperBITPipeline` anyways, the intructions are in the `main` branch `README.md`. 
 
-- `run_name`: The name of the run, which is also used to specify the `outdir` if you do not provide one; **Required**
-- `order`: A list of submodule names that you want the pipeline to run in the given order; **Required**
-- `vb`: Verbose. Only affects terminal output; everything is saved to a pipeline log file as well as a log for each submodule; **Required**
-- `ncores`: The number of CPU cores to use. Will default to half of the available cores if not provided. Can overwrite for specific submodules in their respective configs if desired; _Optional_
-- `run_diagnostics`: A bool. Set to `True` run the diagnostics, including plots which are saved in `{outdir}/plots/`; _Optional_
+To run the pipeline currently, you will need to create your own job script. A template job script can be accessed in `superbit-metacal/job_scripts/job_Abell3571.sh`. This job script defines input and output paths for your data, and calls the `medsmaker`, `metacalibration`, and `shear profiles` scripts independently. These scripts are `process_2023.py`, `ngmix_fit_superbit3.py` and `make_annular_catalog.py`, respectively. They can be found in the `superbit-lensing` folder. The arguments passed to these scripts, such as the cluster name and band, are defined and described in each script's `parse_args()` function. 
 
-These should be set in the `run_options` field of the config file, while options for each submodule should be set in a field with the same name (e.g. `medsmaker: {...}`). Once the configuration is set, run the pipeline by doing the following:
-```
-import superbit_lensing.utils as utils
-from superbit_lensing.pipe import SuperBITPipeline
 
-log = utils.setup_logger({logfile}, logdir={logdir})
-pipe = SuperBITPipeline(config_file, log)
-
-rc = pipe.run()
-
-assert(rc == 0)
-```
-An example of a pipeline run along with a test configuration is given in `pipe.main()`, which can be run with
-
-`python pipe_test.py`.
-
-The example configuration file is shown in `configs/pipe_test.yaml`. An example wrapper script you can use to run the `SuperBITPipeline` is shown in `superbit-lensing/process_all.py`.
-
-The available config options for each submodule are defined in the various module classes in `superbit_lensing.pipe.py`, such as `GalSimModule`. The required & optional fields are given in `_req_fields` and `_opt_fields` respectively. The pipeline runner tells you if you fail to pass a required field or if you pass something that it doesn't understand.
 
 ## Preliminary Steps
+
+A proper python environment is needed in order to run this pipeline. The steps to building such environment are as follows: 
 
 Step 1: Clone this github repo:
 
@@ -53,6 +34,8 @@ Step 2: Install conda or miniconda if you don't have it already:
 Step 3:  Build a specific run environment with a given configuration file (`.yaml` or `.yml`)
 
 The current recommended config file is `sbmcal_py12.yaml`. If there are any problems with package conflicts in this environment, another config option is `env.yaml`. This is a simple environment with few dependencies, so working through the pipeline in this environment will yield errors regarding missing packages. Simply `conda install -c conda-forge *package*` the package in question. This will install the latest version of packages that may be out of date in `sbmcal_py12.yaml`. 
+
+If you are running into issues with conda, you can also look at `Install.md` which takes you through installing the necessary packages with `pip`. This is also a good option. You can create an environment without a configuration file, and follow the steps in `Install.md`. 
 
 Create env from yaml:
 
