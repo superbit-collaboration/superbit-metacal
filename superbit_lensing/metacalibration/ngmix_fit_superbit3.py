@@ -95,13 +95,13 @@ class SuperBITNgmixFitter():
 
         # This bit is needed for ngmix v2.x.x
         # won't work for v1.x.x
-        #rng = np.random.RandomState(self.seed)
+        rng = np.random.RandomState(self.seed)
 
         # prior on ellipticity.  The details don't matter, as long
         # as it regularizes the fit.  This one is from Bernstein & Armstrong 2014
 
         g_sigma = 0.3
-        g_prior = ngmix.priors.GPriorBA(g_sigma)
+        g_prior = ngmix.priors.GPriorBA(g_sigma, rng=rng)
 
         # 2-d gaussian prior on the center
         # row and column center (relative to the center of the jacobian, which would be zero)
@@ -110,21 +110,21 @@ class SuperBITNgmixFitter():
         # units same as jacobian, probably arcsec
         row, col = 0.0, 0.0
         row_sigma, col_sigma = 0.2, 0.2 # a bit smaller than pix size of SuperBIT
-        cen_prior = ngmix.priors.CenPrior(row, col, row_sigma, col_sigma)
+        cen_prior = ngmix.priors.CenPrior(row, col, row_sigma, col_sigma, rng=rng)
 
         # T prior.  This one is flat, but another uninformative you might
         # try is the two-sided error function (TwoSidedErf)
 
         Tminval = -1.0 # arcsec squared
         Tmaxval = 1000
-        T_prior = ngmix.priors.FlatPrior(Tminval, Tmaxval)
+        T_prior = ngmix.priors.FlatPrior(Tminval, Tmaxval, rng=rng)
 
         # similar for flux.  Make sure the bounds make sense for
         # your images
 
         Fminval = -1.e1
         Fmaxval = 1.e5
-        F_prior = ngmix.priors.FlatPrior(Fminval, Fmaxval)
+        F_prior = ngmix.priors.FlatPrior(Fminval, Fmaxval, rng=rng)
 
         # now make a joint prior.  This one takes priors
         # for each parameter separately
@@ -206,7 +206,6 @@ class SuperBITNgmixFitter():
 
         obslist = self.medsObj.get_obslist(iobj, weight_type)
 
-        '''
         # We don't want to fit to the coadd, as its PSF is not
         # well defined
         if self.has_coadd is True:
@@ -216,7 +215,7 @@ class SuperBITNgmixFitter():
             for obs in obslist[1:]:
                 se_obslist.append(obs)
             obslist = se_obslist
-        '''
+
         return obslist
 
 class SuperBITPlotter(object):
@@ -387,7 +386,7 @@ def mcal_dict2tab(mcal, ident):
     for key, val in ident.items():
         ident[key] = np.array([val])
 
-    tab_names = ['noshear', '1p', '1m', '2p', '2m','MC']
+    tab_names = ['noshear', '1p', '1m', '2p', '2m', '1p_psf', '1m_psf', '2p_psf', '2m_psf','MC']
     for name in tab_names:
         tab = mcal[name]
 
@@ -403,9 +402,13 @@ def mcal_dict2tab(mcal, ident):
     tab_1m = Table(mcal['1m'])
     tab_2p = Table(mcal['2p'])
     tab_2m = Table(mcal['2m'])
+    tab_1p_psf = Table(mcal['1p_psf'])
+    tab_1m_psf = Table(mcal['1m_psf'])
+    tab_2p_psf = Table(mcal['2p_psf'])
+    tab_2m_psf = Table(mcal['2m_psf'])
     tab_MC = Table(mcal['MC'])
 
-    join_tab = hstack([id_tab, hstack([tab_noshear, tab_1p,  tab_1m, tab_2p, tab_2m,tab_MC], \
+    join_tab = hstack([id_tab, hstack([tab_noshear, tab_1p,  tab_1m, tab_2p, tab_2m, tab_1p_psf, tab_1m_psf, tab_2p_psf, tab_2m_psf, tab_MC], \
                                       table_names=tab_names)])
 
     return join_tab
@@ -432,7 +435,7 @@ def write_output_table(outfilename, tab, overwrite=False):
 
 #     return mcal_arr
 
-def mp_fit_one(source_id, obslist, prior, logprint, pars=None):
+def mp_fit_one(source_id, obslist, prior, logprint, rng, pars=None):
     """
     Multiprocessing version of original _fit_one()
 
@@ -455,7 +458,10 @@ def mp_fit_one(source_id, obslist, prior, logprint, pars=None):
         mcal_shear = 0.01
         lm_pars = {'maxfev':2000, 'xtol':5.0e-5, 'ftol':5.0e-5}
         max_pars = {'method':'lm', 'lm_pars':lm_pars, 'find_center':True}
-        metacal_pars={'step':mcal_shear}
+        types = ['noshear', '1p', '1m', '2p', '2m', '1p_psf', '1m_psf', '2p_psf', '2m_psf']
+        #psf = 'fitgauss'
+        #metacal_pars={'step':mcal_shear, 'rng': rng, 'psf': psf, 'types': types}
+        metacal_pars={'step':mcal_shear, 'rng': rng}
     else:
         mcal_shear = metacal_pars['step']
         max_pars = pars['max_pars']
@@ -555,7 +561,7 @@ def check_obj_flags(obj, min_cutouts=1):
     return False, None
 
 def mp_run_fit(i, start_ind, obj, obslist, prior, imc,
-               plotter, config, logprint):
+               plotter, config, logprint, rng):
     '''
     parallelized version of original ngmix_fit_superbit3 code
 
@@ -580,7 +586,7 @@ def mp_run_fit(i, start_ind, obj, obslist, prior, imc,
 
         # mcal_res: the bootstrapper's get_mcal_result() dict
         # mcal_fit: the mcal model image
-        mcal_res, mcal_fit = mp_fit_one(i, obslist, prior, logprint)
+        mcal_res, mcal_fit = mp_fit_one(i, obslist, prior, logprint, rng)
 
         # Ain some identifying info like (ra,dec), id, etc.
         # for key in obj.keys():
@@ -646,6 +652,7 @@ def main():
     overwrite = args.overwrite
     identifying = {'meds_index':[], 'id':[], 'ra':[], 'dec':[]}
     mcal = {'noshear':[], '1p':[], '1m':[], '2p':[], '2m':[]}
+    rng  = np.random.RandomState(seed)
 
     # Test for existence of the "outdir" argument. If the "outdir" argument is
     # not given, set it to a default value (current working directory).
@@ -743,7 +750,7 @@ def main():
                             imc_list[i-index_start],
                             plotter,
                             config,
-                            logprint)
+                            logprint, rng)
                             )
 
         mcal_res = vstack(mcal_res)
@@ -762,7 +769,7 @@ def main():
                                           imc_list[i-index_start],
                                           plotter,
                                           config,
-                                          logprint
+                                          logprint, rng
                                           ) for i in range(index_start, index_end)
                                           ]
                                         )

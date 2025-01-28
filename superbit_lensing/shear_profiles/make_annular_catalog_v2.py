@@ -11,6 +11,7 @@ from annular_jmac import Annular, ShearCalc
 from make_redshift_cat import make_redshift_catalog
 from superbit_lensing import utils
 
+
 def parse_args():
 
     parser = ArgumentParser()
@@ -49,6 +50,7 @@ def parse_args():
                         help='Turn on for verbose prints')
 
     return parser.parse_args()
+
 
 class AnnularCatalog():
 
@@ -264,205 +266,218 @@ class AnnularCatalog():
 
         return qualcuts
 
-    def _compute_metacal_quantities(self):
-        """
-        - Cut sources on S/N and minimum size (adapted from DES cuts).
-        - compute mean r11 and r22 for galaxies: responsivity & selection
-        - divide "no shear" g1/g2 by r11 and r22, and return
+        def _compute_metacal_quantities(self):
+            """
+            - Cut sources on S/N and minimum size (adapted from DES cuts).
+            - compute mean r11 and r22 for galaxies: responsivity & selection
+            - divide "no shear" g1/g2 by r11 and r22, and return
 
-        TO DO: make the list of cuts an external config file
+            TO DO: make the list of cuts an external config file
 
-        """
+            """
 
-        # TODO: we should allow for this to be a config option
-        mcal_shear = 0.01
+            # TODO: we should allow for this to be a config option
+            mcal_shear = 0.01
 
-        # TODO: It would be nice to move selection cuts
-        # to a different file
-        min_Tpsf = 0.6
-        max_sn = 1000
-        min_sn = 7
-        min_T = 0.0
-        max_T = 100
+            # TODO: It would be nice to move selection cuts
+            # to a different file
+            min_Tpsf = 0.6
+            max_sn = 1000
+            min_sn = 7
+            min_T = 0.0
+            max_T = 100
 
-        if self.cluster_redshift != None:
-            # Add in a little bit of a safety margin -- maybe a bad call for simulated data?
-            min_redshift = float(self.cluster_redshift) + 0.025
-        else:
-            min_redshift = 0
+            if self.cluster_redshift != None:
+                # Add in a little bit of a safety margin -- maybe a bad call for simulated data?
+                min_redshift = float(self.cluster_redshift) + 0.025
+            else:
+                min_redshift = 0
 
-        print(f'#\n# cuts applied: Tpsf_ratio>{min_Tpsf:.2f}' +\
-              f' SN>{min_sn:.1f} T>{min_T:.2f} redshift={min_redshift:.3f}\n#\n')
+            print(f'#\n# cuts applied: Tpsf_ratio>{min_Tpsf:.2f}' +\
+                f' SN>{min_sn:.1f} T>{min_T:.2f} redshift={min_redshift:.3f}\n#\n')
 
-        qualcuts = {'min_Tpsf' :min_Tpsf,
-                    'max_sn' : max_sn,
-                    'min_sn' : min_sn,
-                    'min_T' : min_T,
-                    'max_T' : max_T,
-                    'min_redshift' : min_redshift,
-                    }
+            qualcuts = {'min_Tpsf' :min_Tpsf,
+                        'max_sn' : max_sn,
+                        'min_sn' : min_sn,
+                        'min_T' : min_T,
+                        'max_T' : max_T,
+                        'min_redshift' : min_redshift,
+                        }
 
-        mcal = self.joined_gals
+            mcal = self.joined_gals
 
-        noshear_selection = mcal[(mcal['T_noshear'] > min_Tpsf*mcal['Tpsf_noshear'])\
-                                 & (mcal['T_noshear'] < max_T)\
-                                 & (mcal['T_noshear'] > min_T)\
-                                 & (mcal['s2n_noshear'] > min_sn)\
-                                 & (mcal['s2n_noshear'] < max_sn)\
-                                 & (mcal['redshift'] > min_redshift)
-                                 ]
+            noshear_selection = mcal[(mcal['T_noshear'] > min_Tpsf*mcal['Tpsf_noshear'])\
+                                    & (mcal['T_noshear'] < max_T)\
+                                    & (mcal['T_noshear'] > min_T)\
+                                    & (mcal['s2n_noshear'] > min_sn)\
+                                    & (mcal['s2n_noshear'] < max_sn)\
+                                    & (mcal['redshift'] > min_redshift)
+                                    ]
 
-        selection_1p = mcal[(mcal['T_1p'] > min_Tpsf*mcal['Tpsf_1p'])\
-                            & (mcal['T_1p'] < max_T)\
-                            & (mcal['T_1p'] > min_T)\
-                            & (mcal['s2n_1p'] > min_sn)\
-                            & (mcal['s2n_1p'] < max_sn)\
-                            & (mcal['redshift'] > min_redshift)
-                            ]
+            selection_1p = mcal[(mcal['T_1p'] > min_Tpsf*mcal['Tpsf_1p'])\
+                                & (mcal['T_1p'] < max_T)\
+                                & (mcal['T_1p'] > min_T)\
+                                & (mcal['s2n_1p'] > min_sn)\
+                                & (mcal['s2n_1p'] < max_sn)\
+                                & (mcal['redshift'] > min_redshift)
+                                ]
 
-        selection_1m = mcal[(mcal['T_1m'] > min_Tpsf*mcal['Tpsf_1m'])\
-                            & (mcal['T_1m'] < max_T)\
-                            & (mcal['T_1m'] > min_T)\
-                            & (mcal['s2n_1m'] > min_sn)\
-                            & (mcal['s2n_1m'] < max_sn)\
-                            & (mcal['redshift'] > min_redshift)
-                            ]
+            selection_1m = mcal[(mcal['T_1m'] > min_Tpsf*mcal['Tpsf_1m'])\
+                                & (mcal['T_1m'] < max_T)\
+                                & (mcal['T_1m'] > min_T)\
+                                & (mcal['s2n_1m'] > min_sn)\
+                                & (mcal['s2n_1m'] < max_sn)\
+                                & (mcal['redshift'] > min_redshift)
+                                ]
 
-        selection_2p = mcal[(mcal['T_2p'] > min_Tpsf*mcal['Tpsf_2p'])\
-                            & (mcal['T_2p'] < max_T)\
-                            & (mcal['T_2p'] > min_T)\
-                            & (mcal['s2n_2p'] > min_sn)\
-                            & (mcal['s2n_2p'] < max_sn)\
-                            & (mcal['redshift'] > min_redshift)
-                            ]
+            selection_2p = mcal[(mcal['T_2p'] > min_Tpsf*mcal['Tpsf_2p'])\
+                                & (mcal['T_2p'] < max_T)\
+                                & (mcal['T_2p'] > min_T)\
+                                & (mcal['s2n_2p'] > min_sn)\
+                                & (mcal['s2n_2p'] < max_sn)\
+                                & (mcal['redshift'] > min_redshift)
+                                ]
 
-        selection_2m = mcal[(mcal['T_2m'] > min_Tpsf*mcal['Tpsf_2m'])\
-                            & (mcal['T_2m'] < max_T)\
-                            & (mcal['T_2m'] > min_T)\
-                            & (mcal['s2n_2m'] > min_sn)\
-                            & (mcal['s2n_2m'] < max_sn)\
-                            & (mcal['redshift'] > min_redshift)
-                            ]
+            selection_2m = mcal[(mcal['T_2m'] > min_Tpsf*mcal['Tpsf_2m'])\
+                                & (mcal['T_2m'] < max_T)\
+                                & (mcal['T_2m'] > min_T)\
+                                & (mcal['s2n_2m'] > min_sn)\
+                                & (mcal['s2n_2m'] < max_sn)\
+                                & (mcal['redshift'] > min_redshift)
+                                ]
 
-        # assuming delta_shear in ngmix_fit_superbit is 0.01
-        r11_gamma = (np.mean(noshear_selection['g_1p'][:,0]) -
-                     np.mean(noshear_selection['g_1m'][:,0])) / (2.*mcal_shear)
-        r22_gamma = (np.mean(noshear_selection['g_2p'][:,1]) -
-                     np.mean(noshear_selection['g_2m'][:,1])) / (2.*mcal_shear)
+            # assuming delta_shear in ngmix_fit_superbit is 0.01
+            r11_gamma = (np.mean(noshear_selection['g_1p'][:,0]) -
+                        np.mean(noshear_selection['g_1m'][:,0])) / (2.*mcal_shear)
+            r22_gamma = (np.mean(noshear_selection['g_2p'][:,1]) -
+                        np.mean(noshear_selection['g_2m'][:,1])) / (2.*mcal_shear)
+            r12_gamma = (np.mean(noshear_selection['g_2p'][:, 0]) -
+                        np.mean(noshear_selection['g_2m'][:, 0])) / (2.*mcal_shear)
+            r21_gamma = (np.mean(noshear_selection['g_1p'][:, 1]) -
+                        np.mean(noshear_selection['g_1m'][:, 1])) / (2.*mcal_shear)
 
-        # assuming delta_shear in ngmix_fit_superbit is 0.01
-        r11_S = (np.mean(selection_1p['g_noshear'][:,0]) -
-                 np.mean(selection_1m['g_noshear'][:,0])) / (2.*mcal_shear)
-        r22_S = (np.mean(selection_2p['g_noshear'][:,1]) -
-                 np.mean(selection_2m['g_noshear'][:,1])) / (2.*mcal_shear)
+            # assuming delta_shear in ngmix_fit_superbit is 0.01
+            r11_S = (np.mean(selection_1p['g_noshear'][:,0]) -
+                    np.mean(selection_1m['g_noshear'][:,0])) / (2.*mcal_shear)
+            r22_S = (np.mean(selection_2p['g_noshear'][:,1]) -
+                    np.mean(selection_2m['g_noshear'][:,1])) / (2.*mcal_shear)
+            r12_S = (np.mean(selection_2p['g_noshear'][:, 0]) -
+                    np.mean(selection_2m['g_noshear'][:, 0])) / (2.*mcal_shear)
+            r21_S = (np.mean(selection_1p['g_noshear'][:, 1]) -
+                    np.mean(selection_1m['g_noshear'][:, 1])) / (2.*mcal_shear)
 
-        print(f'# mean values <r11_gamma> = {r11_gamma} ' +\
-              f'<r22_gamma> = {r22_gamma}')
-        print(f'# mean values <r11_S> = {r11_S} ' +\
-              f'<r22_S> = {r22_S}')
+            c1_psf = np.mean((noshear_selection['g_1p_psf'][:,0] + noshear_selection['g_1m_psf'][:,0])/2 - noshear_selection['g_noshear'][:,0])
+            c2_psf = np.mean((noshear_selection['g_2p_psf'][:, 1] + noshear_selection['g_2m_psf'][:, 1])/2 - noshear_selection['g_noshear'][:, 1])
+            c1_gamma = np.mean((noshear_selection['g_1p'][:,0] + noshear_selection['g_1m'][:,0])/2 - noshear_selection['g_noshear'][:,0])
+            c2_gamma = np.mean((noshear_selection['g_2p'][:, 1] + noshear_selection['g_2m'][:, 1])/2 - noshear_selection['g_noshear'][:, 1])
 
-        print(f'{len(noshear_selection)} objects passed selection criteria')
+            # Gamma response matrix
+            R_gamma = np.array([
+                [r11_gamma, r12_gamma],
+                [r21_gamma, r22_gamma]
+            ])
 
-        # Populate the selCat attribute with "noshear"-selected catalog
-        self.selected = noshear_selection
+            # Selection response matrix
+            R_S = np.array([
+                [r11_S, r12_S],
+                [r21_S, r22_S]
+            ])
 
-        # compute noise; not entirely sure whether there needs to be a factor of 0.5 on tot_covar...
-        # seems like not if I'm applying it just to tangential ellip, yes if it's being applied to each
-        #shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
+            # Compute the final response matrix
+            R = R_gamma + R_S
+            R_inv = np.linalg.inv(R)
 
-        shape_noise = 0.26
+            # PSF additive bias
+            c_psf = np.array([c1_psf, c2_psf])
 
-        print(f'shape noise is {shape_noise}')
+            # Gamma correction vector
+            c_gamma = np.array([c1_gamma, c2_gamma])
 
-        tot_covar = shape_noise +\
-                self.selected['g_cov_noshear'][:,0,0] +\
-                self.selected['g_cov_noshear'][:,1,1]
+            c_total = c_psf + c_gamma
 
-        weight = 1. / tot_covar
+            print("Gamma Response Matrix (R_gamma):")
+            print(R_gamma)
+            print("\nSelection Bias Response Matrix (R_S):")
+            print(R_S)
 
-        try:
-            r11 = ( noshear_selection['g_1p'][:,0] - noshear_selection['g_1m'][:,0] ) / (2.*mcal_shear)
-            r12 = ( noshear_selection['g_2p'][:,0] - noshear_selection['g_2m'][:,0] ) / (2.*mcal_shear)
-            r21 = ( noshear_selection['g_1p'][:,1] - noshear_selection['g_1m'][:,1] ) / (2.*mcal_shear)
-            r22 = ( noshear_selection['g_2p'][:,1] - noshear_selection['g_2m'][:,1] ) / (2.*mcal_shear)
+            print("\nPSF Correction Vector (c_psf):")
+            print(c_psf)
 
-            #---------------------------------
-            # Now add value-adds to table
-            self.selected.add_columns(
-                [r11, r12, r21, r22],
-                names=['r11', 'r12', 'r21', 'r22']
+            print("\nGamma Correction Vector (c_gamma):")
+            print(c_gamma)
+
+            print(f'{len(noshear_selection)} objects passed selection criteria')
+
+            # Populate the selCat attribute with "noshear"-selected catalog
+            self.selected = noshear_selection
+
+            # compute noise; not entirely sure whether there needs to be a factor of 0.5 on tot_covar...
+            # seems like not if I'm applying it just to tangential ellip, yes if it's being applied to each
+            #shape_noise = np.std(np.sqrt(self.mcal['g_noshear'][:,0]**2 + self.mcal['g_noshear'][:,1]**2))
+
+            shape_noise = 0.26
+
+            print(f'shape noise is {shape_noise}')
+            g_cov_noshear = self.selected['g_cov_noshear']
+
+            # Transform the covariance matrix
+            corrected_cov = np.einsum('ij,njk,lk->nil', R_inv, g_cov_noshear, R_inv)
+
+            tot_covar = shape_noise**2 + corrected_cov[:, 0, 0] + corrected_cov[:, 1, 1]
+
+            weight = 1. / tot_covar
+
+            try:
+                r11 = ( noshear_selection['g_1p'][:,0] - noshear_selection['g_1m'][:,0] ) / (2.*mcal_shear)
+                r12 = ( noshear_selection['g_2p'][:,0] - noshear_selection['g_2m'][:,0] ) / (2.*mcal_shear)
+                r21 = ( noshear_selection['g_1p'][:,1] - noshear_selection['g_1m'][:,1] ) / (2.*mcal_shear)
+                r22 = ( noshear_selection['g_2p'][:,1] - noshear_selection['g_2m'][:,1] ) / (2.*mcal_shear)
+
+                #---------------------------------
+                # Now add value-adds to table
+                self.selected.add_columns(
+                    [r11, r12, r21, r22],
+                    names=['r11', 'r12', 'r21', 'r22']
+                    )
+
+            except ValueError as e:
+                # In some cases, these cols are already computed
+                print('WARNING: mcal r{ij} value-added cols not added; ' +\
+                    'already present in catalog')
+
+            try:
+                R = np.array([[r11, r12], [r21, r22]])
+                g1_MC = np.zeros_like(r11)
+                g2_MC = np.zeros_like(r22)
+
+                N = len(g1_MC)
+                for k in range(N):
+                    Rinv = np.linalg.inv(R[:,:,k])
+                    gMC = np.dot(Rinv, noshear_selection[k]['g_noshear'])
+                    g1_MC[k] = gMC[0]
+                    g2_MC[k] = gMC[1]
+
+                self.selected.add_columns(
+                    [g1_MC, g2_MC],
+                    names = ['g1_MC', 'g2_MC']
                 )
 
-        except ValueError as e:
-            # In some cases, these cols are already computed
-            print('WARNING: mcal r{ij} value-added cols not added; ' +\
-                  'already present in catalog')
+            except ValueError as e:
+                # In some cases, these cols are already computed
+                print('WARNING: mcal g{1/2}_MC value-added cols not added; ' +\
+                    'already present in catalog')
 
-        try:
-            R = np.array([[r11, r12], [r21, r22]])
-            g1_MC = np.zeros_like(r11)
-            g2_MC = np.zeros_like(r22)
+            g_biased = self.selected['g_noshear'] - c_total  # Shape: (n, 2)
 
-            N = len(g1_MC)
-            for k in range(N):
-                Rinv = np.linalg.inv(R[:,:,k])
-                gMC = np.dot(Rinv, noshear_selection[k]['g_noshear'])
-                g1_MC[k] = gMC[0]
-                g2_MC[k] = gMC[1]
+            g_corrected = np.einsum('ij,nj->ni', R_inv, g_biased)  # Shape: (n, 2)
 
-            self.selected.add_columns(
-                [g1_MC, g2_MC],
-                names = ['g1_MC', 'g2_MC']
-            )
+            self.selected['g1_Rinv'] = g_corrected[:, 0]
+            self.selected['g2_Rinv'] = g_corrected[:, 1]
+            self.selected['R11_S'] = r11_S
+            self.selected['R22_S'] = r22_S
+            self.selected['weight'] = weight
 
-        except ValueError as e:
-            # In some cases, these cols are already computed
-            print('WARNING: mcal g{1/2}_MC value-added cols not added; ' +\
-                  'already present in catalog')
-
-        self.selected['g1_Rinv'] = self.selected['g_noshear'][:,0]/(r11_gamma + r11_S)
-        self.selected['g2_Rinv'] = self.selected['g_noshear'][:,1]/(r22_gamma + r22_S)
-        self.selected['R11_S'] = r11_S
-        self.selected['R22_S'] = r22_S
-        self.selected['weight'] = weight
-
-        return qualcuts
-
-    def compute_tan_shear_profile(self, outfile, plotfile, Nresample,
-                                  overwrite=False, vb=False):
-        '''
-        Run the Annular class in annular_jmac.py, and if an NFW truth file
-        is supplied, add nfw_info to the Annular.run() call. Then compute
-        cross/tan shear, & obtain single-realization shear profile
-        '''
-
-        cat_info = self.cat_info
-        annular_info = self.annular_info
-
-        if self.nfw_file is not None:
-
-            nfw_truth_tab = Table.read(self.nfw_file, format='fits')
-            nfw_truth_xcenter = nfw_truth_tab.meta['NFW_XCENTER']
-            nfw_truth_ycenter = nfw_truth_tab.meta['NFW_YCENTER']
-
-            nfw_info = {
-                'nfw_file': self.nfw_file,
-                'xy_args': ['xwin_image','ywin_image'],
-                'shear_args': ['nfw_g1','nfw_g2'],
-                'nfw_center': [nfw_truth_xcenter, nfw_truth_ycenter]
-                }
-
-        else:
-            nfw_info = None
-
-
-        annular = Annular(cat_info, annular_info,
-                            nfw_info, run_name=self.run_name, vb=vb
-                            )
-        annular.run(outfile, plotfile, Nresample, overwrite=overwrite)
-
-        return
-
+            return qualcuts
 
     def run(self, overwrite, vb=False):
 
@@ -472,20 +487,7 @@ class AnnularCatalog():
         # source selection; saves table to self.outfile
         self.make_table(overwrite=overwrite)
 
-        # compute tangential shear profile and save outputs
-        if self.run_name is not None:
-            p = f'{self.run_name}_'
-        else:
-            p = ''
-
-        outfile = os.path.join(self.outdir, f'{p}shear_profile_cat.fits')
-        plotfile = os.path.join(self.outdir, f'{p}shear_profile.pdf')
-        Nresample = self.Nresample
-
-        self.compute_tan_shear_profile(
-                outfile, plotfile, Nresample, overwrite=overwrite, vb=vb
-                )
-
+    
 def main(args):
 
     data_dir = args.data_dir
@@ -504,7 +506,6 @@ def main(args):
     nbins = args.nbins
     overwrite = args.overwrite
     vb = args.vb
-
 
     # Define position args
     xy_cols = ['XWIN_IMAGE_se', 'YWIN_IMAGE_se']
@@ -586,4 +587,5 @@ if __name__ == '__main__':
     if rc == 0:
         print('make_annular_catalog.py has completed succesfully')
     else:
-        print(f'make_annular_catalog.py has failed w/ rc={rc}')
+        print(f'make_annular_catalog.py has failed w/ rc={rc}')    
+        
